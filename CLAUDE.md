@@ -134,21 +134,6 @@ Skills in `.claude/skills/`: `verify`, `dirty-checkout`, `finish-task`,
 `protocol-change`, `web-ui-change`, `run-locally`. `docs/tour/` is a
 longer illustrated walk through the product and the daemon.
 
-## Report
-
-End every task with a brief report that stands alone (the reader may be
-another agent, not the person who asked):
-
-- **Changed**: what is different now, in a sentence or two.
-- **Commits**: hashes and subjects, and whether they were pushed.
-- **Checks**: what ran and the results; name pre-existing failures.
-- **Caveats**: anything unfinished, risky, or swept in from someone else.
-- **Choices made**: each decision taken without asking.
-- **Check by hand**: what a person should look at visually or try.
-- **Product direction**: what the change means for
-  `docs/product-direction.md`, including whether the iPhone app needs the
-  same change; "none" when nothing.
-
 ## Trust model
 
 Validate at these boundaries and nowhere else:
@@ -208,22 +193,6 @@ Clients never recompute a rule the daemon already applied: they show what
 the reply says (a client is online because the clients list says so, a name is taken because the command
 refused it). When you find the
 same rule in two places, replace both with one and say so in the commit.
-
-## Commands
-
-```sh
-cargo build --workspace
-cargo test --workspace --locked
-cargo test -p cohesion-db <name>        # one crate / one test
-cargo fmt --all
-cargo clippy --workspace --all-targets --locked -- -D warnings
-```
-
-All three checks (fmt, clippy with `-D warnings`, tests) must pass locally
-before a change is done. The `Checks` workflow
-(`.github/workflows/checks.yml`) runs them on every pull request, with the
-web UI's checks and a diff of the generated files (`generated.ts`,
-`vocabulary.json`, `THIRD_PARTY_NOTICES.md`).
 
 ## Layering
 
@@ -303,15 +272,3 @@ features.
   literal; see "Motion" under "Styling" there.
 - Match the surrounding comment density and naming. Each crate root opens
   with a `//!` summary; keep it current when a crate's role changes.
-
-## Running things
-
-- `dev/` is the developer's own local state (git-ignored), which
-  `scripts/server.sh` and `scripts/client.sh` use. Never run commands that
-  write to it on someone's behalf; use a scratch config directory instead.
-  The smoke test in `CONTRIBUTING.md` shows how.
-- Pass a short `--socket /tmp/<name>.sock`; paths under a deep config dir
-  exceed the Unix socket length limit.
-- macOS has no `timeout`: background the daemon and `kill` its pid.
-- `cohesion api '<json>'` reaches any command without CLI changes; `type` is
-  camelCase, `args` fields are snake_case.
