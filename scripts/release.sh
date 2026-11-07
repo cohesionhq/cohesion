@@ -1,9 +1,10 @@
 #!/bin/sh
 # Releases what's on GitHub's master: works out its version, vXXXYYYYY (XXX is
-# MAJOR_VERSION, YYYYY counts the commits since it last changed), tags the
-# commit with it, pushes the tag and creates a GitHub release listing the
-# commits since the last one (or, for the first, since MAJOR_VERSION changed). The Release workflow runs it; pushing the tag
-# from anywhere else starts the image build too. Takes no arguments.
+# MAJOR_VERSION, YYYYY is one more than the last tag of that major version, or
+# 0 for its first), tags the commit with it, pushes the tag and creates a GitHub
+# release listing the commits since the last one (or, for the first, since
+# MAJOR_VERSION changed). The Release workflow runs it; pushing the tag from
+# anywhere else starts the image build too. Takes no arguments.
 set -e
 cd "$(dirname "$0")/.."
 repo=https://github.com/cohesionhq/cohesion
@@ -16,18 +17,25 @@ case $major in
 [0-9][0-9][0-9]) ;;
 *) echo "MAJOR_VERSION must be three digits, not '$major'" >&2; exit 1 ;;
 esac
-base=$(git log -1 --format=%H "$commit" -- MAJOR_VERSION)
-minor=$(git rev-list --count "$base..$commit")
+pattern="v$major[0-9][0-9][0-9][0-9][0-9]"
+released=$(git tag --points-at "$commit" --list "$pattern")
+if [ -n "$released" ]; then
+	echo "Nothing to release: master is already $released." >&2
+	exit 1
+fi
+
+last=$(git tag --list "$pattern" --sort=-refname | head -n 1)
+if [ -n "$last" ]; then
+	# expr reads the digits as decimal, where $(( )) takes a leading 0 for octal.
+	minor=$(expr "${last#"v$major"}" + 1)
+else
+	minor=0
+fi
 if [ "$minor" -gt 99999 ]; then
 	echo "Minor version $minor doesn't fit in a version's five digits" >&2
 	exit 1
 fi
 version=v$major$(printf %05d "$minor")
-
-if git rev-parse --quiet --verify "refs/tags/$version" >/dev/null; then
-	echo "Nothing to release: master is already $version." >&2
-	exit 1
-fi
 
 notes=$(mktemp)
 trap 'rm -f "$notes"' EXIT
@@ -37,6 +45,7 @@ if [ -n "$previous" ]; then
 	printf '\n**Full Changelog**: %s/compare/%s...%s\n' "$repo" "$previous" "$version" >>"$notes"
 else
 	# The first release lists what this major version has added.
+	base=$(git log -1 --format=%H "$commit" -- MAJOR_VERSION)
 	git log --format='- %s (%h)' "$base..$commit" >"$notes"
 fi
 

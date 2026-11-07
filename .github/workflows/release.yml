@@ -21,7 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The minor version counts commits, so it needs the history. The
+          # The version follows the last tag and the release notes list the
+          # commits since it, so it needs the history and the tags. The
           # credentials stay so the script can push the tag.
           fetch-depth: 0
 

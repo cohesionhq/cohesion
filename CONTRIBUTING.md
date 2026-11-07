@@ -110,10 +110,10 @@ starts the `Image` workflow. The script releases only what's already on GitHub,
 so push first, and it stops if that commit is already released.
 
 A version is `vXXXYYYYY`, such as `v00100042`. `XXX` is the major version, set by
-hand in `MAJOR_VERSION`. `YYYYY` is the minor version, the number of commits
-since `MAJOR_VERSION` last changed. It goes up with every commit and starts again
-when the major version changes, so the commit that changes it to `002` releases
-as `v00200000`. Both binaries are built knowing the version, and `cohesion status`
+hand in `MAJOR_VERSION`. `YYYYY` is the minor version: the script finds the last
+tag of the major version and adds 1. It starts again when the major version
+changes, so the first release after `MAJOR_VERSION` changes to `002` is
+`v00200000`. Both binaries are built knowing the version, and `cohesion status`
 shows it. A build without it, such as `cargo build` or `publish-image.sh`, shows
 the crate version.
 
