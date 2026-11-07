@@ -44,7 +44,9 @@ describe('agents store', () => {
 		);
 		expect(waiting).toBeDefined();
 		// A run's messages keep what woke it.
-		expect(waiting?.run_description).toBe('“Fix the gate latch” was created');
+		expect(waiting?.run_description).toBe(
+			'“Add a command to manually rebuild an agent’s context” was created'
+		);
 		expect(store.feed.value.hasOlder).toBe(false);
 
 		await store.open(1);
@@ -130,7 +132,12 @@ describe('agents store', () => {
 		const mock = createMock();
 		const store = createAgentsStore(mock.send);
 		await store.open(1);
-		const item = { kind: 'task', workspace_id: 1, id: 1, title: 'Renew passport' } as const;
+		const item = {
+			kind: 'task',
+			workspace_id: 1,
+			id: 1,
+			title: 'Configure and deploy the Linear connector'
+		} as const;
 
 		await store.sendMessage(1, '', [], {
 			item,
@@ -141,7 +148,7 @@ describe('agents store', () => {
 		expect(saved).toMatchObject({
 			id: expect.any(Number),
 			message_content: { kind: 'forward', note: '', item },
-			excerpt: 'Renew passport',
+			excerpt: 'Configure and deploy the Linear connector',
 			excerpt_verb: null
 		});
 	});
@@ -276,19 +283,21 @@ describe('agents store', () => {
 		const store = createAgentsStore(createMock().send);
 		await store.loadList();
 		const titles = () => store.teams.value.map((t) => t.title);
-		expect(titles()).toEqual(['Home', 'Research']);
+		expect(titles()).toEqual(['Assistants', 'Cohesion Engineers']);
 		const field = await store.createTeam(' Field work ');
-		expect(titles()).toEqual(['Field work', 'Home', 'Research']);
-		await expect(store.createTeam('home')).rejects.toMatchObject({ code: 'validationFailed' });
+		expect(titles()).toEqual(['Assistants', 'Cohesion Engineers', 'Field work']);
+		await expect(store.createTeam('assistants')).rejects.toMatchObject({
+			code: 'validationFailed'
+		});
 
 		await store.setTeam(1, field.id);
 		expect(store.agent(1)).toMatchObject({ team_id: field.id, pinned: true });
 		await store.renameTeam(field.id, 'Outreach');
-		expect(titles()).toEqual(['Home', 'Outreach', 'Research']);
+		expect(titles()).toEqual(['Assistants', 'Cohesion Engineers', 'Outreach']);
 		expect(store.team(field.id)?.title).toBe('Outreach');
 
 		await store.deleteTeam(field.id);
-		expect(titles()).toEqual(['Home', 'Research']);
+		expect(titles()).toEqual(['Assistants', 'Cohesion Engineers']);
 		expect(store.agent(1)).toMatchObject({ team_id: null, pinned: true });
 	});
 
@@ -304,13 +313,20 @@ describe('agents store', () => {
 		await store.loadList();
 		const names = () => store.list.value.map((a) => a.agent_name);
 		const created = await store.create({ name: 'Lookout', color: 'teal' });
-		expect(names()).toEqual(['Scout', 'Lookout', 'Inbox keeper']);
+		const rest = ['Secretary', 'Researcher', 'Plus Engineer'];
+		expect(names()).toEqual(['Core Engineer', 'Lookout', ...rest]);
 		await store.setPinned(created.id, true);
-		expect(names()).toEqual(['Scout', 'Lookout', 'Inbox keeper']);
+		expect(names()).toEqual(['Core Engineer', 'Lookout', ...rest]);
 		await store.reorder([created.id, 1]);
-		expect(names()).toEqual(['Lookout', 'Scout', 'Inbox keeper']);
+		expect(names()).toEqual(['Lookout', 'Core Engineer', ...rest]);
 		await store.setPinned(1, false);
-		expect(names()).toEqual(['Lookout', 'Inbox keeper', 'Scout']);
+		expect(names()).toEqual([
+			'Lookout',
+			'Secretary',
+			'Core Engineer',
+			'Researcher',
+			'Plus Engineer'
+		]);
 	});
 
 	it('creates, updates and deletes agents in the list', async () => {
@@ -374,10 +390,10 @@ describe('agents store', () => {
 
 		mock.state.agents.forEach((a) => (a.agent_unread = true));
 		await store.list.refetch();
-		expect(announced).toEqual(['Scout']);
+		expect(announced).toEqual(['Core Engineer', 'Researcher', 'Plus Engineer']);
 
 		await store.list.refetch();
-		expect(announced).toEqual(['Scout']);
+		expect(announced).toEqual(['Core Engineer', 'Researcher', 'Plus Engineer']);
 		store.list.release();
 		store.release();
 	});

@@ -91,10 +91,11 @@ describe('feeds store', () => {
 		const store = createFeedsStore(createMock().send);
 		await store.load();
 		const added = await store.add('https://news.example/rss');
-		await store.reorder([added.id, 1]);
-		expect(store.list.value.map((f) => f.id)).toEqual([added.id, 1]);
+		const order = [added.id, 1, 2, 3, 4, 5];
+		await store.reorder(order);
+		expect(store.list.value.map((f) => f.id)).toEqual(order);
 		await store.list.refetch();
-		expect(store.list.value.map((f) => f.id)).toEqual([added.id, 1]);
+		expect(store.list.value.map((f) => f.id)).toEqual(order);
 
 		const unread = store.unread;
 		store.countRead([{ feed_id: 1 }], true);

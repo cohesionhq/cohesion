@@ -392,44 +392,44 @@ function extensionManifest(
 }
 
 /**
- * The scripts two registries list. "Task tidy" lies: its registry entry
+ * The scripts two registries list. "Todoist" lies: its registry entry
  * claims an older version, read-only access and no hooks, but the script
  * also asks for `cohesion:write` and `task:create`.
  */
 function seedSources(): Map<string, MockSource> {
 	const manifests: [string, ExtensionManifest][] = [
 		[
-			'https://registry.example.com/ext/weather.js',
+			'https://registry.example.com/ext/linear.js',
 			extensionManifest(
-				'com.example.weather',
-				'Weather note',
+				'com.cohesion.linear',
+				'Linear',
 				3,
-				'Example Co',
-				'Adds the forecast to each day’s journal entry.',
+				'Cohesion',
+				'Import Linear issues.',
 				['cohesion:write', 'network'],
 				['journal:settled']
 			)
 		],
 		[
-			'https://registry.example.com/ext/task-tidy.js',
+			'https://registry.example.com/ext/todoist.js',
 			extensionManifest(
-				'com.example.task-tidy',
-				'Task tidy',
+				'com.cohesion.todoist',
+				'Todoist',
 				5,
-				'Example Co',
-				'Files new tasks into folders by keyword.',
+				'Cohesion',
+				'Two-way Todoist sync.',
 				['cohesion:read', 'cohesion:write'],
 				['task:create']
 			)
 		],
 		[
-			'https://registry.example.com/ext/daily-digest.js',
+			'https://registry.example.com/ext/ios-companion.js',
 			extensionManifest(
-				'daily-digest',
-				'Daily digest',
-				2,
-				'Mock Labs',
-				'Summarises yesterday’s journal and tasks every morning.',
+				'com.cohesion.cloud.ios-companion',
+				'Cohesion Link for iOS',
+				9,
+				'Cohesion',
+				'Forwards your agents’ messages and reactions, extension updates, and the notifications they send to your iPhone.',
 				['cohesion:read', 'timer'],
 				['launch', 'task:create']
 			)
@@ -449,13 +449,13 @@ function seedRegistries(sources: Map<string, MockSource>): MockRegistry[] {
 		{
 			extension_id: 2,
 			results: [
-				listed('https://registry.example.com/ext/weather.js'),
-				listed('https://registry.example.com/ext/task-tidy.js', {
+				listed('https://registry.example.com/ext/linear.js'),
+				listed('https://registry.example.com/ext/todoist.js', {
 					version: 4,
 					permissions: ['cohesion:read'],
 					hooks: []
 				}),
-				listed('https://registry.example.com/ext/daily-digest.js')
+				listed('https://registry.example.com/ext/ios-companion.js')
 			],
 			error: null
 		},
@@ -759,70 +759,247 @@ function seed(): MockState {
 	});
 
 	const catalog = [
-		catalogModel(1, 'anthropic', 'Anthropic', 'claude-sonnet-5-5', 'Claude Sonnet 5.5', 3, 15),
-		catalogModel(2, 'anthropic', 'Anthropic', 'claude-opus-5-5', 'Claude Opus 5.5', 5, 25),
-		catalogModel(3, 'anthropic', 'Anthropic', 'claude-haiku-4-5', 'Claude Haiku 4.5', 1, 5),
-		catalogModel(4, 'openai', 'OpenAI', 'gpt-6.1-sol', 'GPT-6.1 Sol', 1.25, 10),
-		catalogModel(5, 'openai', 'OpenAI', 'gpt-6.1-mini', 'GPT-6.1 mini', 0.25, 2)
+		catalogModel(1, 'anthropic', 'Anthropic', 'claude-sonnet-5-5', 'Claude Sonnet 5.5', 2, 10),
+		catalogModel(2, 'anthropic', 'Anthropic', 'claude-opus-5-5', 'Claude Opus 5.5', 4, 20),
+		catalogModel(3, 'anthropic', 'Anthropic', 'claude-haiku-5-5', 'Claude Haiku 5.5', 0.1, 0.5),
+		catalogModel(4, 'openai', 'OpenAI', 'gpt-6.1-terra', 'GPT-6.1 Terra', 1, 5),
+		catalogModel(5, 'openai', 'OpenAI', 'gpt-6-luna', 'GPT-6 Luna', 0.1, 0.5),
+		catalogModel(6, 'xai', 'xAI', 'grok-4.7', 'Grok 4.7', 2, 6)
 	];
 
 	return {
+		// Modelled on a real daemon's data (the Cohesion tracker, a church
+		// volunteer rota and an empty work workspace), with people made up.
 		workspaces: [
-			{ id: 1, title: 'Personal', emoji: '🏡', deleted: false },
-			{ id: 2, title: 'Work', emoji: null, deleted: false }
+			{ id: 1, title: 'Cohesion', emoji: '📱', deleted: false },
+			{ id: 2, title: 'Church', emoji: '⛪', deleted: false },
+			{ id: 3, title: 'Containers', emoji: '📦', deleted: false }
 		],
 		documents: [
-			journal(1, 1, 0, '# Today\n\n- Morning walk\n- Read for an hour\n'),
-			journal(2, 1, 1, 'Fixed the leaking tap. Called Mum.\n'),
-			journal(3, 1, 2, 'Quiet day. Started *The Dispossessed*.\n'),
-			journal(4, 1, 9, 'Planned the spring garden.\n'),
-			doc(5, 1, 'Reading list', '- The Dispossessed\n- Piranesi\n- A Psalm for the Wild-Built\n'),
+			journal(
+				1,
+				1,
+				0,
+				'## 10:58 — CI for the consolidated repos\n\n[CI session](cohesion://actor-session/2) green in five repos: cohesion `e5a7406`, cloud `d4d8f37`, relay `7d6dd4c`, extensions `5688d84` and actor-codex `9366deb`.\n\n## 11:05 — Libraries public on MIT\n\n`cohesion-ts` and `cohesion-agent-kit` are public under MIT, renamed to `cohesionhq/ts` and `cohesionhq/actor-kit`.\n'
+			),
+			journal(
+				2,
+				1,
+				1,
+				'## Install extension from URL\n\n- **Impact:** the Extensions page gains **Install from URL…** beside Install from file…. The daemon downloads the script under a 5 MB, 20 second cap, and the same review opens.\n- **Status:** checks pass; pushed as `2c06a1b`.\n'
+			),
+			journal(
+				3,
+				1,
+				2,
+				'## Allow agents to message each other (`e99e1ae`)\n\nAgents ask each other with an `ask_agent` tool. The asked agent answers in a fork of its conversation, and its final reply comes back as the answer within 10 minutes.\n'
+			),
+			journal(
+				4,
+				1,
+				9,
+				'## Rewind\n\nTask and document history is in. Retention is the "Rewind versions" row under Settings › Storage, seven days by default.\n'
+			),
+			doc(
+				5,
+				1,
+				'Full-text search syntax and errors',
+				'# Full-text search syntax and errors\n\nWorkspace, feed-corpus and actor-session search use SQLite FTS5 query syntax. Punctuation such as the hyphen in `re-auth` can be read as syntax; search for the phrase with `w.search(\'"re-auth"\')` when a literal is meant.\n\nA malformed query returns a validation error with a quoting suggestion instead of a generic internal error.\n'
+			),
 			doc(
 				6,
 				1,
-				'Garden plan',
-				'## Beds\n\nTomatoes along the south fence.\n\n```mermaid\nflowchart LR\n  Seeds --> Seedlings --> Beds --> Harvest\n```\n'
+				'Extensions Registry',
+				'# Extensions Registry\n\nExtensions are only installed by hand today. A registry works like apt, dnf or pacman: an extension with the `registry` permission answers `registryResults(query)` with the extensions that match.\n\n```mermaid\nflowchart LR\n  Search --> Registry[registryResults] --> Review[Review the real manifest] --> Install\n```\n\nThe listed manifest is only a claim. Installing downloads the script, reads its real manifest, and shows both for the user to accept or deny, highlighting any difference.\n'
 			),
-			doc(7, 2, 'Q3 notes', 'Ship the web UI. Review the protocol.\n')
+			doc(
+				7,
+				2,
+				'Production team rotation',
+				'Each Sunday needs a producer, a run-through lead, sound, lighting, Pro-Presenter and camera. Planning Center sends the rota; tasks follow it.\n'
+			),
+			doc(
+				8,
+				1,
+				'JS script engine pool sizes',
+				'# JS script engine pool sizes\n\nSource: `cohesion-js/src/engine/script_engine.rs`, `ScriptEngine::new`.\n\n`workers = max(available_parallelism, 4)`, so a machine with 4 or fewer cores gets 4.\n\n| Pool | Used for | Size |\n|---|---|---|\n| General | general-purpose scripts | `workers` |\n| Foreground agent | code tool scripts in an agent conversation | `workers` |\n| Background agent | background runs and cue functions | `workers * 2` |\n| Isolated | isolated scripts | 1 |\n\nNot configurable: no env var or setting overrides the count.\n'
+			),
+			doc(
+				9,
+				1,
+				'Rewind: storage and lifecycle',
+				'# Rewind: storage and lifecycle\n\n- Rewind stores full snapshots, not diffs: `task_versions` and `document_versions` (including journals).\n- A plain edit within 120 seconds of the newest version overwrites that version. Deletion and restore each create a separate version.\n- Retention is the "Rewind versions" row under Retention in Settings › Storage, seven days by default. Cleanup runs at startup and hourly.\n- Restore copies the tracked fields back and undeletes the record. A task whose folder is gone returns to Inbox.\n'
+			)
 		],
 		folders: [
-			{ id: 1, workspace_id: 1, title: 'Home', sort_order: 1, deleted: false },
-			{ id: 2, workspace_id: 1, title: 'Errands', sort_order: 2, deleted: false }
+			{ id: 1, workspace_id: 1, title: 'Core', sort_order: 1, deleted: false },
+			{ id: 2, workspace_id: 1, title: 'WebUI', sort_order: 2, deleted: false },
+			{ id: 3, workspace_id: 1, title: 'Plus', sort_order: 3, deleted: false },
+			{ id: 4, workspace_id: 1, title: 'Cloud', sort_order: 4, deleted: false },
+			{ id: 5, workspace_id: 1, title: 'JavaScript', sort_order: 5, deleted: false },
+			{ id: 6, workspace_id: 1, title: 'WebUI Harnesses', sort_order: 6, deleted: false },
+			{ id: 7, workspace_id: 2, title: 'PCO', sort_order: 1, deleted: false }
 		],
 		tasks: [
 			{
 				...task(
 					1,
-					'Renew passport',
+					'Configure and deploy the Linear connector',
 					'incomplete',
 					null,
 					1,
 					'none',
-					'Old one expires in March.\n\n- photo\n- form',
+					'The `com.cohesion.linear` extension is built and pushed but not live.\n\n- register the OAuth app\n- install it on the daemon',
 					null,
 					{ kind: 'user' }
 				),
 				due_date: dayIn(0)
 			},
-			{ ...task(2, 'Book dentist', 'incomplete', null, 1, 'high'), due_date: dayIn(2) },
 			{
-				...task(3, 'Fix the gate latch', 'incomplete', 1, 1, 'medium', '', 2, {
-					kind: 'agent',
-					agent_id: 1
-				}),
+				...task(2, 'Cohesion-bench', 'incomplete', null, 1, 'high'),
+				due_date: dayIn(2)
+			},
+			{
+				...task(
+					3,
+					'Add a command to manually rebuild an agent’s context',
+					'incomplete',
+					1,
+					1,
+					'medium',
+					'',
+					2,
+					{
+						kind: 'agent',
+						agent_id: 1
+					}
+				),
 				start_date: dayIn(0)
 			},
-			task(4, 'Paint the hallway', 'completed', 1),
-			task(5, 'Clear the gutters', 'cancelled', 1),
+			task(4, 'Install extension from URL', 'completed', 1),
+			task(5, 'Change agent status to just be working if it’s in progress', 'cancelled', 1),
 			{
-				...task(6, 'Pick up dry cleaning', 'incomplete', 2, 1, 'none', '', null, {
+				...task(6, 'Persist research text when going back', 'incomplete', 2, 1, 'none', '', null, {
 					kind: 'contact',
 					contact_id: 1
 				}),
 				due_date: dayIn(-1)
 			},
-			task(7, 'Buy seeds', 'completed', 2),
-			task(8, 'Draft review', 'incomplete', null, 2)
+			task(7, 'Unify the shimmer and blink on one faster clock', 'completed', 2),
+			task(8, 'Confirm the December 6 run-through crew', 'incomplete', null, 2),
+			task(
+				9,
+				'Repeating tasks',
+				'incomplete',
+				1,
+				1,
+				'high',
+				'Needs design: recurrence rules, what completing a repeat does, and how extensions like Todoist map. See [Area: Tasks](cohesion://document/1/5).',
+				4
+			),
+			task(10, 'Subagent sessions', 'incomplete', 1, 1, 'medium'),
+			task(
+				11,
+				'hellocohesion.com landing page',
+				'incomplete',
+				1,
+				1,
+				'low',
+				'In the style of Linear: a new repo, deployed on Vercel.',
+				3
+			),
+			task(
+				12,
+				'Themes/flair',
+				'incomplete',
+				2,
+				1,
+				'none',
+				'Let the user customize the look of the web UI.\n\n- Font\n  - System\n  - Monospace\n  - Serif'
+			),
+			task(
+				13,
+				'Add memories dialog into agents, in their overflow menu',
+				'incomplete',
+				2,
+				1,
+				'low',
+				'This should answer “What memories can this agent see?”, and delete from there too.',
+				2
+			),
+			task(
+				14,
+				'Voice capture',
+				'incomplete',
+				3,
+				1,
+				'high',
+				'Transcribe with a better model than the on-device one, such as a local Whisper.',
+				3
+			),
+			task(
+				15,
+				'Modernize and standardize the composers in Cohesion+',
+				'incomplete',
+				3,
+				1,
+				'medium',
+				'',
+				3
+			),
+			task(16, 'Plus: remove article saving; feeds stay a reader', 'completed', 3),
+			task(
+				17,
+				'Cloud Bridge',
+				'incomplete',
+				4,
+				1,
+				'low',
+				'A persistent two-way connection between Cloud and cohesiond, without special-casing Cohesion Cloud.'
+			),
+			task(
+				18,
+				'Idea: slack or discord bots, one created per agent',
+				'incomplete',
+				4,
+				1,
+				'high',
+				'',
+				4
+			),
+			task(
+				19,
+				'FormKit',
+				'incomplete',
+				5,
+				1,
+				'high',
+				'A protocol the JS runtime uses to create user interfaces: a title, an optional description, controls and a submit. Text fields and pickers first.'
+			),
+			task(
+				20,
+				'Linux QT web harness',
+				'incomplete',
+				6,
+				1,
+				'medium',
+				'A platform-appropriate copy of the Apple WebUI harness for Linux that looks good on KDE and GNOME.',
+				3
+			),
+			task(21, 'Dashboard: recap and quick dispatch like the reworked WebUI', 'completed', 3),
+			...(
+				[
+					[22, 'December 6: Sam Rivera (Lighting)', 29],
+					[23, 'December 6: Priya Shah (Pro-Presenter)', 29],
+					[24, 'December 6: Producer', 29],
+					[25, 'December 13: Marcus Lee (Sound Engineer)', 36],
+					[26, 'December 13: Producer', 36],
+					[27, 'December 20: Dana Cho (Camera)', 43]
+				] as const
+			).map(([id, title, days]) => ({
+				...task(id, title, 'incomplete', 7, 2),
+				due_date: dayIn(days)
+			}))
 		],
 		endpoints: [
 			{
@@ -837,10 +1014,47 @@ function seed(): MockState {
 					cache_minutes: 5,
 					long_cache: { minutes: 60, write_multiple: 1.6 }
 				}
+			},
+			{
+				id: 2,
+				name: 'OpenAI',
+				backend: {
+					kind: 'integrated',
+					provider_identifier: 'openai',
+					dialect: 'responses',
+					base_url: 'https://api.openai.com/v1',
+					usage_url: null,
+					cache_minutes: 30,
+					long_cache: { minutes: 720, write_multiple: 2 }
+				}
+			},
+			{
+				id: 3,
+				name: 'XAI',
+				backend: {
+					kind: 'integrated',
+					provider_identifier: 'xai',
+					dialect: 'chatCompletions',
+					base_url: 'https://api.x.ai/v1',
+					usage_url: null,
+					cache_minutes: 5,
+					long_cache: null
+				}
 			}
 		],
-		endpointModels: [fromCatalog(1, 1, catalog[0]), fromCatalog(2, 1, catalog[2])],
-		defaults: [{ id: 1, tier: 'agent', endpoint_model_id: 1 }],
+		endpointModels: [
+			fromCatalog(1, 1, catalog[0]),
+			fromCatalog(2, 1, catalog[2]),
+			fromCatalog(3, 2, catalog[4]),
+			fromCatalog(4, 2, catalog[3]),
+			fromCatalog(5, 3, catalog[5])
+		],
+		defaults: [
+			{ id: 1, tier: 'agent', endpoint_model_id: 1 },
+			{ id: 2, tier: 'low', endpoint_model_id: 3 },
+			{ id: 3, tier: 'medium', endpoint_model_id: 2 },
+			{ id: 4, tier: 'high', endpoint_model_id: 1 }
+		],
 		catalog,
 		threads: [
 			{
@@ -861,11 +1075,11 @@ function seed(): MockState {
 			}
 		],
 		messages: [
-			message(1, 1, now - 2 * DAY, { UserMessage: { text: 'What is on my list this weekend?' } }),
+			message(1, 1, now - 2 * DAY, { UserMessage: { text: 'What’s open in Core?' } }),
 			message(2, 1, now - 2 * DAY + 2, {
 				Thinking: {
 					Standard: {
-						thought: 'Look up open tasks across both folders.',
+						thought: 'Look up the open tasks in the Core folder.',
 						signature: null,
 						in_content: false
 					}
@@ -876,24 +1090,26 @@ function seed(): MockState {
 					call_identifier: 'call_seed_1',
 					tool_name: 'code-tool',
 					arguments: JSON.stringify({
-						code: "cohesion.tasks({ statuses: ['incomplete'] }).map((t) => t.title)"
+						code: "cohesion.tasks({ folder: 1, statuses: ['incomplete'] }).map((t) => t.title)"
 					})
 				}
 			}),
 			message(4, 1, now - 2 * DAY + 4, {
 				ToolCallResponse: {
 					call_identifier: 'call_seed_1',
-					response: { Success: '["Fix the gate latch","Pick up dry cleaning"]' }
+					response: {
+						Success: '["Add a command to manually rebuild an agent’s context","Repeating tasks"]'
+					}
 				}
 			}),
 			message(5, 1, now - 2 * DAY + 5, {
 				AssistantMessage: {
-					text: 'You have **Fix the gate latch** and **Pick up dry cleaning**.'
+					text: 'You have **Add a command to manually rebuild an agent’s context** and **Repeating tasks**.'
 				}
 			}),
-			message(6, 2, now - 3600, { UserMessage: { text: 'Summarise yesterday.' } }),
+			message(6, 2, now - 3600, { UserMessage: { text: 'What shipped yesterday?' } }),
 			message(7, 2, now - 3595, {
-				AssistantMessage: { text: 'You fixed the tap and called your mum.' }
+				AssistantMessage: { text: 'Install from URL, pushed as `2c06a1b`.' }
 			})
 		],
 		costEvents: [
@@ -908,7 +1124,7 @@ function seed(): MockState {
 				deleted: false,
 				key_kind: 'certificate',
 				key: 'MCowBQYDK2VwAyEA…',
-				client_name: 'Phone',
+				client_name: 'iPhone',
 				created_at: now - 40 * DAY,
 				last_seen_at: now - 2 * 3600,
 				last_address: '100.101.3.7'
@@ -918,7 +1134,7 @@ function seed(): MockState {
 				deleted: false,
 				key_kind: 'certificate',
 				key: '3f9a1c07be52d46e',
-				client_name: 'Mac mini',
+				client_name: 'MBP',
 				created_at: now - 90 * DAY,
 				last_seen_at: now - 300,
 				last_address: '192.168.1.20'
@@ -930,15 +1146,15 @@ function seed(): MockState {
 				deleted: false,
 				key_kind: 'local',
 				key: '9c41e07a2b6d58f3',
-				client_name: 'Studio',
+				client_name: 'apollo',
 				created_at: null,
 				last_seen_at: now - 60,
 				last_address: null
 			}
 		],
-		// The Mac mini, offering its models and notes.
+		// The MBP, offering its models and notes.
 		onlineClients: [2],
-		// The page is served by the CLI on Studio, as `cohesion open` does.
+		// The page is served by the CLI on apollo, as `cohesion open` does.
 		currentClient: 3,
 		security: {
 			id: 1,
@@ -958,37 +1174,38 @@ function seed(): MockState {
 		databaseSize: { bytes: 48_234_496, free_bytes: 1_310_720 },
 		profile: { id: 1, name: null, bio: null, photo: { kind: 'none' } },
 		securityEvents: [
-			securityEvent(1, now - 40 * DAY, 'clientPaired', 1, 'Phone', '192.168.1.31'),
+			securityEvent(1, now - 40 * DAY, 'clientPaired', 1, 'iPhone', '192.168.1.31'),
 			securityEvent(2, now - 3 * DAY, 'settingsChanged', null, null, null),
 			securityEvent(3, now - 26 * 3600, 'pairingRefused', null, null, '203.0.113.54'),
-			securityEvent(4, now - 2 * 3600, 'pairingOpened', 2, 'Mac mini', '192.168.1.20')
+			securityEvent(4, now - 2 * 3600, 'pairingOpened', 2, 'MBP', '192.168.1.20')
 		],
 		extensions: [
 			{
 				id: 1,
-				name: 'Daily digest',
-				version: 1,
-				script_identifier: 'daily-digest',
+				name: 'Cohesion Link for iOS',
+				version: 8,
+				script_identifier: 'com.cohesion.cloud.ios-companion',
 				priority: 0,
-				description: 'Summarises yesterday’s journal and tasks every morning.',
-				author: 'Mock Labs',
+				description:
+					'Forwards your agents’ messages and reactions, extension updates, and the notifications they send to your iPhone.',
+				author: 'Cohesion',
 				icon: null
 			},
 			{
 				id: 2,
-				name: 'Example registry',
-				version: 3,
-				script_identifier: 'com.example.registry',
+				name: 'Cohesion Cloud Registry',
+				version: 1,
+				script_identifier: 'com.cohesion.cloud.registry',
 				priority: 0,
-				description: 'Lists the extensions published on registry.example.com.',
-				author: 'Example Co',
+				description: 'Find and update extensions published on Cohesion Cloud.',
+				author: 'Cohesion',
 				icon: null
 			},
 			{
 				id: 3,
 				name: 'Internal plugins',
 				version: 1,
-				script_identifier: 'com.example.internal-plugins',
+				script_identifier: 'com.acme.internal-plugins',
 				priority: 1,
 				description: 'Lists the team’s private extensions.',
 				author: '',
@@ -1060,14 +1277,29 @@ function seed(): MockState {
 		articles: seedArticles(now),
 		feeds: seedFeeds(now),
 		...seedContacts(now),
-		tags: ['Blocked', 'Home', 'Ready', 'Waiting', 'Work'].map((name, i) => ({
-			id: i + 1,
-			workspace_id: 2,
-			name,
-			sort_order: i + 1,
-			created_at: now
-		})),
-		tagged: [],
+		tags: ['Evaluating', 'Feature', 'Ready', 'Research', 'Visual Bug', 'Working'].map(
+			(name, i) => ({
+				id: i + 1,
+				workspace_id: 1,
+				name,
+				sort_order: i + 1,
+				created_at: now
+			})
+		),
+		tagged: (
+			[
+				[2, 9],
+				[2, 14],
+				[2, 17],
+				[2, 18],
+				[3, 13],
+				[3, 15],
+				[3, 20],
+				[4, 11],
+				[4, 17],
+				[6, 3]
+			] as const
+		).map(([tag_id, task_id]) => ({ tag_id, task_id })),
 		savedTaskViews: []
 	};
 }
@@ -1152,39 +1384,40 @@ function seedContacts(now: number): Pick<MockState, 'contacts' | 'contactMethods
 	};
 }
 
-/** Four items of the seeded feed: one read and one whose page couldn't be fetched among them. */
+/** Six articles across the feeds: one read and one whose page couldn't be fetched among them. */
 function seedArticles(now: number): Article[] {
 	return [
 		{
 			id: 1,
 			deleted: false,
-			url: 'https://example.com/sourdough',
+			url: 'https://daringfireball.net/2026/11/touch_and_glow',
 			feed_id: 1,
 			read: true,
-			title: 'A beginner’s sourdough',
-			author: 'Ada Baker',
+			title: '★ Touch and Glow',
+			author: 'John Gruber',
 			published_at: now - 5 * DAY,
 			published_precision: 'time',
 			snapshot: {
 				state: 'captured',
-				final_url: 'https://example.com/sourdough',
-				page_title: 'A beginner’s sourdough',
+				final_url: 'https://daringfireball.net/2026/11/touch_and_glow',
+				page_title: 'Daring Fireball: Touch and Glow',
 				fetched_at: now - 2 * DAY,
 				truncated: false
 			},
 			contents:
-				'A beginner’s sourdough\n\nFeed the starter the night before. Mix flour, water and salt, then fold every half hour for two hours.\n\nBake at 250°C, covered for twenty minutes and uncovered for twenty more.',
+				'Touch and Glow\n\nA week with the new MacBook Pro and its touchscreen.\n\nThe display is the headline, but the surprise is how rarely the touchscreen gets in the way.',
 			created_at: now - 2 * DAY,
 			modified: now - 2 * DAY
 		},
 		{
 			id: 2,
 			deleted: false,
-			url: 'https://unreachable.example/notes',
-			feed_id: 1,
+			url: 'https://www.phoronix.com/news/HyprBSD',
+			feed_id: 2,
 			read: false,
-			title: 'notes',
-			author: null,
+			title:
+				'HyprBSD Provides Wayland-Based Desktop Built Atop FreeBSD, Complete With Steam Gaming',
+			author: 'Michael Larabel',
 			published_at: now - DAY,
 			published_precision: 'time',
 			snapshot: {
@@ -1198,26 +1431,52 @@ function seedArticles(now: number): Article[] {
 		},
 		feedItem(
 			3,
-			'https://bakery.example/posts/rye',
-			'Rye, slowly',
+			1,
+			'John Gruber',
+			'https://www.youtube.com/watch?v=f2GZtWuUPl0',
+			'Yours Truly on Full Stack Creator, Talking About the New MacBook Pros With PROLED XDR Displays',
 			now - 3 * DAY,
 			now,
-			'Rye ferments faster than wheat; shorten the bulk rise and keep the dough wetter.'
+			'A podcast appearance about the new MacBook Pros and their displays.'
 		),
 		feedItem(
 			4,
-			'https://bakery.example/posts/ovens',
-			'Choosing an oven',
+			2,
+			'Michael Larabel',
+			'https://www.phoronix.com/news/KDE-Plasma-6.9-Leak-Desktop',
+			'KDE Plasma 6.9 Will Stop Leaking Memory When Right Clicking Files/Folders On Desktop',
 			now - 6 * DAY,
 			now,
-			'A heavy lidded pot traps steam well enough for most loaves.'
+			'A fix in Plasma 6.9 stops the desktop leaking memory each time a context menu opens.'
+		),
+		feedItem(
+			5,
+			3,
+			'John Voorhees',
+			'https://www.macstories.net/stories/notes-from-apples-siri-ai-labs-schemas-tools-and-skills/',
+			'Notes from Apple’s Siri AI Labs: Schemas, Tools, and Skills',
+			now - 2 * DAY,
+			now,
+			'Notes from a hands-on session on how apps describe their actions to Siri.'
+		),
+		feedItem(
+			6,
+			4,
+			null,
+			'https://thisweek.gnome.org/posts/2026/11/twig-273/',
+			'#273 Kanji & Colons',
+			now - 4 * DAY,
+			now,
+			'Updates from the GNOME community this week.'
 		)
 	];
 }
 
-/** An item of the seeded feed. */
+/** A captured, unread article. */
 function feedItem(
 	id: number,
+	feed_id: number,
+	author: string | null,
 	url: string,
 	title: string,
 	published_at: number,
@@ -1227,11 +1486,11 @@ function feedItem(
 	return {
 		id,
 		deleted: false,
-		feed_id: 1,
+		feed_id,
 		read: false,
 		url,
 		title,
-		author: 'The Bakery',
+		author,
 		published_at,
 		published_precision: 'time',
 		snapshot: {
@@ -1247,20 +1506,26 @@ function feedItem(
 	};
 }
 
-/** One feed, read an hour ago. */
+/** Five feeds, read an hour ago. */
 function seedFeeds(now: number): Feed[] {
-	return [
-		{
-			id: 1,
-			deleted: false,
-			url: 'https://bakery.example/feed.xml',
-			title: 'The Bakery',
-			sort_order: 1,
-			full_page_policy: 'whenExcerpt',
-			status: { state: 'refreshed', at: now - 3600, added: 2 },
-			created_at: now - 7 * DAY
-		}
-	];
+	return (
+		[
+			[1, 'https://daringfireball.net/feeds/main', 'Daring Fireball', 2],
+			[2, 'https://www.phoronix.com/rss.php', 'Phoronix', 2],
+			[3, 'https://www.macstories.net/feed/atom', 'MacStories', 1],
+			[4, 'https://thisweek.gnome.org/index.xml', 'This Week in GNOME', 1],
+			[5, 'https://simonwillison.net/atom/everything/', 'Simon Willison’s Weblog', 0]
+		] as const
+	).map(([id, url, title, added]) => ({
+		id,
+		deleted: false,
+		url,
+		title,
+		sort_order: id,
+		full_page_policy: 'whenExcerpt',
+		status: { state: 'refreshed', at: now - 3600, added },
+		created_at: now - 7 * DAY
+	}));
 }
 
 /**
@@ -1530,7 +1795,7 @@ function reactionExcerpt(
 }
 
 /**
- * Two actors on the Mac mini, Claude Code in two directories. The first has
+ * Two actors on the MBP, Claude Code in two checkouts. The first has
  * a task paused on a question, after reading and a tool use, one that
  * ended and one working; the second has none. Their activities are the
  * stretches of that work: the working task's running, the paused one's
@@ -1547,21 +1812,34 @@ function seedActors(
 		product: 'Claude Code',
 		scope,
 		modes: [
-			{ identifier: 'default', title: 'Ask first', description: 'Asks before changing files.' },
-			{ identifier: 'auto', title: 'Auto', description: 'Works on its own.' }
+			{
+				identifier: 'auto',
+				title: 'Auto',
+				description: 'A classifier approves or denies each action; asks only when unsure.'
+			},
+			{
+				identifier: 'default',
+				title: 'Ask',
+				description: 'Asks before editing files or running commands.'
+			},
+			{
+				identifier: 'plan',
+				title: 'Plan',
+				description: 'Plans first, and changes nothing until you approve.'
+			}
 		],
 		models: [
 			{
 				identifier: 'opus',
-				title: 'Opus',
+				title: 'Opus 5.5',
 				efforts: [
 					{ identifier: 'medium', title: 'Medium' },
 					{ identifier: 'high', title: 'High' }
 				]
 			},
-			{ identifier: 'haiku', title: 'Haiku', efforts: [] }
+			{ identifier: 'haiku', title: 'Haiku 5.5', efforts: [] }
 		],
-		title: 'Claude Code on Mac mini'
+		title: 'Claude Code on MBP'
 	});
 	const message = (
 		id: number,
@@ -1577,13 +1855,13 @@ function seedActors(
 	return {
 		actors: [
 			actor(1, 'cohesion', '/Users/me/Developer/cohesion'),
-			actor(2, 'notes', '/Users/me/Documents/notes')
+			actor(2, 'cohesion-plus', '/Users/me/Developer/cohesion-plus')
 		],
 		actorSessions: [
 			{
 				id: 1,
 				actor_id: 1,
-				title: 'Fix the flaky session test',
+				title: 'Install extension from URL',
 				mode: null,
 				model: 'opus',
 				effort: 'high',
@@ -1598,7 +1876,7 @@ function seedActors(
 			{
 				id: 2,
 				actor_id: 1,
-				title: 'Bump the dependencies',
+				title: 'CI for the consolidated repos',
 				mode: 'auto',
 				model: null,
 				effort: null,
@@ -1613,7 +1891,7 @@ function seedActors(
 			{
 				id: 3,
 				actor_id: 1,
-				title: 'Write the release notes',
+				title: 'Web UI design hill-climb',
 				mode: null,
 				model: null,
 				effort: null,
@@ -1628,7 +1906,7 @@ function seedActors(
 			{
 				id: 4,
 				actor_id: 2,
-				title: "Sort last year's notes",
+				title: 'Server version in Settings › About',
 				mode: null,
 				model: null,
 				effort: null,
@@ -1643,7 +1921,7 @@ function seedActors(
 			{
 				id: 5,
 				actor_id: 1,
-				title: 'Tidy the changelog',
+				title: 'Rename and archive the old repos, push the fresh core repo',
 				mode: null,
 				model: null,
 				effort: null,
@@ -1659,25 +1937,25 @@ function seedActors(
 		activities: [
 			{
 				id: 1,
-				title: 'Write the release notes',
+				title: 'Web UI design hill-climb',
 				kind: { kind: 'actorSession', actor_session_id: 3 },
 				status: 'running',
-				progress: 'Reading the changelog',
+				progress: 'Taking screenshots in mock mode',
 				started_at: now - 4 * 60,
 				ended_at: null
 			},
 			{
 				id: 2,
-				title: 'Fix the flaky session test',
+				title: 'Install extension from URL',
 				kind: { kind: 'actorSession', actor_session_id: 1 },
 				status: 'paused',
-				progress: 'Asked which fix to keep',
+				progress: 'Asked how to review the script',
 				started_at: now - 600,
 				ended_at: null
 			},
 			{
 				id: 3,
-				title: 'Bump the dependencies',
+				title: 'CI for the consolidated repos',
 				kind: { kind: 'actorSession', actor_session_id: 2 },
 				status: 'succeeded',
 				progress: null,
@@ -1686,7 +1964,7 @@ function seedActors(
 			},
 			{
 				id: 4,
-				title: 'Bump the dependencies',
+				title: 'CI for the consolidated repos',
 				kind: { kind: 'actorSession', actor_session_id: 2 },
 				status: 'failed',
 				progress: null,
@@ -1695,7 +1973,7 @@ function seedActors(
 			},
 			{
 				id: 5,
-				title: 'Fix the flaky session test',
+				title: 'Install extension from URL',
 				kind: { kind: 'actorSession', actor_session_id: 1 },
 				status: 'cancelled',
 				progress: null,
@@ -1707,16 +1985,21 @@ function seedActors(
 			message(1, 1, now - 600, {
 				sender: 'user',
 				kind: 'text',
-				text: 'Fix the flaky session test'
+				text: 'Install extension from URL'
 			}),
-			message(2, 1, now - 590, said({ kind: 'text', text: 'On it. I’ll look around first.' })),
+			message(
+				2,
+				1,
+				now - 590,
+				said({ kind: 'text', text: 'On it. I’ll read the extensions page first.' })
+			),
 			message(
 				8,
 				1,
 				now - 500,
 				said({
 					kind: 'thinking',
-					text: 'The test fails about one run in ten, so it is likely **timing**, not logic. The session closes its socket before the reply is flushed; start with `session.rs` and how it orders those two.',
+					text: 'Installing from a file already **reviews the real manifest** before anything runs. A URL only changes where the script comes from, so the download should land in that same review; start with `install_extension.rs` and how it reads a file.',
 					ended_at: now - 488
 				})
 			),
@@ -1728,7 +2011,7 @@ function seedActors(
 					kind: 'toolUse',
 					tool: 'Read',
 					category: 'read',
-					summary: 'cohesiond/src/server/session.rs',
+					summary: 'cohesiond/src/routes/install_extension.rs',
 					ended_at: now - 396
 				})
 			),
@@ -1741,10 +2024,13 @@ function seedActors(
 					questions: [
 						{
 							header: 'Approach',
-							question: 'How should I fix it?',
+							question: 'How should a script from a URL be reviewed?',
 							options: [
-								{ label: 'Patch it', description: 'The smallest change that works.' },
-								{ label: 'Refactor', description: 'Clean up the module while I’m there.' }
+								{ label: 'Same review', description: 'Download it, then open the file review.' },
+								{
+									label: 'Trust the registry',
+									description: 'Skip the review when a registry lists the URL.'
+								}
 							],
 							multi_select: false,
 							allows_other: true
@@ -1752,7 +2038,11 @@ function seedActors(
 					]
 				})
 			),
-			message(5, 2, now - DAY, { sender: 'user', kind: 'text', text: 'Bump the dependencies' }),
+			message(5, 2, now - DAY, {
+				sender: 'user',
+				kind: 'text',
+				text: 'CI for the consolidated repos'
+			}),
 			message(
 				7,
 				2,
@@ -1761,7 +2051,7 @@ function seedActors(
 					kind: 'toolUse',
 					tool: 'Bash',
 					category: 'command',
-					summary: 'cargo update',
+					summary: 'gh run list --limit 5',
 					ended_at: now - DAY + 840
 				})
 			),
@@ -1771,7 +2061,7 @@ function seedActors(
 				now - DAY + 900,
 				said({
 					kind: 'text',
-					text: 'Done. Everything builds. The bumped crates:\n\n```mermaid\ngraph TD\n  cohesiond --> cohesionkit\n  cohesionkit --> rusqlite\n  cohesionkit --> rquickjs\n```'
+					text: 'Done. CI is green in every repo. The crates it builds:\n\n```mermaid\ngraph TD\n  cohesiond --> cohesionkit\n  cohesionkit --> rusqlite\n  cohesionkit --> rquickjs\n```'
 				})
 			)
 		]
@@ -1779,17 +2069,18 @@ function seedActors(
 }
 
 /**
- * Two teams: Home, with both agents (Scout pinned as its lead), and Research, with none.
- * Two agents: Scout, with no cues now, whose feed has a short chat
+ * Two teams: Cohesion Engineers, with Core Engineer (pinned as its lead) and Plus Engineer,
+ * and Assistants, with Secretary and Researcher.
+ * Core Engineer, with no cues now, has a feed with a short chat
  * (each side reacting to the other),
  * a note and an answered question from runs on an old launch cue, and a
  * question waiting on a pick;
- * Inbox keeper, with a task-created and a priority cue, whose feed has an
+ * Secretary, with a task-created and a priority cue, has a feed with an
  * exchange, a code run, a run's note, a
  * question turned down, two answered, one waiting, and a
- * request it remembered. The memories are one global, one of Inbox keeper's and one of Home's.
+ * request it remembered. The memories are one global, one of Secretary's and one of Assistants'.
  */
-/** A bar chart of five days, the image agent Scout shows. */
+/** A bar chart of five days, the image Core Engineer shows. */
 const WEEK_CHART =
 	'iVBORw0KGgoAAAANSUhEUgAAAPAAAACMCAIAAADN17N/AAAB5UlEQVR42u3dwQ1AERRFQR3qRE3WCsRSFYRnklPAjTfLn/zU+5TClDyBgJaAloCWgBbQEtAS0BLQEtACWgJaAloCWgJaQEtAS0BLQEtABy+XsSmgBTTQAhpoAQ000EALaKAFNNACGmgBDTTQQAtooAU00AIaaKCBBhpooAU00AIaaAENNNBAC2igBfR9G4AGGmgBDbSABlpAAw000AIaaAENtIAGWkADDTTQAhpoAQ20gAZaQIcH7TtgoIEGGmiH9A5AAw000EADDTTQQAMNNNAO6R2ABhpooIEGGmiggQYaaKAd0jsADTTQQAMNNNBAAw000EA7pHcAGmiggQYaaKB/OqQNQMMENNA2AA20DUA7pA1AwwQ00DABDbQNQANtA9AOaQPQMAENNExAA20D0EDbALRD2nAAtEe0AWiHtAFoG2wA2gaggbYBaIe0AWiHtAFoG2wA2gagPaINQDukDUA7pA1A22AD0DYA7RFtANohbQDaIW0A2gYbgLYBaI9oA9AOaQPQDmkD0DbYALQNQHtEG4B2SBuAdkgbgLbBBqBtANoj2gC0Q9oAtA02AG0D0EDbALRHtAFoh7QBaBtsANoGoIG2AWiPaMNLoGtt0lUF/5OsBLSAloCWgJaAloAW0BLQ0qkWqfkkEnJUAs8AAAAASUVORK5CYII=';
 
@@ -1811,11 +2102,11 @@ function seedAgents(
 			{
 				id: 1,
 				created_at: now - 5 * DAY,
-				agent_name: 'Scout',
+				agent_name: 'Core Engineer',
 				agent_color: 'blue',
-				agent_emoji: '🔭',
-				agent_personality: 'balanced',
-				agent_verbosity: 'brief',
+				agent_emoji: '💻',
+				agent_personality: 'professional',
+				agent_verbosity: 'terse',
 				agent_role: '',
 				agent_directive: '',
 				activity: null,
@@ -1831,13 +2122,13 @@ function seedAgents(
 			{
 				id: 2,
 				created_at: now - 3 * DAY,
-				agent_name: 'Inbox keeper',
-				agent_color: 'green',
+				agent_name: 'Secretary',
+				agent_color: 'pink',
 				agent_emoji: null,
 				agent_personality: 'friendly',
 				agent_verbosity: 'detailed',
-				agent_role: 'Files my Personal tasks',
-				agent_directive: 'Never move a task out of Work. Ask before archiving anything.',
+				agent_role: 'Files new inbox tasks',
+				agent_directive: 'Never move a task out of Church. Ask before archiving anything.',
 				activity: null,
 				foreground_started: null,
 				// Its thread's summary held nothing: one rule shows.
@@ -1847,16 +2138,56 @@ function seedAgents(
 				last_message_at: now - 25 * 60,
 				pinned: false,
 				sort_order: 2,
+				team_id: 2,
+				following_count: 0
+			},
+			{
+				id: 3,
+				created_at: now - 4 * DAY,
+				agent_name: 'Plus Engineer',
+				agent_color: 'green',
+				agent_emoji: '📱',
+				agent_personality: 'balanced',
+				agent_verbosity: 'brief',
+				agent_role: 'Cohesion Plus Engineer',
+				agent_directive: 'You report to the Core Engineer.',
+				activity: null,
+				foreground_started: null,
+				context_tokens: 9600,
+				agent_unread: false,
+				last_message_at: null,
+				pinned: false,
+				sort_order: 3,
 				team_id: 1,
+				following_count: 0
+			},
+			{
+				id: 4,
+				created_at: now - 2 * DAY,
+				agent_name: 'Researcher',
+				agent_color: 'purple',
+				agent_emoji: '📰',
+				agent_personality: 'balanced',
+				agent_verbosity: 'detailed',
+				agent_role: 'News Researcher',
+				agent_directive: '',
+				activity: null,
+				foreground_started: null,
+				context_tokens: null,
+				agent_unread: false,
+				last_message_at: null,
+				pinned: false,
+				sort_order: 4,
+				team_id: 2,
 				following_count: 0
 			}
 		],
 		agentTeams: [
-			{ id: 1, title: 'Home' },
-			{ id: 2, title: 'Research' }
+			{ id: 1, title: 'Cohesion Engineers' },
+			{ id: 2, title: 'Assistants' }
 		],
 		agentMessages: [
-			agentMessage(1, 1, now - 5 * DAY, 'user', 'Hi Scout. What can you do?', {
+			agentMessage(1, 1, now - 5 * DAY, 'user', 'What’s open in Core?', {
 				reaction: '👋',
 				reacted_at: now - 5 * DAY + 4
 			}),
@@ -1865,7 +2196,7 @@ function seedAgents(
 				1,
 				now - 5 * DAY + 4,
 				'agent',
-				'I can read and change your **workspaces, tasks and documents**, and wake myself up when something happens, such as a new task.',
+				'Three tasks: **Repeating tasks**, **Subagent sessions**, and **Add a command to manually rebuild an agent’s context**, which is assigned to me.',
 				{ reaction: '👍', reacted_at: now - 5 * DAY + 30 }
 			),
 			agentMessage(
@@ -1873,14 +2204,17 @@ function seedAgents(
 				2,
 				now - 3 * DAY,
 				'user',
-				'Whenever I add a task to the Personal inbox, file it into the right folder.',
+				'Whenever I add a task to the Cohesion inbox, file it into the right folder.',
 				{ reaction: '👍', reacted_at: now - 3 * DAY + 10 }
 			),
 			agentMessage(4, 2, now - 3 * DAY + 3, 'agent', {
 				execution: {
-					title: 'Listing the Personal task folders',
+					title: 'Listing the Cohesion task folders',
 					code: 'cohesion.workspace(1).taskFolders().map((f) => f.title)',
-					outcome: { status: 'succeeded', result: '["Home","Errands"]' }
+					outcome: {
+						status: 'succeeded',
+						result: '["Core","WebUI","Plus","Cloud","JavaScript","WebUI Harnesses"]'
+					}
 				}
 			}),
 			agentMessage(
@@ -1888,15 +2222,15 @@ function seedAgents(
 				2,
 				now - 3 * DAY + 6,
 				'agent',
-				'You have **Home** and **Errands**. I’ll watch for new inbox tasks and propose a folder for each one; nothing moves until you approve.'
+				'You have **Core**, **WebUI**, **Plus**, **Cloud**, **JavaScript** and **WebUI Harnesses**. I’ll watch for new inbox tasks and propose a folder for each one; nothing moves until you approve.'
 			),
 			agentMessage(
 				8,
 				2,
 				now - 2 * hour,
 				'backgroundAgent',
-				'“Renew passport” doesn’t fit Home or Errands, so I left it in the inbox.',
-				{ run_id: 1, run_description: '“Renew passport” was created' }
+				'“Configure and deploy the Linear connector” fits Cloud and Core equally, so I left it in the inbox.',
+				{ run_id: 1, run_description: '“Configure and deploy the Linear connector” was created' }
 			),
 			agentMessage(
 				9,
@@ -1905,14 +2239,13 @@ function seedAgents(
 				'backgroundAgent',
 				{
 					choice: {
-						question:
-							'Move “Book dentist” to Errands? It’s an appointment to make outside the house.',
+						question: 'Move “Cohesion-bench” to Core? It scores models on the daemon’s tools.',
 						options: ['Yes, move it', 'No'],
-						context: 'Task 2; move it with cohesion.workspace(1).task(2).moveTo(2).',
+						context: 'Task 2; move it with cohesion.workspace(1).task(2).moveTo(1).',
 						selected: 1
 					}
 				},
-				{ run_id: 2, run_description: '“Book dentist” was created' }
+				{ run_id: 2, run_description: '“Cohesion-bench” was created' }
 			),
 			agentMessage(
 				10,
@@ -1922,13 +2255,16 @@ function seedAgents(
 				{
 					choice: {
 						question:
-							'Move “Fix the gate latch” to Home? It’s a repair around the house, and you file repairs under Home.',
+							'Move “Add a command to manually rebuild an agent’s context” to Core? It’s a daemon command, and you file those under Core.',
 						options: ['Yes, move it', 'No'],
 						context: 'Task 3; move it with cohesion.workspace(1).task(3).moveTo(1).',
 						selected: null
 					}
 				},
-				{ run_id: 3, run_description: '“Fix the gate latch” was created' }
+				{
+					run_id: 3,
+					run_description: '“Add a command to manually rebuild an agent’s context” was created'
+				}
 			),
 			agentMessage(
 				11,
@@ -1945,7 +2281,7 @@ function seedAgents(
 				'backgroundAgent',
 				{
 					choice: {
-						question: 'Mark “Water the plants” done? You logged watering them in today’s journal.',
+						question: 'Mark “Install extension from URL” done? Today’s journal says it was pushed.',
 						options: ['Yes', 'No'],
 						context: 'Task 4; set it done with cohesion.workspace(1).task(4).setStatus("done").',
 						selected: 0
@@ -1960,23 +2296,23 @@ function seedAgents(
 				'backgroundAgent',
 				{
 					choice: {
-						question: 'Move “Buy stamps” to Errands? It’s a trip to the post office.',
+						question: 'Move “Themes/flair” to WebUI? It’s about how the web UI looks.',
 						options: ['Yes, move it', 'No'],
 						context: 'Task 5; move it with cohesion.workspace(1).task(5).moveTo(2).',
 						selected: 0
 					}
 				},
-				{ run_id: 6, run_description: '“Buy stamps” was created' }
+				{ run_id: 6, run_description: '“Themes/flair” was created' }
 			),
 			agentMessage(14, 1, now - DAY, 'agent', {
 				choice: {
 					question: 'Which workspace should I keep an eye on?',
-					options: ['Personal', 'Work', 'Both'],
+					options: ['Cohesion', 'Church', 'Both'],
 					context: null,
 					selected: null
 				}
 			}),
-			agentMessage(15, 2, now - 5 * 60, 'user', 'Repairs go under Home too, like appointments.', {
+			agentMessage(15, 2, now - 5 * 60, 'user', 'Daemon commands go under Core too, like routes.', {
 				reaction: '👍',
 				reacted_at: now - 5 * 60 + 3
 			}),
@@ -1986,11 +2322,11 @@ function seedAgents(
 				reason: 'cacheExpired'
 			}),
 			agentMessage(30, 2, now - 5 * 60 + 3, 'agent', {
-				memory: 'Repairs and appointments go under Home.',
+				memory: 'Daemon commands and routes go under Core.',
 				change: 'remembered'
 			}),
 			agentMessage(31, 2, now - 5 * 60 + 4, 'agent', {
-				memory: 'Repairs go under Personal.',
+				memory: 'Daemon commands go under Plus.',
 				change: 'forgotten'
 			}),
 			agentMessage(
@@ -1998,7 +2334,7 @@ function seedAgents(
 				1,
 				now - 3 * hour,
 				'user',
-				'Let me know when “Draft the release notes” is done.'
+				'Let me know when “Install extension from URL” is done.'
 			),
 			agentMessage(18, 1, now - 3 * hour + 4, 'agent', 'Will do.'),
 			// A fork an actor session woke later, answering the request it follows up on.
@@ -2007,7 +2343,7 @@ function seedAgents(
 				1,
 				now - hour,
 				'agent',
-				'“Draft the release notes” is done. Want me to share it with the team?',
+				'“Install extension from URL” is done and pushed. Want me to add it to the Parity doc?',
 				{ reply_to: 17 }
 			),
 			// A forward with no note, which the agent reacted to after replying.
@@ -2019,30 +2355,42 @@ function seedAgents(
 				{
 					kind: 'forward',
 					note: '',
-					item: { kind: 'task', workspace_id: 1, id: 1, title: 'Renew passport' }
+					item: {
+						kind: 'task',
+						workspace_id: 1,
+						id: 1,
+						title: 'Configure and deploy the Linear connector'
+					}
 				},
 				{ reaction: '👍', reacted_at: now - 10 * 60 }
 			),
-			agentMessage(21, 1, now - 30 * 60 + 3, 'agent', 'I’ll remind you a month before it’s due.'),
+			agentMessage(
+				21,
+				1,
+				now - 30 * 60 + 3,
+				'agent',
+				'I’ll check on it once the OAuth app is registered.'
+			),
 			// A forwarded document, and a reply linking one item of each kind.
 			agentMessage(24, 1, now - 25 * 60, 'user', {
 				kind: 'forward',
-				note: 'Anything to add before spring?',
-				item: { kind: 'document', workspace_id: 1, id: 6, title: 'Garden plan' }
+				note: 'Anything to add before the launch?',
+				item: { kind: 'document', workspace_id: 1, id: 6, title: 'Extensions Registry' }
 			}),
 			agentMessage(
 				25,
 				1,
 				now - 25 * 60 + 4,
 				'agent',
-				'Add seeds to [Buy seeds](cohesion://task/1/7) and see [Book dentist](cohesion://task/1/2). You planned the beds in [your journal](cohesion://document/1/4), [Inbox keeper](cohesion://agent/2) files the tasks, and [the session test](cohesion://actor-session/1) is still waiting on you.'
+				'It matches [Install extension from URL](cohesion://task/1/4); see [Cohesion-bench](cohesion://task/1/2) too. Rewind landed in [your journal](cohesion://document/1/4), [Secretary](cohesion://agent/2) files the tasks, and [the install session](cohesion://actor-session/1) is still waiting on you.'
 			),
-			// Scout asks Inbox keeper, whose fork answers.
+			// Core Engineer asks Secretary, whose fork answers.
 			agentMessage(22, 1, now - 20 * 60, 'agent', {
 				kind: 'askedAgent',
-				agent: { id: 2, name: 'Inbox keeper' },
-				question: 'Where do repairs go? “Fix the gate latch” is waiting in the inbox.',
-				reply: { status: 'answered', text: 'Under **Home**, with appointments.' }
+				agent: { id: 2, name: 'Secretary' },
+				question:
+					'Where do daemon commands go? “Add a command to manually rebuild an agent’s context” is in the inbox.',
+				reply: { status: 'answered', text: 'Under **Core**, with routes.' }
 			}),
 			agentMessage(
 				23,
@@ -2051,9 +2399,10 @@ function seedAgents(
 				'backgroundAgent',
 				{
 					kind: 'askedByAgent',
-					agent: { id: 1, name: 'Scout' },
-					question: 'Where do repairs go? “Fix the gate latch” is waiting in the inbox.',
-					reply: { status: 'answered', text: 'Under **Home**, with appointments.' }
+					agent: { id: 1, name: 'Core Engineer' },
+					question:
+						'Where do daemon commands go? “Add a command to manually rebuild an agent’s context” is in the inbox.',
+					reply: { status: 'answered', text: 'Under **Core**, with routes.' }
 				},
 				{ run_id: 7 }
 			),
@@ -2072,7 +2421,7 @@ function seedAgents(
 					by: {
 						kind: 'actorSession',
 						actor_session_id: 2,
-						title: 'Bump the dependencies',
+						title: 'CI for the consolidated repos',
 						stop: 'finished'
 					}
 				},
@@ -2085,7 +2434,7 @@ function seedAgents(
 				'agent',
 				{
 					kind: 'note',
-					note: 'Dependencies bumped; the release notes still need the new versions. Next: dispatch that once Jo replies about the changelog.'
+					note: 'CI is green in five repos; apple and webshell have no macOS runners. Next: dispatch the Image workflow fix once the package permission is sorted.'
 				},
 				{ run_id: 8 }
 			),
@@ -2112,7 +2461,7 @@ function seedAgents(
 			agentMessage(38, 1, now - 2 * 60 + 2, 'agent', 'Anytime.'),
 			// A cue's fork: what it did collapses under what woke it, while what it
 			// told the user, its question and its reaction to the user's message stay.
-			agentMessage(41, 1, now - 115, 'user', 'Keep an eye on the passport renewal for me.', {
+			agentMessage(41, 1, now - 115, 'user', 'Keep an eye on the Linear connector for me.', {
 				reaction: '👍',
 				reacted_at: now - 92
 			}),
@@ -2133,7 +2482,11 @@ function seedAgents(
 					execution: {
 						title: 'Read the overdue tasks',
 						code: 'return tasks.list({ overdue: true }).map((t) => t.title);',
-						outcome: { status: 'succeeded', result: '["Renew passport","Book dentist"]' }
+						outcome: {
+							status: 'succeeded',
+							result:
+								'["Configure and deploy the Linear connector","Persist research text when going back"]'
+						}
 					}
 				},
 				{ run_id: 10 }
@@ -2151,7 +2504,7 @@ function seedAgents(
 				1,
 				now - 95,
 				'agent',
-				'Two tasks are overdue this morning: **Renew passport** and **Book dentist**.',
+				'Two tasks need you this morning: **Configure and deploy the Linear connector** and **Persist research text when going back**.',
 				{ run_id: 10, reaction: '🎉', reacted_at: now - 70 }
 			),
 			agentMessage(
@@ -2159,10 +2512,10 @@ function seedAgents(
 				1,
 				now - 90,
 				'agent',
-				{ memory: 'Jo renews the passport before spring.', change: 'remembered' },
+				{ memory: 'The Linear connector waits on its OAuth app.', change: 'remembered' },
 				{ run_id: 10 }
 			),
-			agentMessage(47, 1, now - 85, 'user', 'Thanks. What’s left on the gate?'),
+			agentMessage(47, 1, now - 85, 'user', 'Thanks. What’s left on Cohesion-bench?'),
 			agentMessage(
 				48,
 				1,
@@ -2170,7 +2523,7 @@ function seedAgents(
 				'agent',
 				{
 					kind: 'askedAgent',
-					agent: { id: 2, name: 'Inbox keeper' },
+					agent: { id: 2, name: 'Secretary' },
 					question: 'Should an overdue task move to today, or stay where it is?',
 					reply: { status: 'answered', text: 'Move it, and leave its folder alone.' }
 				},
@@ -2183,9 +2536,9 @@ function seedAgents(
 				'agent',
 				{
 					choice: {
-						question: 'Move **Renew passport** to today?',
+						question: 'Move **Persist research text when going back** to today?',
 						options: ['Yes, today', 'Leave it'],
-						context: 'Inbox keeper says to move overdue tasks to today.',
+						context: 'Secretary says to move overdue tasks to today.',
 						selected: null
 					}
 				},
@@ -2198,7 +2551,7 @@ function seedAgents(
 				'agent',
 				{
 					kind: 'note',
-					note: 'Asked Jo about moving the passport renewal. Book dentist can wait until they answer.'
+					note: 'Asked about moving the research text task. The Linear connector can wait until they answer.'
 				},
 				{ run_id: 10 }
 			),
@@ -2227,7 +2580,7 @@ function seedAgents(
 					by: {
 						kind: 'actorSession',
 						actor_session_id: 2,
-						title: 'Bump the dependencies',
+						title: 'CI for the consolidated repos',
 						stop: 'finished'
 					}
 				},
@@ -2248,23 +2601,17 @@ function seedAgents(
 				{ run_id: 12 }
 			),
 			agentMessage(57, 1, now - 64, 'agent', {
-				memory: 'Jo heads out around nine.',
+				memory: 'Deploys wait until no actor session is running.',
 				change: 'remembered'
 			}),
-			agentMessage(
-				58,
-				1,
-				now - 62,
-				'agent',
-				'Nothing urgent. The dependency bump finished cleanly.'
-			),
+			agentMessage(58, 1, now - 62, 'agent', 'Nothing urgent. CI finished green.'),
 			// One job's run of notes, beside the other jobs in this feed.
 			agentMessage(
 				39,
 				2,
 				now - 60,
 				'backgroundAgent',
-				'Three tasks came in overnight. **Two** went to Home.',
+				'Three tasks came in overnight. **Two** went to Core.',
 				{ run_id: 9, run_description: 'Cue “Morning sweep” fired' }
 			),
 			agentMessage(40, 2, now - 60 + 2, 'backgroundAgent', 'The third is still in the inbox.', {
@@ -2300,30 +2647,31 @@ function seedAgents(
 				id: 1,
 				scope: { kind: 'global' },
 				created_at: now - 5 * DAY,
-				memory: 'The user goes by Jo.'
+				memory: 'Don’t send messages about unimportant things.'
 			},
 			{
 				id: 2,
 				scope: { kind: 'agent', agent_id: 2 },
 				created_at: now - 5 * 60 + 3,
-				memory: 'Repairs and appointments go under Home.'
+				memory: 'Daemon commands and routes go under Core.'
 			},
 			{
 				id: 3,
-				scope: { kind: 'team', team_id: 1 },
+				scope: { kind: 'team', team_id: 2 },
 				created_at: now - 4 * DAY,
-				memory: 'Jo reviews the Home workspace on Sundays.'
+				memory:
+					'When the user asks for a task, react 👍 to their message instead of replying, unless more is needed.'
 			}
 		],
 		agentCues: [
 			{
 				id: 1,
 				agent_id: 2,
-				name: 'File new Personal tasks',
+				name: 'File new inbox tasks',
 				hook: 'task:create',
 				script: '(task) => task.workspaceId === 1 && task.taskFolderId === null',
 				instructions:
-					'A task was added to the Personal inbox. Pick the folder it belongs in (Home or Errands) and propose moving it there. If none fits, say so.',
+					'A task was added to the Cohesion inbox. Pick the folder it belongs in and propose moving it there. If none fits, say so.',
 				effort: 'low',
 				set_at: now - 3 * 86400
 			},
@@ -2345,7 +2693,7 @@ function seedAgents(
 				agent_id: 2,
 				thread_id: 2,
 				hook: 'task:create',
-				cue_name: 'File new Personal tasks',
+				cue_name: 'File new inbox tasks',
 				sender_agent_id: null,
 				started_at: now - 2 * hour,
 				state: { status: 'completed', ended_at: now - 2 * hour + 9 },
@@ -2360,7 +2708,7 @@ function seedAgents(
 				agent_id: 2,
 				thread_id: null,
 				hook: 'task:create',
-				cue_name: 'File new Personal tasks',
+				cue_name: 'File new inbox tasks',
 				sender_agent_id: null,
 				started_at: now - 95 * 60,
 				state: {
@@ -2379,7 +2727,7 @@ function seedAgents(
 				agent_id: 2,
 				thread_id: 1,
 				hook: 'task:create',
-				cue_name: 'File new Personal tasks',
+				cue_name: 'File new inbox tasks',
 				sender_agent_id: null,
 				started_at: now - 21 * 60,
 				state: { status: 'completed', ended_at: now - 20 * 60 },
@@ -2424,7 +2772,7 @@ function seedAgents(
 				agent_id: 2,
 				thread_id: null,
 				hook: 'task:create',
-				cue_name: 'File new Personal tasks',
+				cue_name: 'File new inbox tasks',
 				sender_agent_id: null,
 				started_at: now - 11 * 60,
 				state: { status: 'completed', ended_at: now - 10 * 60 },
@@ -2434,7 +2782,7 @@ function seedAgents(
 				cache_write_tokens: 0,
 				cost: 0.0158
 			},
-			// A fork of Inbox keeper's conversation, answering Scout's question.
+			// A fork of Secretary's conversation, answering Core Engineer's question.
 			{
 				id: 7,
 				agent_id: 2,
@@ -2450,7 +2798,7 @@ function seedAgents(
 				cache_write_tokens: 0,
 				cost: 0.0071
 			},
-			// A fork of Scout's conversation that its morning cue woke.
+			// A fork of Core Engineer's conversation that its morning cue woke.
 			{
 				id: 10,
 				agent_id: 1,
@@ -2466,7 +2814,7 @@ function seedAgents(
 				cache_write_tokens: 0,
 				cost: 0.0062
 			},
-			// A fork of Scout's conversation that a finished actor session woke.
+			// A fork of Core Engineer's conversation that a finished actor session woke.
 			{
 				id: 8,
 				agent_id: 1,
@@ -2552,8 +2900,8 @@ function seedRewind(state: MockState, now: number): void {
 	});
 	state.versions.push(
 		version(1, 3 * DAY, 'A first draft.\n', 'created', 'user', null),
-		version(2, 2 * DAY, `${d.contents}\n\nTo do: ask Scout.\n`, 'edited', 'user', null),
-		version(3, 5 * 60 * MINUTE, 'A rewrite by an agent.\n', 'edited', 'agent', 'Scout'),
+		version(2, 2 * DAY, `${d.contents}\n\nTo do: ask Core Engineer.\n`, 'edited', 'user', null),
+		version(3, 5 * 60 * MINUTE, 'A rewrite by an agent.\n', 'edited', 'agent', 'Core Engineer'),
 		version(4, 90 * MINUTE, 'Synced in from elsewhere.\n', 'edited', 'extension', 'Linear sync'),
 		version(5, 12 * MINUTE, d.contents, 'edited', 'user', null)
 	);
@@ -2581,7 +2929,7 @@ function seedRewind(state: MockState, now: number): void {
 		modified: now - ago
 	});
 	state.versions.push(
-		taskVersion(11, DAY, `${t.title} (draft)`, 'incomplete', 'created', 'agent', 'Scout'),
+		taskVersion(11, DAY, `${t.title} (draft)`, 'incomplete', 'created', 'agent', 'Core Engineer'),
 		taskVersion(12, 40 * MINUTE, t.title, t.status, 'edited', 'user', null)
 	);
 
@@ -2606,7 +2954,7 @@ function seedRewind(state: MockState, now: number): void {
 			'incomplete',
 			'deleted',
 			'agent',
-			'Scout',
+			'Core Engineer',
 			'',
 			lostTask
 		)
@@ -4423,17 +4771,18 @@ export function createMock(): Mock {
 			};
 			state.feeds.push(created);
 			const itemURL = new URL('/welcome', parsed).href;
-			state.articles.push({
-				...feedItem(
+			state.articles.push(
+				feedItem(
 					nextId(state.articles),
+					created.id,
+					parsed.host,
 					itemURL,
 					`Welcome to ${parsed.host}`,
 					now,
 					now,
 					'The first post.'
-				),
-				feed_id: created.id
-			});
+				)
+			);
 			created.status = { state: 'refreshed', at: now, added: 1 };
 			return structuredClone(created);
 		},

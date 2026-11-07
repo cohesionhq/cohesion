@@ -9,14 +9,21 @@ describe('memories store', () => {
 		const store = createMemoriesStore(mock.send);
 		await store.load();
 		const { global, teams, agents } = store.list.value;
-		expect(global.map((m) => m.memory)).toEqual(['The user goes by Jo.']);
+		expect(global.map((m) => m.memory)).toEqual(['Don’t send messages about unimportant things.']);
 		expect(teams.map((t) => [t.team.title, t.memories.map((m) => m.memory)])).toEqual([
-			['Home', ['Jo reviews the Home workspace on Sundays.']],
-			['Research', []]
+			[
+				'Assistants',
+				[
+					'When the user asks for a task, react 👍 to their message instead of replying, unless more is needed.'
+				]
+			],
+			['Cohesion Engineers', []]
 		]);
 		expect(agents.map((a) => [a.agent.agent_name, a.memories.map((m) => m.memory)])).toEqual([
-			['Scout', []],
-			['Inbox keeper', ['Repairs and appointments go under Home.']]
+			['Core Engineer', []],
+			['Secretary', ['Daemon commands and routes go under Core.']],
+			['Researcher', []],
+			['Plus Engineer', []]
 		]);
 	});
 

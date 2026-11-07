@@ -108,7 +108,7 @@ describe('endpoint form', () => {
 			code: 'validationFailed',
 			message: 'This endpoint requires an API key.'
 		});
-		expect(store.endpoints.value).toHaveLength(1);
+		expect(store.endpoints.value).toHaveLength(3);
 	});
 });
 
@@ -156,9 +156,9 @@ describe('intelligence store', () => {
 	it('lists each endpoint with its models', async () => {
 		const store = createIntelligenceStore(createMock().send);
 		await store.load();
-		expect(store.endpoints.value.map((e) => e.name)).toEqual(['Anthropic']);
+		expect(store.endpoints.value.map((e) => e.name)).toEqual(['Anthropic', 'OpenAI', 'XAI']);
 		expect(store.endpoints.value[0].models.map((m) => m.model_identifier)).toEqual([
-			'claude-haiku-4-5',
+			'claude-haiku-5-5',
 			'claude-sonnet-5-5'
 		]);
 	});
@@ -189,13 +189,13 @@ describe('intelligence store', () => {
 		await store.importModels(1, ['claude-opus-5-5', 'claude-next']);
 		const models = store.endpoints.value[0].models;
 		expect(models.map((m) => m.model_name)).toEqual([
-			'Claude Haiku 4.5',
+			'Claude Haiku 5.5',
 			'Claude Opus 5.5',
 			'Claude Sonnet 5.5',
 			'claude-next'
 		]);
 		expect(models.find((m) => m.model_identifier === 'claude-opus-5-5')).toMatchObject({
-			input_token_cost: 5
+			input_token_cost: 4
 		});
 		expect(models.find((m) => m.model_identifier === 'claude-next')).toMatchObject({
 			catalog_model_id: null,
@@ -217,8 +217,8 @@ describe('intelligence store', () => {
 		expect(mock.state.defaults.find((d) => d.tier === 'low')?.endpoint_model_id).toBe(2);
 
 		await store.clearDefault('low');
-		expect(store.defaults.value.map((d) => d.tier)).toEqual(['agent']);
-		expect(mock.state.defaults.map((d) => d.tier)).toEqual(['agent']);
+		expect(store.defaults.value.map((d) => d.tier)).toEqual(['agent', 'medium', 'high']);
+		expect(mock.state.defaults.map((d) => d.tier)).toEqual(['agent', 'medium', 'high']);
 	});
 
 	it('unsets the tiers of a removed model or a deleted endpoint', async () => {
@@ -227,12 +227,13 @@ describe('intelligence store', () => {
 		await store.load();
 		await store.setDefault('low', 2);
 
+		// Low and medium were on model 2.
 		await store.removeModel(2);
 		expect(store.endpoints.value[0].models.map((m) => m.id)).toEqual([1]);
-		expect(store.defaults.value.map((d) => d.tier)).toEqual(['agent']);
+		expect(store.defaults.value.map((d) => d.tier)).toEqual(['agent', 'high']);
 
 		await store.deleteEndpoint(1);
-		expect(store.endpoints.value).toEqual([]);
+		expect(store.endpoints.value.map((e) => e.name)).toEqual(['OpenAI', 'XAI']);
 		expect(store.defaults.value).toEqual([]);
 		expect(mock.state.defaults).toEqual([]);
 	});
@@ -290,11 +291,12 @@ describe('intelligence store', () => {
 		const store = createIntelligenceStore(createMock().send);
 		await store.catalog.load(null);
 		// Only the providers of configured endpoints, until one is named.
-		expect(store.catalog.value.every((m) => m.provider_identifier === 'anthropic')).toBe(true);
+		const providers = new Set(store.catalog.value.map((m) => m.provider_identifier));
+		expect([...providers].sort()).toEqual(['anthropic', 'openai', 'xai']);
 		await store.providerCatalog.load('openai');
 		expect(store.providerCatalog.value.map((m) => m.model_identifier)).toEqual([
-			'gpt-6.1-mini',
-			'gpt-6.1-sol'
+			'gpt-6-luna',
+			'gpt-6.1-terra'
 		]);
 	});
 });

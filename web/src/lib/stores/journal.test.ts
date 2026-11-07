@@ -7,7 +7,7 @@ describe('journal store', () => {
 		const mock = createMock();
 		const store = createJournalStore(mock.send);
 		await store.open(1);
-		expect(store.draft).toContain('Morning walk');
+		expect(store.draft).toContain('consolidated repos');
 		expect(store.dirty).toBe(false);
 
 		store.edit('Rewritten');

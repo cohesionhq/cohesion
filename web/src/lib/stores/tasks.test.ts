@@ -66,9 +66,10 @@ describe('task views', () => {
 		await store.setSize(first, 5);
 		await store.setSize(second, 2);
 		await store.open(1, 'all', { sort: 'size', descending: false });
-		// Sized tasks first, smallest up (the seed's gate latch is small too), then the unsized.
+		// Sized tasks first, smallest up (the seed has small tasks too), then the unsized.
 		const sized = store.list.value.tasks.map((t) => t.size);
-		expect(sized.slice(0, 3)).toEqual([2, 2, 5]);
+		expect(sized.slice(0, 3)).toEqual([2, 2, 2]);
+		expect(sized.filter((s) => s !== null).at(-1)).toBe(5);
 		expect(sized.at(-1)).toBeNull();
 		await store.open(1, 'all', DEFAULT_ORDER, NO_TAGS, [], [5]);
 		expect(store.list.value.tasks.map((t) => t.id)).toEqual([first.id]);
@@ -92,7 +93,9 @@ describe('task views', () => {
 		const store = createTasksStore(mock.send);
 		const mine = { due_date: null, assignee: { kind: 'user' } } as const;
 		await store.open(1, 'all', DEFAULT_ORDER, NO_TAGS, [], [], 0, 50, mine);
-		expect(store.list.value.tasks.map((t) => t.title)).toEqual(['Renew passport']);
+		expect(store.list.value.tasks.map((t) => t.title)).toEqual([
+			'Configure and deploy the Linear connector'
+		]);
 
 		const first = store.list.value.tasks[0];
 		await store.schedule(first, null, '2026-01-02');
@@ -166,15 +169,21 @@ describe('task views', () => {
 	});
 });
 
+/** The seeded first workspace's folders, in order. */
+const FOLDERS = ['Core', 'WebUI', 'Plus', 'Cloud', 'JavaScript', 'WebUI Harnesses'];
+
 describe('tasks store', () => {
 	it('loads a view and its folders', async () => {
 		const store = createTasksStore(createMock().send);
 		await store.open(1, 'inbox');
-		expect(store.list.value.tasks.map((t) => t.title)).toEqual(['Renew passport', 'Book dentist']);
-		expect(store.folders.value.map((f) => f.title)).toEqual(['Home', 'Errands']);
+		expect(store.list.value.tasks.map((t) => t.title)).toEqual([
+			'Configure and deploy the Linear connector',
+			'Cohesion-bench'
+		]);
+		expect(store.folders.value.map((f) => f.title)).toEqual(FOLDERS);
 
 		await store.open(1, 'done');
-		expect(store.list.value.tasks.map((t) => t.id)).toEqual([4, 7]);
+		expect(store.list.value.tasks.map((t) => t.id)).toEqual([4, 7, 16, 21]);
 
 		await store.open(1, 'cancelled');
 		expect(store.list.value.tasks.map((t) => t.id)).toEqual([5]);
@@ -183,7 +192,7 @@ describe('tasks store', () => {
 	it('lists a page of a view with the view’s total, and finds a task’s place in it', async () => {
 		const store = createTasksStore(createMock().send);
 		await store.open(1, 'inbox', undefined, NO_TAGS, [], [], 1, 1);
-		expect(store.list.value.tasks.map((t) => t.title)).toEqual(['Book dentist']);
+		expect(store.list.value.tasks.map((t) => t.title)).toEqual(['Cohesion-bench']);
 		expect(store.list.value.total).toBe(2);
 		const [task] = store.list.value.tasks;
 		expect(await store.indexIn(1, 'inbox', DEFAULT_ORDER, NO_TAGS, [], [], task.id)).toBe(1);
@@ -232,12 +241,15 @@ describe('tasks store', () => {
 	it('lists in the chosen order and places a new task where that order puts it', async () => {
 		const store = createTasksStore(createMock().send);
 		await store.open(1, 'inbox', { sort: 'title', descending: false });
-		expect(store.list.value.tasks.map((t) => t.title)).toEqual(['Book dentist', 'Renew passport']);
-		await store.create('Call the bank');
 		expect(store.list.value.tasks.map((t) => t.title)).toEqual([
-			'Book dentist',
-			'Call the bank',
-			'Renew passport'
+			'Cohesion-bench',
+			'Configure and deploy the Linear connector'
+		]);
+		await store.create('Collect feedback');
+		expect(store.list.value.tasks.map((t) => t.title)).toEqual([
+			'Cohesion-bench',
+			'Collect feedback',
+			'Configure and deploy the Linear connector'
 		]);
 
 		await store.open(1, 'inbox', { sort: 'created', descending: true });
@@ -306,7 +318,7 @@ describe('tasks store', () => {
 		await store.renameFolder(1, folder.id, 'Allotment');
 		expect(store.folders.value.at(-1)?.title).toBe('Allotment');
 		await store.deleteFolder(1, folder.id);
-		expect(store.folders.value.map((f) => f.title)).toEqual(['Home', 'Errands']);
+		expect(store.folders.value.map((f) => f.title)).toEqual(FOLDERS);
 
 		await store.open(1, 'all');
 		await store.deleteFolder(1, 1);
@@ -320,11 +332,12 @@ describe('tasks store', () => {
 		const store = createTasksStore(createMock().send);
 		await store.open(1, 'inbox');
 		const garden = await store.createFolder(1, 'Garden');
-		await store.reorderFolders(1, [garden.id, 2, 1]);
-		expect(store.folders.value.map((f) => f.title)).toEqual(['Garden', 'Errands', 'Home']);
+		await store.reorderFolders(1, [garden.id, 2, 1, 3, 4, 5, 6]);
+		const reordered = ['Garden', 'WebUI', 'Core', ...FOLDERS.slice(2)];
+		expect(store.folders.value.map((f) => f.title)).toEqual(reordered);
 		await store.createFolder(1, 'Car');
 		await store.folders.refetch();
-		expect(store.folders.value.map((f) => f.title)).toEqual(['Garden', 'Errands', 'Home', 'Car']);
+		expect(store.folders.value.map((f) => f.title)).toEqual([...reordered, 'Car']);
 	});
 
 	it('accepts empty titles, as the daemon does', async () => {
@@ -338,7 +351,7 @@ describe('tasks store', () => {
 		const store = createTasksStore(createMock().send);
 		await store.open(1, 'inbox');
 		await expect(store.rename(999, 'Gone')).rejects.toMatchObject({ code: 'notFound' });
-		expect(store.list.value.tasks[0].title).toBe('Renew passport');
+		expect(store.list.value.tasks[0].title).toBe('Configure and deploy the Linear connector');
 	});
 
 	it('saves views, finds the one shown, and drops a folder’s with it', async () => {
@@ -376,7 +389,7 @@ describe('tasks due', () => {
 		const store = createTasksStore(createMock().send);
 		await store.due.load(`1:${localDay(-1)}`);
 		const titles = store.due.value.tasks.map((t) => t.title);
-		expect(titles).toContain('Renew passport');
-		expect(titles).not.toContain('Book dentist');
+		expect(titles).toContain('Configure and deploy the Linear connector');
+		expect(titles).not.toContain('Cohesion-bench');
 	});
 });

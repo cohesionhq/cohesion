@@ -42,7 +42,7 @@ describe('developer store', () => {
 		store.consoleType = 'listWorkspaces';
 		store.consoleArgs = '';
 		await store.sendConsole();
-		expect(JSON.parse(store.consoleFrame!).ok.data).toHaveLength(2);
+		expect(JSON.parse(store.consoleFrame!).ok.data).toHaveLength(3);
 	});
 
 	it('pretty-prints JSON and passes other text through', () => {

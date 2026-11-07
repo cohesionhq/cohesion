@@ -30,7 +30,9 @@ describe('extensions store', () => {
 		const mock = createMock();
 		const store = createExtensionsStore(mock.send);
 		await store.load();
-		const id = store.list.value.find((e) => e.script_identifier === 'daily-digest')!.id;
+		const id = store.list.value.find(
+			(e) => e.script_identifier === 'com.cohesion.cloud.ios-companion'
+		)!.id;
 		const permissions = store.permissions(id);
 		await permissions.load(id);
 		expect(permissions.value.find((p) => p.permission === 'network')?.enabled).toBe(false);
@@ -45,7 +47,9 @@ describe('extensions store', () => {
 		const mock = createMock();
 		const store = createExtensionsStore(mock.send);
 		await store.load();
-		const id = store.list.value.find((e) => e.script_identifier === 'daily-digest')!.id;
+		const id = store.list.value.find(
+			(e) => e.script_identifier === 'com.cohesion.cloud.ios-companion'
+		)!.id;
 		const hooks = store.hooks(id);
 		await hooks.load(id);
 		expect(hooks.value.find((h) => h.hook === 'task:status')?.enabled).toBe(false);
@@ -64,8 +68,8 @@ describe('extensions store', () => {
 		expect(sections[0].results.length).toBeGreaterThan(0);
 		expect(sections[1].error).toBeTruthy();
 
-		expect((await store.search('forecast'))[0].results.map((r) => r.manifest.name)).toEqual([
-			'Weather note'
+		expect((await store.search('issues'))[0].results.map((r) => r.manifest.name)).toEqual([
+			'Linear'
 		]);
 
 		await store.setPermission(3, 'registry', false);
@@ -76,7 +80,7 @@ describe('extensions store', () => {
 		const mock = createMock();
 		const store = createExtensionsStore(mock.send);
 		await store.load();
-		const [result] = (await store.search('weather'))[0].results;
+		const [result] = (await store.search('linear'))[0].results;
 		const preview = await store.preview(result.source_url);
 		expect(preview.installed).toBeNull();
 
@@ -100,12 +104,12 @@ describe('extensions store', () => {
 		const mock = createMock();
 		const store = createExtensionsStore(mock.send);
 		await store.load();
-		const results = (await store.search('digest'))[0].results;
+		const results = (await store.search('iphone'))[0].results;
 		const preview = await store.preview(results[0].source_url);
-		expect(preview.installed?.version).toBe(1);
+		expect(preview.installed?.version).toBe(8);
 
 		await store.install(preview.script, true);
-		expect(store.list.value.find((e) => e.id === 1)?.version).toBe(2);
+		expect(store.list.value.find((e) => e.id === 1)?.version).toBe(9);
 		const permissions = store.permissions(1);
 		await permissions.load(1);
 		expect(permissions.value.find((p) => p.permission === 'timer')?.enabled).toBe(true);

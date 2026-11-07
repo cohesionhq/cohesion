@@ -59,8 +59,9 @@ VITE_MOCK=1 npm run dev
 ```
 
 Swaps the transport for `src/lib/protocol/mock.ts`, an in-memory daemon with
-seed data (two workspaces, journals, tasks, documents, contacts, articles and a feed, agents and their
-threads, settings).
+seed data modelled on a real daemon's, with people's names made up (three workspaces, journals,
+tasks and tags, documents, contacts, feeds and their articles, agents and their threads, actors,
+settings).
 No daemon or CLI needed. The tests use the same mock.
 
 ## Checks

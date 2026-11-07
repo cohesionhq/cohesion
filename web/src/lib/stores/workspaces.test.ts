@@ -8,7 +8,7 @@ describe('workspaces store', () => {
 		const store = createWorkspacesStore(mock.send);
 		await store.load();
 		expect(store.list.loaded).toBe(true);
-		expect(store.list.value.map((w) => w.title)).toEqual(['Personal', 'Work']);
+		expect(store.list.value.map((w) => w.title)).toEqual(['Cohesion', 'Church', 'Containers']);
 
 		const created = await store.create('Garden');
 		expect(store.list.value.at(-1)).toEqual(created);
@@ -33,7 +33,7 @@ describe('workspaces store', () => {
 		const store = createWorkspacesStore(createMock().send);
 		const first = store.load();
 		await store.load();
-		expect(store.list.value).toHaveLength(2);
+		expect(store.list.value).toHaveLength(3);
 		await first;
 	});
 
@@ -49,7 +49,7 @@ describe('workspaces store', () => {
 		const store = createWorkspacesStore(mock.send);
 		await store.load();
 		await mock.send('createWorkspace', { title: 'From the CLI' });
-		expect(store.list.value).toHaveLength(2);
+		expect(store.list.value).toHaveLength(3);
 		await store.list.refetch();
 		expect(store.list.value.map((w) => w.title)).toContain('From the CLI');
 	});
@@ -62,6 +62,6 @@ describe('workspaces store', () => {
 			message: 'Title can’t be empty.',
 			field: undefined
 		});
-		expect(store.list.value).toHaveLength(2);
+		expect(store.list.value).toHaveLength(3);
 	});
 });

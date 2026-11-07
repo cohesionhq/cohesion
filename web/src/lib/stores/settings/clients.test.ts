@@ -8,11 +8,11 @@ describe('clients store', () => {
 		const mock = createMock();
 		const store = createClientsStore(mock.send);
 		await store.load();
-		expect(store.list.value.map((c) => c.client_name)).toEqual(['Mac mini', 'Phone', 'Studio']);
+		expect(store.list.value.map((c) => c.client_name)).toEqual(['apollo', 'iPhone', 'MBP']);
 
 		const revoked = await store.revoke(1);
 		expect(revoked.deleted).toBe(true);
-		expect(store.list.value.map((c) => c.client_name)).toEqual(['Mac mini', 'Studio']);
+		expect(store.list.value.map((c) => c.client_name)).toEqual(['apollo', 'MBP']);
 		await expect(store.revoke(1)).rejects.toMatchObject({ code: 'notFound' });
 		expect(store.list.value).toHaveLength(2);
 	});
@@ -40,10 +40,10 @@ describe('clients store', () => {
 		const mock = createMock();
 		const store = createClientsStore(mock.send);
 		await store.load();
-		expect(store.current?.client_name).toBe('Studio');
+		expect(store.current?.client_name).toBe('apollo');
 
 		expect(await store.revokeOthers()).toBe(2);
-		expect(store.list.value.map((c) => c.client_name)).toEqual(['Studio']);
+		expect(store.list.value.map((c) => c.client_name)).toEqual(['apollo']);
 	});
 
 	it('says when this client can’t open pairing, and refetches when security changes', async () => {

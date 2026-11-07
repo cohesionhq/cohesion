@@ -6,18 +6,19 @@ import { createTasksStore } from './tasks.svelte';
 describe('tags store', () => {
 	it('keeps a workspace’s tags in order, new ones last, and refuses a name taken', async () => {
 		const store = createTagsStore(createMock().send);
-		await store.load(1);
-		await store.create(1, 'urgent');
-		const later = await store.create(1, 'Errands');
+		// The third workspace starts with no tags.
+		await store.load(3);
+		await store.create(3, 'urgent');
+		const later = await store.create(3, 'Errands');
 		expect(store.list.value.map((t) => t.name)).toEqual(['urgent', 'Errands']);
-		await expect(store.create(1, 'URGENT')).rejects.toMatchObject({ field: 'name' });
-		await store.rename(1, later.id, 'zz');
+		await expect(store.create(3, 'URGENT')).rejects.toMatchObject({ field: 'name' });
+		await store.rename(3, later.id, 'zz');
 		expect(store.list.value.map((t) => t.name)).toEqual(['urgent', 'zz']);
-		await store.reorder(1, [later.id, store.list.value[0].id]);
+		await store.reorder(3, [later.id, store.list.value[0].id]);
 		expect(store.list.value.map((t) => t.name)).toEqual(['zz', 'urgent']);
-		await store.sortByName(1);
+		await store.sortByName(3);
 		expect(store.list.value.map((t) => t.name)).toEqual(['urgent', 'zz']);
-		await store.remove(1, later.id);
+		await store.remove(3, later.id);
 		expect(store.list.value.map((t) => t.name)).toEqual(['urgent']);
 	});
 

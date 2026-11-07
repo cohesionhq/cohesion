@@ -73,7 +73,12 @@ describe('documents store', () => {
 	it('lists normal documents and the journal archive separately', async () => {
 		const store = createDocumentsStore(createMock().send);
 		await Promise.all([store.list.load(1), store.archive.load(1)]);
-		expect(store.list.value.map((d) => d.title)).toEqual(['Reading list', 'Garden plan']);
+		expect(store.list.value.map((d) => d.title)).toEqual([
+			'Full-text search syntax and errors',
+			'Extensions Registry',
+			'JS script engine pool sizes',
+			'Rewind: storage and lifecycle'
+		]);
 		expect(store.archive.value.map((d) => d.id)).toEqual([1, 2, 3, 4]);
 	});
 
@@ -108,7 +113,7 @@ describe('documents store', () => {
 		const mock = createMock();
 		const store = createDocumentsStore(mock.send);
 		await store.open(1, 5);
-		expect(store.text.draft).toContain('Piranesi');
+		expect(store.text.draft).toContain('FTS5');
 
 		store.text.edit('Changed');
 		expect(store.text.dirty).toBe(true);
@@ -128,7 +133,7 @@ describe('documents store', () => {
 		store.text.edit('Unsaved');
 		await store.open(1, 6);
 		expect(mock.state.documents.find((d) => d.id === 5)?.contents).toBe('Unsaved');
-		expect(store.text.draft).toContain('Tomatoes');
+		expect(store.text.draft).toContain('registryResults');
 	});
 
 	it('edits a past journal entry and updates the archive', async () => {
