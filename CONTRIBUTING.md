@@ -97,15 +97,25 @@ Published images live in `ghcr.io/cohesionhq/cohesion`, a package linked to this
 repo. There are two ways to publish one. Building and running an image
 is in [docs/self-hosting.md](docs/self-hosting.md#run-in-a-container).
 
-The `Image` workflow (`.github/workflows/image.yml`) is the usual one. Each push
-to `master` builds the amd64 image and pushes it tagged with its version, signed
-in with the workflow's own `GITHUB_TOKEN`. A version is `vXXXYYYYY`, such as
-`v00100042`. `XXX` is the major version, set by hand in `MAJOR_VERSION`. `YYYYY`
-is the minor version, the number of commits since `MAJOR_VERSION` last changed.
-It goes up with every build and starts again when the major version changes, so
-the commit that changes it to `002` builds `v00200000`. Both binaries are built knowing the
-version, and `cohesion status` shows it. A build without it, such as `cargo build`
-or `publish-image.sh`, shows the crate version.
+Releasing is the usual way. Run the `Release` workflow
+(`.github/workflows/release.yml`) from GitHub's Actions tab: it takes no input.
+It runs `scripts/release.sh`, which tags the commit at the head of `master` on
+GitHub with its version, pushes the tag and creates a GitHub release listing the
+commits since the last release. Then it runs the `Image` workflow
+(`.github/workflows/image.yml`), which builds the amd64 image from the tag and
+pushes it tagged with the version, signed in with the workflow's own
+`GITHUB_TOKEN`. Pushes to `master` publish nothing. Running `scripts/release.sh`
+on your own computer does the same, with `gh` signed in, and the tag it pushes
+starts the `Image` workflow. The script releases only what's already on GitHub,
+so push first, and it stops if that commit is already released.
+
+A version is `vXXXYYYYY`, such as `v00100042`. `XXX` is the major version, set by
+hand in `MAJOR_VERSION`. `YYYYY` is the minor version, the number of commits
+since `MAJOR_VERSION` last changed. It goes up with every commit and starts again
+when the major version changes, so the commit that changes it to `002` releases
+as `v00200000`. Both binaries are built knowing the version, and `cohesion status`
+shows it. A build without it, such as `cargo build` or `publish-image.sh`, shows
+the crate version.
 
 `scripts/publish-image.sh [commit]` is the local fallback. The script builds a clean copy
 of the commit (default `HEAD`) with Podman, so nothing uncommitted gets in, and

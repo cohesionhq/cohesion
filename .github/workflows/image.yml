@@ -1,11 +1,17 @@
-# Builds the daemon image on every push to master and pushes it tagged with its
-# version, vXXXYYYYY: XXX is MAJOR_VERSION and YYYYY counts the commits since it
-# last changed. See "Publish an image" in CONTRIBUTING.md.
+# Builds the daemon image for a version tag, vXXXYYYYY, and pushes it tagged
+# with it. The Release workflow calls it after scripts/release.sh makes the tag;
+# a tag pushed by hand starts it too. See "Publish an image" in CONTRIBUTING.md.
 name: Image
 
 on:
   push:
-    branches: [master]
+    tags: ['v*']
+  workflow_call:
+    inputs:
+      version:
+        description: The version tag to build, such as v00100042.
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -16,26 +22,27 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
+      - name: Check the version
+        id: version
+        env:
+          VERSION: ${{ inputs.version || github.ref_name }}
+        run: |
+          if ! [[ "$VERSION" =~ ^v[0-9]{8}$ ]]; then
+            echo "::error::'$VERSION' isn't a version tag like v00100042"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Called from Release, the run's ref is master, so check out the tag itself.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The minor version counts commits, so it needs the history.
-          fetch-depth: 0
+          ref: refs/tags/${{ steps.version.outputs.version }}
           persist-credentials: false
 
-      - name: Work out the version
-        id: version
+      - name: Read the commit
+        id: commit
         run: |
-          major="$(tr -d '[:space:]' < MAJOR_VERSION)"
-          if ! [[ "$major" =~ ^[0-9]{3}$ ]]; then
-            echo "::error file=MAJOR_VERSION::MAJOR_VERSION must be three digits, not '$major'"
-            exit 1
-          fi
-          minor="$(git rev-list --count "$(git log -1 --format=%H -- MAJOR_VERSION)..HEAD")"
-          if (( minor > 99999 )); then
-            echo "::error::Minor version $minor doesn't fit in a version's five digits"
-            exit 1
-          fi
-          printf 'version=v%s%05d\n' "$major" "$minor" >> "$GITHUB_OUTPUT"
+          printf 'revision=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           printf 'subject=%s\n' "$(git log -1 --format=%s)" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -55,8 +62,8 @@ jobs:
           build-args: COHESION_VERSION=${{ steps.version.outputs.version }}
           labels: |
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
-            org.opencontainers.image.description=${{ steps.version.outputs.subject }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.description=${{ steps.commit.outputs.subject }}
+            org.opencontainers.image.revision=${{ steps.commit.outputs.revision }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           # One plain amd64 manifest, as scripts/publish-image.sh pushes.
           provenance: false

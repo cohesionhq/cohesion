@@ -1,0 +1,41 @@
+# Releases master by hand from the Actions tab: scripts/release.sh tags it with
+# its version and creates the GitHub release, then the image is built from the
+# tag. A tag pushed with the workflow's own token starts no workflow, so this
+# calls the image workflow itself. See "Publish an image" in CONTRIBUTING.md.
+name: Release
+
+on: workflow_dispatch
+
+concurrency: release
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The minor version counts commits, so it needs the history. The
+          # credentials stay so the script can push the tag.
+          fetch-depth: 0
+
+      - name: Tag and release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          scripts/release.sh
+
+  image:
+    needs: tag
+    uses: ./.github/workflows/image.yml
+    with:
+      version: ${{ needs.tag.outputs.version }}

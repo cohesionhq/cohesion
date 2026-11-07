@@ -27,8 +27,8 @@ pub mod ts_documentation;
 pub mod ts_wire;
 pub mod value;
 
-/// What this build is: the `vXXXYYYYY` the image workflow gave it, or the crate
-/// version in a build it didn't make.
+/// What this build is: the `vXXXYYYYY` of the release it was built for, or the
+/// crate version in a build that isn't a release.
 pub const VERSION: &str = match option_env!("COHESION_VERSION") {
     Some(version) => version,
     None => env!("CARGO_PKG_VERSION"),
