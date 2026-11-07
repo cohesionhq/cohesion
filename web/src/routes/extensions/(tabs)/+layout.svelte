@@ -1,10 +1,11 @@
 <!--
 	Extensions: Installed and Browse as tabs under one header, which also
-	holds installing from a file. An extension's own page draws its own header.
+	holds installing from a file or a URL. An extension's own page draws its own header.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import InstallExtensionDialog from '$lib/features/extensions/InstallExtensionDialog.svelte';
+	import InstallFromUrlDialog from '$lib/features/extensions/InstallFromUrlDialog.svelte';
 	import ReviewExtensionDialog from '$lib/features/extensions/ReviewExtensionDialog.svelte';
 	import type { ExtensionPreview } from '$lib/protocol/types';
 	import { routes } from '$lib/shell/routes';
@@ -19,6 +20,7 @@
 	let { children }: { children: Snippet } = $props();
 
 	let installing = $state(false);
+	let installingFromUrl = $state(false);
 	let reviewing = $state<{ name: string | null; preview: ExtensionPreview } | null>(null);
 	let reviewOpen = $state(false);
 </script>
@@ -26,6 +28,7 @@
 <div class="px-(--page-inset)">
 	<PageHeader title="Extensions">
 		{#snippet actions()}
+			<Button onclick={() => (installingFromUrl = true)}>Install from URL…</Button>
 			<Button onclick={() => (installing = true)}>Install from file…</Button>
 		{/snippet}
 		{#snippet tabs()}
@@ -55,6 +58,13 @@
 
 <InstallExtensionDialog
 	bind:open={installing}
+	onreview={(file) => {
+		reviewing = file;
+		reviewOpen = true;
+	}}
+/>
+<InstallFromUrlDialog
+	bind:open={installingFromUrl}
 	onreview={(file) => {
 		reviewing = file;
 		reviewOpen = true;

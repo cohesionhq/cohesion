@@ -735,8 +735,8 @@ Browse leaves out extensions that are already installed; updates appear under
 Installed instead.
 
 A registry's `manifest` is only a claim. When the user picks a result, the
-daemon downloads the script from `sourceURL` (`previewExtension`, 20-second
-timeout) and reads the manifest from that code, and the user reviews the
+daemon downloads the script from `sourceURL` (`previewExtension`: `http` or
+`https` only, a 20-second timeout, at most 5 MB) and reads the manifest from that code, and the user reviews the
 real manifest and the code before installing. Whatever the registry says,
 the installed extension starts with every permission and hook off.
 
@@ -786,7 +786,8 @@ section per registry, `{ extension_id, name, results, error }`;
 `{ script, manifest, installed }`, where `installed` is the extension the
 script would replace. `previewExtensionScript` takes `{ script }` and
 answers the same for a script you already have, which is how the web UI
-reviews a file before installing it. Install the reviewed `script` with
+reviews a file before installing it; its Install from URL reviews any
+address through `previewExtension`. Install the reviewed `script` with
 `registerExtension`. `listExtensionUpdates` answers the updates the last check
 found, `[{ extension_id, registry_extension_id, result }]`, and
 `checkExtensionUpdates` runs a check first.

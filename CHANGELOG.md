@@ -14,4 +14,6 @@ under "Unreleased" with any change users would notice.
   run on every pull request.
 - `THIRD_PARTY_NOTICES.md` lists the crates in `cohesiond` and `cohesion`, and
   the web UI's build lists the packages it bundles in `third-party-licenses.md`.
+- Extensions install from a URL: under Extensions, Install from URL downloads
+  the script and opens the same review as a file. A download stops at 5 MB.
 - `rust-toolchain.toml` pins the Rust release Cohesion builds with.

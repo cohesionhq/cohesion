@@ -1,9 +1,9 @@
 <!--
-	The review before installing, from a registry or a file, laid out like an
+	The review before installing, from a registry, a file or a URL, laid out like an
 	OAuth consent screen: the extension's icon on the dialog's top edge, then what
 	it will be able to do and when it runs. For a registry entry the
 	daemon downloads the script and reads its real manifest, and this marks
-	where it differs from what the registry listed; a file arrives already
+	where it differs from what the registry listed; a file or a URL arrives already
 	read. The code starts collapsed. Install sends back exactly the script
 	shown, so what's installed is what was read.
 -->
@@ -36,7 +36,7 @@
 		open?: boolean;
 		/** The registry's entry: where the script is, and what the registry claims it is. */
 		result?: RegistryResult | null;
-		/** A script from a file or a paste, already read by the daemon. */
+		/** A script from a file, a paste or a URL, already read by the daemon. */
 		file?: { name: string | null; preview: ExtensionPreview } | null;
 	}
 

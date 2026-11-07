@@ -3,9 +3,9 @@ use std::sync::LazyLock;
 use cohesion_core::model::{ExtensionPermissionKind, HookKind, PairingOpener};
 use cohesion_core::protocol::{
     CallExtensionRequest, Command, CreateWorkspaceRequest, DeleteClientRequest,
-    DeleteWorkspaceRequest, ErrorCode, Outcome, PreviewExtensionScriptRequest,
-    RegisterExtensionRequest, ReplyData, RevokeOtherClientsRequest, SetExtensionHookRequest,
-    SetExtensionPermissionRequest, UpdateSecuritySettingsRequest,
+    DeleteWorkspaceRequest, ErrorCode, Outcome, PreviewExtensionRequest,
+    PreviewExtensionScriptRequest, RegisterExtensionRequest, ReplyData, RevokeOtherClientsRequest,
+    SetExtensionHookRequest, SetExtensionPermissionRequest, UpdateSecuritySettingsRequest,
 };
 use cohesion_core::{Client, ClientKeyKind, LocalIdentity};
 use cohesion_db::{Container, IdentifyLocalClientCommand, ListConnectorsCommand, Secrets};
@@ -637,4 +637,61 @@ async fn pairing_kept_to_this_computer_refuses_other_clients() {
     assert!(matches!(access, Outcome::Ok(ReplyData::PairingAccess(a)) if a.refusal.is_some()));
     let access = asked_by(Command::GetPairingAccess, &desk).await;
     assert!(matches!(access, Outcome::Ok(ReplyData::PairingAccess(a)) if a.refusal.is_none()));
+}
+
+/// Serves `body` once, as a `200`, on a loopback port, and answers its URL.
+fn serve_once(body: Vec<u8>) -> String {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = [0; 4096];
+        let _ = stream.read(&mut request);
+        let head = format!(
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        );
+        let _ = stream.write_all(head.as_bytes());
+        let _ = stream.write_all(&body);
+    });
+    format!("http://{address}/extension.js")
+}
+
+async fn preview_url(context: &CohesionContext, source_url: String) -> Outcome {
+    Command::from(PreviewExtensionRequest { source_url })
+        .dispatch(&asking(context))
+        .await
+}
+
+#[tokio::test]
+async fn previewing_a_url_reads_the_downloaded_script() {
+    let context = context();
+    let script = counter("[]", "undefined");
+    let url = serve_once(script.clone().into_bytes());
+    let Outcome::Ok(ReplyData::ExtensionPreview(preview)) = preview_url(&context, url).await else {
+        panic!("the download wasn't read");
+    };
+    assert_eq!(preview.script, script);
+    assert_eq!(preview.manifest.identifier, "com.example.counter");
+}
+
+#[tokio::test]
+async fn previewing_a_url_refuses_a_script_too_large() {
+    let context = context();
+    let url = serve_once(vec![b' '; super::extension_routes::MAX_SCRIPT_BYTES + 1]);
+    let previewed = preview_url(&context, url).await;
+    assert!(matches!(previewed, Outcome::Error(e) if e.code == ErrorCode::UpstreamError));
+}
+
+#[tokio::test]
+async fn previewing_a_url_takes_only_http() {
+    let context = context();
+    for url in ["file:///etc/passwd", "ftp://example.com/a.js", "not a url"] {
+        let previewed = preview_url(&context, url.to_string()).await;
+        assert!(
+            matches!(previewed, Outcome::Error(ref e) if e.code == ErrorCode::ValidationFailed),
+            "{url} was accepted"
+        );
+    }
 }

@@ -139,26 +139,7 @@ impl Route<Local, PreviewExtensionRequest> for CohesionContext {
         if !matches!(url.scheme(), "http" | "https") {
             return Err(invalid_url());
         }
-
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(20))
-            .user_agent("cohesion")
-            .build()
-            .map_err(|e| {
-                log_error!(Module::Extensions, "Building an HTTP client failed: {e}");
-                ServerError::internal()
-            })?;
-        let download_failed = |e: reqwest::Error| {
-            ServerError::upstream(format!("Couldn’t download the extension: {e}"))
-        };
-        let response = client.get(url).send().await.map_err(download_failed)?;
-        let status = response.status();
-        if !status.is_success() {
-            return Err(ServerError::upstream(format!(
-                "Couldn’t download the extension. The server answered {status}."
-            )));
-        }
-        let script = response.text().await.map_err(download_failed)?;
+        let script = download_script(url).await?;
         self.preview_extension(script).await
     }
 }
@@ -233,6 +214,50 @@ impl CohesionContext {
             installed,
         })
     }
+}
+
+/// The most of an extension script downloaded; a longer one is refused.
+pub(super) const MAX_SCRIPT_BYTES: usize = 5 * 1024 * 1024;
+
+/// Downloads the extension script at `url`, giving up after 20 seconds or
+/// past [`MAX_SCRIPT_BYTES`]. Invalid UTF-8 is replaced.
+async fn download_script(url: reqwest::Url) -> Result<String, ServerError> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .user_agent("cohesion")
+        .build()
+        .map_err(|e| {
+            log_error!(Module::Extensions, "Building an HTTP client failed: {e}");
+            ServerError::internal()
+        })?;
+    // reqwest's own message only names the URL; the cause is in its sources.
+    let download_failed = |e: reqwest::Error| {
+        let mut message = format!("Couldn’t download the extension: {e}");
+        let mut source = std::error::Error::source(&e);
+        while let Some(cause) = source {
+            message.push_str(&format!(": {cause}"));
+            source = cause.source();
+        }
+        ServerError::upstream(message)
+    };
+    let mut response = client.get(url).send().await.map_err(download_failed)?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(ServerError::upstream(format!(
+            "Couldn’t download the extension. The server answered {status}."
+        )));
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(download_failed)? {
+        body.extend_from_slice(&chunk);
+        if body.len() > MAX_SCRIPT_BYTES {
+            return Err(ServerError::upstream(format!(
+                "Couldn’t download the extension. It’s over {} MB.",
+                MAX_SCRIPT_BYTES / (1024 * 1024)
+            )));
+        }
+    }
+    Ok(String::from_utf8_lossy(&body).into_owned())
 }
 
 /// What a registry section shows for a failed search.
