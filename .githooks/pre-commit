@@ -1,0 +1,22 @@
+#!/bin/sh
+# Runs cargo fmt and applies clippy's automatic fixes before each commit, then
+# re-stages the staged Rust files so the fixes land in the commit. A file with
+# both staged and unstaged changes is re-staged whole. Staged files under
+# web/ get prettier the same way when its dependencies are installed.
+set -e
+
+if ! git diff --cached --quiet --diff-filter=ACMR -- 'web/*' && [ -d web/node_modules ]; then
+  # Prettier resolves the plugins named in web/.prettierrc from its working
+  # directory, so it has to run inside web/.
+  git diff --cached --name-only -z --diff-filter=ACMR --relative=web -- 'web/*' \
+    | (cd web && xargs -0 ./node_modules/.bin/prettier --write --ignore-unknown --log-level warn --)
+  git diff --cached --name-only -z --diff-filter=ACMR -- 'web/*' | xargs -0 git add --
+fi
+
+# Nothing more to do when no Rust files are staged.
+git diff --cached --quiet --diff-filter=ACMR -- '*.rs' && exit 0
+
+cargo fmt --all
+cargo clippy --fix --allow-dirty --allow-staged --workspace --all-targets --locked --quiet
+
+git diff --cached --name-only -z --diff-filter=ACMR -- '*.rs' | xargs -0 git add --

@@ -1,0 +1,15 @@
+#!/bin/sh
+# Drops AI attribution trailers (a Claude or Anthropic Co-Authored-By, a
+# "Generated with Claude Code" line) from the commit message: this project's
+# commits carry none, whatever a session's harness asks for. A human
+# co-author stays.
+msg="$1"
+pattern='^(Co-Authored-By:.*([Cc]laude|[Aa]nthropic)|.*Generated with \[?Claude Code)'
+
+grep -Eiq "$pattern" "$msg" || exit 0
+
+grep -Eiv "$pattern" "$msg" > "$msg.tmp"
+# Trim the blank lines the removed trailers leave at the end.
+awk 'NF { for (; blank > 0; blank--) print ""; print; next } { blank++ }' "$msg.tmp" > "$msg"
+rm -f "$msg.tmp"
+echo "commit-msg: removed AI attribution from the message" >&2

@@ -1,0 +1,98 @@
+<!--
+	The Dashboard's recap: what the autonomous parts left for the user, in
+	the order to deal with it. Actor sessions waiting on the user come first
+	(amber), then sessions that finished a stretch of work and are still
+	unread, then the agents that posted since their conversation was last
+	read. Each row opens its item; nothing shows when there is nothing.
+	Sessions still working come last as small chips that wrap, so all of
+	them show at once however many there are.
+-->
+<script lang="ts">
+	import { ago, nowSeconds } from '$lib/format/dates';
+	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
+	import { routes } from '$lib/shell/routes';
+	import { pageStores } from '$lib/stores/pageStores.svelte';
+	import AgentAvatar from '$lib/ui/AgentAvatar.svelte';
+	import StatusIcon from '$lib/ui/StatusIcon.svelte';
+
+	const { actors, agents } = pageStores();
+
+	/** Ticks each minute, so "3m ago" stays true while the page is open. */
+	let now = $state(nowSeconds());
+	$effect(() => {
+		const timer = setInterval(() => (now = nowSeconds()), 60_000);
+		return () => clearInterval(timer);
+	});
+
+	const waiting = $derived(actors.sessions.value.filter((s) => s.status === 'needsAttention'));
+	const finished = $derived(
+		actors.sessions.value.filter((s) => s.unread && s.status !== 'needsAttention')
+	);
+	const working = $derived(actors.sessions.value.filter((s) => s.status === 'working'));
+	const unreadAgents = $derived(
+		agents.list.value
+			.filter((a) => a.agent_unread)
+			.sort((a, b) => (b.last_message_at ?? 0) - (a.last_message_at ?? 0))
+	);
+
+	const row =
+		'flex h-9 items-center gap-2.5 rounded-md px-2 text-fg no-underline transition-colors hover:bg-bg-hover hover:no-underline';
+</script>
+
+{#snippet session(s: (typeof waiting)[number], needsYou: boolean)}
+	<li>
+		<a class={row} href={routes.actorSession(s.id)}>
+			<StatusIcon status={s.status} />
+			<span class="min-w-0 flex-1 truncate">{s.title}</span>
+			<span class={['flex-none text-xs', needsYou ? 'text-warn' : 'text-fg-subtle']}
+				>{vocabulary.actorSessionStatus(s.status)} · {ago(s.status_changed_at, now)}</span
+			>
+		</a>
+	</li>
+{/snippet}
+
+{#if waiting.length > 0 || finished.length > 0 || unreadAgents.length > 0 || working.length > 0}
+	<section aria-labelledby="recap-heading">
+		<h2 id="recap-heading" class="border-b border-border pb-2 text-md font-semibold">What’s new</h2>
+		<ul class="-mx-2 flex flex-col pt-1">
+			{#each waiting as s (s.id)}
+				{@render session(s, true)}
+			{/each}
+			{#each finished as s (s.id)}
+				{@render session(s, false)}
+			{/each}
+			{#each unreadAgents as a (a.id)}
+				<li>
+					<a class={row} href={routes.agent(a.id)}>
+						<AgentAvatar
+							name={a.agent_name}
+							color={a.agent_color}
+							emoji={a.agent_emoji}
+							size="xs"
+						/>
+						<span class="min-w-0 flex-1 truncate">{a.agent_name}</span>
+						<span class="flex-none text-xs text-fg-subtle">
+							New message{a.last_message_at ? ` · ${ago(a.last_message_at, now)}` : ''}
+						</span>
+					</a>
+				</li>
+			{/each}
+		</ul>
+		{#if working.length > 0}
+			<h3 class="pt-4 pb-2 text-xs font-medium text-fg-subtle">Working</h3>
+			<ul class="flex flex-wrap gap-1.5">
+				{#each working as s (s.id)}
+					<li class="min-w-0">
+						<a
+							class="flex h-7 max-w-64 items-center gap-1.5 rounded-full border border-border px-2.5 text-xs text-fg-muted no-underline transition-colors hover:border-border-strong hover:text-fg hover:no-underline"
+							href={routes.actorSession(s.id)}
+						>
+							<StatusIcon status={s.status} />
+							<span class="truncate">{s.title}</span>
+						</a>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	</section>
+{/if}

@@ -1,0 +1,16 @@
+.git
+.github
+.claude
+.githooks
+CLAUDE.md
+CONTRIBUTING.md
+README.md
+**/node_modules
+*.db
+*.db-*
+CLAUDE.local.md
+dev
+docs
+target
+web/.svelte-kit
+web/build

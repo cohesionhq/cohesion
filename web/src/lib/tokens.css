@@ -1,0 +1,571 @@
+/* Design tokens and the Tailwind theme built from them. Components style
+   themselves with Tailwind utilities that resolve to these tokens; nothing
+   hard-codes a color, size or radius.
+
+   Tailwind's preflight is the reset, so markup never resets an element's
+   margin, padding, border or list style itself; the base rules below set
+   the app's defaults on top of it. Everything except the raw tokens sits
+   in a cascade layer, so a utility class always wins over a base rule. A
+   component <style> block is unlayered and wins over utilities; keep those
+   for what classes can't reach (rendered HTML, third-party DOM, keyframes). */
+
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+/* `touch:` = devices without hover (phones, tablets). */
+@custom-variant touch (@media (hover: none));
+
+/* A page in half of a split view (`@container/pane`) lays out as it would in
+   a narrower window: `max-md:` holds below 640px of half, `max-sm:` below 480.
+   Each keeps its window width too, so the sidebar, outside any half, and an
+   unsplit page are as before. */
+@custom-variant max-md {
+	@media (width < 900px) {
+		@slot;
+	}
+	@container pane (width < 640px) {
+		@slot;
+	}
+}
+@custom-variant max-sm {
+	@media (width < 600px) {
+		@slot;
+	}
+	@container pane (width < 480px) {
+		@slot;
+	}
+}
+
+/* Static scales. `--spacing` makes p-1 = 4px, p-2 = 8px … p-8 = 32px,
+   p-12 = 48px, matching --s1 … --s8. Breakpoints: `max-sm:` < 600px,
+   `max-md:` < 900px, `max-lg:` < 1100px. */
+@theme {
+	--color-*: initial;
+	--text-*: initial;
+	--radius-*: initial;
+	--font-*: initial;
+	--breakpoint-*: initial;
+
+	--spacing: 4px;
+
+	--breakpoint-sm: 600px;
+	--breakpoint-md: 900px;
+	--breakpoint-lg: 1100px;
+
+	--text-3xs: 10px;
+	--text-2xs: 11px;
+	--text-xs: 13px;
+	--text-sm: 14px;
+	--text-md: 15px;
+	--text-lg: 20px;
+	--text-xl: 28px;
+
+	--radius-sm: 6px;
+	--radius-md: 10px;
+	/* A one-line field's half height, so it reads as a capsule: the agent composer. */
+	--radius-lg: 24px;
+
+	--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+	--font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+	/* An article's text, set for reading. */
+	--font-serif: ui-serif, 'New York', 'Iowan Old Style', Georgia, serif;
+}
+
+/* Colors that change with the color scheme, as utilities: text-fg,
+   bg-bg-raised, border-border, text-accent, bg-overlay, shadow-focus … */
+@theme inline {
+	--color-n0: var(--n0);
+	--color-n1: var(--n1);
+	--color-n2: var(--n2);
+	--color-n3: var(--n3);
+	--color-n4: var(--n4);
+	--color-n5: var(--n5);
+	--color-n6: var(--n6);
+	--color-n7: var(--n7);
+	--color-n8: var(--n8);
+	--color-n9: var(--n9);
+
+	/* The window around the page's sheet, which the sidebar sits on. */
+	--color-canvas: var(--canvas);
+	--color-bg: var(--bg);
+	--color-bg-raised: var(--bg-raised);
+	--color-bg-hover: var(--bg-hover);
+	--color-border: var(--border);
+	--color-border-strong: var(--border-strong);
+	--color-fg: var(--fg);
+	--color-fg-muted: var(--fg-muted);
+	--color-fg-subtle: var(--fg-subtle);
+	--color-selection: var(--selection);
+	/* The current item in a list of places: the sidebar, a page's folders, Settings' sections. */
+	--color-current-item: var(--current-item);
+	--color-overlay: var(--overlay);
+
+	--color-primary: var(--primary);
+	--color-primary-hover: var(--primary-hover);
+	--color-primary-fg: var(--primary-fg);
+
+	--color-accent: var(--accent);
+	--color-accent-hover: var(--accent-hover);
+	--color-accent-fg: var(--accent-fg);
+	--color-accent-soft: var(--accent-soft);
+
+	/* Text and marks on an agent-colored fill (avatars, icon tiles, switches). */
+	--color-on-fill: var(--on-fill);
+
+	--color-danger: var(--danger);
+	--color-ok: var(--ok);
+	--color-warn: var(--warn);
+
+	/* An agent's color: bg-agent-blue … bg-agent-yellow. */
+	--color-agent-blue: var(--agent-blue);
+	--color-agent-green: var(--agent-green);
+	--color-agent-orange: var(--agent-orange);
+	--color-agent-purple: var(--agent-purple);
+	--color-agent-red: var(--agent-red);
+	--color-agent-pink: var(--agent-pink);
+	--color-agent-teal: var(--agent-teal);
+	--color-agent-yellow: var(--agent-yellow);
+
+	--shadow-focus: var(--focus-ring);
+	/* A switch's or slider's knob, lifted off its track. */
+	--shadow-knob: var(--knob-shadow);
+	/* The page's sheet: a hairline and a faint lift off the canvas. */
+	--shadow-sheet: var(--sheet-shadow);
+
+	--default-transition-duration: var(--duration);
+}
+
+/* Raw tokens. Utilities above read these; a <style> block may too. */
+:root {
+	/* Neutral ramp, light to dark: near-greys with the faintest cool cast. */
+	--n0: oklch(0.998 0.001 265);
+	--n1: oklch(0.982 0.003 265);
+	--n2: oklch(0.96 0.004 265);
+	--n3: oklch(0.922 0.005 265);
+	--n4: oklch(0.86 0.006 265);
+	--n5: oklch(0.7 0.008 265);
+	--n6: oklch(0.55 0.009 265);
+	--n7: oklch(0.43 0.009 265);
+	--n8: oklch(0.3 0.008 265);
+	--n9: oklch(0.19 0.006 265);
+
+	/* The one hue, kept for accents: the filled button that is a screen's
+	   main action, focus, unread and live states, links in prose, a chosen
+	   filter pill. An agent's view sets --primary to the agent's color, so its main actions take it. */
+	--accent: color(display-p3 0.369 0.373 0.89);
+	--accent-hover: color(display-p3 0.31 0.315 0.8);
+	--accent-fg: #ffffff;
+	--accent-soft: color(display-p3 0.369 0.373 0.89 / 0.1);
+	--focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px color(display-p3 0.369 0.373 0.89 / 0.45);
+
+	--primary: var(--accent);
+	--primary-hover: var(--accent-hover);
+	--primary-fg: var(--accent-fg);
+
+	--danger: #b03a3a;
+	--ok: #3f7d4a;
+	--warn: #9a7220;
+
+	--agent-blue: #4a6fb5;
+	--agent-green: #4f8a5a;
+	--agent-orange: #c4702e;
+	--agent-purple: #7a5bb0;
+	--agent-red: #b54848;
+	--agent-pink: #b8578f;
+	--agent-teal: #3d8a8a;
+	--agent-yellow: #b8932a;
+	--on-fill: #ffffff;
+	/* A switch's knob: always the lightest thing on the page. */
+	--knob: var(--n0);
+
+	--canvas: oklch(0.955 0.004 265);
+	--bg: var(--n0);
+	--bg-raised: var(--n1);
+	--bg-hover: var(--n2);
+	--current-item: oklch(0.2 0.006 265 / 0.07);
+	--border: oklch(0.905 0.005 265);
+	--border-strong: var(--n4);
+	--fg: var(--n9);
+	--fg-muted: var(--n7);
+	--fg-subtle: var(--n6);
+	--selection: color(display-p3 0.369 0.373 0.89 / 0.18);
+
+	--s1: 4px;
+	--s2: 8px;
+	--s3: 12px;
+	--s4: 16px;
+	--s5: 20px;
+	--s6: 24px;
+	--s7: 32px;
+	--s8: 48px;
+
+	--leading: 1.5;
+
+	--sidebar-width: 220px;
+	--rail-width: 56px;
+	/* What overlays keep clear of the viewport's edges. */
+	--gutter: 16px;
+	/* The least room a dialog leaves above and below it, centred in the
+	   window; above, it keeps clear of the titlebar inset too. */
+	--dialog-inset: var(--s8);
+	/* Between the window's edge and the page's sheet, and the sheet's corners. */
+	--sheet-inset: 8px;
+	--sheet-radius: 12px;
+	/* Pages fill the sheet; this pads their content inside it. */
+	--page-inset: 28px;
+	/* Room at the top of the page for what a WebUI harness draws over it, the Mac's
+	   window controls or the iPad's status bar; the harness sets it. */
+	--titlebar-inset: 0px;
+	/* How far a plain PageHeader (no back link or tabs) pushes content down:
+	   pt-3, an 8-unit row, pb-5 and mb-1. A column pinned beside the content
+	   sticks at this offset, under the header. */
+	--page-header-height: calc(var(--spacing) * 17);
+
+	--duration: 120ms;
+	--overlay: oklch(0.2 0.006 265 / 0.16);
+	/* Menus, popovers and dialogs float a little above the page. */
+	--bg-floating: var(--n0);
+	--shadow-floating: 0 1px 2px oklch(0.2 0.006 265 / 0.06), 0 8px 24px oklch(0.2 0.006 265 / 0.08);
+	--knob-shadow: 0 1px 2px oklch(0 0 0 / 0.25);
+	--sheet-shadow: 0 0 0 1px var(--border), 0 1px 3px oklch(0.2 0.01 265 / 0.05);
+}
+
+@media (max-width: 1099.98px) {
+	:root {
+		--page-inset: 20px;
+	}
+}
+
+@media (max-width: 899.98px) {
+	:root {
+		--page-inset: 16px;
+	}
+}
+
+/* On a phone the sheet meets the screen's edges. */
+@media (max-width: 599.98px) {
+	:root {
+		--dialog-inset: var(--gutter);
+		--sheet-inset: 0px;
+		--sheet-radius: 0px;
+	}
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--n0: oklch(0.155 0.004 265);
+		--n1: oklch(0.185 0.005 265);
+		--n2: oklch(0.225 0.006 265);
+		--n3: oklch(0.26 0.006 265);
+		--n4: oklch(0.32 0.007 265);
+		--n5: oklch(0.45 0.008 265);
+		--n6: oklch(0.64 0.008 265);
+		--n7: oklch(0.77 0.006 265);
+		--n8: oklch(0.89 0.004 265);
+		--n9: oklch(0.965 0.002 265);
+
+		/* Lifted so it reads on near-black. */
+		--accent: color(display-p3 0.52 0.525 0.96);
+		--accent-hover: color(display-p3 0.58 0.585 0.97);
+		--accent-fg: var(--n0);
+		--accent-soft: color(display-p3 0.52 0.525 0.96 / 0.16);
+		--focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px color(display-p3 0.52 0.525 0.96 / 0.55);
+
+		--danger: #e58585;
+		--ok: #8cc496;
+		--warn: #d9b46a;
+
+		--agent-blue: #7f9fe0;
+		--agent-green: #85c290;
+		--agent-orange: #e39a5e;
+		--agent-purple: #a98ad9;
+		--agent-red: #e07a7a;
+		--agent-pink: #e08ab9;
+		--agent-teal: #6fbfbf;
+		--agent-yellow: #e0c068;
+		/* The fills lighten in the dark, so what sits on them darkens. */
+		--on-fill: var(--n0);
+		--knob: var(--n9);
+
+		/* The sheet lifts off a darker canvas. */
+		--canvas: var(--n0);
+		--bg: var(--n1);
+		--bg-raised: var(--n2);
+		--bg-hover: var(--n3);
+		--current-item: oklch(1 0 0 / 0.08);
+		--border: var(--n3);
+
+		--selection: color(display-p3 0.52 0.525 0.96 / 0.28);
+		--overlay: oklch(0 0 0 / 0.55);
+		--bg-floating: var(--n2);
+		--shadow-floating: 0 1px 2px oklch(0 0 0 / 0.3), 0 12px 32px oklch(0 0 0 / 0.5);
+	}
+}
+
+@layer base {
+	@media (prefers-reduced-motion: reduce) {
+		:root {
+			--duration: 0ms;
+		}
+		*,
+		*::before,
+		*::after {
+			animation-duration: 0ms !important;
+			transition-duration: 0ms !important;
+		}
+	}
+
+	html,
+	body {
+		height: 100%;
+	}
+
+	/* An app, not a document: no scroller bounces past its ends. A scroller
+	   that only moves sideways sets `overscroll-y-auto`, or it swallows the
+	   wheel the page beneath it should take. */
+	* {
+		overscroll-behavior: none;
+	}
+
+	body {
+		background: var(--canvas);
+		color: var(--fg);
+		font-family: var(--font-sans);
+		font-size: var(--text-sm);
+		line-height: var(--leading);
+		-webkit-font-smoothing: antialiased;
+	}
+
+	::selection {
+		background: var(--selection);
+	}
+
+	a {
+		color: var(--accent);
+		text-decoration: none;
+	}
+
+	a:hover {
+		text-decoration: underline;
+	}
+
+	:focus-visible {
+		outline: none;
+		box-shadow: var(--focus-ring);
+		border-radius: var(--radius-sm);
+	}
+
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
+		font-weight: 600;
+		line-height: 1.25;
+	}
+
+	code,
+	pre,
+	kbd {
+		font-family: var(--font-mono);
+		font-size: 0.92em;
+	}
+
+	kbd {
+		padding: 0 var(--s1);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		color: var(--fg-subtle);
+		font-size: var(--text-2xs);
+	}
+
+	.visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+}
+
+@layer components {
+	/* Bits UI overlays render in a portal, so their shared look lives here. */
+	@keyframes fade-in {
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
+	}
+
+	@keyframes fade-out {
+		from {
+			opacity: 1;
+		}
+		to {
+			opacity: 0;
+		}
+	}
+
+	.overlay-surface {
+		background: var(--bg-floating);
+		box-shadow: var(--shadow-floating);
+		color: var(--fg);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		font-size: var(--text-sm);
+	}
+
+	.overlay-surface[data-state='open'],
+	.overlay-backdrop[data-state='open'] {
+		animation: fade-in var(--duration) ease-out;
+	}
+
+	.overlay-surface[data-state='closed'],
+	.overlay-backdrop[data-state='closed'] {
+		animation: fade-out var(--duration) ease-in;
+	}
+
+	/* A popover that flies out of its trigger: it fades in while scaling and
+	   sliding up from the point Bits UI anchors it to, and back on close.
+	   Reduced motion zeroes the duration, which leaves it instant. */
+	@keyframes flyout-in {
+		from {
+			opacity: 0;
+			transform: translateY(4px) scale(0.95);
+		}
+	}
+
+	@keyframes flyout-out {
+		to {
+			opacity: 0;
+			transform: translateY(4px) scale(0.95);
+		}
+	}
+
+	.overlay-surface.flyout {
+		transform-origin: var(--bits-popover-content-transform-origin);
+	}
+
+	.overlay-surface.flyout[data-state='open'] {
+		animation: flyout-in 180ms ease-out;
+	}
+
+	.overlay-surface.flyout[data-state='closed'] {
+		animation: flyout-out 150ms ease-out forwards;
+	}
+
+	/* A side panel (SidePanel.svelte) slides in from the right edge and back
+	   out. It arrives on a steep ease-out, covering most of the way at once
+	   and settling into place, and leaves quicker on an accelerating curve,
+	   so it never reads as a linear slide; reduced motion zeroes it like
+	   every animation. */
+	@keyframes side-panel-in {
+		from {
+			transform: translateX(calc(100% + var(--gutter)));
+		}
+	}
+
+	@keyframes side-panel-out {
+		to {
+			transform: translateX(calc(100% + var(--gutter)));
+		}
+	}
+
+	.overlay-surface.side-panel[data-state='open'] {
+		animation: side-panel-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	.overlay-surface.side-panel[data-state='closed'] {
+		animation: side-panel-out 140ms cubic-bezier(0.3, 0, 0.8, 0.15) forwards;
+	}
+
+	/* Page navigations dissolve: the old page (whichever scope the root
+	   layout names `page`) fades out as the new one fades in over it, the
+	   two overlapping so the page never dips to empty between them.
+	   Everything else (sidebar, toasts, the page header) swaps without
+	   animating or blending. Reduced motion zeroes --duration, which makes
+	   these instant too. */
+	::view-transition-group(*) {
+		animation-duration: var(--duration);
+	}
+
+	/* The transition's snapshots sit over the whole page and would take the
+	   pointer, leaving `:hover` on whatever was under it when the fade began
+	   until the next mouse move. Let it through to the live page instead. */
+	::view-transition {
+		pointer-events: none;
+	}
+
+	::view-transition-old(root),
+	::view-transition-new(root) {
+		animation: none;
+		mix-blend-mode: normal;
+	}
+
+	/* The new header covers the old at once; dropping the old snapshot keeps
+	   a taller old header from showing under a shorter new one. A header on
+	   only one side of the navigation fades with the page instead, so a page
+	   whose layout changes moves as one; a header beside a list's side nav
+	   (Articles, Tasks) has no name, as it isn't where other pages' are. */
+	::view-transition-group(page-header),
+	::view-transition-new(page-header) {
+		animation: none;
+	}
+
+	::view-transition-old(page-header) {
+		display: none;
+	}
+
+	::view-transition-old(page),
+	::view-transition-old(page-header):only-child {
+		display: block;
+		animation: fade-out calc(var(--duration) * 0.7) ease-out both;
+	}
+
+	::view-transition-new(page),
+	::view-transition-new(page-header):only-child {
+		animation: fade-in var(--duration) ease-out calc(var(--duration) * 0.2) both;
+	}
+
+	/* On the dialogs' layer, so the stacking follows the portals' order: a
+	   dialog opened from another covers it with its own backdrop, dimming it
+	   as the page is, rather than slipping under it. */
+	.overlay-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 50;
+		background: var(--overlay);
+	}
+}
+
+/* A rendered Mermaid diagram (`ui/diagram.ts`): Pele's variables read the
+   page's tokens, so it follows light and dark without being drawn again. */
+@layer components {
+	.diagram {
+		--pele-bg: transparent;
+		--pele-fg: var(--n9);
+		--pele-muted: var(--n7);
+		--pele-line: var(--n6);
+		--pele-surface: var(--bg-raised);
+		--pele-surface-alt: var(--bg-hover);
+		--pele-border: var(--n4);
+		--pele-accent: var(--accent);
+		--pele-font: system-ui;
+		--pele-radius: var(--radius-sm);
+		/* Charts: the accent first, then the agent colors. */
+		--pele-series-1: var(--accent);
+		--pele-series-2: var(--agent-green);
+		--pele-series-3: var(--agent-orange);
+		--pele-series-4: var(--agent-purple);
+		--pele-series-5: var(--agent-teal);
+		--pele-series-6: var(--agent-pink);
+		--pele-series-7: var(--agent-yellow);
+		--pele-series-8: var(--agent-red);
+	}
+}

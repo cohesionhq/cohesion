@@ -1,0 +1,36 @@
+[
+  {
+    "about": "A comment, however long, and WordPress's section of them.",
+    "trigger": {
+      "any": [
+        {
+          "element_with_id": "comments"
+        },
+        {
+          "named": {
+            "part": [
+              "comment"
+            ]
+          }
+        }
+      ]
+    },
+    "action": "delete"
+  },
+  {
+    "about": "Comment threads, sidebars, breadcrumbs, a masthead and skip links.",
+    "trigger": {
+      "named": {
+        "part": [
+          "comments",
+          "sidebar",
+          "breadcrumb",
+          "breadcrumbs",
+          "masthead",
+          "skip"
+        ]
+      }
+    },
+    "action": "delete"
+  }
+]

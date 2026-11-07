@@ -1,0 +1,53 @@
+[
+  {
+    "about": "Schema.org's own mark for an article's body.",
+    "trigger": {
+      "selector": "[itemprop~=articleBody]"
+    },
+    "weight": 50
+  },
+  {
+    "about": "Names sites give their article's container.",
+    "trigger": {
+      "named": {
+        "part": [
+          "article",
+          "body",
+          "content",
+          "entry",
+          "main",
+          "post",
+          "story",
+          "text",
+          "prose"
+        ]
+      }
+    },
+    "weight": 25
+  },
+  {
+    "about": "Names of what sits beside an article.",
+    "trigger": {
+      "named": {
+        "part": [
+          "comment",
+          "comments",
+          "footer",
+          "sidebar",
+          "widget",
+          "related",
+          "share",
+          "social",
+          "promo",
+          "meta",
+          "nav",
+          "menu",
+          "card",
+          "cards",
+          "teaser"
+        ]
+      }
+    },
+    "weight": -25
+  }
+]

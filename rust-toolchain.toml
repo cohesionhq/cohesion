@@ -1,0 +1,6 @@
+# The Rust release Cohesion builds with, the same as the Dockerfile's builder.
+# rustup installs it on first use; move both together.
+[toolchain]
+channel = "1.99"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

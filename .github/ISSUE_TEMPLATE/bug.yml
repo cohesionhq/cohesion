@@ -1,0 +1,49 @@
+name: Bug report
+description: Something in Cohesion doesn't work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `cohesion …`
+        2. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: What `cohesion status` shows, or the commit you built.
+    validations:
+      required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: Where you saw it
+      multiple: true
+      options:
+        - Web UI
+        - Command line
+        - Daemon (cohesiond)
+        - Container image
+        - Another client
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: The operating system running cohesiond, and the browser or device if it's a client problem.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant output from cohesiond, with keys, names and anything private removed.
+      render: text

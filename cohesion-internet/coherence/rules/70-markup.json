@@ -1,0 +1,56 @@
+[
+  {
+    "about": "A script's code left as bare text, which a feed that strips its `<script>` tags leaves behind.",
+    "trigger": "bare_code",
+    "action": "delete"
+  },
+  {
+    "about": "An image is content whatever its markup is named: a figure wrapped in `image-sharesheet` or `duet--media--content-warning` keeps its image from the rules and hints that go by names.",
+    "trigger": {
+      "any": [
+        {
+          "selector": "figure, figure *"
+        },
+        "picture_wrapper"
+      ]
+    },
+    "action": "strip_names"
+  },
+  {
+    "about": "A lazily loaded image, whose `src` is a placeholder until its script runs.",
+    "trigger": {
+      "selector": "img[data-src]"
+    },
+    "action": {
+      "source_from": "data-src"
+    }
+  },
+  {
+    "trigger": {
+      "selector": "img[data-lazy-src]"
+    },
+    "action": {
+      "source_from": "data-lazy-src"
+    }
+  },
+  {
+    "trigger": {
+      "selector": "img[data-original]"
+    },
+    "action": {
+      "source_from": "data-original"
+    }
+  },
+  {
+    "about": "What a page declares, by tag or ARIA role, to be a control or the site's chrome. A tab strip's tabs are controls; the panels they switch are content.",
+    "trigger": {
+      "selector": "[role~=button], [role~=tab], [role~=tablist], [role~=toolbar], [role~=menuitem], [role~=menuitemcheckbox], [role~=menuitemradio], [role~=checkbox], [role~=radio], [role~=switch], [role~=slider], [role~=spinbutton], [role~=searchbox], [role~=textbox], [role~=combobox], [role~=listbox], [role~=option], nav, [role~=navigation], [role~=search], [role~=banner], [role~=contentinfo]"
+    },
+    "action": "delete"
+  },
+  {
+    "about": "A permalink or footnote backlink drawn as a glyph, such as a closing ★ or a footnote's ↩.",
+    "trigger": "glyph_link",
+    "action": "delete"
+  }
+]

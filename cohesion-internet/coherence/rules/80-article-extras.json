@@ -1,0 +1,174 @@
+[
+  {
+    "about": "The byline or dateline, which the metadata reads the author and date from: `byline`, `author`, `entry-meta`, `post-footer`, `entryFooter`.",
+    "trigger": {
+      "any": [
+        {
+          "named": {
+            "part": [
+              "byline",
+              "dateline",
+              "author",
+              "authors",
+              "entrymeta",
+              "postmeta",
+              "entryfooter",
+              "postfooter"
+            ]
+          }
+        },
+        {
+          "named": {
+            "pair": [
+              [
+                "entry",
+                "post",
+                "article"
+              ],
+              [
+                "meta",
+                "footer"
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    "action": "delete"
+  },
+  {
+    "about": "An invitation to an account: \"Log in\", \"Sign up\".",
+    "trigger": {
+      "link": {
+        "is": [
+          "log in",
+          "login",
+          "sign in",
+          "sign up",
+          "create account",
+          "create an account"
+        ]
+      }
+    },
+    "action": "delete"
+  },
+  {
+    "about": "A badge linking the story's running coverage: \"Part of All the news about …\".",
+    "trigger": {
+      "link": {
+        "starts_with": "part of"
+      }
+    },
+    "action": "delete"
+  },
+  {
+    "about": "Links to the previous and next post, and a site's logo.",
+    "trigger": {
+      "any": [
+        {
+          "named": {
+            "part": [
+              "previousnext",
+              "prevnext",
+              "pagination",
+              "pager",
+              "logo"
+            ]
+          }
+        },
+        {
+          "named": {
+            "run": [
+              "previous",
+              "next"
+            ]
+          }
+        },
+        {
+          "named": {
+            "run": [
+              "prev",
+              "next"
+            ]
+          }
+        }
+      ]
+    },
+    "action": "delete"
+  },
+  {
+    "about": "A short block linking the author: a byline that lost its name.",
+    "trigger": {
+      "around": {
+        "inner": "[rel~=author], [itemprop~=author]",
+        "outer": "p, div"
+      }
+    },
+    "action": "delete"
+  },
+  {
+    "about": "A post's tags or related links: a block of links with only a label such as \"Tags:\" between them.",
+    "trigger": {
+      "any": [
+        {
+          "link_list": {
+            "is": [
+              "tag",
+              "tags",
+              "tagged",
+              "tagged with",
+              "topics",
+              "categories",
+              "filed under",
+              "posted in"
+            ]
+          }
+        },
+        {
+          "link_list": {
+            "starts_with": "related"
+          }
+        }
+      ]
+    },
+    "action": "delete"
+  },
+  {
+    "about": "Images that are no picture of the article's: icons and tracking pixels, inlined placeholders, and avatars by their address.",
+    "trigger": {
+      "any": [
+        {
+          "small_image": 100
+        },
+        {
+          "image_from": "inline"
+        },
+        {
+          "image_from": {
+            "host_ends_with": "gravatar.com"
+          }
+        },
+        {
+          "image_from": {
+            "host_starts_with": "avatar"
+          }
+        },
+        {
+          "image_from": {
+            "folder": [
+              "avatar",
+              "avatars",
+              "profile_images"
+            ]
+          }
+        }
+      ]
+    },
+    "action": "delete"
+  },
+  {
+    "about": "A link holding only an image, such as one to the image at full size, is the image.",
+    "trigger": "image_link",
+    "action": "unwrap"
+  }
+]

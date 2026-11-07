@@ -1,0 +1,21 @@
+[package]
+name = "cohesion-js"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+base64 = "0.22.1"
+cohesion-core.workspace = true
+cohesion-db.workspace = true
+cohesion-internet.workspace = true
+cohesion-macros.workspace = true
+jiff.workspace = true
+reqwest = { workspace = true, features = ["default", "blocking", "form", "json"] }
+rquickjs = { version = "0.14.0", features = ["macro"] }
+tokio = { workspace = true, features = ["sync", "rt-multi-thread"] }
+serde.workspace = true
+serde_json.workspace = true
+swc_common = "26.0.0"
+swc_ts_fast_strip = "59.0.0"

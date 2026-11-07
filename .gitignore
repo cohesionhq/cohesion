@@ -1,0 +1,10 @@
+target/
+dev/
+.nova
+.DS_Store
+.claude/worktrees/
+web/node_modules/
+web/.svelte-kit/
+web/build/*
+!web/build/.gitkeep
+CLAUDE.local.md

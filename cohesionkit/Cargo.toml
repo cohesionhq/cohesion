@@ -1,0 +1,24 @@
+[package]
+name = "cohesionkit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+cohesion-core.workspace = true
+cohesion-db.workspace = true
+cohesion-internet.workspace = true
+cohesion-js.workspace = true
+cohesion-intelligence.workspace = true
+jiff.workspace = true
+reqwest = { workspace = true, features = ["default"] }
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt", "test-util"] }
+
+[build-dependencies]
+flate2 = "1.1.10"

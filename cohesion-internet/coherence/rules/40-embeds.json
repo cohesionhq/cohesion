@@ -1,0 +1,34 @@
+[
+  {
+    "about": "An Instagram embed before its script runs: empty boxes and \"View this post on Instagram\".",
+    "trigger": {
+      "selector": "blockquote.instagram-media"
+    },
+    "action": {
+      "link_to": {
+        "permalink": "data-instgrm-permalink"
+      }
+    }
+  },
+  {
+    "about": "A YouTube player's facade: a thumbnail, the channel's links and \"Watch on YouTube\".",
+    "trigger": {
+      "selector": "[data-yt-id]"
+    },
+    "action": {
+      "link_to": {
+        "youtube": "data-yt-id"
+      }
+    }
+  },
+  {
+    "trigger": {
+      "selector": "lite-youtube[videoid]"
+    },
+    "action": {
+      "link_to": {
+        "youtube": "videoid"
+      }
+    }
+  }
+]

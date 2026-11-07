@@ -1,0 +1,9 @@
+[
+  {
+    "about": "What no reader of the page sees. React's streaming sends a page's content in a hidden `S:0` for a script to move into place, so that is seen.",
+    "trigger": {
+      "selector": "script, style, noscript, template, svg, iframe, object, embed, canvas, button, input, select, textarea, dialog, [hidden]:not([id^='S:']), [aria-hidden=true], [style*='display:none'], [style*='display: none']"
+    },
+    "action": "delete"
+  }
+]

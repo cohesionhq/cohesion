@@ -1,0 +1,23 @@
+[package]
+name = "cohesiond"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+axum = { version = "0.8.9", features = ["ws"] }
+axum-server = { version = "0.8.0", features = ["tls-rustls-no-provider"] }
+clap = { version = "4.6.7", features = ["derive", "env"] }
+cohesionkit.workspace = true
+futures-util = { version = "0.3.34", default-features = false, features = ["alloc", "sink"] }
+hyper-util = { version = "0.1.20", features = ["tokio"] }
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-rustls = { version = "0.26.5", default-features = false }
+tower-layer = "0.3.3"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }

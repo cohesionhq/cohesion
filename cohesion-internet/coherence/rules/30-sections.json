@@ -1,0 +1,75 @@
+[
+  {
+    "about": "A section a heading titles as other posts, comments or a pitch rather than the article's own: the heading and what follows up to the next heading of its rank or higher. An article's own \"Related work\" stays.",
+    "trigger": {
+      "any": [
+        {
+          "heading": {
+            "is": [
+              "post",
+              "related",
+              "related posts",
+              "related articles",
+              "related stories",
+              "related reading",
+              "popular",
+              "popular stories",
+              "popular posts",
+              "popular articles",
+              "most popular",
+              "most read",
+              "trending",
+              "trending now",
+              "recent posts",
+              "recent articles",
+              "recent stories",
+              "latest stories",
+              "more stories",
+              "read next",
+              "read more",
+              "recommended",
+              "recommended for you",
+              "you might also like",
+              "you may also like",
+              "newsletter",
+              "subscribe",
+              "share",
+              "share this",
+              "share this article",
+              "share this post",
+              "comments",
+              "top rated comments",
+              "leave a comment",
+              "leave a reply",
+              "join the discussion",
+              "about the author",
+              "relevant people",
+              "who to follow"
+            ]
+          }
+        },
+        {
+          "heading": {
+            "starts_with": "more from "
+          }
+        },
+        {
+          "heading": {
+            "starts_with": "more in:"
+          }
+        },
+        {
+          "heading": {
+            "starts_with": "log in or sign up"
+          }
+        },
+        {
+          "heading": {
+            "ends_with": " newsletter"
+          }
+        }
+      ]
+    },
+    "action": "delete_section"
+  }
+]

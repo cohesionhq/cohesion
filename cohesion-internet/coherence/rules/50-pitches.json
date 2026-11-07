@@ -1,0 +1,142 @@
+[
+  {
+    "about": "A share widget, `share` at any boundary of its name, as in a site's `article-share` block.",
+    "trigger": {
+      "named": {
+        "part": [
+          "share",
+          "sharedaddy"
+        ]
+      }
+    },
+    "action": "delete"
+  },
+  {
+    "about": "A pitch rather than content: a call to action, promo, newsletter or membership sign-up, paywall or members-only (`restricted`) notice, sponsor block, list of related posts or block placed after the content. Parts match whole, so `subscription` or `post-content` stay.",
+    "trigger": {
+      "any": [
+        {
+          "named": {
+            "part": [
+              "cta",
+              "newsletter",
+              "newsletters",
+              "subscribe",
+              "signup",
+              "membership",
+              "paywall",
+              "restricted"
+            ]
+          }
+        },
+        {
+          "named": {
+            "prefix": [
+              "promo",
+              "sponsor"
+            ]
+          }
+        },
+        {
+          "named": {
+            "run": [
+              "call",
+              "to",
+              "action"
+            ]
+          }
+        },
+        {
+          "named": {
+            "run": [
+              "sign",
+              "up"
+            ]
+          }
+        },
+        {
+          "named": {
+            "run": [
+              "after",
+              "content"
+            ]
+          }
+        },
+        {
+          "named": {
+            "run": [
+              "after",
+              "article"
+            ]
+          }
+        },
+        {
+          "named": {
+            "run": [
+              "after",
+              "post"
+            ]
+          }
+        },
+        {
+          "named": {
+            "run": [
+              "after",
+              "entry"
+            ]
+          }
+        },
+        {
+          "named": {
+            "run": [
+              "related",
+              "posts"
+            ]
+          }
+        },
+        {
+          "named": {
+            "run": [
+              "related",
+              "articles"
+            ]
+          }
+        },
+        {
+          "named": {
+            "run": [
+              "related",
+              "stories"
+            ]
+          }
+        }
+      ]
+    },
+    "action": "delete"
+  },
+  {
+    "about": "Advertising.",
+    "trigger": {
+      "any": [
+        {
+          "element_with_id": "advertisement"
+        },
+        {
+          "element_with_class": "adsbygoogle"
+        },
+        {
+          "named": {
+            "part": [
+              "ad",
+              "ads",
+              "advert",
+              "advertisement",
+              "dfp"
+            ]
+          }
+        }
+      ]
+    },
+    "action": "delete"
+  }
+]

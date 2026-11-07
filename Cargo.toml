@@ -1,0 +1,51 @@
+[workspace]
+members = [
+    "cohesion",
+    "cohesion-core",
+    "cohesion-db", "cohesion-intelligence",
+    "cohesion-internet",
+    "cohesion-internet-harness",
+    "cohesion-js",
+    "cohesion-macros",
+    "cohesiond",
+    "cohesionkit",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-only"
+repository = "https://github.com/cohesionhq/cohesion"
+
+# Members opt in with `dep.workspace = true`.
+[workspace.dependencies]
+# Workspace crates
+cohesion-core = { path = "cohesion-core" }
+cohesion-db = { path = "cohesion-db" }
+cohesion-intelligence = { path = "cohesion-intelligence" }
+cohesion-internet = { path = "cohesion-internet" }
+cohesion-js = { path = "cohesion-js" }
+cohesion-macros = { path = "cohesion-macros" }
+cohesionkit = { path = "cohesionkit" }
+
+# External versions shared by more than one crate
+aws-lc-rs = "1.18.1"
+dirs = "7.0.0"
+jiff = "0.2.38"
+rcgen = { version = "0.14.10", default-features = false, features = ["aws_lc_rs", "crypto"] }
+reqwest = { version = "0.13.5", default-features = false }
+rusqlite = { version = "0.40.2", features = ["bundled", "functions"] }
+rustls = "0.23.45"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+tokio = "1.53.1"
+
+# Every test migrates a database from scratch, nearly all of it inside SQLite.
+[profile.dev.package.libsqlite3-sys]
+opt-level = 3
+
+# No LTO, so a local install relinks fast; set CARGO_PROFILE_RELEASE_LTO=true
+# for an LTO build.
+[profile.release]
+strip = true

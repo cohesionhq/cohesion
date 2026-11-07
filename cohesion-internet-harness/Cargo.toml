@@ -1,0 +1,11 @@
+[package]
+name = "cohesion-internet-harness"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+cohesion-core.workspace = true
+cohesion-internet.workspace = true

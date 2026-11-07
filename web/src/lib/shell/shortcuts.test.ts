@@ -1,0 +1,85 @@
+import { describe, expect, it } from 'vitest';
+import { pressesKey } from './keys';
+import {
+	historyStepFor,
+	historyStepForButton,
+	opensSettings,
+	showsShortcuts
+} from './shortcuts.svelte';
+
+const press = (code: string, key: string, mods: Partial<KeyboardEvent> = {}) => ({
+	code,
+	key,
+	metaKey: false,
+	ctrlKey: false,
+	altKey: false,
+	shiftKey: false,
+	...mods
+});
+
+describe('opensSettings', () => {
+	it('opens Settings on ⌘, or Ctrl+, alone', () => {
+		expect(opensSettings(press('Comma', ',', { metaKey: true }))).toBe(true);
+		expect(opensSettings(press('Comma', ',', { ctrlKey: true }))).toBe(true);
+		expect(opensSettings(press('Comma', '≤', { altKey: true }))).toBe(false);
+		expect(opensSettings(press('Comma', '<', { metaKey: true, shiftKey: true }))).toBe(false);
+		expect(opensSettings(press('Comma', ','))).toBe(false);
+	});
+
+	it('leaves the old page chords alone', () => {
+		expect(opensSettings(press('KeyJ', 'j', { metaKey: true }))).toBe(false);
+		expect(opensSettings(press('Digit1', '1', { metaKey: true }))).toBe(false);
+	});
+});
+
+describe('historyStepFor', () => {
+	it('steps back and forward on ⌘[ ⌘], ⌘← ⌘→ and ⌥← ⌥→', () => {
+		expect(historyStepFor(press('BracketLeft', '[', { metaKey: true }))).toBe(-1);
+		expect(historyStepFor(press('BracketRight', ']', { metaKey: true }))).toBe(1);
+		// A layout that types something else on the key still matches it.
+		expect(historyStepFor(press('BracketLeft', 'ü', { metaKey: true }))).toBe(-1);
+		expect(historyStepFor(press('ArrowLeft', 'ArrowLeft', { metaKey: true }))).toBe(-1);
+		expect(historyStepFor(press('ArrowLeft', 'ArrowLeft', { altKey: true }))).toBe(-1);
+		expect(historyStepFor(press('ArrowRight', 'ArrowRight', { altKey: true }))).toBe(1);
+	});
+
+	it('ignores a bare key, ⌥[, Ctrl, Shift and two modifiers at once', () => {
+		expect(historyStepFor(press('ArrowLeft', 'ArrowLeft'))).toBeNull();
+		expect(historyStepFor(press('BracketLeft', '“', { altKey: true }))).toBeNull();
+		expect(historyStepFor(press('BracketLeft', '[', { ctrlKey: true }))).toBeNull();
+		expect(
+			historyStepFor(press('ArrowLeft', 'ArrowLeft', { metaKey: true, shiftKey: true }))
+		).toBeNull();
+		expect(
+			historyStepFor(press('ArrowLeft', 'ArrowLeft', { metaKey: true, altKey: true }))
+		).toBeNull();
+	});
+
+	it('steps on the mouse’s back and forward buttons only', () => {
+		expect(historyStepForButton(3)).toBe(-1);
+		expect(historyStepForButton(4)).toBe(1);
+		expect(historyStepForButton(0)).toBeNull();
+		expect(historyStepForButton(1)).toBeNull();
+	});
+});
+
+describe('showsShortcuts', () => {
+	it('takes ⌘/ or Ctrl+/, and nothing else on that key', () => {
+		expect(showsShortcuts(press('Slash', '/', { metaKey: true }))).toBe(true);
+		expect(showsShortcuts(press('Slash', '/', { ctrlKey: true }))).toBe(true);
+		expect(showsShortcuts(press('Slash', '/'))).toBe(false);
+		expect(showsShortcuts(press('Slash', '?', { shiftKey: true, metaKey: true }))).toBe(false);
+		expect(showsShortcuts(press('Slash', '/', { altKey: true, metaKey: true }))).toBe(false);
+	});
+});
+
+describe('pressesKey', () => {
+	it('matches a bare key by name or as typed, and nothing held with it', () => {
+		expect(pressesKey(press('Digit1', '1'), '1')).toBe(true);
+		expect(pressesKey(press('KeyO', 'O'), 'o')).toBe(true);
+		expect(pressesKey(press('Backspace', 'Backspace'), 'backspace')).toBe(true);
+		expect(pressesKey(press('Digit2', '2'), '1')).toBe(false);
+		expect(pressesKey(press('Digit1', '1', { metaKey: true }), '1')).toBe(false);
+		expect(pressesKey(press('Digit1', '1', { altKey: true }), '1')).toBe(false);
+	});
+});

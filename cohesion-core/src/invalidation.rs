@@ -1,0 +1,117 @@
+use cohesion_macros::TsWire;
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TsWire)]
+#[serde(tag = "kind", content = "id", rename_all = "camelCase")]
+pub enum Invalidation {
+    Workspace(i64),
+    /// A model call's cost was recorded.
+    IntelligenceCostEvents,
+    /// Anything about an agent changed: its row, messages, cues or runs.
+    Agent(i64),
+    /// The teams of agents changed: one was created, renamed or deleted.
+    AgentTeams,
+    /// A workspace's task folders changed: one was created, renamed or deleted.
+    TaskFolders(i64),
+    /// A workspace's documents changed: one was created, edited, renamed or
+    /// deleted, journals included.
+    Documents(i64),
+    /// The tasks in one list changed; a `None` folder is the inbox.
+    TaskList {
+        workspace_id: i64,
+        folder_id: Option<i64>,
+    },
+    /// The connector accounts changed: one was added, re-authenticated or
+    /// removed.
+    ConnectorAccounts,
+    /// A workspace's resources changed: one was imported, refreshed or removed.
+    Resources(i64),
+    /// The kinds of resource shown in a workspace changed: one was shown or
+    /// hidden there.
+    ResourceKinds(i64),
+    /// The feed list changed: a feed was added, refreshed, renamed,
+    /// reordered, changed or deleted, or how many of a feed's items are
+    /// unread changed. Feeds are shared by every workspace.
+    Feeds,
+    /// An article from a feed changed: one was added or removed, re-fetched,
+    /// renamed, or marked read or unread. Feed listings (`{ feed: id }`,
+    /// `feeds`) and corpus searches are shared by every workspace, so this is
+    /// one key.
+    FeedArticles,
+    /// The intelligence settings changed: an endpoint was created or
+    /// deleted, a model was added to or removed from one or linked to the
+    /// catalog, a tier's default was set or cleared, or a spend limit was
+    /// set or cleared.
+    Intelligence,
+    /// The clients changed: one was registered or deleted, or a client
+    /// connected or disconnected.
+    Clients,
+    /// Security changed: the settings, or something was added to the
+    /// security activity.
+    Security,
+    /// The storage settings changed.
+    Storage,
+    /// The user's profile changed: their name or photo was set or removed.
+    Profile,
+    /// A workspace's tags changed: one was created, renamed or deleted.
+    Tags(i64),
+    /// A workspace's contacts changed: one was created, changed or deleted,
+    /// or one of its methods was added, changed or removed.
+    Contacts(i64),
+    /// A workspace's saved task views changed: one was created, changed,
+    /// renamed, reordered or deleted, or lost a folder or tag it used.
+    SavedTaskViews(i64),
+    /// The extension updates on offer changed: a registry check finished,
+    /// or an extension was installed, replaced or uninstalled.
+    ExtensionUpdates,
+    /// The memories changed: one was remembered or forgotten, or an agent's
+    /// went with it.
+    Memories,
+    /// The activities changed: one started, reported progress, waited or
+    /// ended, or an agent's went with it.
+    Activities,
+    /// The actors changed: a client offered one, changed one or stopped
+    /// offering it.
+    Actors,
+    /// The actor sessions changed: one was started, said something, changed
+    /// where it stands or ended.
+    ActorSessions,
+    /// What was said in actor session `id` changed.
+    ActorSession(i64),
+    /// How much of its limits an actor has used changed: its client
+    /// reported it, or the client that did went away.
+    ActorUsage,
+    /// A script or an agent sent the user a notification, which nothing
+    /// stores, so the key carries it for clients to show.
+    Notification {
+        title: String,
+        message: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TsWire)]
+pub struct InvalidationBatch {
+    pub keys: Vec<Invalidation>,
+}
+
+#[derive(Default)]
+pub struct InvalidationContext {
+    keys: HashSet<Invalidation>,
+}
+
+impl InvalidationContext {
+    pub fn invalidate(&mut self, key: Invalidation) {
+        self.keys.insert(key);
+    }
+
+    /// Drops every pending key, e.g. when the command that raised them failed.
+    pub fn clear(&mut self) {
+        self.keys.clear();
+    }
+
+    /// Removes and returns every pending key, to publish once a command finishes.
+    pub fn take(&mut self) -> Vec<Invalidation> {
+        self.keys.drain().collect()
+    }
+}

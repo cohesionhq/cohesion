@@ -1,0 +1,52 @@
+[
+  {
+    "about": "The box about a post's author that follows it, or an avatar: `author-bio`, `post-author-info`, `about-the-author`, `avatar`; or the byline and bio under the headline (`standard-lede-bottom`).",
+    "trigger": {
+      "any": [
+        {
+          "named": {
+            "run": [
+              "lede",
+              "bottom"
+            ]
+          }
+        },
+        {
+          "named": {
+            "pair": [
+              [
+                "author",
+                "authors",
+                "writer",
+                "contributor"
+              ],
+              [
+                "bio",
+                "box",
+                "info",
+                "card",
+                "profile",
+                "details",
+                "description",
+                "about"
+              ]
+            ]
+          }
+        },
+        {
+          "named": {
+            "part": [
+              "avatar",
+              "gravatar",
+              "authorbio",
+              "authorbox",
+              "authorinfo",
+              "aboutauthor"
+            ]
+          }
+        }
+      ]
+    },
+    "action": "delete"
+  }
+]

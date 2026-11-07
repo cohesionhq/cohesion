@@ -1,0 +1,395 @@
+{
+	"permissions": [
+		{
+			"kind": "cohesion:read",
+			"title": "Read your data",
+			"description": "See your workspaces, journals, documents and tasks."
+		},
+		{
+			"kind": "cohesion:write",
+			"title": "Change your data",
+			"description": "Create, edit and delete what’s in your workspaces."
+		},
+		{
+			"kind": "network",
+			"title": "Use the network",
+			"description": "Send requests to the internet."
+		},
+		{
+			"kind": "timer",
+			"title": "Run on a schedule",
+			"description": "Run code on a repeating timer."
+		},
+		{
+			"kind": "registry",
+			"title": "Offer extensions to browse",
+			"description": "List extensions for you to browse and install."
+		},
+		{
+			"kind": "oauth",
+			"title": "Sign in to a service for you",
+			"description": "Connect accounts at a service and keep them signed in."
+		},
+		{
+			"kind": "connector",
+			"title": "Import from a service",
+			"description": "Bring an account’s pages and records in as resources."
+		},
+		{
+			"kind": "service",
+			"title": "Run as a service",
+			"description": "Answer requests from Cohesion’s apps, the CLI, agents and scripts."
+		},
+		{
+			"kind": "service:isolated",
+			"title": "Run as a service for your apps",
+			"description": "Answer requests from Cohesion’s apps, the web UI and the CLI only."
+		},
+		{
+			"kind": "services",
+			"title": "Use other extensions’ services",
+			"description": "Call what other installed extensions offer as services."
+		},
+		{
+			"kind": "usage",
+			"title": "See model usage",
+			"description": "See how many tokens Cohesion’s models used and what they cost."
+		},
+		{
+			"kind": "intelligence",
+			"title": "Set up and manage endpoints",
+			"description": "Set up the endpoints and models Cohesion’s agents use."
+		},
+		{
+			"kind": "notifications",
+			"title": "Send you notifications",
+			"description": "Send notifications that extensions can deliver to your devices."
+		},
+		{
+			"kind": "actors",
+			"title": "Use actors",
+			"description": "Read, dispatch, and interact with actors."
+		}
+	],
+	"hooks": [
+		{
+			"kind": "launch",
+			"extension_clause": "Cohesion starts, or this extension is updated",
+			"cue_clause": "Cohesion starts"
+		},
+		{
+			"kind": "task:create",
+			"extension_clause": "a task is created",
+			"cue_clause": "a task is created"
+		},
+		{
+			"kind": "task:status",
+			"extension_clause": "a task’s status changes",
+			"cue_clause": "a task’s status changes"
+		},
+		{
+			"kind": "task:rename",
+			"extension_clause": "a task is renamed",
+			"cue_clause": "a task is renamed"
+		},
+		{
+			"kind": "task:move",
+			"extension_clause": "a task moves to another folder",
+			"cue_clause": "a task moves to another folder"
+		},
+		{
+			"kind": "task:priority",
+			"extension_clause": "a task’s priority changes",
+			"cue_clause": "a task’s priority changes"
+		},
+		{
+			"kind": "task:size",
+			"extension_clause": "a task’s size changes",
+			"cue_clause": "a task’s size changes"
+		},
+		{
+			"kind": "task:assigned",
+			"extension_clause": "a task’s assignee changes",
+			"cue_clause": "a task’s assignee changes"
+		},
+		{
+			"kind": "task:description",
+			"extension_clause": "a task’s description changes",
+			"cue_clause": "a task’s description changes"
+		},
+		{
+			"kind": "task:startdate",
+			"extension_clause": "a task’s start date changes",
+			"cue_clause": "a task’s start date changes"
+		},
+		{
+			"kind": "task:duedate",
+			"extension_clause": "a task’s due date changes",
+			"cue_clause": "a task’s due date changes"
+		},
+		{
+			"kind": "task:start",
+			"extension_clause": "a task is started",
+			"cue_clause": "a task is started"
+		},
+		{ "kind": "task:due", "extension_clause": "a task is due", "cue_clause": "a task is due" },
+		{
+			"kind": "task:tagged",
+			"extension_clause": "a tag is added to or removed from a task",
+			"cue_clause": "a tag is added to or removed from a task"
+		},
+		{
+			"kind": "task:delete",
+			"extension_clause": "a task is deleted",
+			"cue_clause": "a task is deleted"
+		},
+		{
+			"kind": "taskfolder:create",
+			"extension_clause": "a task folder is created",
+			"cue_clause": "a task folder is created"
+		},
+		{
+			"kind": "taskfolder:delete",
+			"extension_clause": "a task folder is deleted",
+			"cue_clause": "a task folder is deleted"
+		},
+		{
+			"kind": "workspace:create",
+			"extension_clause": "a workspace is created",
+			"cue_clause": "a workspace is created"
+		},
+		{
+			"kind": "workspace:delete",
+			"extension_clause": "a workspace is deleted",
+			"cue_clause": "a workspace is deleted"
+		},
+		{
+			"kind": "journal:settled",
+			"extension_clause": "you finish an edit to a journal entry",
+			"cue_clause": "you finish an edit to a journal entry"
+		},
+		{
+			"kind": "document:settled",
+			"extension_clause": "you finish an edit to a document",
+			"cue_clause": "you finish an edit to a document"
+		},
+		{
+			"kind": "resource:import",
+			"extension_clause": "a resource is imported",
+			"cue_clause": "a resource is imported"
+		},
+		{
+			"kind": "resource:update",
+			"extension_clause": "a refresh brings in a newer copy of a resource",
+			"cue_clause": "a refresh brings in a newer copy of a resource"
+		},
+		{
+			"kind": "resource:delete",
+			"extension_clause": "a resource is removed",
+			"cue_clause": "a resource is removed"
+		},
+		{
+			"kind": "feed:article",
+			"extension_clause": "a feed brings in a new article",
+			"cue_clause": "a feed brings in a new article"
+		},
+		{
+			"kind": "feed:delete",
+			"extension_clause": "you stop following a feed",
+			"cue_clause": "you stop following a feed"
+		},
+		{
+			"kind": "article:read",
+			"extension_clause": "an article is marked read",
+			"cue_clause": "an article is marked read"
+		},
+		{
+			"kind": "agent:message",
+			"extension_clause": "a message appears in an agent’s conversation",
+			"cue_clause": "a message appears in another agent’s conversation"
+		},
+		{
+			"kind": "agent:reaction",
+			"extension_clause": "someone reacts to a message in an agent’s conversation",
+			"cue_clause": "someone reacts to a message in another agent’s conversation"
+		},
+		{
+			"kind": "agent:turn:start",
+			"extension_clause": "an agent starts replying to you",
+			"cue_clause": "an agent starts replying to you"
+		},
+		{
+			"kind": "agent:turn:end",
+			"extension_clause": "an agent finishes replying to you",
+			"cue_clause": "an agent finishes replying to you"
+		},
+		{
+			"kind": "activity:started",
+			"extension_clause": "an activity starts",
+			"cue_clause": "an activity starts"
+		},
+		{
+			"kind": "activity:updated",
+			"extension_clause": "an activity’s progress, status or title changes",
+			"cue_clause": "an activity’s progress, status or title changes"
+		},
+		{
+			"kind": "activity:ended",
+			"extension_clause": "an activity ends",
+			"cue_clause": "an activity ends"
+		},
+		{
+			"kind": "actor:moved",
+			"extension_clause": "an actor makes progress",
+			"cue_clause": "an actor makes progress"
+		},
+		{
+			"kind": "day:start",
+			"extension_clause": "the day starts at 6:00 AM",
+			"cue_clause": "the day starts at 6:00 AM"
+		},
+		{
+			"kind": "day:end",
+			"extension_clause": "the day ends at 11:00 PM",
+			"cue_clause": "the day ends at 11:00 PM"
+		},
+		{ "kind": "timer", "extension_clause": "a minute begins", "cue_clause": "a minute begins" },
+		{
+			"kind": "extension:update",
+			"extension_clause": "an update is available for an installed extension",
+			"cue_clause": "an update is available for an installed extension"
+		},
+		{
+			"kind": "notification:send",
+			"extension_clause": "a notification is sent",
+			"cue_clause": "a notification is sent"
+		},
+		{
+			"kind": "client:revoke",
+			"extension_clause": "a client is revoked",
+			"cue_clause": "a client is revoked"
+		}
+	],
+	"task_priorities": [
+		{ "kind": "urgent", "label": "Urgent" },
+		{ "kind": "high", "label": "High" },
+		{ "kind": "medium", "label": "Medium" },
+		{ "kind": "low", "label": "Low" },
+		{ "kind": "none", "label": "No priority" }
+	],
+	"version_changes": [
+		{ "kind": "created", "label": "Created" },
+		{ "kind": "edited", "label": "Edited" },
+		{ "kind": "deleted", "label": "Deleted" },
+		{ "kind": "restored", "label": "Restored" },
+		{ "kind": "earlier", "label": "Earlier version" }
+	],
+	"task_sizes": [
+		{ "kind": 1, "label": "Tiny", "color": "teal" },
+		{ "kind": 2, "label": "Small", "color": "green" },
+		{ "kind": 3, "label": "Medium", "color": "blue" },
+		{ "kind": 4, "label": "Large", "color": "purple" },
+		{ "kind": 5, "label": "Huge", "color": "pink" }
+	],
+	"activity_statuses": [
+		{ "kind": "running", "label": "Running" },
+		{ "kind": "waiting", "label": "Waiting" },
+		{ "kind": "paused", "label": "Needs you" },
+		{ "kind": "succeeded", "label": "Done" },
+		{ "kind": "failed", "label": "Failed" },
+		{ "kind": "cancelled", "label": "Stopped" }
+	],
+	"actor_session_statuses": [
+		{ "kind": "working", "label": "Working" },
+		{ "kind": "needsAttention", "label": "Needs you" },
+		{ "kind": "idle", "label": "Done" },
+		{ "kind": "failed", "label": "Failed" },
+		{ "kind": "resolved", "label": "Resolved" }
+	],
+	"actor_session_stops": [
+		{ "kind": "needsYou", "label": "needs you" },
+		{ "kind": "finished", "label": "finished" },
+		{ "kind": "failed", "label": "failed" },
+		{ "kind": "interrupted", "label": "was interrupted" }
+	],
+	"agent_colors": [
+		{ "kind": "blue", "label": "Blue" },
+		{ "kind": "green", "label": "Green" },
+		{ "kind": "orange", "label": "Orange" },
+		{ "kind": "purple", "label": "Purple" },
+		{ "kind": "red", "label": "Red" },
+		{ "kind": "pink", "label": "Pink" },
+		{ "kind": "teal", "label": "Teal" },
+		{ "kind": "yellow", "label": "Yellow" }
+	],
+	"agent_personalities": [
+		{ "kind": "balanced", "label": "Balanced" },
+		{ "kind": "friendly", "label": "Friendly" },
+		{ "kind": "professional", "label": "Professional" },
+		{ "kind": "candid", "label": "Candid" },
+		{ "kind": "playful", "label": "Playful" }
+	],
+	"agent_verbosities": [
+		{ "kind": "terse", "label": "Terse" },
+		{ "kind": "brief", "label": "Brief" },
+		{ "kind": "detailed", "label": "Detailed" },
+		{ "kind": "thorough", "label": "Thorough" }
+	],
+	"tiers": [
+		{
+			"kind": "agent",
+			"title": "Agent",
+			"description": "Every agent conversation and any script that names no tier."
+		},
+		{ "kind": "low", "title": "Low", "description": "Cues an agent marks as quick checks." },
+		{ "kind": "medium", "title": "Medium", "description": "Cues an agent marks as ordinary work." },
+		{ "kind": "high", "title": "High", "description": "Cues an agent marks as hard reasoning." }
+	],
+	"spend_periods": [
+		{
+			"kind": "hour",
+			"title": "Per hour",
+			"description": "What model calls cost in the last 60 minutes."
+		},
+		{
+			"kind": "day",
+			"title": "Per day",
+			"description": "What model calls cost in the last 24 hours."
+		},
+		{
+			"kind": "month",
+			"title": "Per month",
+			"description": "What model calls cost in the last 30 days."
+		}
+	],
+	"providers": [
+		{ "kind": "openAi", "label": "OpenAI", "provider_identifier": "openai" },
+		{ "kind": "anthropic", "label": "Anthropic", "provider_identifier": "anthropic" },
+		{ "kind": "xai", "label": "xAI", "provider_identifier": "xai" },
+		{ "kind": "mistral", "label": "Mistral", "provider_identifier": "mistral" },
+		{ "kind": "fireworks", "label": "Fireworks", "provider_identifier": "fireworks-ai" },
+		{ "kind": "deepInfra", "label": "DeepInfra", "provider_identifier": "deepinfra" },
+		{ "kind": "togetherAI", "label": "Together AI", "provider_identifier": "togetherai" },
+		{ "kind": "openRouter", "label": "OpenRouter", "provider_identifier": "openrouter" }
+	],
+	"dialects": [
+		{ "kind": "chatCompletions", "label": "Chat Completions" },
+		{ "kind": "messages", "label": "Messages" },
+		{ "kind": "responses", "label": "Responses" },
+		{ "kind": "statelessResponses", "label": "Responses (stateless)" }
+	],
+	"agent_reactions": ["👍", "👎", "❤️", "😂", "😮", "😢", "🎉", "🙏"],
+	"pairing_openers": [
+		{ "kind": "anyClient", "label": "Any client" },
+		{ "kind": "localClients", "label": "Only clients on this computer" }
+	],
+	"security_events": [
+		{ "kind": "pairingOpened", "label": "Opened pairing" },
+		{ "kind": "clientPaired", "label": "Paired" },
+		{ "kind": "clientRenamed", "label": "Renamed" },
+		{ "kind": "clientRevoked", "label": "Revoked" },
+		{ "kind": "inactiveClientRevoked", "label": "Revoked for not connecting" },
+		{ "kind": "settingsChanged", "label": "Changed security settings" },
+		{ "kind": "pairingRefused", "label": "Refused pairing" }
+	]
+}
