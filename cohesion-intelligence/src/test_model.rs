@@ -79,7 +79,11 @@ impl TestModel {
             let mut waiting = Vec::new();
             for stream in listener.incoming() {
                 let mut stream = stream.unwrap();
-                sent.lock().unwrap().push(request_body(&stream));
+                // A connection closed before it sent anything isn't a call.
+                let Some(body) = request_body(&stream) else {
+                    continue;
+                };
+                sent.lock().unwrap().push(body);
                 calls.send_modify(|calls| *calls += 1);
                 match answers.pop_front().flatten() {
                     Some(message) => respond(&mut stream, message),
@@ -177,13 +181,19 @@ impl AccountCredentials for TestModel {
     }
 }
 
-/// The JSON body of the request on `stream`.
-fn request_body(stream: &TcpStream) -> Value {
+/// The JSON body of the request on `stream`, or `None` when the client
+/// closed it without sending one.
+fn request_body(stream: &TcpStream) -> Option<Value> {
     let mut reader = BufReader::new(stream);
     let mut length = 0;
+    let mut first = true;
     loop {
         let mut line = String::new();
-        reader.read_line(&mut line).unwrap();
+        let read = reader.read_line(&mut line).unwrap_or(0);
+        if first && read == 0 {
+            return None;
+        }
+        first = false;
         let line = line.trim_end();
         if line.is_empty() {
             break;
@@ -196,7 +206,7 @@ fn request_body(stream: &TcpStream) -> Value {
     }
     let mut body = vec![0; length];
     reader.read_exact(&mut body).unwrap();
-    serde_json::from_slice(&body).unwrap()
+    Some(serde_json::from_slice(&body).unwrap())
 }
 
 /// Answers the request on `stream` with `message`, and closes it.
