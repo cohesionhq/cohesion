@@ -1,16 +1,16 @@
 #!/bin/sh
-# Releases what's on GitHub's master: works out its version, vXXXYYYYY (XXX is
-# MAJOR_VERSION, YYYYY is one more than the last tag of that major version, or
-# 0 for its first), tags the commit with it, pushes the tag and creates a GitHub
-# release listing the commits since the last one (or, for the first, since
-# MAJOR_VERSION changed). The Release workflow runs it; pushing the tag from
-# anywhere else starts the image build too. Takes no arguments.
+# Releases the checked-out commit: works out its version, vXXXYYYYY (XXX is
+# MAJOR_VERSION, YYYYY is one more than the last local tag of that major
+# version, or 0 for its first), tags the commit with it, pushes the tag and
+# creates a GitHub release listing the commits since the last one (or, for the
+# first, since MAJOR_VERSION changed). It reads only the local repository. The
+# Release workflow runs it; pushing the tag from anywhere else starts the image
+# build too. Takes no arguments.
 set -e
 cd "$(dirname "$0")/.."
 repo=https://github.com/cohesionhq/cohesion
 
-git fetch --quiet --tags origin master
-commit=$(git rev-parse origin/master)
+commit=$(git rev-parse HEAD)
 
 major=$(git show "$commit:MAJOR_VERSION" | tr -d '[:space:]')
 case $major in
@@ -20,7 +20,7 @@ esac
 pattern="v$major[0-9][0-9][0-9][0-9][0-9]"
 released=$(git tag --points-at "$commit" --list "$pattern")
 if [ -n "$released" ]; then
-	echo "Nothing to release: master is already $released." >&2
+	echo "Nothing to release: this commit is already $released." >&2
 	exit 1
 fi
 

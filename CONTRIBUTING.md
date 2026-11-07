@@ -99,15 +99,15 @@ is in [docs/self-hosting.md](docs/self-hosting.md#run-in-a-container).
 
 Releasing is the usual way. Run the `Release` workflow
 (`.github/workflows/release.yml`) from GitHub's Actions tab: it takes no input.
-It runs `scripts/release.sh`, which tags the commit at the head of `master` on
-GitHub with its version, pushes the tag and creates a GitHub release listing the
+It runs `scripts/release.sh`, which tags the head of `master` with its version, pushes the tag and creates a GitHub release listing the
 commits since the last release. Then it runs the `Image` workflow
 (`.github/workflows/image.yml`), which builds the amd64 image from the tag and
 pushes it tagged with the version, signed in with the workflow's own
 `GITHUB_TOKEN`. Pushes to `master` publish nothing. Running `scripts/release.sh`
 on your own computer does the same, with `gh` signed in, and the tag it pushes
-starts the `Image` workflow. The script releases only what's already on GitHub,
-so push first, and it stops if that commit is already released.
+starts the `Image` workflow. The script reads only the local repository: it
+releases the checked-out commit, works out the version from the local tags, and
+stops if that commit is already released.
 
 A version is `vXXXYYYYY`, such as `v00100042`. `XXX` is the major version, set by
 hand in `MAJOR_VERSION`. `YYYYY` is the minor version: the script finds the last
