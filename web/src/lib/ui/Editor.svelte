@@ -8,9 +8,18 @@
 	import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 	import { javascript } from '@codemirror/lang-javascript';
 	import { markdown } from '@codemirror/lang-markdown';
-	import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
-	import { Compartment, EditorState, Prec } from '@codemirror/state';
-	import { EditorView, keymap, placeholder as placeholderExt } from '@codemirror/view';
+	import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
+	import { Compartment, EditorState, Prec, RangeSetBuilder } from '@codemirror/state';
+	import {
+		Decoration,
+		EditorView,
+		ViewPlugin,
+		WidgetType,
+		keymap,
+		placeholder as placeholderExt,
+		type DecorationSet,
+		type ViewUpdate
+	} from '@codemirror/view';
 	import { tags } from '@lezer/highlight';
 	import { onDestroy, onMount } from 'svelte';
 
@@ -71,6 +80,14 @@
 		'&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, ::selection':
 			{ backgroundColor: 'var(--selection)' },
 		'.cm-placeholder': { color: 'var(--fg-subtle)' },
+		// A full-size disc in a fixed gutter, half the text's weight in color.
+		'.cm-bullet': {
+			display: 'inline-block',
+			width: '1em',
+			color: 'var(--fg-muted)',
+			fontSize: '1.15em',
+			lineHeight: '1'
+		},
 		'.cm-activeLine': { backgroundColor: 'transparent' }
 	});
 
@@ -105,9 +122,57 @@
 		writingsuggestions: 'true'
 	});
 
+	// A bullet list's "-", "*" or "+" drawn as a bullet, so a list reads as a list while the
+	// source stays Markdown; the mark is one character, so the cursor steps over it as before.
+	class Bullet extends WidgetType {
+		toDOM() {
+			const mark = document.createElement('span');
+			mark.className = 'cm-bullet';
+			mark.textContent = '•';
+			return mark;
+		}
+		eq() {
+			return true;
+		}
+	}
+	const bullet = Decoration.replace({ widget: new Bullet() });
+
+	function bulletMarks(view: EditorView): DecorationSet {
+		const marks = new RangeSetBuilder<Decoration>();
+		for (const { from, to } of view.visibleRanges) {
+			syntaxTree(view.state).iterate({
+				from,
+				to,
+				enter: (node) => {
+					if (node.name !== 'ListMark') return;
+					const mark = view.state.doc.sliceString(node.from, node.to);
+					if (mark === '-' || mark === '*' || mark === '+') marks.add(node.from, node.to, bullet);
+				}
+			});
+		}
+		return marks.finish();
+	}
+
+	const listBullets = ViewPlugin.fromClass(
+		class {
+			decorations: DecorationSet;
+			constructor(view: EditorView) {
+				this.decorations = bulletMarks(view);
+			}
+			update(update: ViewUpdate) {
+				// The tree also grows after an edit, as the parser catches up.
+				const parsed = syntaxTree(update.startState) !== syntaxTree(update.state);
+				if (update.docChanged || update.viewportChanged || parsed) {
+					this.decorations = bulletMarks(update.view);
+				}
+			}
+		},
+		{ decorations: (plugin) => plugin.decorations }
+	);
+
 	function languageExtension(lang: 'markdown' | 'javascript') {
 		return lang === 'markdown'
-			? [markdown(), proseAttributes]
+			? [markdown(), proseAttributes, listBullets]
 			: [javascript({ typescript: true }), monoTheme];
 	}
 

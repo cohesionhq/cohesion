@@ -70,10 +70,9 @@
 
 <PageTitle title="Today" />
 
-<!-- Fills the pane, so the editor runs to its foot, in the conversations' column. -->
-<div
-	class="mx-auto flex min-h-full w-full max-w-[calc(var(--spacing)*190+2*var(--page-inset))] flex-col px-(--page-inset)"
->
+<!-- Fills the pane, so the editor runs to its foot; the header runs across the sheet like every
+     page's, and what follows sits in the conversations' column. -->
+<div class="flex min-h-full flex-col px-(--page-inset)">
 	<PageHeader title={longDay(today)}>
 		{#snippet meta()}
 			<span aria-live="polite">{status}</span>
@@ -92,30 +91,32 @@
 		{/snippet}
 	</PageHeader>
 
-	{#if journal.today.error && !journal.today.loaded}
-		<EmptyState {...workspaceLoadError(journal.today.error, () => journal.today.refetch())} />
-	{:else if journal.today.loaded}
-		<Editor
-			value={journal.draft}
-			language="markdown"
-			label="Today’s journal"
-			placeholder="Write about today…"
-			fill
-			size="sm"
-			onchange={(text) => journal.edit(text)}
-			onblur={save}
-		/>
-	{/if}
-
-	<PageFooter label="Journal">
-		{#if yesterdayId !== null}
-			<a class="text-fg-muted hover:text-accent" href={routes.journalEntry(ws, yesterdayId)}
-				>Yesterday</a
-			>
-		{:else}
-			<span class="text-fg-subtle">Yesterday</span>
+	<div class="mx-auto flex w-full max-w-190 flex-1 flex-col">
+		{#if journal.today.error && !journal.today.loaded}
+			<EmptyState {...workspaceLoadError(journal.today.error, () => journal.today.refetch())} />
+		{:else if journal.today.loaded}
+			<Editor
+				value={journal.draft}
+				language="markdown"
+				label="Today’s journal"
+				placeholder="Write about today…"
+				fill
+				size="sm"
+				onchange={(text) => journal.edit(text)}
+				onblur={save}
+			/>
 		{/if}
-		<span class="text-fg-subtle" aria-hidden="true">·</span>
-		<a class="text-fg-muted hover:text-accent" href={routes.journal(ws)}>All entries</a>
-	</PageFooter>
+
+		<PageFooter label="Journal">
+			{#if yesterdayId !== null}
+				<a class="text-fg-muted hover:text-accent" href={routes.journalEntry(ws, yesterdayId)}
+					>Yesterday</a
+				>
+			{:else}
+				<span class="text-fg-subtle">Yesterday</span>
+			{/if}
+			<span class="text-fg-subtle" aria-hidden="true">·</span>
+			<a class="text-fg-muted hover:text-accent" href={routes.journal(ws)}>All entries</a>
+		</PageFooter>
+	</div>
 </div>

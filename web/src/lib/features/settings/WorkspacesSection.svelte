@@ -103,7 +103,10 @@
 	}
 </script>
 
-<Section title="Workspaces" description="Each has its own journal, documents, tasks and resources.">
+<Section
+	title="Your workspaces"
+	description="Each has its own journal, documents, tasks and resources."
+>
 	<ResourceState resource={workspaces.list}>
 		{#snippet loaded()}
 			<ul class={list.rows}>
@@ -126,7 +129,10 @@
 								<WorkspaceBadge {workspace} />
 								<a class="text-fg" href={routes.workspace(workspace.id)}>{workspace.title}</a>
 								{#if workspace.id === workspaces.currentId}
-									<span class="text-xs text-fg-subtle">Current</span>
+									<span
+										class="rounded-full bg-bg-hover px-1.5 py-px text-2xs font-medium text-fg-muted"
+										>Current</span
+									>
 								{/if}
 							</div>
 							<div class={list.actions}>

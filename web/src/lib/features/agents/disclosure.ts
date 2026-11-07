@@ -6,3 +6,7 @@ export const summaryClass =
 
 export const preClass =
 	'max-h-90 overflow-y-auto border-l-2 border-border px-3 py-2 font-mono text-xs wrap-anywhere whitespace-pre-wrap';
+
+/** A code block inside a step that opens (`ToolRow`), which already draws the rule beside it. */
+export const toolPreClass =
+	'max-h-90 overflow-y-auto rounded-sm bg-bg-raised px-3 py-2 font-mono text-xs wrap-anywhere whitespace-pre-wrap';

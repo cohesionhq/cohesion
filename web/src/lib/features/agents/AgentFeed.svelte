@@ -18,10 +18,12 @@
 	opened by resting on the react icon under the text, and the agent
 	to the user's messages; a reaction sits under the message it answers, at the edge nearer the screen's.
 	A reply of the agent's shows the message it answers above it, quoted in
-	a muted line, its excerpt, that scrolls to that message. When the agent reacts to a
-	message of the user's that isn't the last one before the reaction, a
-	quiet line where it reacted says so, and scrolls to that message.
-	Messages that arrive while the feed is shown rise in; the history it
+	a muted line, its excerpt, that scrolls to that message. A reaction is
+	recorded only by its badge under the message, wherever in the
+	conversation the agent reacted.
+	Three or more status lines in a row (forks' rows, quiet lines and memories) fold into one "5 events" line that
+	opens onto them in place, so they never stand between two messages as a
+	wall. Messages that arrive while the feed is shown rise in; the history it
 	opens with and older pages loaded above stay put.
 -->
 <script lang="ts">
@@ -31,6 +33,7 @@
 	import Info from '@lucide/svelte/icons/info';
 	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
 	import Forward from '@lucide/svelte/icons/forward';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import CircleAlert from '@lucide/svelte/icons/circle-alert';
 	import SmilePlus from '@lucide/svelte/icons/smile-plus';
 	import Zap from '@lucide/svelte/icons/zap';
@@ -45,18 +48,13 @@
 		type Attachment
 	} from '$lib/protocol/types';
 	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
-	import {
-		messageLine,
-		reactionLine as reactionText,
-		type AgentMessage
-	} from '$lib/stores/agents.svelte';
+	import { messageLine, type AgentMessage } from '$lib/stores/agents.svelte';
 	import type { AgentWake } from '$lib/protocol/types';
 	import Markdown from '$lib/ui/Markdown.svelte';
 	import { motion } from '$lib/ui/motion';
 	import Popover from '$lib/ui/Popover.svelte';
 	import RollingText from '$lib/ui/RollingText.svelte';
 	import AgentAsk from './AgentAsk.svelte';
-	import AgentDot from './AgentDot.svelte';
 	import ChoiceCard from './ChoiceCard.svelte';
 	import CodeExecution from './CodeExecution.svelte';
 	import ForwardChip from './ForwardChip.svelte';
@@ -152,58 +150,11 @@
 			?.scrollIntoView({ block: 'center', behavior: motion.duration ? 'smooth' : 'auto' });
 	}
 
-	/**
-	 * The agent's reactions to the user's messages that get a line of their
-	 * own, by the index of the entry the line goes before (the length of
-	 * `entries` for the end): where the agent reacted, by `reacted_at`. A
-	 * reaction to the message just above that spot has none, since its badge
-	 * already sits there. In the second the agent reacted, the user's
-	 * messages come before the line and the agent's after it, as its turn
-	 * reacts and then replies.
-	 */
-	const reactionLines = $derived.by(() => {
-		const lines: Record<number, AgentMessage[]> = {};
-		entries.forEach((message, index) => {
-			const reactedAt = message.reacted_at;
-			if (message.sender !== 'user' || !message.reaction || reactedAt === null) return;
-			let at = index + 1;
-			while (
-				at < entries.length &&
-				entries[at].sent_at <= reactedAt &&
-				!(entries[at].sent_at === reactedAt && entries[at].sender !== 'user')
-			) {
-				at++;
-			}
-			if (at === index + 1) return;
-			(lines[at] ??= []).push(message);
-		});
-		return lines;
-	});
-
-	/** Whether `message` is the agent speaking, rather than a row of what it did. */
-	function speaks(message: AgentMessage): boolean {
-		const kind = message.message_content.kind;
-		return kind === 'text' || kind === 'choice';
-	}
-
-	/**
-	 * Whether `index` is the first thing the agent says in a run of its
-	 * foreground messages, which its name goes above. Code it ran first doesn't
-	 * count, so a reply after a tool row still says who it's from.
-	 */
-	function opensAgentRun(index: number): boolean {
-		if (entries[index].sender !== 'agent' || !speaks(entries[index])) return false;
-		for (let i = index - 1; i >= 0 && entries[i].sender === 'agent'; i--) {
-			if (speaks(entries[i])) return false;
-		}
-		return true;
-	}
-
 	/** Why the agent woke, as its wake line says it. */
 	function wokeTitle(by: AgentWake): string {
 		switch (by.kind) {
 			case 'cue':
-				return `Cue “${by.cue_name}” fired`;
+				return `Cue “${by.cue_name}”`;
 			case 'actorSession':
 				return `Actor session “${by.title}” ${vocabulary.actorSessionStop(by.stop)}`;
 			case 'assignedTask':
@@ -216,7 +167,7 @@
 		const content = message.message_content;
 		if (content.kind === 'woke') {
 			const woke = wokeTitle(content.by);
-			return message.run_description ? `${woke}: ${message.run_description}` : woke;
+			return message.run_description ? `${woke} · ${message.run_description}` : woke;
 		}
 		if (message.run_part === 'trigger') return message.excerpt;
 		return message.run_description ?? (message.run_id === null ? 'Job' : 'An earlier run');
@@ -286,10 +237,59 @@
 
 	/** The space above `index` beyond the list's gap: none in a stack of status lines, more for a new block. */
 	function blockGap(index: number): string {
-		if (statusLine(entries[index]) && (index in reactionLines || followsStatus(index))) {
+		if (statusLine(entries[index]) && followsStatus(index)) {
 			return stacked;
 		}
 		return startsBlock(index) ? 'mt-3' : '';
+	}
+
+	/** The entries the user unfolded from a run of status lines, kept as refetches replace the messages. */
+	const unfolded = new SvelteSet<number>();
+
+	/**
+	 * Runs of three or more status lines in a row (with the reaction lines between them), folded
+	 * into one line that opens in place: by the index of the run's first entry, how many lines it
+	 * holds and the index of its last entry. A run the user opened stays open.
+	 */
+	const folds = $derived.by(() => {
+		const runs: Record<number, { end: number; count: number }> = {};
+		const folding = (index: number) => {
+			const message = entries[index];
+			return statusLine(message) && !(message.run_id !== null && opened.has(message.run_id));
+		};
+		let start = 0;
+		while (start < entries.length) {
+			if (!folding(start)) {
+				start++;
+				continue;
+			}
+			let end = start;
+			let count = 1;
+			while (end + 1 < entries.length && folding(end + 1)) {
+				end++;
+				count++;
+			}
+			const ids = entries.slice(start, end + 1).map((m) => m.id);
+			if (count >= 3 && !ids.some((id) => unfolded.has(id))) runs[start] = { end, count };
+			start = end + 1;
+		}
+		return runs;
+	});
+
+	/** The indexes a folded run hides: all of it but its first, which draws the folded line. */
+	const folded = $derived.by(() => {
+		const hidden: Record<number, true> = {};
+		for (const [start, { end }] of Object.entries(folds)) {
+			for (let index = Number(start) + 1; index <= end; index++) hidden[index] = true;
+		}
+		return hidden;
+	});
+
+	/** Opens the folded run starting at `start`. */
+	function unfold(start: number) {
+		const run = folds[start];
+		if (!run) return;
+		for (let index = start; index <= run.end; index++) unfolded.add(entries[index].id);
 	}
 
 	/**
@@ -398,21 +398,6 @@
 	</p>
 {/snippet}
 
-<!-- Where the agent reacted to an earlier message of the user's, a quiet
-     line like a memory's; clicking it scrolls to that message. -->
-{#snippet reactionLine(message: AgentMessage, inStack: boolean)}
-	<li class={['flex', inStack && stacked]}>
-		<button
-			class="flex max-w-full min-w-0 cursor-pointer items-center gap-1.5 text-left text-xs leading-6 text-fg-subtle hover:text-fg"
-			type="button"
-			onclick={() => reveal(message.id)}
-		>
-			<SmilePlus class="flex-none" size={12} strokeWidth={1.75} aria-hidden="true" />
-			<span class="min-w-0 truncate">{reactionText(message)}</span>
-		</button>
-	</li>
-{/snippet}
-
 {#snippet images(message: AgentMessage, place: 'over' | 'under')}
 	<SentImages count={message.attachment_count} images={attachments[message.id]} {place} />
 {/snippet}
@@ -508,11 +493,14 @@
 			>
 				<Icon class="flex-none" size={12} strokeWidth={1.75} aria-hidden="true" />
 				<span class="min-w-0 truncate">{runTitle(anchor)}</span>
-				<!-- At the trailing edge, as an actor transcript's rows place their duration. -->
-				<span class="ml-auto flex-none pl-2 tabular-nums">
-					<RollingText text={String(steps.length)} reserve={2} />
+				<!-- Beside what woke it, as an actor transcript's rows place their duration. -->
+				<span class="flex-none tabular-nums">
+					<span aria-hidden="true">·</span>
+					<RollingText text={String(steps.length)} reserve={1} />
 					{steps.length === 1 ? 'step' : 'steps'}
 				</span>
+				<!-- A hairline to the column's edge, so what woke a fork reads as a divider between turns. -->
+				<span class="h-px min-w-6 flex-1 bg-border" aria-hidden="true"></span>
 			</summary>
 			<ol class="mt-1 ml-1.5 flex flex-col gap-2 border-l-2 border-border pl-3">
 				{#if content.kind === 'askedByAgent'}
@@ -541,6 +529,7 @@
 		<p class="flex items-center gap-1.5 text-xs leading-6 text-fg-subtle">
 			<Icon class="flex-none" size={12} strokeWidth={1.75} aria-hidden="true" />
 			<span class="min-w-0 truncate">{runTitle(anchor)}</span>
+			<span class="h-px min-w-6 flex-1 bg-border" aria-hidden="true"></span>
 		</p>
 	{/if}
 {/snippet}
@@ -549,96 +538,109 @@
 	{#each entries as message, index (message.id)}
 		{@const user = message.sender === 'user'}
 		{@const content = message.message_content}
-		{#each reactionLines[index] ?? [] as reacted, line (reacted.id)}
-			{@render reactionLine(reacted, line > 0 || followsStatus(index))}
-		{/each}
-		<li
-			id={message.run_part === 'step' ? undefined : `agent-message-${message.id}`}
-			class={['group flex items-start', blockGap(index)]}
-			in:fly={{ y: 8, duration: arriving.has(message.id) ? motion.duration : 0 }}
-		>
-			<div class={['flex min-w-0 flex-1 flex-col', user && 'items-end']}>
-				{#if message.run_id !== null && message.run_part !== 'surfaced'}
-					{@render run(message, message.run_id)}
-				{:else if content.kind === 'memory'}
-					{@render memory(message, content)}
-				{:else if quiet(message)}
-					{@render quietLine(message)}
-				{:else if (content.kind === 'text' || content.kind === 'forward') && user}
-					{@const text = content.kind === 'forward' ? content.note : content.text}
-					{#if content.kind === 'forward'}
-						<p class="mb-1 flex items-center gap-1.5 text-xs text-fg-subtle">
-							<Forward class="flex-none" size={12} strokeWidth={1.75} aria-hidden="true" />
-							Forwarded
-						</p>
-						<div class={['flex max-w-[70%] justify-end max-sm:max-w-full', text && 'mb-1']}>
-							<ForwardChip item={content.item} />
-						</div>
-					{/if}
-					{#if message.attachment_count > 0}
-						{@render images(message, 'over')}
-					{/if}
-					{#if text}
-						<p
-							class="max-w-[70%] min-w-0 rounded-md bg-accent-soft px-3 py-1.75 wrap-anywhere whitespace-pre-wrap max-sm:max-w-full"
-						>
-							{text}
-						</p>
-					{/if}
-					{@render reaction(message)}
-				{:else}
-					{#if opensRun(index)}
-						<!-- What woke the run, once above what it says; it scrolls there when it's loaded. -->
-						{@const trigger =
-							message.run_id === null ? undefined : collapsed.triggers.get(message.run_id)}
-						{@const caption =
-							'mb-1 flex max-w-full items-center gap-1.5 text-left text-xs text-fg-subtle'}
-						{#snippet why()}
-							<Zap class="flex-none" size={12} strokeWidth={1.75} aria-hidden="true" />
-							<span class="min-w-0 truncate">{runTitle(trigger ?? message)}</span>
-						{/snippet}
-						{#if trigger}
-							<button
-								class={[caption, 'cursor-pointer hover:text-fg']}
-								type="button"
-								onclick={() => reveal(trigger.id)}>{@render why()}</button
-							>
-						{:else}
-							<div class={caption}>{@render why()}</div>
-						{/if}
-					{:else if opensAgentRun(index)}
-						<div class="mb-1 flex items-center gap-1.5 text-xs font-medium text-fg-subtle">
-							<AgentDot color={agent.agent_color} />{agent.agent_name}
-						</div>
-					{/if}
-					{#if message.reply_to !== null}
-						{@render quote(message.reply_to)}
-					{/if}
-					{#if content.kind === 'text'}
-						<!-- Bare, like an actor's text in its transcript: the column is the reply's shape. -->
-						<div class="relative min-w-0 text-md">
-							{#if reactable(message)}
-								{@render tools(message)}
+		{@const fold = folds[index]}
+		{#if !folded[index]}
+			{#if fold}
+				<!-- A run of status lines, folded into one quiet line that opens onto them. -->
+				<li class={['flex', blockGap(index)]}>
+					<button
+						class="flex max-w-full min-w-0 cursor-pointer items-center gap-1.5 text-left text-xs leading-6 text-fg-subtle hover:text-fg-muted"
+						type="button"
+						aria-expanded="false"
+						onclick={() => unfold(index)}
+					>
+						<ChevronRight class="flex-none" size={12} strokeWidth={1.75} aria-hidden="true" />
+						{fold.count} events
+					</button>
+				</li>
+			{:else}
+				<li
+					id={message.run_part === 'step' ? undefined : `agent-message-${message.id}`}
+					class={['group flex items-start', blockGap(index)]}
+					in:fly={{ y: 8, duration: arriving.has(message.id) ? motion.duration : 0 }}
+				>
+					<div class={['flex min-w-0 flex-1 flex-col', user && 'items-end']}>
+						{#if message.run_id !== null && message.run_part !== 'surfaced'}
+							{@render run(message, message.run_id)}
+						{:else if content.kind === 'memory'}
+							{@render memory(message, content)}
+						{:else if quiet(message)}
+							{@render quietLine(message)}
+						{:else if (content.kind === 'text' || content.kind === 'forward') && user}
+							{@const text = content.kind === 'forward' ? content.note : content.text}
+							{#if content.kind === 'forward'}
+								<p class="mb-1 flex items-center gap-1.5 text-xs text-fg-subtle">
+									<Forward class="flex-none" size={12} strokeWidth={1.75} aria-hidden="true" />
+									Forwarded
+								</p>
+								<div class={['flex max-w-[70%] justify-end max-sm:max-w-full', text && 'mb-1']}>
+									<ForwardChip item={content.item} />
+								</div>
 							{/if}
-							<Markdown source={content.text} diagrams />
-						</div>
-					{:else}
-						{@render work(message)}
-					{/if}
-					<!-- The images the agent showed with its text, below the text. -->
-					{#if message.attachment_count > 0}
-						{@render images(message, 'under')}
-					{/if}
-					{#if reactable(message) && !message.reaction}
-						<span class="-ml-1.5 hidden self-start touch:inline-flex">{@render react(message)}</span
-						>
-					{/if}
-					{@render reaction(message)}
-				{/if}
-			</div>
-		</li>
-	{/each}
-	{#each reactionLines[entries.length] ?? [] as reacted, line (reacted.id)}
-		{@render reactionLine(reacted, line > 0 || followsStatus(entries.length))}
+							{#if message.attachment_count > 0}
+								{@render images(message, 'over')}
+							{/if}
+							{#if text}
+								<p
+									class="max-w-[70%] min-w-0 rounded-md bg-accent-soft px-3 py-1.75 wrap-anywhere whitespace-pre-wrap max-sm:max-w-full"
+								>
+									{text}
+								</p>
+							{/if}
+							{@render reaction(message)}
+						{:else}
+							{#if opensRun(index)}
+								<!-- What woke the run, once above what it says; it scrolls there when it's loaded. -->
+								{@const trigger =
+									message.run_id === null ? undefined : collapsed.triggers.get(message.run_id)}
+								{@const caption =
+									'mb-1 flex w-full items-center gap-1.5 text-left text-xs text-fg-subtle'}
+								{@const WhyIcon = runIcon(trigger ?? message)}
+								{#snippet why()}
+									<!-- The same icon as the run's own line, so one cue reads the same in both places. -->
+									<WhyIcon class="flex-none" size={12} strokeWidth={1.75} aria-hidden="true" />
+									<span class="min-w-0 truncate">{runTitle(trigger ?? message)}</span>
+									<!-- The same divider as the run's own line. -->
+									<span class="h-px min-w-6 flex-1 bg-border" aria-hidden="true"></span>
+								{/snippet}
+								{#if trigger}
+									<button
+										class={[caption, 'cursor-pointer hover:text-fg']}
+										type="button"
+										onclick={() => reveal(trigger.id)}>{@render why()}</button
+									>
+								{:else}
+									<div class={caption}>{@render why()}</div>
+								{/if}
+							{/if}
+							{#if message.reply_to !== null}
+								{@render quote(message.reply_to)}
+							{/if}
+							{#if content.kind === 'text'}
+								<!-- Bare, like an actor's text in its transcript: the column is the reply's shape. -->
+								<div class="relative min-w-0 text-md">
+									{#if reactable(message)}
+										{@render tools(message)}
+									{/if}
+									<Markdown source={content.text} diagrams />
+								</div>
+							{:else}
+								{@render work(message)}
+							{/if}
+							<!-- The images the agent showed with its text, below the text. -->
+							{#if message.attachment_count > 0}
+								{@render images(message, 'under')}
+							{/if}
+							{#if reactable(message) && !message.reaction}
+								<span class="-ml-1.5 hidden self-start touch:inline-flex"
+									>{@render react(message)}</span
+								>
+							{/if}
+							{@render reaction(message)}
+						{/if}
+					</div>
+				</li>
+			{/if}
+		{/if}
 	{/each}
 </ol>

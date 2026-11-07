@@ -1,6 +1,6 @@
 <!--
-	An agent's context size, rolling as it changes. Room is held for "18k", so the
-	roll from "—k" turns every digit rather than dropping a new one in beside it.
+	An agent's context size, rolling as it changes. Room is held for "18K", so the
+	roll from "—K" turns every digit rather than dropping a new one in beside it.
 -->
 <script lang="ts">
 	import RollingText from '$lib/ui/RollingText.svelte';

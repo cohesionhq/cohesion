@@ -29,7 +29,6 @@
 	import Eye from '@lucide/svelte/icons/eye';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Archive from '@lucide/svelte/icons/archive';
-	import House from '@lucide/svelte/icons/house';
 	import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import Newspaper from '@lucide/svelte/icons/newspaper';
@@ -38,7 +37,6 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import Puzzle from '@lucide/svelte/icons/puzzle';
 	import Search from '@lucide/svelte/icons/search';
-	import SlidersHorizontal from '@lucide/svelte/icons/sliders-horizontal';
 	import Settings from '@lucide/svelte/icons/settings';
 	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
 	import type { Component, Snippet } from 'svelte';
@@ -49,6 +47,7 @@
 	import type { ActorSession, IntelligenceAgent, IntelligenceAgentTeam } from '$lib/protocol/types';
 	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 	import { routes } from '$lib/shell/routes';
+	import { isGoing } from '$lib/stores/actors.svelte';
 	import type { ConnectorKind } from '$lib/stores/connectors.svelte';
 	import AgentCard from '$lib/features/agents/AgentCard.svelte';
 	import WorkspaceSwitcher from '$lib/shell/WorkspaceSwitcher.svelte';
@@ -188,11 +187,15 @@
 	// or started moves only once it leaves and a row never shifts under a click. Each held
 	// row still shows where its session stands, and goes the moment the sidebar stops listing it
 	// (a session resolved from here leaves at once, pointer or not).
+	// Only sessions going on (working, or waiting on the user) and the one open: what's done is
+	// on the Dashboard and the Actors page, so the column stays a list of what is live.
+	const liveSessions = $derived(
+		actorSessions.filter((session) => isGoing(session) || active(routes.actorSession(session.id)))
+	);
 	let heldSessions = $state.raw<ActorSession[] | null>(null);
 	const shownTasks = $derived(
-		heldSessions?.flatMap(
-			(held) => actorSessions.find((session) => session.id === held.id) ?? []
-		) ?? actorSessions
+		heldSessions?.flatMap((held) => liveSessions.find((session) => session.id === held.id) ?? []) ??
+			liveSessions
 	);
 
 	// The agent whose hover card shows; one at a time, like a browser's tabs.
@@ -308,7 +311,10 @@
 		ondragend={() => kindOrder.end()}
 		onkeydown={(e) => kindOrder.key(e, index)}
 	>
-		<IconTile icon={connector.icon} title={connector.title} size={16} />
+		<!-- An extension's own icon, quieted to the outline glyphs' weight beside it: grey, a little faded. -->
+		<span class="flex opacity-60 grayscale"
+			><IconTile icon={connector.icon} title={connector.title} size={16} /></span
+		>
 		<span class={['truncate', labelClass]}>{kind.plural}</span>
 	</a>
 {/snippet}
@@ -465,7 +471,7 @@
 	<!-- The workspace's name heads the column, Search an icon at the end of its row (⌘K opens it too).
 	     On the rail they stack; on the top bar they take their places in the row. -->
 	<div class="flex flex-none items-center gap-1 max-md:flex-col max-sm:contents">
-		<div class="min-w-0 flex-1 max-md:flex-none"><WorkspaceSwitcher /></div>
+		<div class="min-w-0 flex-1 max-md:flex-none"><WorkspaceSwitcher {onchoosekinds} /></div>
 		<button
 			class={[
 				linkClass,
@@ -495,21 +501,20 @@
 					{#each kindOrder.items as entry, index (entry.kind.id)}
 						{@render kindLink(workspaceId, entry, index)}
 					{/each}
-					<button class={[linkClass, 'text-fg-muted']} type="button" onclick={onchoosekinds}>
-						<SlidersHorizontal size={16} strokeWidth={1.75} />
-						<span class={labelClass}>Edit…</span>
-					</button>
 				</div>
 			{/if}
 		</div>
 
 		<div class="flex flex-col gap-px max-sm:flex-row" role="group" aria-labelledby="nav-agents">
+			<!-- The group's label is also the way to its page, and reads as current there. -->
 			<a
 				class={[
-					'px-2 pb-1 text-xs font-medium text-fg-subtle no-underline hover:text-fg hover:no-underline',
+					'px-2 pb-1 text-xs font-medium no-underline hover:text-fg hover:no-underline',
+					pathname === routes.agents() ? 'text-fg' : 'text-fg-subtle',
 					labelClass
 				]}
 				href={routes.agents()}
+				aria-current={pathname === routes.agents() ? 'page' : undefined}
 				id="nav-agents">Agents</a
 			>
 			{#if pinned.length}
@@ -526,27 +531,35 @@
 			{#each teamGroups as { team, members }, index (team.id)}
 				{@const open = !folded.includes(team.id)}
 				<!-- The column folds a team away; the rail and the top bar have no room for its name, so it lies open there. -->
+				<!-- A folder row among the agents, not a third section label: the chevron in the icons' slot. -->
 				<button
 					class={[
-						'flex cursor-pointer items-center gap-1 px-2 pb-0.5 text-xs text-fg-subtle hover:text-fg max-md:hidden',
+						linkClass,
+						'text-fg-muted max-md:hidden',
 						// Under the rule after the pinned agents, its own margin is the gap.
-						index === 0 && pinned.length && unpinned.length ? 'pt-0.5' : 'pt-1.5'
+						index === 0 && pinned.length && unpinned.length ? '' : 'mt-1'
 					]}
 					type="button"
 					aria-expanded={open}
 					aria-controls="nav-team-{team.id}"
 					onclick={() => toggleFolded(team.id)}
 				>
-					<ChevronRight
-						class={['flex-none transition-transform', open && 'rotate-90']}
-						size={12}
-						strokeWidth={1.75}
-						aria-hidden="true"
-					/>
+					<span class="flex w-4 flex-none justify-center">
+						<ChevronRight
+							class={['transition-transform', open && 'rotate-90']}
+							size={14}
+							strokeWidth={1.75}
+							aria-hidden="true"
+						/>
+					</span>
 					<span class="truncate">{team.title}</span>
 				</button>
+				<!-- Its agents sit a step in, under the folder. -->
 				<div
-					class={['flex flex-col gap-px max-sm:flex-row', !open && 'hidden max-md:flex']}
+					class={[
+						'flex flex-col gap-px pl-3 max-md:pl-0 max-sm:flex-row',
+						!open && 'hidden max-md:flex'
+					]}
 					id="nav-team-{team.id}"
 					role="group"
 					aria-label={team.title}
@@ -573,23 +586,18 @@
 			class="flex flex-col gap-px max-md:hidden"
 			role="group"
 			aria-labelledby="nav-actors"
-			onpointerenter={() => (heldSessions = actorSessions)}
+			onpointerenter={() => (heldSessions = liveSessions)}
 			onpointerleave={() => (heldSessions = null)}
 		>
 			<a
-				class="px-2 pb-1 text-xs font-medium text-fg-subtle no-underline hover:text-fg hover:no-underline"
-				href={routes.actors()}
-				id="nav-actors">Actors</a
-			>
-			<!-- Current only on the Actors page itself, not on a session's under it. -->
-			<a
-				class={[linkClass, linkState(pathname === routes.actors())]}
+				class={[
+					'px-2 pb-1 text-xs font-medium no-underline hover:text-fg hover:no-underline',
+					pathname === routes.actors() ? 'text-fg' : 'text-fg-subtle'
+				]}
 				href={routes.actors()}
 				aria-current={pathname === routes.actors() ? 'page' : undefined}
+				id="nav-actors">Actors</a
 			>
-				<House size={16} strokeWidth={1.75} />
-				<span>Home</span>
-			</a>
 			<!-- A session arriving flies in, one leaving fades where it was, and the rest flip into
 			     their new places; its icon pops when its status changes. `animate:` needs the
 			     row as the block's direct child, so the link is written out here. -->
@@ -665,16 +673,19 @@
 		>
 			{@render navLink({ href: routes.settings(), label: 'Settings', icon: Settings })}
 			<!-- Grey when connected, so it never reads as an unread dot. -->
-			<span class="inline-grid size-6 place-items-center" aria-label={statusLabel} role="img">
-				<span
-					class={[
-						'size-[7px] rounded-full',
-						status === 'connected' && 'bg-fg-subtle',
-						status === 'connecting' && 'border border-fg-subtle',
-						status === 'reconnecting' && 'border border-warn'
-					]}
-				></span>
-			</span>
+			<!-- Says nothing while connected; a ring shows only while it isn't. -->
+			{#if status === 'connected'}
+				<span class="sr-only" role="status">{statusLabel}</span>
+			{:else}
+				<span class="inline-grid size-6 place-items-center" aria-label={statusLabel} role="img">
+					<span
+						class={[
+							'size-[7px] rounded-full border',
+							status === 'connecting' ? 'border-fg-subtle' : 'border-warn'
+						]}
+					></span>
+				</span>
+			{/if}
 		</div>
 	</div>
 </nav>

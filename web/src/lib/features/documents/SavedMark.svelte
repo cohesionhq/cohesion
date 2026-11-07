@@ -1,20 +1,37 @@
-<!-- A draft's save state beside its page's actions: a check once it is saved, an alert when it couldn't be. -->
+<!-- A draft's save state beside its page's actions, in words: "Saved" for a moment after each
+     save, then nothing, and "Not saved" for as long as it couldn't be. -->
 <script lang="ts">
-	import Check from '@lucide/svelte/icons/check';
-	import CircleAlert from '@lucide/svelte/icons/circle-alert';
+	import { fade } from 'svelte/transition';
 	import type { Draft } from '$lib/stores/draft.svelte';
+	import { motion } from '$lib/ui/motion';
 
 	let { draft }: { draft: Draft } = $props();
 
-	const saved = $derived(
-		!draft.saveError && !draft.saving && !draft.dirty && draft.savedAt !== null
-	);
+	/** How long "Saved" stays after a save. */
+	const SHOWN_FOR = 2000;
+
+	// Shown when a save finishes, not when a draft loads already saved.
+	let recent = $state(false);
+	let wasSaving = false;
+	$effect(() => {
+		if (draft.saving) {
+			wasSaving = true;
+			return;
+		}
+		if (!wasSaving) return;
+		wasSaving = false;
+		recent = true;
+		const timer = setTimeout(() => (recent = false), SHOWN_FOR);
+		return () => clearTimeout(timer);
+	});
+
+	const saved = $derived(recent && !draft.saveError && !draft.saving && !draft.dirty);
 </script>
 
-<span class="flex text-fg-subtle" aria-live="polite">
+<span class="flex px-1 text-xs whitespace-nowrap text-fg-subtle" aria-live="polite">
 	{#if draft.saveError}
-		<CircleAlert class="text-danger" size={14} strokeWidth={1.75} aria-label="Not saved" />
+		<span class="text-danger">Not saved</span>
 	{:else if saved}
-		<Check size={14} strokeWidth={2} aria-label="Saved" />
+		<span transition:fade={{ duration: motion.duration }}>Saved</span>
 	{/if}
 </span>

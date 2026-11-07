@@ -67,11 +67,6 @@ export function messageLine(message: AgentMessage): string {
 	return message.excerpt_verb ? `${message.excerpt_verb}: ${message.excerpt}` : message.excerpt;
 }
 
-/** The line about `message`'s reaction (`Reacted: 👍 to “Done.”`). */
-export function reactionLine(message: AgentMessage): string {
-	return `${message.reaction_excerpt_verb}: ${message.reaction_excerpt}`;
-}
-
 // ---- Store ------------------------------------------------------------------
 
 /** Whether a saved user message says what a stand-in did: the same text, or the same forward. */

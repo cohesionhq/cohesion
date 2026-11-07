@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Plus from '@lucide/svelte/icons/plus';
 	import { untrack } from 'svelte';
 	import AccountsSection from '$lib/features/connectors/AccountsSection.svelte';
 	import AddAccountDialog from '$lib/features/connectors/AddAccountDialog.svelte';
@@ -69,7 +70,9 @@
 		{#snippet actions()}
 			<Menu {items}>
 				{#snippet trigger(props)}
-					<Button variant="primary" {...props}>Add account</Button>
+					<Button variant="secondary" {...props}
+						><Plus size={15} strokeWidth={1.75} aria-hidden="true" />Add account</Button
+					>
 				{/snippet}
 				{#snippet header()}
 					{#if servicesError !== null}

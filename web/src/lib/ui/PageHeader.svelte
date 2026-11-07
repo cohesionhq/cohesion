@@ -9,8 +9,8 @@
 		title?: string;
 		heading?: Snippet;
 		/**
-		 * A link above the title for deeper pages: back to the page the user came from,
-		 * or else to this one, the page this one sits under.
+		 * The way back for deeper pages, leading the bar: to the page the user came from,
+		 * or else to the page this one sits under.
 		 */
 		back?: Back;
 		/** Drawn before the title, centred on it (e.g. an agent's color dot). */
@@ -33,26 +33,30 @@
 </script>
 
 <!--
-	Pinned to the top of the page's scroller, the content scrolling under it.
-	It draws no rule of its own, except under tabs, which sit on one. A back
-	link takes its own row above the title rather than borrowing the header's
-	top padding. `--page-header-height` in tokens.css adds up this
-	header's spacing; change both together. Its own view-transition name lifts
-	it out of a page navigation's fade, so it swaps in place (see tokens.css);
-	a page draws only one.
+	Every page's header, one bar the same on every page and as tall as a
+	conversation's (`ChatHeader`): pinned to the top of the page's scroller,
+	the content scrolling under it, running to the sheet's edges over a
+	hairline. One row: the way back as a chevron before the title (or, with no
+	title, as "‹ {label}" alone), the title, its meta, then the page's tools at
+	the trailing edge, which is the sheet's right edge on every page. Tabs sit
+	under the row, on the hairline. `--page-header-height` in tokens.css is this
+	bar's height; change both together. Its own view-transition name lifts it
+	out of a page navigation's fade, so it swaps in place (see tokens.css); a
+	page draws only one.
 -->
 <header
-	class={[
-		'sticky top-0 z-10 bg-bg pt-3 [view-transition-name:page-header]',
-		tabs ? 'mb-5 border-b border-border pb-0' : 'mb-1 pb-5'
-	]}
+	class="sticky top-0 z-10 -mx-(--page-inset) mb-5 border-b border-border bg-bg px-(--page-inset) [view-transition-name:page-header]"
 >
-	{#if back}<div class="mb-2"><BackLink {...back} /></div>{/if}
-	<div class="box-content flex min-h-8 items-center justify-between gap-4">
-		<div class={['flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1', heading && 'flex-1']}>
-			{#if leading}<span class="-mr-1 flex items-center self-center">{@render leading()}</span>{/if}
-			{#if heading}{@render heading()}{:else}<h1 class="text-lg">{title}</h1>{/if}
-			{#if meta}<div class="text-xs text-fg-muted">{@render meta()}</div>{/if}
+	<div class="flex min-h-14 items-center justify-between gap-4 py-2">
+		<div class="flex min-w-0 flex-1 items-center gap-x-2.5">
+			{#if back}<BackLink {...back} iconOnly={Boolean(title || heading)} />{/if}
+			{#if leading}<span class="flex items-center">{@render leading()}</span>{/if}
+			{#if heading}{@render heading()}{:else if title}<h1
+					class="truncate text-md leading-tight font-semibold"
+				>
+					{title}
+				</h1>{/if}
+			{#if meta}<div class="flex-none text-xs text-fg-muted">{@render meta()}</div>{/if}
 		</div>
 		{#if actions || controls}
 			<div class="flex flex-none items-center gap-2">
@@ -62,7 +66,7 @@
 			</div>
 		{/if}
 	</div>
-	{#if tabs}<div class="mt-4">{@render tabs()}</div>{/if}
+	{#if tabs}<div class="-mb-px">{@render tabs()}</div>{/if}
 	{#if progress !== undefined}
 		<div
 			class="absolute inset-x-0 -bottom-px h-0.5 origin-left bg-accent"

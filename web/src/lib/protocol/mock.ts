@@ -1843,7 +1843,8 @@ function seedAgents(
 				// Its thread's summary held nothing: one rule shows.
 				context_tokens: null,
 				agent_unread: true,
-				last_message_at: null,
+				// An unread agent has posted, so it has a time to show.
+				last_message_at: now - 25 * 60,
 				pinned: false,
 				sort_order: 2,
 				team_id: 1,

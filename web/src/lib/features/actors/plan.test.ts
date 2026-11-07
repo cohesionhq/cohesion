@@ -3,7 +3,7 @@ import { planOf, shortLimitLabel, usagePercent, usageTone } from './plan';
 
 describe('usageTone', () => {
 	it('warns past 80% and is in danger past 95%', () => {
-		expect(usageTone(0.79)).toBe('accent');
+		expect(usageTone(0.79)).toBe('calm');
 		expect(usageTone(0.8)).toBe('warn');
 		expect(usageTone(0.94)).toBe('warn');
 		expect(usageTone(0.95)).toBe('danger');

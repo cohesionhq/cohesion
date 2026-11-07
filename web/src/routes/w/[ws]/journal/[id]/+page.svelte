@@ -56,10 +56,9 @@
 
 <PageTitle title={`${entry ? `${longDay(entry.journal_date!)} · Journal` : 'Journal'}`} />
 
-<!-- Fills the pane, so the editor runs to its foot, in the conversations' column. -->
-<div
-	class="mx-auto flex min-h-full w-full max-w-[calc(var(--spacing)*190+2*var(--page-inset))] flex-col px-(--page-inset)"
->
+<!-- Fills the pane, so the editor runs to its foot; the header runs across the sheet like every
+     page's, and the entry sits in the conversations' column. -->
+<div class="flex min-h-full flex-col px-(--page-inset)">
 	<ResourceState
 		resource={documents.current}
 		missing="Entry not found"
@@ -93,32 +92,36 @@
 					{/snippet}
 				</PageHeader>
 
-				<DocumentBody
-					draft={documents.text}
-					{preview}
-					label="Journal entry"
-					placeholder="Write about this day…"
-					fill
-					size="sm"
-					onblur={save}
-				/>
+				<div class="mx-auto flex w-full max-w-190 flex-1 flex-col">
+					<DocumentBody
+						draft={documents.text}
+						{preview}
+						label="Journal entry"
+						placeholder="Write about this day…"
+						fill
+						size="sm"
+						onblur={save}
+					/>
 
-				<PageFooter label="Journal">
-					{#if near.prev}
-						<a class="text-fg-muted hover:text-accent" href={routes.journalEntry(ws, near.prev.id)}
-							>Previous entry</a
-						>
-					{/if}
-					{#if near.prev && near.next}<span class="text-fg-subtle" aria-hidden="true">·</span>{/if}
-					{#if near.next}
-						<a
-							class="text-fg-muted hover:text-accent"
-							href={near.next.journal_date === today
-								? routes.today(ws)
-								: routes.journalEntry(ws, near.next.id)}>Next entry</a
-						>
-					{/if}
-				</PageFooter>
+					<PageFooter label="Journal">
+						{#if near.prev}
+							<a
+								class="text-fg-muted hover:text-accent"
+								href={routes.journalEntry(ws, near.prev.id)}>Previous entry</a
+							>
+						{/if}
+						{#if near.prev && near.next}<span class="text-fg-subtle" aria-hidden="true">·</span
+							>{/if}
+						{#if near.next}
+							<a
+								class="text-fg-muted hover:text-accent"
+								href={near.next.journal_date === today
+									? routes.today(ws)
+									: routes.journalEntry(ws, near.next.id)}>Next entry</a
+							>
+						{/if}
+					</PageFooter>
+				</div>
 			{/if}
 		{/snippet}
 	</ResourceState>

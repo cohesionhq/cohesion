@@ -1,6 +1,7 @@
 <!--
 	Settings shell: a section nav (a column from 900px, scrolling tabs
-	below) beside the current section.
+	below) beside the current section, drawn as the Tasks and Articles
+	pages draw their folders: the same width, no icons, the same current tint.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
@@ -19,7 +20,7 @@
 <div class="px-(--page-inset)">
 	<PageHeader title="Settings" />
 	<div
-		class="grid grid-cols-[180px_minmax(0,1fr)] items-start gap-8 max-md:grid-cols-[minmax(0,1fr)] max-md:gap-5"
+		class="grid grid-cols-[var(--sidebar-width)_minmax(0,1fr)] items-start gap-6 max-md:grid-cols-[minmax(0,1fr)] max-md:gap-5"
 	>
 		<!-- Pinned under the page header, where it starts, so it never moves. -->
 		<nav
@@ -32,13 +33,12 @@
 					class={[
 						'flex items-center gap-2 rounded-sm px-2 py-1 whitespace-nowrap hover:no-underline max-md:rounded-b-none max-md:border-b-2 max-md:border-transparent',
 						current === section.slug
-							? 'bg-bg-hover font-medium text-fg max-md:border-b-fg max-md:bg-transparent'
+							? 'bg-current-item font-medium text-fg max-md:border-b-fg max-md:bg-transparent'
 							: 'text-fg-muted hover:bg-bg-hover hover:text-fg'
 					]}
 					href={routes.settings(section.slug)}
 					aria-current={current === section.slug ? 'page' : undefined}
 				>
-					<section.icon size={16} strokeWidth={1.75} class="flex-none" />
 					{section.label}
 				</a>
 			{/each}

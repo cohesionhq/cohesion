@@ -89,8 +89,9 @@
 
 <PageTitle title={`${doc ? `${doc.title} · Documents` : 'Documents'}`} />
 
-<!-- In the conversations' column, so lines stay a readable length. -->
-<div class="mx-auto w-full max-w-[calc(var(--spacing)*190+2*var(--page-inset))] px-(--page-inset)">
+<!-- The header runs across the sheet like every page's; the title and text sit in the
+     conversations' column under it, so lines stay a readable length. -->
+<div class="px-(--page-inset)">
 	<ResourceState
 		resource={documents.current}
 		missing="Document not found"
@@ -99,25 +100,6 @@
 	>
 		{#snippet loaded()}
 			<PageHeader back={{ href: routes.documents(ws), label: 'Documents' }}>
-				{#snippet heading()}
-					<!-- A heading, not a box: focus shows as an accent underline. -->
-					<div
-						class="min-w-[12ch] flex-1 [&_input]:h-auto [&_input]:rounded-none [&_input]:border-x-0 [&_input]:border-t-0 [&_input]:border-b [&_input]:border-b-transparent [&_input]:bg-transparent [&_input]:p-0 [&_input]:text-lg [&_input]:leading-[1.25] [&_input]:font-semibold [&_input]:text-ellipsis [&_input:focus]:border-b-accent [&_input:focus]:shadow-none"
-					>
-						<TextInput
-							bind:value={title}
-							aria-label="Title"
-							aria-invalid={titleError !== null}
-							aria-describedby={titleError ? 'title-error' : undefined}
-							autocomplete="off"
-							spellcheck="false"
-							onfocus={() => (editingTitle = true)}
-							onblur={commitTitle}
-							onkeydown={onTitleKey}
-							oninput={() => (titleError = null)}
-						/>
-					</div>
-				{/snippet}
 				{#snippet actions()}
 					<DocumentMenu
 						bind:preview
@@ -138,17 +120,36 @@
 					/>
 				{/snippet}
 			</PageHeader>
-			{#if titleError}<p class="-mt-4 mb-4 text-xs text-danger" id="title-error">
-					{titleError}
-				</p>{/if}
+			<div class="mx-auto w-full max-w-190">
+				<!-- A heading, not a box: focus shows as an accent underline. -->
+				<div
+					class="mb-4 [&_input]:h-auto [&_input]:rounded-none [&_input]:border-x-0 [&_input]:border-t-0 [&_input]:border-b [&_input]:border-b-transparent [&_input]:bg-transparent [&_input]:p-0 [&_input]:text-xl [&_input]:leading-[1.25] [&_input]:font-semibold [&_input]:text-ellipsis [&_input:focus]:border-b-accent [&_input:focus]:shadow-none"
+				>
+					<TextInput
+						bind:value={title}
+						aria-label="Title"
+						aria-invalid={titleError !== null}
+						aria-describedby={titleError ? 'title-error' : undefined}
+						autocomplete="off"
+						spellcheck="false"
+						onfocus={() => (editingTitle = true)}
+						onblur={commitTitle}
+						onkeydown={onTitleKey}
+						oninput={() => (titleError = null)}
+					/>
+				</div>
+				{#if titleError}<p class="-mt-3 mb-4 text-xs text-danger" id="title-error">
+						{titleError}
+					</p>{/if}
 
-			<DocumentBody
-				draft={documents.text}
-				{preview}
-				label="Document"
-				placeholder="Start writing…"
-				onblur={save}
-			/>
+				<DocumentBody
+					draft={documents.text}
+					{preview}
+					label="Document"
+					placeholder="Start writing…"
+					onblur={save}
+				/>
+			</div>
 		{/snippet}
 	</ResourceState>
 </div>

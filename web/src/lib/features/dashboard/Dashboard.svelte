@@ -1,9 +1,9 @@
 <!--
-	The Dashboard, where a workspace opens: a greeting for the time of day,
-	then a message to an agent as the page's centrepiece (write, then pick
-	who it goes to, under the composer; the reply waits in the agent's
-	conversation, which the toast opens), and beside the picker a Quick
-	journal button, a dialog that adds a note to today's entry. Under it,
+	The Dashboard, where a workspace opens: a greeting for the time of day as
+	the page's title, then a message to an agent (who it goes to picked in the
+	composer; the reply waits in the agent's conversation, which the toast
+	opens). Quick journal, in the header's tools, opens a dialog that adds a
+	note to today's entry. Under it, the tasks due today (DashboardToday) and
 	what's new (DashboardRecap).
 -->
 <script lang="ts">
@@ -11,6 +11,7 @@
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import { onMount, untrack } from 'svelte';
 	import Composer from '$lib/features/agents/Composer.svelte';
+	import Button from '$lib/ui/Button.svelte';
 	import { toProtocolError } from '$lib/protocol/errors';
 	import type { ImageUpload } from '$lib/protocol/types';
 	import { routes } from '$lib/shell/routes';
@@ -18,18 +19,16 @@
 	import { profile } from '$lib/stores/settings/profile.svelte';
 	import AgentAvatar from '$lib/ui/AgentAvatar.svelte';
 	import Picker, { type PickerItem } from '$lib/ui/Picker.svelte';
-	import { panes } from '$lib/shell/pane.svelte';
-	import { paneChrome } from '$lib/ui/paneChrome';
 	import { toasts } from '$lib/ui/toasts.svelte';
-	import { capsule, capsuleOn } from './capsule';
+	import PageHeader from '$lib/ui/PageHeader.svelte';
 	import DashboardRecap from './DashboardRecap.svelte';
+	import DashboardToday from './DashboardToday.svelte';
 	import { greeting } from './greeting';
 	import QuickJournal from './QuickJournal.svelte';
 
 	let { ws }: { ws: number } = $props();
 
 	const { actors, agents } = pageStores();
-	const controls = paneChrome()?.controls;
 
 	// One line per visit: the hour and the pick are read once, as the page opens.
 	const hour = new Date().getHours();
@@ -100,86 +99,81 @@
 	}
 </script>
 
-<div
-	class="mx-auto flex w-full max-w-[calc(var(--spacing)*180+2*var(--page-inset))] flex-col px-(--page-inset) pb-10"
->
-	<!-- Its own header rather than PageHeader: the greeting centred, and no
-	     split view button; only a split's own "Close this half" shows. -->
-	<header class="relative pt-20 pb-4">
-		<h1 class="text-center text-xl font-semibold text-balance">{hello}</h1>
-		{#if panes.split && controls}
-			<div class="absolute top-3.5 right-0">{@render controls()}</div>
-		{/if}
-	</header>
+<div class="flex flex-col px-(--page-inset) pb-10">
+	<!-- The greeting is the page's title, in the header every page has; Quick journal, a note for
+	     today's entry rather than a message, is a tool of the page beside it. -->
+	<PageHeader title={hello}>
+		{#snippet actions()}
+			<Button variant="secondary" onclick={() => (journaling = true)}>
+				<NotebookPen size={14} strokeWidth={1.75} aria-hidden="true" />Quick journal
+			</Button>
+		{/snippet}
+	</PageHeader>
 
-	<section aria-label="Message an agent" class="flex flex-col gap-5 pt-10">
-		{#if agents.list.loaded && list.length === 0}
-			<p class="text-center text-sm text-fg-subtle">
-				No agents yet. <a href={routes.newAgent()}>New agent</a>
-			</p>
-		{/if}
-		{#if agent}
-			<Composer
-				bind:value={draft}
-				bind:images
-				error={sendError}
-				placeholder="Give {agent.agent_name} something to do…"
-				onsend={send}
-				onclearerror={() => (sendError = null)}
-				{focusKey}
-			/>
-		{/if}
-
-		<!-- Who the message goes to: one capsule opening a picker of every
-		     agent, so it holds however many there are. -->
-		<div class="flex items-center justify-between gap-2">
-			<div class={[list.length === 0 && 'hidden']}>
-				<Picker
-					bind:open={choosing}
-					items={agentItems}
-					onpick={(id) => (chosen = Number(id))}
-					placeholder="Find an agent"
-					empty="No agents yet."
+	<!-- One centred column, as a document's and a conversation's are: the composer, then what
+	     needs the user today and what the agents and actors left. -->
+	<div class="mx-auto flex w-full max-w-190 flex-col">
+		<section aria-label="Message an agent" class="flex flex-col gap-5">
+			{#if agents.list.loaded && list.length === 0}
+				<p class="text-sm text-fg-subtle">
+					No agents yet. <a href={routes.newAgent()}>New agent</a>
+				</p>
+			{/if}
+			{#if agent}
+				<Composer
+					bind:value={draft}
+					bind:images
+					error={sendError}
+					placeholder="Give it something to do…"
+					onsend={send}
+					onclearerror={() => (sendError = null)}
+					{focusKey}
 				>
-					{#snippet trigger(props)}
-						<button
-							{...props}
-							class={[capsule, 'pr-2.5 pl-1', capsuleOn, 'hover:bg-bg-hover']}
-							type="button"
+					{#snippet leading()}
+						<!-- Who the message goes to, inside the composer: a chip opening a picker of every
+					     agent, so it holds however many there are. -->
+						<Picker
+							bind:open={choosing}
+							items={agentItems}
+							onpick={(id) => (chosen = Number(id))}
+							placeholder="Find an agent"
+							empty="No agents yet."
 						>
-							<span class="sr-only">Agent:</span>
-							{#if agent}
-								<AgentAvatar
-									name={agent.agent_name}
-									color={agent.agent_color}
-									emoji={agent.agent_emoji}
-									size="xs"
-								/>
-								{agent.agent_name}
-							{/if}
-							<ChevronDown size={14} strokeWidth={2} class="text-fg-subtle" aria-hidden="true" />
-						</button>
+							{#snippet trigger(props)}
+								<button
+									{...props}
+									class="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full pr-2 pl-1.5 text-sm text-fg transition-colors hover:bg-bg-hover data-[state=open]:bg-bg-hover"
+									type="button"
+								>
+									<span class="sr-only">Agent:</span>
+									{#if agent}
+										<AgentAvatar
+											name={agent.agent_name}
+											color={agent.agent_color}
+											emoji={agent.agent_emoji}
+											size="xs"
+										/>
+										{agent.agent_name}
+									{/if}
+									<ChevronDown
+										size={14}
+										strokeWidth={2}
+										class="text-fg-subtle"
+										aria-hidden="true"
+									/>
+								</button>
+							{/snippet}
+						</Picker>
 					{/snippet}
-				</Picker>
-			</div>
-			<button
-				class={[
-					capsule,
-					'px-3',
-					'border-border text-fg-muted hover:border-border-strong hover:text-fg'
-				]}
-				type="button"
-				onclick={() => (journaling = true)}
-			>
-				<NotebookPen size={14} strokeWidth={2} aria-hidden="true" />
-				Quick journal
-			</button>
+				</Composer>
+			{/if}
+		</section>
+
+		<QuickJournal {ws} bind:open={journaling} />
+
+		<div class="flex flex-col gap-8 pt-8">
+			<DashboardToday {ws} />
+			<DashboardRecap />
 		</div>
-	</section>
-
-	<QuickJournal {ws} bind:open={journaling} />
-
-	<div class="flex flex-col gap-8 pt-24">
-		<DashboardRecap />
 	</div>
 </div>

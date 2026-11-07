@@ -15,7 +15,7 @@
 <svg class="flex-none -rotate-90" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
 	<circle class="stroke-n4" cx="10" cy="10" r={RADIUS} fill="none" stroke-width="2.5" />
 	<circle
-		class={{ accent: 'stroke-fg-muted', warn: 'stroke-warn', danger: 'stroke-danger' }[
+		class={{ calm: 'stroke-fg-muted', warn: 'stroke-warn', danger: 'stroke-danger' }[
 			usageTone(share)
 		]}
 		cx="10"

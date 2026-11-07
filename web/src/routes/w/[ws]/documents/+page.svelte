@@ -1,4 +1,6 @@
 <script lang="ts">
+	import SearchField from '$lib/ui/SearchField.svelte';
+	import Plus from '@lucide/svelte/icons/plus';
 	import { untrack } from 'svelte';
 	import { localMidnight, nowSeconds, relativeTime } from '$lib/format/dates';
 	import { SEARCH_DEBOUNCE_MS } from '$lib/format/search';
@@ -9,7 +11,6 @@
 	import Button from '$lib/ui/Button.svelte';
 	import EmptyState from '$lib/ui/EmptyState.svelte';
 	import PageHeader from '$lib/ui/PageHeader.svelte';
-	import TextInput from '$lib/ui/TextInput.svelte';
 	import { toasts } from '$lib/ui/toasts.svelte';
 	import { pane } from '$lib/shell/pane.svelte';
 	import PageTitle from '$lib/shell/PageTitle.svelte';
@@ -77,7 +78,9 @@
 <div class="px-(--page-inset)">
 	<PageHeader title="Documents">
 		{#snippet actions()}
-			<Button variant="primary" disabled={creating} onclick={create}>New document</Button>
+			<Button variant="secondary" disabled={creating} onclick={create}
+				><Plus size={15} strokeWidth={1.75} aria-hidden="true" />New document</Button
+			>
 		{/snippet}
 	</PageHeader>
 
@@ -87,13 +90,11 @@
 		{#if documents.list.value.length === 0}
 			<EmptyState message="No documents yet" actionLabel="New document" onaction={create} />
 		{:else}
-			<div class="mb-5 max-w-80">
-				<TextInput
+			<div class="mb-5">
+				<SearchField
 					bind:value={query}
-					type="search"
 					placeholder="Filter by title"
-					aria-label="Filter documents by title"
-					autocomplete="off"
+					label="Filter documents by title"
 				/>
 			</div>
 

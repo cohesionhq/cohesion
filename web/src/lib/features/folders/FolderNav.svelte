@@ -2,6 +2,7 @@
      reorder by dragging, or with Alt+↑/↓. The Articles page lists its feeds with it too. -->
 <script lang="ts">
 	import Pencil from '@lucide/svelte/icons/pencil';
+	import Plus from '@lucide/svelte/icons/plus';
 	import Trash from '@lucide/svelte/icons/trash';
 	import type { Snippet } from 'svelte';
 	import { Reorderable } from '$lib/ui/reorder.svelte';
@@ -70,60 +71,66 @@
 	class="flex flex-col gap-3 max-md:flex-row max-md:flex-wrap max-md:items-center max-md:gap-1"
 	aria-label={label}
 >
-	<ul class="max-md:flex max-md:flex-wrap max-md:gap-1">
-		{@render before?.()}
-		{#each order.items as folder, index (folder.id)}
-			<li
-				class={['group/folder', navItem, order.dragged === folder.id && 'opacity-50']}
-				draggable="true"
-				ondragstart={(e) => order.start(e, folder, folder.title)}
-				{...order.target(index)}
-				ondragend={() => order.end()}
-			>
-				<a
-					class={navLink}
-					href={href(folder.id)}
-					draggable="false"
-					aria-current={current === folder.id ? 'page' : undefined}
-					aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-					onclick={() => onpick?.(folder)}
-					onkeydown={(e) => order.key(e, index)}
-					>{folder.title}{#if unread?.(folder)}<span class="sr-only">, {unread(folder)} unread</span
-						>{/if}</a
+	<!-- Left out while empty (a page with no saved views yet), so its gap goes with it. -->
+	{#if order.items.length > 0 || before || after}
+		<ul class="max-md:flex max-md:flex-wrap max-md:gap-1">
+			{@render before?.()}
+			{#each order.items as folder, index (folder.id)}
+				<li
+					class={['group/folder', navItem, order.dragged === folder.id && 'opacity-50']}
+					draggable="true"
+					ondragstart={(e) => order.start(e, folder, folder.title)}
+					{...order.target(index)}
+					ondragend={() => order.end()}
 				>
-				{#if unread?.(folder)}
-					<span class={navCount} aria-hidden="true">{unread(folder)}</span>
-				{/if}
-				{#if onrename && ondelete}<span
-						class={[
-							'flex opacity-0 transition-opacity group-focus-within/folder:opacity-100 group-hover/folder:opacity-100 touch:opacity-100 max-md:opacity-100',
-							current !== folder.id && 'max-md:hidden'
-						]}
+					<a
+						class={navLink}
+						href={href(folder.id)}
+						draggable="false"
+						aria-current={current === folder.id ? 'page' : undefined}
+						aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+						onclick={() => onpick?.(folder)}
+						onkeydown={(e) => order.key(e, index)}
+						>{folder.title}{#if unread?.(folder)}<span class="sr-only"
+								>, {unread(folder)} unread</span
+							>{/if}</a
 					>
-						{@render tools?.(folder)}
-						<button
-							class={navTool}
-							type="button"
-							aria-label="Rename {folder.title}"
-							onclick={() => onrename(folder)}
+					{#if unread?.(folder)}
+						<span class={navCount} aria-hidden="true">{unread(folder)}</span>
+					{/if}
+					{#if onrename && ondelete}<span
+							class={[
+								'flex opacity-0 transition-opacity group-focus-within/folder:opacity-100 group-hover/folder:opacity-100 touch:opacity-100 max-md:opacity-100',
+								current !== folder.id && 'max-md:hidden'
+							]}
 						>
-							<Pencil size={13} strokeWidth={1.75} />
-						</button>
-						<button
-							class={navTool}
-							type="button"
-							aria-label="Delete {folder.title}"
-							onclick={() => ondelete(folder)}
-						>
-							<Trash size={13} strokeWidth={1.75} />
-						</button>
-					</span>{/if}
-			</li>
-		{/each}
-		{@render after?.()}
-	</ul>
+							{@render tools?.(folder)}
+							<button
+								class={navTool}
+								type="button"
+								aria-label="Rename {folder.title}"
+								onclick={() => onrename(folder)}
+							>
+								<Pencil size={13} strokeWidth={1.75} />
+							</button>
+							<button
+								class={navTool}
+								type="button"
+								aria-label="Delete {folder.title}"
+								onclick={() => ondelete(folder)}
+							>
+								<Trash size={13} strokeWidth={1.75} />
+							</button>
+						</span>{/if}
+				</li>
+			{/each}
+			{@render after?.()}
+		</ul>
+	{/if}
 	<div class="flex flex-col max-md:flex-row">
-		<button class={navAction} type="button" onclick={onnew}>{newLabel}</button>
+		<button class={navAction} type="button" onclick={onnew}>
+			<Plus size={14} strokeWidth={1.75} aria-hidden="true" />{newLabel}
+		</button>
 		{@render actions?.()}
 	</div>
 </nav>

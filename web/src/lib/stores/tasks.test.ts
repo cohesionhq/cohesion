@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { localDay } from '$lib/format/dates';
 import { createMock } from '$lib/protocol/mock';
 import {
 	createTasksStore,
@@ -367,5 +368,15 @@ describe('tasks store', () => {
 		await store.deleteFolder(1, 1);
 		await store.views.refetch();
 		expect(store.views.value.map((v) => v.name)).toEqual(['Inbox']);
+	});
+});
+
+describe('tasks due', () => {
+	it("lists a workspace's open tasks due by today, and not the ones due later", async () => {
+		const store = createTasksStore(createMock().send);
+		await store.due.load(`1:${localDay(-1)}`);
+		const titles = store.due.value.tasks.map((t) => t.title);
+		expect(titles).toContain('Renew passport');
+		expect(titles).not.toContain('Book dentist');
 	});
 });

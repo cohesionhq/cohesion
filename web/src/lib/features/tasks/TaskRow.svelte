@@ -17,6 +17,8 @@
 <script lang="ts">
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
+	import Flag from '@lucide/svelte/icons/flag';
+	import NotebookText from '@lucide/svelte/icons/notebook-text';
 	import PanelRightOpen from '@lucide/svelte/icons/panel-right-open';
 	import Ruler from '@lucide/svelte/icons/ruler';
 	import { tick } from 'svelte';
@@ -25,6 +27,7 @@
 	import TagPills from '$lib/features/tags/TagPills.svelte';
 	import { tagsOn, tagsSubmenu } from '$lib/features/tags/tags';
 	import type { Contact, Tag, Task, TaskAssignee } from '$lib/protocol/types';
+	import Avatar from '$lib/ui/Avatar.svelte';
 	import Checkbox from '$lib/ui/Checkbox.svelte';
 	import Menu, { type MenuAction, type MenuItem } from '$lib/ui/Menu.svelte';
 	import TextInput from '$lib/ui/TextInput.svelte';
@@ -33,7 +36,7 @@
 	import DayPicker from './DayPicker.svelte';
 	import { assigneeId, NO_ONE } from './assignee';
 	import { assignees } from './assignees.svelte';
-	import { PRIORITY_KEYS } from './priority';
+	import { PRIORITY_KEYS, priorityOf } from './priority';
 	import PriorityMenu from './PriorityMenu.svelte';
 	import { scheduleChips } from './schedule';
 	import { sizeOf, sizes } from './size';
@@ -100,6 +103,7 @@
 	const chips = $derived(scheduleChips(task));
 	const tagged = $derived(tagsOn(tags, task.tag_ids));
 	const assignee = $derived(assignees.shown(task.assignee, contacts));
+	const priority = $derived(priorityOf(task.priority));
 
 	$effect(() => {
 		if (task.assignee?.kind === 'user') assignees.loadProfile();
@@ -290,7 +294,7 @@
 			>
 				<span class={['block', finished && 'line-through']}>{task.title}</span>
 			</button>
-			{#if chips.length > 0 || task.size !== null || showId || folder !== undefined || tagged.length > 0}
+			{#if task.size !== null || showId || folder !== undefined || tagged.length > 0 || task.description !== '' || assignee || task.priority !== 'none'}
 				<div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-subtle">
 					{#if showId}<span>#{task.id}</span>{/if}
 					{#if task.size !== null}
@@ -306,45 +310,58 @@
 							{size.label}
 						</span>
 					{/if}
-					{#each chips as chip (chip.day)}
-						<DayPicker
-							start={task.start_date}
-							due={task.due_date}
-							initial={chip.day}
-							onchange={onschedule}
-						>
-							{#snippet trigger(props)}
-								<button
-									class={[
-										'-ml-1 inline-flex h-5 flex-none cursor-pointer items-center gap-1 rounded-sm px-1 text-xs font-medium whitespace-nowrap hover:bg-bg-hover data-[state=open]:bg-bg-hover',
-										chip.tone === 'overdue' && 'text-danger',
-										chip.tone === 'today' && 'text-fg',
-										chip.tone === 'upcoming' && 'text-fg-muted',
-										chip.tone === 'muted' && 'text-fg-subtle'
-									]}
-									type="button"
-									aria-label="{chip.label}: change the {chip.day} day of {task.title}"
-									{...props}
-								>
-									<CalendarIcon size={12} strokeWidth={2} aria-hidden="true" />
-									{chip.label}
-								</button>
-							{/snippet}
-						</DayPicker>
-					{/each}
+					<!-- What is set reads in the line, in words; the row's buttons that change it show on hover. -->
+					{#if task.priority !== 'none'}
+						<span class={['inline-flex items-center gap-1', priority.tone]}>
+							<Flag size={12} strokeWidth={2} aria-hidden="true" />{priority.label}
+						</span>
+					{/if}
+					{#if assignee}
+						<span class="inline-flex items-center gap-1">
+							<Avatar who={assignee.avatar} />{assignee.label}
+						</span>
+					{/if}
 					{#if folder !== undefined}<span>{folder}</span>{/if}
 					<TagPills tags={tagged} />
+					<!-- A task with a description says so in its line, as the trailing details button shows only on hover. -->
+					{#if task.description !== ''}
+						<NotebookText
+							class="flex-none"
+							size={12}
+							strokeWidth={1.75}
+							aria-label="Has a description"
+						/>
+					{/if}
 				</div>
 			{/if}
 		</div>
 	{/if}
-	{#if chips.length < 2}
-		<DayPicker
-			start={task.start_date}
-			due={task.due_date}
-			initial={chips.some((c) => c.day === 'due') ? 'start' : 'due'}
-			onchange={onschedule}
+	<!-- At rest, a task's days at the row's trailing edge, where every list keeps its dates; on hover
+	     or focus (and always on a touch screen, beside them) the row's controls take their place. -->
+	{#if chips.length > 0}
+		<span
+			class="flex flex-none items-center gap-3 text-xs whitespace-nowrap group-focus-within/row:hidden group-hover/row:hidden has-[~div_[data-state=open]]:hidden touch:flex"
 		>
+			{#each chips as chip (chip.day)}
+				<span
+					class={[
+						'inline-flex items-center gap-1',
+						// One weight; only past due takes a hue, so orange stays for what needs the user.
+						chip.tone === 'overdue' && 'text-danger',
+						chip.tone === 'today' && 'text-fg',
+						chip.tone === 'upcoming' && 'text-fg-muted',
+						chip.tone === 'muted' && 'text-fg-subtle'
+					]}
+				>
+					<CalendarIcon size={12} strokeWidth={2} aria-hidden="true" />{chip.label}
+				</span>
+			{/each}
+		</span>
+	{/if}
+	<div
+		class="hidden flex-none items-center group-focus-within/row:flex group-hover/row:flex has-data-[state=open]:flex touch:flex"
+	>
+		<DayPicker start={task.start_date} due={task.due_date} initial="due" onchange={onschedule}>
 			{#snippet trigger(props)}
 				<button
 					class="inline-flex size-7 cursor-pointer items-center justify-center rounded-sm text-fg-subtle opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 hover:bg-bg-hover hover:text-fg data-[state=open]:bg-bg-hover data-[state=open]:opacity-100 touch:opacity-100"
@@ -356,35 +373,33 @@
 				</button>
 			{/snippet}
 		</DayPicker>
-	{/if}
-	<button
-		class={[
-			'inline-flex size-7 cursor-pointer items-center justify-center rounded-sm text-fg-subtle hover:bg-bg-hover hover:text-fg',
-			task.description === '' &&
-				'opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 touch:opacity-100'
-		]}
-		type="button"
-		aria-label="Details of {task.title}"
-		onclick={ondetails}
-	>
-		<PanelRightOpen size={15} strokeWidth={1.75} />
-	</button>
-	<AssigneeMenu {assignee} title={task.title} items={assignItems} />
-	<PriorityMenu priority={task.priority} title={task.title} onchange={onpriority} />
-	<span
-		class="opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 has-data-[state=open]:opacity-100 touch:opacity-100"
-	>
-		<Menu {items}>
-			{#snippet trigger(props)}
-				<button
-					class="inline-flex size-7 cursor-pointer items-center justify-center rounded-sm text-fg-muted hover:bg-bg-hover hover:text-fg data-[state=open]:bg-bg-hover data-[state=open]:text-fg"
-					type="button"
-					aria-label="More for {task.title}"
-					{...props}
-				>
-					<Ellipsis size={16} strokeWidth={1.75} />
-				</button>
-			{/snippet}
-		</Menu>
-	</span>
+		<button
+			class={[
+				'inline-flex size-7 cursor-pointer items-center justify-center rounded-sm text-fg-subtle opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 hover:bg-bg-hover hover:text-fg touch:opacity-100'
+			]}
+			type="button"
+			aria-label="Details of {task.title}"
+			onclick={ondetails}
+		>
+			<PanelRightOpen size={15} strokeWidth={1.75} />
+		</button>
+		<AssigneeMenu {assignee} title={task.title} items={assignItems} />
+		<PriorityMenu priority={task.priority} title={task.title} onchange={onpriority} />
+		<span
+			class="opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 has-data-[state=open]:opacity-100 touch:opacity-100"
+		>
+			<Menu {items}>
+				{#snippet trigger(props)}
+					<button
+						class="inline-flex size-7 cursor-pointer items-center justify-center rounded-sm text-fg-muted hover:bg-bg-hover hover:text-fg data-[state=open]:bg-bg-hover data-[state=open]:text-fg"
+						type="button"
+						aria-label="More for {task.title}"
+						{...props}
+					>
+						<Ellipsis size={16} strokeWidth={1.75} />
+					</button>
+				{/snippet}
+			</Menu>
+		</span>
+	</div>
 </li>

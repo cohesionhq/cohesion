@@ -118,7 +118,7 @@
 {/snippet}
 
 <form
-	class="flex w-full max-w-[70%] min-w-0 flex-col overflow-hidden rounded-md border border-border bg-bg max-sm:max-w-full"
+	class="flex w-full min-w-0 flex-col overflow-hidden rounded-md border border-border bg-bg"
 	onsubmit={send}
 >
 	{#each questions as question, index (index)}
@@ -141,7 +141,7 @@
 								? 'bg-accent-soft text-fg shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--accent)_40%,transparent)]'
 								: answered
 									? 'text-fg-subtle'
-									: 'cursor-pointer bg-bg-raised hover:bg-bg-hover'
+									: 'cursor-pointer hover:bg-bg-hover'
 						]}
 						type="button"
 						role={question.multi_select ? 'checkbox' : 'radio'}
@@ -166,7 +166,7 @@
 					</p>
 				{:else if takesWords(question) && !answered}
 					<TextInput
-						class="mt-0.5 border-transparent bg-bg-raised"
+						class="mt-1"
 						id="{id}-other-{index}"
 						bind:value={other[index]}
 						placeholder={question.options.length ? 'Something else…' : 'Your answer…'}

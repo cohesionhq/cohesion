@@ -1,6 +1,6 @@
 <!--
-	The way back, as "‹ {label}" above a deeper page's title (PageHeader's
-	`back`), or as the chevron alone leading a conversation's pinned header. It
+	The way back, as the chevron alone leading a page's or a conversation's
+	header before its title, or as "‹ {label}" where the header has no title. It
 	steps back to the page the user came from, named by that page's title;
 	reached any other way, it leads to the page given, the one this one sits
 	under.
@@ -48,7 +48,7 @@
 	</a>
 {:else}
 	<a
-		class="-ml-1 flex h-5 w-fit items-center gap-0.5 text-xs text-fg-muted no-underline hover:text-fg hover:no-underline"
+		class="-ml-1 flex h-7 w-fit items-center gap-0.5 rounded-sm pr-1.5 text-sm text-fg-muted no-underline hover:text-fg hover:no-underline"
 		href={previous?.href ?? href}
 		{onclick}><ChevronLeft size={14} strokeWidth={1.75} aria-hidden="true" />{name}</a
 	>

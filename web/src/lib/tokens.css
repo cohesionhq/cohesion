@@ -146,7 +146,7 @@
 	--n3: oklch(0.922 0.005 265);
 	--n4: oklch(0.86 0.006 265);
 	--n5: oklch(0.7 0.008 265);
-	--n6: oklch(0.55 0.009 265);
+	--n6: oklch(0.5 0.009 265);
 	--n7: oklch(0.43 0.009 265);
 	--n8: oklch(0.3 0.008 265);
 	--n9: oklch(0.19 0.006 265);
@@ -157,7 +157,7 @@
 	--accent: color(display-p3 0.369 0.373 0.89);
 	--accent-hover: color(display-p3 0.31 0.315 0.8);
 	--accent-fg: #ffffff;
-	--accent-soft: color(display-p3 0.369 0.373 0.89 / 0.1);
+	--accent-soft: color(display-p3 0.369 0.373 0.89 / 0.18);
 	--focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px color(display-p3 0.369 0.373 0.89 / 0.45);
 
 	--primary: var(--accent);
@@ -166,7 +166,7 @@
 
 	--danger: #b03a3a;
 	--ok: #3f7d4a;
-	--warn: #9a7220;
+	--warn: #b45309;
 
 	--agent-blue: #4a6fb5;
 	--agent-green: #4f8a5a;
@@ -218,10 +218,10 @@
 	/* Room at the top of the page for what a WebUI harness draws over it, the Mac's
 	   window controls or the iPad's status bar; the harness sets it. */
 	--titlebar-inset: 0px;
-	/* How far a plain PageHeader (no back link or tabs) pushes content down:
-	   pt-3, an 8-unit row, pb-5 and mb-1. A column pinned beside the content
-	   sticks at this offset, under the header. */
-	--page-header-height: calc(var(--spacing) * 17);
+	/* How tall a PageHeader's bar is without tabs: a 14-unit row and its
+	   hairline. A column pinned beside the content sticks at this offset, under
+	   the header. */
+	--page-header-height: calc(var(--spacing) * 14 + 1px);
 
 	--duration: 120ms;
 	--overlay: oklch(0.2 0.006 265 / 0.16);
@@ -261,7 +261,7 @@
 		--n3: oklch(0.26 0.006 265);
 		--n4: oklch(0.32 0.007 265);
 		--n5: oklch(0.45 0.008 265);
-		--n6: oklch(0.64 0.008 265);
+		--n6: oklch(0.68 0.008 265);
 		--n7: oklch(0.77 0.006 265);
 		--n8: oklch(0.89 0.004 265);
 		--n9: oklch(0.965 0.002 265);
@@ -270,7 +270,7 @@
 		--accent: color(display-p3 0.52 0.525 0.96);
 		--accent-hover: color(display-p3 0.58 0.585 0.97);
 		--accent-fg: var(--n0);
-		--accent-soft: color(display-p3 0.52 0.525 0.96 / 0.16);
+		--accent-soft: color(display-p3 0.52 0.525 0.96 / 0.24);
 		--focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px color(display-p3 0.52 0.525 0.96 / 0.55);
 
 		--danger: #e58585;
@@ -289,18 +289,22 @@
 		--on-fill: var(--n0);
 		--knob: var(--n9);
 
-		/* The sheet lifts off a darker canvas. */
-		--canvas: var(--n0);
-		--bg: var(--n1);
-		--bg-raised: var(--n2);
-		--bg-hover: var(--n3);
+		/* The sheet lifts off a darker canvas, a clear step below it so the sheet's edge reads. */
+		--canvas: oklch(0.11 0.004 265);
+		--bg: oklch(0.2 0.005 265);
+		--bg-raised: oklch(0.24 0.006 265);
+		--bg-hover: oklch(0.28 0.006 265);
 		--current-item: oklch(1 0 0 / 0.08);
 		--border: var(--n3);
+		/* A step past the light scheme's, so a field's or a checkbox's edge still reads on near-black. */
+		--border-strong: var(--n5);
 
 		--selection: color(display-p3 0.52 0.525 0.96 / 0.28);
 		--overlay: oklch(0 0 0 / 0.55);
 		--bg-floating: var(--n2);
 		--shadow-floating: 0 1px 2px oklch(0 0 0 / 0.3), 0 12px 32px oklch(0 0 0 / 0.5);
+		/* A faint light edge, as a hairline in the border grey all but vanishes on near-black. */
+		--sheet-shadow: 0 0 0 1px oklch(1 0 0 / 0.09), 0 1px 3px oklch(0 0 0 / 0.3);
 	}
 }
 

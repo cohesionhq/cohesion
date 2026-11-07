@@ -88,10 +88,16 @@
 	}
 </script>
 
+<!-- Without views yet, "New view…" stands alone. -->
+{#snippet heading()}
+	<li class={navHeading}>Views</li>
+{/snippet}
+
 <FolderNav
 	label="Views"
 	newLabel="New view…"
 	folders={rows}
+	before={rows.length > 0 ? heading : undefined}
 	{current}
 	href={(id) => href(byId(id))}
 	onpick={(row) => onpick(byId(row.id))}
@@ -103,9 +109,6 @@
 	}}
 	{onreorder}
 >
-	{#snippet before()}
-		<li class={navHeading}>Views</li>
-	{/snippet}
 	{#snippet tools(row)}
 		{#if row.id !== current}
 			<button

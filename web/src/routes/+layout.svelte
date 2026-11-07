@@ -282,7 +282,6 @@
 					session={gutterSession}
 					actor={actors.list.value.find((a) => a.id === gutterSession.actor_id) ?? null}
 					plan={planOf(actors.usage.value, gutterSession.actor_id)}
-					onresolve={resolveSession}
 				/>
 			{/if}
 		</ConversationGutter>

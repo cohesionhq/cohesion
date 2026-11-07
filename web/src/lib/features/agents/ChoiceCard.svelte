@@ -1,9 +1,9 @@
 <!--
 	A question the agent asked with answers to pick from, inline in the feed:
-	the question, then one button per answer, lettered A, B, C… Picking one
-	starts the agent's turn on it; from then on the pick is marked with a check in
-	an accent disc, as a reaction is drawn, and the rest fade, none of them
-	clickable.
+	the question, then one row per answer with a radio's mark, its letter (A,
+	B, C…) as a key at the row's end. Picking one starts the agent's turn on
+	it; from then on the pick is marked as an actor's question card marks an
+	answer, and the rest fade, none of them clickable.
 -->
 <script lang="ts">
 	import Check from '@lucide/svelte/icons/check';
@@ -31,11 +31,13 @@
 	}
 </script>
 
+<!-- Drawn as an actor's question card is (the same frame, rows and marks), with each answer's
+     letter as a key at its trailing edge, as a menu shows an item's key. -->
 <article
-	class="flex w-fit max-w-[70%] min-w-0 flex-col gap-1.5 rounded-md border border-border bg-bg p-2.5 max-sm:max-w-full"
+	class="flex w-full min-w-0 flex-col gap-1.5 rounded-md border border-border bg-bg px-3 py-2.5"
 	aria-labelledby="{id}-question"
 >
-	<div id="{id}-question">
+	<div class="font-medium" id="{id}-question">
 		<Markdown source={choice.question} />
 	</div>
 	<ol class="flex flex-col gap-0.5">
@@ -44,34 +46,33 @@
 			<li>
 				<button
 					class={[
-						'flex w-full items-start gap-2 rounded-sm px-2 py-1.25 text-left transition-colors',
+						'flex w-full items-start gap-2.5 rounded-sm px-2 py-1.25 text-left transition-colors',
 						pending
-							? 'cursor-pointer bg-bg-raised hover:bg-bg-hover'
+							? 'cursor-pointer hover:bg-bg-hover'
 							: picked
-								? 'bg-accent-soft text-fg'
-								: 'text-fg-muted'
+								? 'bg-accent-soft text-fg shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--accent)_40%,transparent)]'
+								: 'text-fg-subtle'
 					]}
 					type="button"
 					disabled={!pending}
 					aria-pressed={picked}
 					onclick={() => pick(index)}
 				>
-					<!-- A key cap, a line tall so it centres on the answer's first line. -->
-					<span class="flex h-lh flex-none items-center">
-						<span
-							class="inline-grid size-4.5 place-items-center rounded-[5px] bg-bg text-2xs font-semibold text-fg-muted shadow-[0_0_0_1px_var(--border)]"
-							>{String.fromCharCode(65 + index)}</span
-						>
+					<!-- A radio's mark, filled with a check once picked. -->
+					<span
+						class={[
+							'mt-0.5 grid size-4 flex-none place-items-center rounded-full border transition-colors',
+							picked ? 'border-accent bg-accent text-accent-fg' : 'border-border-strong'
+						]}
+					>
+						{#if picked}<Check size={10} strokeWidth={3} aria-label="Picked" />{/if}
 					</span>
 					<span class="min-w-0 flex-1 wrap-anywhere">{option}</span>
-					{#if picked}
-						<!-- A line tall, so the disc centres on the answer's first line; the
-						     check is 0.6 of the disc, as a reaction's emoji is. -->
-						<span class="flex h-lh flex-none items-center">
-							<span class="grid size-5 place-items-center rounded-full bg-accent text-accent-fg">
-								<Check size={12} strokeWidth={2.5} aria-label="Picked" />
-							</span>
-						</span>
+					{#if pending}
+						<kbd
+							class="mt-0.5 inline-grid size-5 flex-none place-items-center rounded-[5px] border border-border font-sans text-2xs text-fg-subtle"
+							>{String.fromCharCode(65 + index)}</kbd
+						>
 					{/if}
 				</button>
 			</li>

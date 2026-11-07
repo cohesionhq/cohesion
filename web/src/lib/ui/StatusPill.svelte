@@ -15,7 +15,11 @@
 </script>
 
 <span
-	class="flex h-6 max-w-full min-w-0 flex-none items-center gap-1.5 rounded-full bg-bg-hover px-2 text-xs text-fg-muted"
+	class={[
+		'flex h-6 max-w-full min-w-0 flex-none items-center gap-1.5 rounded-full px-2 text-xs',
+		// Waiting on the user, it takes the amber every place gives that state.
+		status === 'needsAttention' ? 'bg-warn/12 font-medium text-warn' : 'bg-bg-hover text-fg-muted'
+	]}
 >
 	<StatusIcon {status} size={14} /><span class="truncate">{label}</span>
 </span>

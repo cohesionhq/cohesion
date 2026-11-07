@@ -2,7 +2,7 @@
 <script lang="ts">
 	import type { AgentCodeExecution } from '$lib/protocol/types';
 	import { prettyJson } from '$lib/stores/transcript';
-	import { preClass } from './disclosure';
+	import { toolPreClass } from './disclosure';
 	import ToolRow from './ToolRow.svelte';
 
 	interface Props {
@@ -22,11 +22,11 @@
 			<span class="flex-none text-fg-subtle">Cancelled</span>
 		{/if}
 	{/snippet}
-	<pre class={[preClass, 'text-fg-muted']}>{execution.code}</pre>
+	<pre class={[toolPreClass, 'text-fg-muted']}>{execution.code}</pre>
 	{#if outcome.status === 'failed'}
-		<pre class={[preClass, 'text-danger']}>{outcome.error}</pre>
+		<pre class={[toolPreClass, 'text-danger']}>{outcome.error}</pre>
 	{:else if outcome.status === 'succeeded'}
 		<div class="text-xs text-fg-subtle">Result</div>
-		<pre class={[preClass, 'text-fg-muted']}>{prettyJson(outcome.result)}</pre>
+		<pre class={[toolPreClass, 'text-fg-muted']}>{prettyJson(outcome.result)}</pre>
 	{/if}
 </ToolRow>

@@ -19,6 +19,7 @@
 </script>
 
 <script lang="ts" generics="S extends string">
+	import { secondaryClass } from './Button.svelte';
 	import ArrowUpDown from '@lucide/svelte/icons/arrow-up-down';
 	import Menu, { type MenuItem } from '$lib/ui/Menu.svelte';
 
@@ -56,7 +57,10 @@
 <Menu {items}>
 	{#snippet trigger(props)}
 		<button
-			class="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-sm px-2 text-xs text-fg-muted hover:bg-bg-hover hover:text-fg data-[state=open]:bg-bg-hover data-[state=open]:text-fg"
+			class={[
+				'inline-flex h-7.5 cursor-pointer items-center gap-1.5 rounded-sm border px-2.5 font-medium transition-colors',
+				secondaryClass
+			]}
 			type="button"
 			aria-label="Sort {noun}: {current.label}, {current.directions[order.descending ? 1 : 0]}"
 			{...props}

@@ -19,9 +19,7 @@
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import Brain from '@lucide/svelte/icons/brain';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
-	import Square from '@lucide/svelte/icons/square';
 	import { elapsed, nowSeconds } from '$lib/format/dates';
 	import type {
 		ActorAnswer,
@@ -273,7 +271,7 @@
 							{#snippet actions()}
 								{#if session.status !== 'resolved'}
 									<Button
-										class={inGutter}
+										variant="secondary"
 										onclick={() =>
 											isGoing(session)
 												? (resolving = true)
@@ -316,19 +314,19 @@
 											<summary
 												class="flex h-6 min-w-0 cursor-pointer items-center gap-1.5 rounded-sm text-xs text-fg-subtle select-none hover:text-fg-muted focus-visible:shadow-focus focus-visible:outline-none [&::-webkit-details-marker]:hidden"
 											>
-												<Brain class="flex-none" size={12} strokeWidth={1.75} aria-hidden="true" />
-												{#if running(index)}<span class="sr-only">Running: </span>{/if}
-												<Shimmer class="flex-none font-medium text-fg-muted" active={running(index)}
-													>Thinking</Shimmer
-												>
+												<!-- The chevron leads, in the icon's place, as every row that opens does in a conversation. -->
 												<ChevronRight
 													class="flex-none transition-transform group-open:rotate-90"
 													size={12}
 													strokeWidth={1.75}
 													aria-hidden="true"
 												/>
+												{#if running(index)}<span class="sr-only">Running: </span>{/if}
+												<Shimmer class="flex-none font-medium text-fg-muted" active={running(index)}
+													>Thinking</Shimmer
+												>
 												{#if duration(index)}
-													<span class="ml-auto flex-none pl-2 tabular-nums">{duration(index)}</span>
+													<span class="flex-none tabular-nums">{duration(index)}</span>
 												{/if}
 											</summary>
 											<div
@@ -346,8 +344,9 @@
 												<span class="flex-none font-medium text-fg-muted">{said.tool}</span>
 												<span class="min-w-0 truncate font-mono">{said.summary}</span>
 											</Shimmer>
+											<!-- Beside what it timed, not across the column. -->
 											{#if duration(index)}
-												<span class="ml-auto flex-none pl-2 tabular-nums">{duration(index)}</span>
+												<span class="flex-none tabular-nums">{duration(index)}</span>
 											{/if}
 										</p>
 									{:else if said.kind === 'question'}
@@ -413,41 +412,28 @@
 						disabled={!online}
 						placeholder={placeholder()}
 						onsend={send}
+						onstop={isGoing(session) ? () => (stopping = true) : undefined}
+						controls={session.context || plan.length || (actor && actor.modes.length > 1)
+							? controls
+							: undefined}
 					/>
-					{#if session.context || plan.length || (actor && actor.modes.length > 1) || isGoing(session)}
-						<!-- The session's controls, floating under the composer like the header over the feed. -->
-						<div
-							class={[
-								'pointer-events-auto mt-2 ml-auto flex w-fit items-center gap-2 rounded-full border border-border bg-[color-mix(in_srgb,var(--bg-floating)_72%,transparent)] p-1 shadow-[var(--shadow-floating)] backdrop-blur-xl backdrop-saturate-150',
-								!(actor && actor.modes.length > 1) && !isGoing(session) && inGutter
-							]}
-						>
-							{#if session.context || plan.length}
-								<span class={['flex', inGutter]}>
-									<UsageRing context={session.context} {plan} />
-								</span>
-							{/if}
-							{#if actor && actor.modes.length > 1}
-								<ModePicker
-									modes={actor.modes}
-									mode={session.mode ?? actor.modes[0].identifier}
-									disabled={!online}
-									onpick={(mode) =>
-										actors.setMode(session.id, mode).catch((error) => toasts.error(error))}
-								/>
-							{/if}
-							{#if isGoing(session)}
-								<button
-									class="inline-flex size-8 flex-none cursor-pointer items-center justify-center rounded-full border border-border text-danger transition-colors hover:border-danger/40 hover:bg-danger/10"
-									type="button"
-									aria-label="Stop"
-									onclick={() => (stopping = true)}
-								>
-									<Square size={12} fill="currentColor" strokeWidth={0} aria-hidden="true" />
-								</button>
-							{/if}
-						</div>
-					{/if}
+					<!-- The session's controls, inside the composer before Send, where the next message is decided. -->
+					{#snippet controls()}
+						{#if session.context || plan.length}
+							<span class={['flex size-9 items-center justify-center', inGutter]}>
+								<UsageRing context={session.context} {plan} />
+							</span>
+						{/if}
+						{#if actor && actor.modes.length > 1}
+							<ModePicker
+								modes={actor.modes}
+								mode={session.mode ?? actor.modes[0].identifier}
+								disabled={!online}
+								onpick={(mode) =>
+									actors.setMode(session.id, mode).catch((error) => toasts.error(error))}
+							/>
+						{/if}
+					{/snippet}
 				</div>
 			</div>
 

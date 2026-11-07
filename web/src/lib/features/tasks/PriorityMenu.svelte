@@ -1,6 +1,6 @@
 <!--
-	A flag that picks a task's priority. Coloured by priority when one is
-	set; otherwise it shows only while the row is hovered or focused.
+	A flag that picks a task's priority, coloured by it, showing while the row
+	is hovered or focused (the row's line names a set priority).
 -->
 <script lang="ts">
 	import Flag from '@lucide/svelte/icons/flag';
@@ -35,14 +35,14 @@
 			class={[
 				'inline-flex size-7 cursor-pointer items-center justify-center rounded-sm hover:bg-bg-hover data-[state=open]:bg-bg-hover',
 				current.tone,
-				priority === 'none' &&
-					'opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100 touch:opacity-100'
+				// It shows with the row's other actions; a set priority reads in the row's line.
+				'opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100 touch:opacity-100'
 			]}
 			type="button"
 			aria-label="Priority of {title}: {current.label}"
 			{...props}
 		>
-			<Flag size={15} strokeWidth={1.75} fill={priority === 'none' ? 'none' : 'currentColor'} />
+			<Flag size={15} strokeWidth={1.75} />
 		</button>
 	{/snippet}
 </Menu>

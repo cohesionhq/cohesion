@@ -3,6 +3,7 @@
 	first way to reach them; a row opens the contact's panel, where it is edited.
 -->
 <script lang="ts">
+	import Plus from '@lucide/svelte/icons/plus';
 	import { untrack } from 'svelte';
 	import ContactDialog from '$lib/features/contacts/ContactDialog.svelte';
 	import ContactPanel from '$lib/features/contacts/ContactPanel.svelte';
@@ -57,7 +58,9 @@
 <div class="px-(--page-inset)">
 	<PageHeader title="Contacts">
 		{#snippet actions()}
-			<Button variant="primary" onclick={() => (creating = true)}>New contact</Button>
+			<Button variant="secondary" onclick={() => (creating = true)}
+				><Plus size={15} strokeWidth={1.75} aria-hidden="true" />New contact</Button
+			>
 		{/snippet}
 	</PageHeader>
 

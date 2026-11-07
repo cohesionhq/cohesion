@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { tick, untrack } from 'svelte';
 	import FolderNav from '$lib/features/folders/FolderNav.svelte';
-	import { navItem, navLink, navPane, navRuled } from '$lib/features/folders/nav';
+	import { navHeading, navItem, navLink, navPane, navRuled } from '$lib/features/folders/nav';
 	import AddTaskRow from '$lib/features/tasks/AddTaskRow.svelte';
 	import SavedViewsNav from '$lib/features/tasks/SavedViewsNav.svelte';
 	import SortMenu from '$lib/features/tasks/SortMenu.svelte';
@@ -48,7 +48,6 @@
 	import EmptyState from '$lib/ui/EmptyState.svelte';
 	import Field from '$lib/ui/Field.svelte';
 	import PageHeader from '$lib/ui/PageHeader.svelte';
-	import { paneChrome } from '$lib/ui/paneChrome';
 	import Pager, { rememberedPageSize } from '$lib/ui/Pager.svelte';
 	import TextInput from '$lib/ui/TextInput.svelte';
 	import { toasts } from '$lib/ui/toasts.svelte';
@@ -481,187 +480,182 @@
 			focusRow(0);
 		}
 	}
-	const controls = paneChrome()?.controls;
 </script>
 
 <PageTitle title={`${viewName} · Tasks`} />
 
 <svelte:window onkeydown={onWindowKey} />
 
-<div class="relative flex gap-6 px-(--page-inset) max-md:flex-col max-md:gap-0">
-	<!-- Stacked, the header sits under the nav; the split view's controls stay at the sheet's top
-	     corner, where every other page has them, so they don't jump when the split opens. -->
-	{#if controls}
-		<div class="absolute top-3.5 right-(--page-inset) z-10 hidden max-md:flex">
-			{@render controls()}
-		</div>
-	{/if}
-	<aside class={navPane}>
-		<div class="flex flex-col gap-6 max-md:gap-1">
-			<FolderNav
-				folders={tasks.folders.value}
-				current={typeof shown === 'number' ? shown : null}
-				href={viewHref}
-				onnew={() => openFolderDialog({ mode: 'new' })}
-				onrename={(f) => openFolderDialog({ mode: 'rename', folder: folderById(f.id) })}
-				ondelete={(f) => openRemoveFolder(folderById(f.id))}
-				onreorder={(ids) => tasks.reorderFolders(ws, ids).catch((e) => toasts.error(e))}
-			>
-				{#snippet before()}
-					<li class={navItem}>
-						<a
-							class={navLink}
-							href={viewHref('inbox')}
-							aria-current={shown === 'inbox' ? 'page' : undefined}>Inbox</a
-						>
-					</li>
-				{/snippet}
-				{#snippet after()}
-					<li class={navRuled}>
-						<a
-							class={[navLink, 'hover:bg-bg-hover']}
-							href={viewHref('all')}
-							aria-current={shown === 'all' ? 'page' : undefined}>All</a
-						>
-					</li>
-					<li class={navItem}>
-						<a
-							class={navLink}
-							href={viewHref('done')}
-							aria-current={shown === 'done' ? 'page' : undefined}>Done</a
-						>
-					</li>
-					<li class={navItem}>
-						<a
-							class={navLink}
-							href={viewHref('cancelled')}
-							aria-current={shown === 'cancelled' ? 'page' : undefined}>Cancelled</a
-						>
-					</li>
-				{/snippet}
-			</FolderNav>
-
-			<SavedViewsNav
-				views={tasks.views.value}
-				current={saved?.id ?? null}
-				href={savedHref}
-				onpick={pickSaved}
-				oncreate={(name) => tasks.createView(ws, name, filters)}
-				onupdate={(v) => tasks.updateView(ws, v.id, filters)}
-				onrename={(v, name) => tasks.renameView(ws, v.id, name)}
-				ondelete={(v) => tasks.deleteView(ws, v.id)}
-				onreorder={(ids) => tasks.reorderViews(ws, ids).catch((e) => toasts.error(e))}
-			/>
-		</div>
-	</aside>
-
-	<!-- The header beside the nav isn't where other pages' headers are, so it fades
-	     with the page rather than swapping in place (see tokens.css). Picking a view
-	     fades this column alone (see the root layout). -->
-	<div class="min-w-0 flex-1 [&>header]:[view-transition-name:none]" data-view-query="view">
-		<PageHeader title={viewName} controlsClass="max-md:hidden">
-			{#snippet meta()}
-				{#if tasks.list.loaded && !folderGone}
-					<span>{count} {countLabel}</span>
-				{/if}
-			{/snippet}
-			{#snippet actions()}
-				{#if !folderGone}
-					<SortMenu {order} onchange={setOrder} {showIds} onshowids={setShowIds} />
-				{/if}
-			{/snippet}
-		</PageHeader>
-
-		{#if folderGone}
-			<EmptyState
-				message="Folder not found"
-				actionLabel="Back to inbox"
-				onaction={() => page.goto(viewHref('inbox'), { replaceState: true })}
-			/>
-		{:else}
-			<TaskFilters
-				tags={taskTags.list.value}
-				{tagState}
-				{tagHref}
-				priorities={priorityParam}
-				{priorityHref}
-				sizes={sizeParam}
-				{sizeHref}
-				onmanagetags={() => (managingTags = true)}
-			/>
-			{#if viewStatus(view) === 'incomplete'}
-				<AddTaskRow
-					bind:element={addInput}
-					{viewName}
-					folders={tasks.folders.value}
+<!-- The header runs across the sheet as on every page; the folders and the list sit under it. -->
+<div class="px-(--page-inset)">
+	<PageHeader title={viewName}>
+		{#snippet meta()}
+			{#if tasks.list.loaded && !folderGone}
+				<span>{count} {countLabel}</span>
+			{/if}
+		{/snippet}
+		{#snippet actions()}
+			{#if !folderGone}
+				<!-- Filters share the title's row with the order, as every list keeps its tools there. -->
+				<TaskFilters
 					tags={taskTags.list.value}
-					folderId={viewFolder(view)}
-					tagIds={newTaskTags}
-					startPriority={newTaskPriority}
-					startSize={newTaskSize}
-					oncreate={(title, details) => tasks.create(title, details)}
-					oncreatetag={(name) => taskTags.create(ws, name)}
-					ondown={() => focusRow(0)}
+					{tagState}
+					{tagHref}
+					priorities={priorityParam}
+					{priorityHref}
+					sizes={sizeParam}
+					{sizeHref}
+					onmanagetags={() => (managingTags = true)}
 				/>
+				<SortMenu {order} onchange={setOrder} {showIds} onshowids={setShowIds} />
 			{/if}
+		{/snippet}
+	</PageHeader>
+	<div class="flex gap-6 max-md:flex-col max-md:gap-0">
+		<aside class={navPane}>
+			<div class="flex flex-col gap-2 max-md:gap-1">
+				<FolderNav
+					folders={tasks.folders.value}
+					current={typeof shown === 'number' ? shown : null}
+					href={viewHref}
+					onnew={() => openFolderDialog({ mode: 'new' })}
+					onrename={(f) => openFolderDialog({ mode: 'rename', folder: folderById(f.id) })}
+					ondelete={(f) => openRemoveFolder(folderById(f.id))}
+					onreorder={(ids) => tasks.reorderFolders(ws, ids).catch((e) => toasts.error(e))}
+				>
+					{#snippet before()}
+						<!-- Labelled as the Articles page labels its feeds, and as views are below. -->
+						<li class={navHeading}>Folders</li>
+						<li class={navItem}>
+							<a
+								class={navLink}
+								href={viewHref('inbox')}
+								aria-current={shown === 'inbox' ? 'page' : undefined}>Inbox</a
+							>
+						</li>
+					{/snippet}
+					{#snippet after()}
+						<li class={navRuled}>
+							<a
+								class={[navLink, 'hover:bg-bg-hover']}
+								href={viewHref('all')}
+								aria-current={shown === 'all' ? 'page' : undefined}>All</a
+							>
+						</li>
+						<li class={navItem}>
+							<a
+								class={navLink}
+								href={viewHref('done')}
+								aria-current={shown === 'done' ? 'page' : undefined}>Done</a
+							>
+						</li>
+						<li class={navItem}>
+							<a
+								class={navLink}
+								href={viewHref('cancelled')}
+								aria-current={shown === 'cancelled' ? 'page' : undefined}>Cancelled</a
+							>
+						</li>
+					{/snippet}
+				</FolderNav>
 
-			{#if tasks.list.error && !tasks.list.loaded}
-				<EmptyState {...workspaceLoadError(tasks.list.error, () => tasks.list.refetch())} />
-			{:else if tasks.list.loaded}
-				{#if rows.length === 0}
-					{#if view === 'done'}
-						<EmptyState
-							message="No finished tasks yet"
-							actionLabel="Show open tasks"
-							onaction={() => page.goto(viewHref('all'))}
-						/>
-					{:else if view === 'cancelled'}
-						<EmptyState
-							message="No cancelled tasks"
-							actionLabel="Show open tasks"
-							onaction={() => page.goto(viewHref('all'))}
-						/>
-					{:else}
-						<!-- The add field just above is the action. -->
-						<EmptyState compact message="No tasks here" />
-					{/if}
-				{:else}
-					<ul bind:this={listEl} aria-label="{viewName} tasks">
-						{#each rows as task, index (task.id)}
-							<TaskRow
-								{task}
-								highlighted={highlighted === task.id}
-								folder={folderOf(task)}
-								showId={showIds}
-								ontoggle={() => run(tasks.toggle(task))}
-								onrename={(title) => tasks.rename(task.id, title)}
-								onstatus={(status) => setStatus(task, status)}
-								onpriority={(priority) => run(tasks.setPriority(task, priority))}
-								onschedule={(start, due) => run(tasks.schedule(task, start, due))}
-								ondetails={() => openDetails(task)}
-								{destinations}
-								onmove={(folder_id) => moveTo(task, folder_id)}
-								tags={taskTags.list.value}
-								ontag={(tag_id, tagged) => run(setTagged(task, tag_id, tagged))}
-								onmanagetags={() => (managingTags = true)}
-								contacts={contacts.list.value}
-								onassign={(assignee) => run(tasks.setAssignee(task, assignee))}
-								onsize={(size) => run(tasks.setSize(task, size))}
-								ondelete={() => openDelete(task)}
-								onnavigate={(delta) => navigate(index, delta)}
-							/>
-						{/each}
-					</ul>
-				{/if}
-				<Pager
-					{offset}
-					{limit}
-					total={tasks.list.value.total}
-					onpage={showPage}
-					onsize={showSize}
+				<SavedViewsNav
+					views={tasks.views.value}
+					current={saved?.id ?? null}
+					href={savedHref}
+					onpick={pickSaved}
+					oncreate={(name) => tasks.createView(ws, name, filters)}
+					onupdate={(v) => tasks.updateView(ws, v.id, filters)}
+					onrename={(v, name) => tasks.renameView(ws, v.id, name)}
+					ondelete={(v) => tasks.deleteView(ws, v.id)}
+					onreorder={(ids) => tasks.reorderViews(ws, ids).catch((e) => toasts.error(e))}
 				/>
+			</div>
+		</aside>
+
+		<!-- Picking a view fades this column alone (see the root layout). -->
+		<div class="min-w-0 flex-1" data-view-query="view">
+			{#if folderGone}
+				<EmptyState
+					message="Folder not found"
+					actionLabel="Back to inbox"
+					onaction={() => page.goto(viewHref('inbox'), { replaceState: true })}
+				/>
+			{:else}
+				{#if viewStatus(view) === 'incomplete'}
+					<AddTaskRow
+						bind:element={addInput}
+						{viewName}
+						folders={tasks.folders.value}
+						tags={taskTags.list.value}
+						folderId={viewFolder(view)}
+						tagIds={newTaskTags}
+						startPriority={newTaskPriority}
+						startSize={newTaskSize}
+						oncreate={(title, details) => tasks.create(title, details)}
+						oncreatetag={(name) => taskTags.create(ws, name)}
+						ondown={() => focusRow(0)}
+					/>
+				{/if}
+
+				{#if tasks.list.error && !tasks.list.loaded}
+					<EmptyState {...workspaceLoadError(tasks.list.error, () => tasks.list.refetch())} />
+				{:else if tasks.list.loaded}
+					{#if rows.length === 0}
+						{#if view === 'done'}
+							<EmptyState
+								message="No finished tasks yet"
+								actionLabel="Show open tasks"
+								onaction={() => page.goto(viewHref('all'))}
+							/>
+						{:else if view === 'cancelled'}
+							<EmptyState
+								message="No cancelled tasks"
+								actionLabel="Show open tasks"
+								onaction={() => page.goto(viewHref('all'))}
+							/>
+						{:else}
+							<!-- The add field just above is the action. -->
+							<EmptyState compact message="No tasks here" />
+						{/if}
+					{:else}
+						<ul bind:this={listEl} aria-label="{viewName} tasks">
+							{#each rows as task, index (task.id)}
+								<TaskRow
+									{task}
+									highlighted={highlighted === task.id}
+									folder={folderOf(task)}
+									showId={showIds}
+									ontoggle={() => run(tasks.toggle(task))}
+									onrename={(title) => tasks.rename(task.id, title)}
+									onstatus={(status) => setStatus(task, status)}
+									onpriority={(priority) => run(tasks.setPriority(task, priority))}
+									onschedule={(start, due) => run(tasks.schedule(task, start, due))}
+									ondetails={() => openDetails(task)}
+									{destinations}
+									onmove={(folder_id) => moveTo(task, folder_id)}
+									tags={taskTags.list.value}
+									ontag={(tag_id, tagged) => run(setTagged(task, tag_id, tagged))}
+									onmanagetags={() => (managingTags = true)}
+									contacts={contacts.list.value}
+									onassign={(assignee) => run(tasks.setAssignee(task, assignee))}
+									onsize={(size) => run(tasks.setSize(task, size))}
+									ondelete={() => openDelete(task)}
+									onnavigate={(delta) => navigate(index, delta)}
+								/>
+							{/each}
+						</ul>
+					{/if}
+					<Pager
+						{offset}
+						{limit}
+						total={tasks.list.value.total}
+						onpage={showPage}
+						onsize={showSize}
+					/>
+				{/if}
 			{/if}
-		{/if}
+		</div>
 	</div>
 </div>
 

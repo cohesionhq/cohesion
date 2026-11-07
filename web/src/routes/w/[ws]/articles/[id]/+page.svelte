@@ -134,8 +134,9 @@
 	bind:this={scroller}
 	onscroll={measure}
 >
-	<!-- One centred column, header and text together, at a comfortable line length. -->
-	<div class="mx-auto max-w-240 px-(--page-inset)" bind:this={content}>
+	<!-- The header runs across the sheet like every page's; the title and text sit in one
+	     centred column under it, at a comfortable line length. -->
+	<div class="px-(--page-inset)">
 		<ResourceState
 			resource={articles.current}
 			missing="Article not found"
@@ -144,21 +145,6 @@
 		>
 			{#snippet loaded(article)}
 				<PageHeader {back} {progress}>
-					{#snippet heading()}
-						<div class="min-w-0">
-							<h1 class="font-serif text-lg">{article.title}</h1>
-							<p class="mt-1 text-xs text-fg-subtle">
-								{#if feed}
-									<a
-										class="text-fg-muted hover:text-fg"
-										href={routes.articles(ws, viewParam({ feed: feed.id }))}>{feed.title}</a
-									> ·
-								{/if}
-								{#if article.author}{article.author} ·{/if}
-								{publishedDate(article)}
-							</p>
-						</div>
-					{/snippet}
 					{#snippet actions()}
 						<Button disabled={fetching} onclick={fetchAgain}>
 							{fetching ? 'Fetching…' : 'Fetch again'}
@@ -195,25 +181,41 @@
 					{/snippet}
 				</PageHeader>
 
-				{#if article.snapshot.state === 'failed'}
-					<div class="rounded-sm border border-border bg-bg-raised p-3">
-						<p class="font-medium">Couldn’t fetch this page.</p>
-						<p class="mt-1 text-fg-muted">
-							{failureSentence(article.snapshot.failure)} Tried {ago(
-								article.snapshot.attempted_at
-							)}.
+				<div class="mx-auto max-w-240" bind:this={content}>
+					<div class="mb-6">
+						<h1 class="font-serif text-xl leading-tight">{article.title}</h1>
+						<p class="mt-1 text-xs text-fg-subtle">
+							{#if feed}
+								<a
+									class="text-fg-muted hover:text-fg"
+									href={routes.articles(ws, viewParam({ feed: feed.id }))}>{feed.title}</a
+								> ·
+							{/if}
+							{#if article.author}{article.author} ·{/if}
+							{publishedDate(article)}
 						</p>
 					</div>
-				{:else}
-					{#if article.snapshot.truncated}
-						<p class="mb-4 text-xs text-fg-subtle">
-							The page was too long. Only part of its text is shown.
-						</p>
+
+					{#if article.snapshot.state === 'failed'}
+						<div class="rounded-sm border border-border bg-bg-raised p-3">
+							<p class="font-medium">Couldn’t fetch this page.</p>
+							<p class="mt-1 text-fg-muted">
+								{failureSentence(article.snapshot.failure)} Tried {ago(
+									article.snapshot.attempted_at
+								)}.
+							</p>
+						</div>
+					{:else}
+						{#if article.snapshot.truncated}
+							<p class="mb-4 text-xs text-fg-subtle">
+								The page was too long. Only part of its text is shown.
+							</p>
+						{/if}
+						<div class="reading">
+							<Markdown source={article.contents} />
+						</div>
 					{/if}
-					<div class="reading">
-						<Markdown source={article.contents} />
-					</div>
-				{/if}
+				</div>
 			{/snippet}
 		</ResourceState>
 	</div>

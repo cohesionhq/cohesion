@@ -1,6 +1,6 @@
 <!--
-	A conversation's pinned header: a frosted bar across the top of the page's
-	sheet, edge to edge, that the feed scrolls under. One row: what leads it
+	A conversation's pinned header: a solid bar across the top of the page's
+	sheet, edge to edge, that the feed scrolls under, fading out under its edge. One row: what leads it
 	(a back link or an avatar), the title over a quiet line, then whatever
 	trails it. Its insets are its own, the same on both sides, not the feed's.
 -->
@@ -29,7 +29,7 @@
 </script>
 
 <header
-	class="-mx-(--page-inset) flex min-h-14 items-center gap-2.5 border-b border-border bg-[color-mix(in_srgb,var(--bg)_74%,transparent)] px-3.5 py-2 backdrop-blur-xl backdrop-saturate-150"
+	class="relative -mx-(--page-inset) flex min-h-14 items-center gap-2.5 border-b border-border bg-bg px-3.5 py-2 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-5 after:bg-linear-to-b after:from-bg after:to-transparent"
 >
 	{#if leading}{@render leading()}{/if}
 	<div class="flex min-w-0 flex-1 flex-col">

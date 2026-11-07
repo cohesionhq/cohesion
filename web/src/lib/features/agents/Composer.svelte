@@ -18,6 +18,8 @@
 		/** Stops the agent's running turn; absent when none is running. */
 		onstop?: () => void;
 		onclearerror: () => void;
+		/** Drawn inside the capsule before the field, such as who the message goes to. */
+		leading?: Snippet;
 		/** Bump to move focus into the textarea. */
 		focusKey?: unknown;
 		placeholder: string;
@@ -31,6 +33,7 @@
 		onsend,
 		onstop,
 		onclearerror,
+		leading,
 		focusKey,
 		placeholder
 	}: Props = $props();
@@ -145,6 +148,7 @@
 			bind:this={picker}
 			onchange={onpick}
 		/>
+		{#if leading}<div class="flex flex-none items-center">{@render leading()}</div>{/if}
 		<!-- Borderless: the capsule is the field. One line is as tall as the buttons. -->
 		<textarea
 			class="max-h-[40vh] min-w-0 flex-1 resize-none overflow-y-auto px-1 py-1.5 text-md leading-(--leading) text-fg outline-none placeholder:text-fg-subtle focus-visible:shadow-none"
@@ -159,10 +163,7 @@
 		<!-- While a turn runs, an empty field offers to stop it; typing turns it back into Send. -->
 		{#if onstop && !canSend}
 			<button
-				class={[
-					roundButton,
-					'border border-border text-danger hover:border-danger/40 hover:bg-danger/10'
-				]}
+				class={[roundButton, 'bg-bg-hover text-fg hover:bg-danger/10 hover:text-danger']}
 				type="button"
 				aria-label="Stop"
 				onclick={onstop}
@@ -173,7 +174,7 @@
 			<button
 				class={[
 					roundButton,
-					'bg-primary text-primary-fg enabled:hover:bg-primary-hover disabled:cursor-default disabled:opacity-40'
+					'bg-primary text-primary-fg enabled:hover:bg-primary-hover disabled:cursor-default disabled:opacity-45'
 				]}
 				type="submit"
 				disabled={!canSend}

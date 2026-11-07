@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ArrowUpRight from '@lucide/svelte/icons/arrow-up-right';
+	import SearchField from '$lib/ui/SearchField.svelte';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import { untrack } from 'svelte';
@@ -11,12 +11,12 @@
 	import { markAllRead, markRead } from '$lib/features/articles/read';
 	import FolderNav from '$lib/features/folders/FolderNav.svelte';
 	import {
-		navAction,
 		navCount,
 		navHeading,
 		navItem,
 		navLink,
-		navPane
+		navPane,
+		navRuled
 	} from '$lib/features/folders/nav';
 	import { toProtocolError } from '$lib/protocol/errors';
 	import type { Feed } from '$lib/protocol/types';
@@ -258,180 +258,176 @@
 
 <PageTitle title={`${viewName} · Articles`} />
 
-<div class="flex gap-6 px-(--page-inset) max-md:flex-col max-md:gap-0">
-	<aside class={navPane}>
-		<FolderNav
-			label="Feeds"
-			newLabel="Add feed…"
-			folders={feeds.list.value}
-			current={feed?.id ?? null}
-			href={(id) => href({ feed: id })}
-			unread={(f) => feedById(f.id)?.unread ?? 0}
-			onnew={() => (addingFeed = true)}
-			onreorder={(ids) => feeds.reorder(ids).catch((e) => toasts.error(e))}
-		>
-			{#snippet before()}
-				<li class={navHeading}>Feeds</li>
-				<li class={navItem}>
-					<a
-						class={navLink}
-						href={href('feeds')}
-						aria-current={view === 'feeds' ? 'page' : undefined}
-						>All feeds{#if feeds.unread > 0}<span class="sr-only">, {feeds.unread} unread</span
-							>{/if}</a
-					>
-					{#if feeds.unread > 0}
-						<span class={navCount} aria-hidden="true">{feeds.unread}</span>
-					{/if}
-				</li>
-			{/snippet}
-			{#snippet actions()}
-				<!-- Research is a page of its own, not a view of this list. -->
-				<a
-					class={[navAction, 'inline-flex items-center gap-1 hover:no-underline']}
-					href={routes.research(ws)}
-					>Research <ArrowUpRight size={12} strokeWidth={1.75} aria-hidden="true" /></a
+<!-- The header runs across the sheet as on every page; the feeds and the list sit under it. -->
+<div class="px-(--page-inset)">
+	<PageHeader title={viewName}>
+		{#snippet meta()}
+			{#if feed}<span>{feedStatus(feed)}</span>{/if}
+		{/snippet}
+		{#snippet actions()}
+			{#if feed}
+				<button
+					class={tool}
+					type="button"
+					aria-label="Refresh feed"
+					disabled={refreshing}
+					onclick={() => refresh(feed)}
 				>
-			{/snippet}
-		</FolderNav>
-	</aside>
-
-	<!-- The header beside the nav isn't where other pages' headers are, so it fades
-	     with the page rather than swapping in place (see tokens.css). Picking a view
-	     fades this column alone (see the root layout). -->
-	<div class="min-w-0 flex-1 [&>header]:[view-transition-name:none]" data-view-query="view">
-		<PageHeader title={viewName}>
-			{#snippet meta()}
-				{#if feed}<span>{feedStatus(feed)}</span>{/if}
-			{/snippet}
-			{#snippet actions()}
-				{#if feed}
-					<button
-						class={tool}
-						type="button"
-						aria-label="Refresh feed"
-						disabled={refreshing}
-						onclick={() => refresh(feed)}
-					>
-						<RefreshCw
-							class={refreshing ? 'animate-spin motion-reduce:animate-none' : ''}
-							size={16}
-							strokeWidth={1.75}
-						/>
-					</button>
-					<Menu
-						items={[
-							markAllItem,
-							{
-								label: 'Rename…',
-								separated: true,
-								onSelect: () => openRename(feed)
-							},
-							{
-								label: 'Fetch whole pages when the feed has excerpts',
-								checked: feed.full_page_policy === 'whenExcerpt',
-								separated: true,
-								onSelect: () => run(feeds.setFullPagePolicy(feed.id, 'whenExcerpt'))
-							},
-							{
-								label: 'Always fetch whole pages',
-								checked: feed.full_page_policy === 'always',
-								onSelect: () => run(feeds.setFullPagePolicy(feed.id, 'always'))
-							},
-							{ label: 'Clean up…', separated: true, onSelect: () => (cleaningUp = true) },
-							{ label: 'Remove…', danger: true, onSelect: () => (deletingFeed = feed) }
-						]}
-					>
-						{#snippet trigger(props)}
-							<button class={tool} type="button" aria-label="More actions" {...props}>
-								<Ellipsis size={16} strokeWidth={1.75} />
-							</button>
-						{/snippet}
-					</Menu>
-				{:else}
-					<button
-						class={tool}
-						type="button"
-						aria-label="Refresh all feeds"
-						disabled={refreshing}
-						onclick={() => refreshEvery()}
-					>
-						<RefreshCw
-							class={refreshing ? 'animate-spin motion-reduce:animate-none' : ''}
-							size={16}
-							strokeWidth={1.75}
-						/>
-					</button>
-					<Menu
-						items={[
-							markAllItem,
-							{ label: 'Clean up…', separated: true, onSelect: () => (cleaningUp = true) }
-						]}
-					>
-						{#snippet trigger(props)}
-							<button class={tool} type="button" aria-label="More actions" {...props}>
-								<Ellipsis size={16} strokeWidth={1.75} />
-							</button>
-						{/snippet}
-					</Menu>
-				{/if}
-			{/snippet}
-		</PageHeader>
-
-		{#if gone}
-			<EmptyState
-				message="Feed not found"
-				actionLabel="Back to all feeds"
-				onaction={() => page.goto(href('feeds'), { replaceState: true })}
-			/>
-		{:else if articles.list.error && !articles.list.loaded}
-			<EmptyState {...workspaceLoadError(articles.list.error, () => articles.list.refetch())} />
-		{:else if articles.list.loaded && sameView(articles.list.key!.view, view)}
-			{#if articles.list.value.total === 0}
-				{#if feed}
-					<EmptyState compact message="No articles from this feed yet" />
-				{:else}
-					<EmptyState
-						message="No articles from your feeds yet"
-						actionLabel="Add feed…"
-						onaction={() => (addingFeed = true)}
+					<RefreshCw
+						class={refreshing ? 'animate-spin motion-reduce:animate-none' : ''}
+						size={16}
+						strokeWidth={1.75}
 					/>
-				{/if}
+				</button>
+				<Menu
+					items={[
+						markAllItem,
+						{
+							label: 'Rename…',
+							separated: true,
+							onSelect: () => openRename(feed)
+						},
+						{
+							label: 'Fetch whole pages when the feed has excerpts',
+							checked: feed.full_page_policy === 'whenExcerpt',
+							separated: true,
+							onSelect: () => run(feeds.setFullPagePolicy(feed.id, 'whenExcerpt'))
+						},
+						{
+							label: 'Always fetch whole pages',
+							checked: feed.full_page_policy === 'always',
+							onSelect: () => run(feeds.setFullPagePolicy(feed.id, 'always'))
+						},
+						{ label: 'Clean up…', separated: true, onSelect: () => (cleaningUp = true) },
+						{ label: 'Remove…', danger: true, onSelect: () => (deletingFeed = feed) }
+					]}
+				>
+					{#snippet trigger(props)}
+						<button class={tool} type="button" aria-label="More actions" {...props}>
+							<Ellipsis size={16} strokeWidth={1.75} />
+						</button>
+					{/snippet}
+				</Menu>
 			{:else}
-				<div class="mb-5 max-w-80">
-					<TextInput
-						bind:value={query}
-						type="search"
-						placeholder="Filter by title, author or address"
-						aria-label="Filter articles by title, author or address"
-						autocomplete="off"
+				<button
+					class={tool}
+					type="button"
+					aria-label="Refresh all feeds"
+					disabled={refreshing}
+					onclick={() => refreshEvery()}
+				>
+					<RefreshCw
+						class={refreshing ? 'animate-spin motion-reduce:animate-none' : ''}
+						size={16}
+						strokeWidth={1.75}
 					/>
-				</div>
-
-				{#if shown.length === 0}
-					<p class="text-fg-muted">No matches.</p>
-				{:else}
-					<ul aria-label="{viewName} articles">
-						{#each shown as article (article.id)}
-							<ArticleRow
-								{article}
-								href={routes.article(ws, article.id)}
-								{now}
-								from={feed ? null : feedTitles.get(article.feed_id)}
-								onread={(read) => run(markRead(articles, article.id, read))}
-							/>
-						{/each}
-					</ul>
-				{/if}
-				<Pager
-					{offset}
-					{limit}
-					total={articles.list.value.total}
-					onpage={showPage}
-					onsize={showSize}
-				/>
+				</button>
+				<Menu
+					items={[
+						markAllItem,
+						{ label: 'Clean up…', separated: true, onSelect: () => (cleaningUp = true) }
+					]}
+				>
+					{#snippet trigger(props)}
+						<button class={tool} type="button" aria-label="More actions" {...props}>
+							<Ellipsis size={16} strokeWidth={1.75} />
+						</button>
+					{/snippet}
+				</Menu>
 			{/if}
-		{/if}
+		{/snippet}
+	</PageHeader>
+	<div class="flex gap-6 max-md:flex-col max-md:gap-0">
+		<aside class={navPane}>
+			<FolderNav
+				label="Feeds"
+				newLabel="Add feed…"
+				folders={feeds.list.value}
+				current={feed?.id ?? null}
+				href={(id) => href({ feed: id })}
+				unread={(f) => feedById(f.id)?.unread ?? 0}
+				onnew={() => (addingFeed = true)}
+				onreorder={(ids) => feeds.reorder(ids).catch((e) => toasts.error(e))}
+			>
+				{#snippet before()}
+					<li class={navHeading}>Feeds</li>
+					<li class={navItem}>
+						<a
+							class={navLink}
+							href={href('feeds')}
+							aria-current={view === 'feeds' ? 'page' : undefined}
+							>All feeds{#if feeds.unread > 0}<span class="sr-only">, {feeds.unread} unread</span
+								>{/if}</a
+						>
+						{#if feeds.unread > 0}
+							<span class={navCount} aria-hidden="true">{feeds.unread}</span>
+						{/if}
+					</li>
+				{/snippet}
+				{#snippet after()}
+					<!-- Research is a page of its own, so it is a place in the list, ruled off from the feeds, not an action under it. -->
+					<li class={navRuled}>
+						<a class={[navLink, 'hover:bg-bg-hover']} href={routes.research(ws)}>Research</a>
+					</li>
+				{/snippet}
+			</FolderNav>
+		</aside>
+
+		<!-- Picking a view fades this column alone (see the root layout). -->
+		<div class="min-w-0 flex-1" data-view-query="view">
+			{#if gone}
+				<EmptyState
+					message="Feed not found"
+					actionLabel="Back to all feeds"
+					onaction={() => page.goto(href('feeds'), { replaceState: true })}
+				/>
+			{:else if articles.list.error && !articles.list.loaded}
+				<EmptyState {...workspaceLoadError(articles.list.error, () => articles.list.refetch())} />
+			{:else if articles.list.loaded && sameView(articles.list.key!.view, view)}
+				{#if articles.list.value.total === 0}
+					{#if feed}
+						<EmptyState compact message="No articles from this feed yet" />
+					{:else}
+						<EmptyState
+							message="No articles from your feeds yet"
+							actionLabel="Add feed…"
+							onaction={() => (addingFeed = true)}
+						/>
+					{/if}
+				{:else}
+					<div class="mb-5">
+						<SearchField
+							bind:value={query}
+							placeholder="Filter by title, author or address"
+							label="Filter articles by title, author or address"
+						/>
+					</div>
+
+					{#if shown.length === 0}
+						<p class="text-fg-muted">No matches.</p>
+					{:else}
+						<ul aria-label="{viewName} articles">
+							{#each shown as article (article.id)}
+								<ArticleRow
+									{article}
+									href={routes.article(ws, article.id)}
+									{now}
+									from={feed ? null : feedTitles.get(article.feed_id)}
+									onread={(read) => run(markRead(articles, article.id, read))}
+								/>
+							{/each}
+						</ul>
+					{/if}
+					<Pager
+						{offset}
+						{limit}
+						total={articles.list.value.total}
+						onpage={showPage}
+						onsize={showSize}
+					/>
+				{/if}
+			{/if}
+		</div>
 	</div>
 </div>
 

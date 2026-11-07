@@ -14,6 +14,7 @@
 		IntelligenceAgent,
 		IntelligenceAgentCue
 	} from '$lib/protocol/types';
+	import { nowSeconds, relativeTime } from '$lib/format/dates';
 	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 	import { routes } from '$lib/shell/routes';
 	import { cueTitle } from '$lib/stores/agents.svelte';
@@ -35,20 +36,29 @@
 	let { agent, cues, actors, sessions }: Props = $props();
 
 	const actorTitle = (id: number) => actors.find((actor) => actor.id === id)?.title;
+	// Each session names its actor only when they differ; the same name under every row says nothing.
+	const namesActors = $derived(
+		sessions.length === 1 ||
+			sessions.some((s) => actorTitle(s.actor_id) !== actorTitle(sessions[0].actor_id))
+	);
 </script>
 
 <GutterCard>
-	<p class="flex items-baseline gap-1.5">
-		<!-- Muted until there is a count, so the placeholder never reads as one. -->
-		<span
-			class={[
-				'text-lg leading-tight font-semibold tabular-nums transition-colors',
-				agent.context_tokens === null && 'text-fg-muted'
-			]}
-		>
-			<ContextTokens tokens={agent.context_tokens} />
+	<!-- A caption and its value on one line, as the session column's context reads: diagnostics, not a headline. -->
+	<p class="flex items-baseline justify-between gap-2 text-xs">
+		<span class="text-fg-muted">Context</span>
+		<span class="flex items-baseline gap-1">
+			<!-- Muted until there is a count, so the placeholder never reads as one. -->
+			<span
+				class={[
+					'text-sm font-medium tabular-nums transition-colors',
+					agent.context_tokens === null ? 'text-fg-muted' : 'text-fg'
+				]}
+			>
+				<ContextTokens tokens={agent.context_tokens} />
+			</span>
+			<span class="text-fg-subtle">tokens</span>
 		</span>
-		<span class="text-xs text-fg-subtle">tokens</span>
 	</p>
 </GutterCard>
 
@@ -60,7 +70,7 @@
 		>
 		<div class="flex flex-col gap-px">
 			{#each sessions as session (session.id)}
-				{@const actor = actorTitle(session.actor_id)}
+				{@const actor = namesActors ? actorTitle(session.actor_id) : undefined}
 				<a
 					class="flex cursor-pointer items-start gap-2 py-1 text-left text-xs text-fg-muted no-underline hover:text-fg hover:no-underline"
 					href={routes.actorSession(session.id)}
@@ -79,11 +89,22 @@
 							>
 						{/key}
 					</span>
+					<!-- What the sidebar can't say: where it stands and since when, then its actor when they differ. -->
 					<span class="flex min-w-0 flex-col">
 						<span class="truncate">{session.title}</span>
-						{#if actor}
-							<span class="truncate text-2xs text-fg-subtle">{actor}</span>
-						{/if}
+						<span
+							class={[
+								'truncate text-2xs',
+								session.status === 'needsAttention' ? 'text-warn' : 'text-fg-subtle'
+							]}
+							>{[
+								vocabulary.actorSessionStatus(session.status),
+								relativeTime(session.status_changed_at, nowSeconds()),
+								actor
+							]
+								.filter(Boolean)
+								.join(' · ')}</span
+						>
 					</span>
 				</a>
 			{/each}

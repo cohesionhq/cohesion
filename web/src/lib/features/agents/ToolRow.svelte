@@ -1,4 +1,5 @@
-<!-- One step the agent took, as a narrow card: an icon and a title, opening onto `children` when it has them. -->
+<!-- One step the agent took, as a quiet line like the feed's other status lines: an icon and a title,
+     opening in place onto `children` under a rule, as a fork's steps open, when it has them. -->
 <script lang="ts">
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import type { Component, Snippet } from 'svelte';
@@ -14,8 +15,8 @@
 
 	let { title, icon: Icon, trailing, children }: Props = $props();
 
-	const card = 'max-w-[70%] min-w-0 rounded-md border border-border bg-bg max-sm:max-w-full';
-	const row = 'flex items-center gap-2 px-3 py-1.5 text-xs text-fg-muted';
+	const box = 'max-w-[70%] min-w-0 max-sm:max-w-full';
+	const row = 'flex items-center gap-1.5 text-xs leading-6 text-fg-subtle';
 </script>
 
 {#snippet label()}
@@ -24,24 +25,27 @@
 {/snippet}
 
 {#if children}
-	<details class={['group', card]}>
+	<details class={['group', box]}>
 		<summary
-			class={[row, 'cursor-pointer select-none hover:text-fg [&::-webkit-details-marker]:hidden']}
+			class={[
+				row,
+				'cursor-pointer select-none hover:text-fg-muted [&::-webkit-details-marker]:hidden'
+			]}
 		>
 			<ChevronRight
 				class="flex-none transition-transform group-open:rotate-90"
-				size={14}
+				size={12}
 				strokeWidth={1.75}
 			/>
 			{@render label()}
 		</summary>
-		<div class="flex flex-col gap-2 border-t border-border px-3 py-2">
+		<div class="mt-1 ml-1.5 flex flex-col gap-2 border-l-2 border-border pl-3">
 			{@render children()}
 		</div>
 	</details>
 {:else}
-	<p class={[card, row]}>
-		{#if Icon}<Icon class="flex-none" size={14} strokeWidth={1.75} />{/if}
+	<p class={[box, row]}>
+		{#if Icon}<Icon class="flex-none" size={12} strokeWidth={1.75} />{/if}
 		{@render label()}
 	</p>
 {/if}

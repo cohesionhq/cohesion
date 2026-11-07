@@ -4,13 +4,13 @@
 import { shortTime } from '$lib/format/dates';
 import type { ListedActorUsage, PlanUsage } from '$lib/protocol/types';
 
-export type UsageTone = 'accent' | 'warn' | 'danger';
+export type UsageTone = 'calm' | 'warn' | 'danger';
 
-/** The color for a share used: the accent, then warning past 80%, then danger past 95%. */
+/** The color for a share used: neutral, then warning past 80%, then danger past 95%. */
 export function usageTone(share: number): UsageTone {
 	if (share >= 0.95) return 'danger';
 	if (share >= 0.8) return 'warn';
-	return 'accent';
+	return 'calm';
 }
 
 /** "84%". */

@@ -13,6 +13,7 @@
 	import Folder from '@lucide/svelte/icons/folder';
 	import Inbox from '@lucide/svelte/icons/inbox';
 	import NotebookText from '@lucide/svelte/icons/notebook-text';
+	import Plus from '@lucide/svelte/icons/plus';
 	import Ruler from '@lucide/svelte/icons/ruler';
 	import TagIcon from '@lucide/svelte/icons/tag';
 	import { tick } from 'svelte';
@@ -283,18 +284,29 @@
 	}}
 />
 
-<div class="mb-3" bind:this={row}>
-	<TextInput
-		bind:value={title}
-		bind:element
-		placeholder="Add a task"
-		aria-label="Add a task to {viewName}"
-		autocomplete="off"
-		{onkeydown}
-	/>
+<div class="mb-1" bind:this={row}>
+	<!-- A quiet row at the head of the list: a plus where a task's checkbox sits, and a field that
+	     shows its edge only once focused, its words lined up with the titles below. -->
+	<div class="flex min-h-11 items-center gap-3 border-b border-border">
+		<span
+			class="flex size-4.5 flex-none items-center justify-center text-fg-subtle"
+			aria-hidden="true"
+		>
+			<Plus size={16} strokeWidth={1.75} />
+		</span>
+		<TextInput
+			class="-ml-2 border-transparent! hover:border-border! focus:border-accent!"
+			bind:value={title}
+			bind:element
+			placeholder="Add a task"
+			aria-label="Add a task to {viewName}"
+			autocomplete="off"
+			{onkeydown}
+		/>
+	</div>
 	{#if expanded}
 		<div
-			class="flex flex-wrap items-center gap-1 pt-1"
+			class="flex flex-wrap items-center gap-1 pl-7.5"
 			role="group"
 			aria-label="New task details"
 			transition:slide={{ duration: motion.duration }}
@@ -415,7 +427,7 @@
 			</button>
 		</div>
 		{#if describing}
-			<div class="pt-1" transition:slide={{ duration: motion.duration }}>
+			<div class="pt-1 pl-7.5" transition:slide={{ duration: motion.duration }}>
 				<Textarea
 					bind:value={description}
 					bind:ref={notes}

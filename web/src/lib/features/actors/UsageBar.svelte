@@ -1,6 +1,7 @@
 <!--
-	A thin bar filled as far as a share of a limit is used, in the accent,
-	then the warning color past 80%, the danger color past 95%.
+	A thin bar filled as far as a share of a limit is used, in a neutral grey,
+	then the warning color past 80%, the danger color past 95%: color only
+	once it means something.
 -->
 <script lang="ts">
 	import { usagePercent, usageTone } from './plan';
@@ -12,7 +13,7 @@
 	<div
 		class={[
 			'h-full rounded-full',
-			{ accent: 'bg-accent', warn: 'bg-warn', danger: 'bg-danger' }[usageTone(share)]
+			{ calm: 'bg-fg-subtle', warn: 'bg-warn', danger: 'bg-danger' }[usageTone(share)]
 		]}
 		style:width={usagePercent(Math.min(share, 1))}
 	></div>

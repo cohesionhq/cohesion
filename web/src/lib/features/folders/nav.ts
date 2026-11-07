@@ -3,11 +3,11 @@
 
 /** A row of the nav; the row of the view shown is filled, as in the app's sidebar. */
 export const navItem =
-	'flex items-center rounded-sm hover:bg-bg-hover has-[[aria-current=page]]:bg-bg-hover';
+	'flex items-center rounded-sm hover:bg-bg-hover has-[[aria-current=page]]:bg-current-item';
 
 /** A row's link; `aria-current="page"` marks the view shown. */
 export const navLink =
-	'min-w-0 flex-1 truncate rounded-sm px-2 py-1 text-fg-muted hover:text-fg hover:no-underline aria-[current=page]:bg-bg-hover aria-[current=page]:font-medium aria-[current=page]:text-fg';
+	'min-w-0 flex-1 truncate rounded-sm px-2 py-1 text-fg-muted hover:text-fg hover:no-underline aria-[current=page]:font-medium aria-[current=page]:text-fg';
 
 /** A quiet count at a row's end: a feed's unread articles. */
 export const navCount = 'flex-none px-2 text-xs text-fg-subtle tabular-nums';
@@ -17,21 +17,21 @@ export const navRuled =
 	'mt-2 flex items-center border-t border-border pt-2 max-md:m-0 max-md:border-t-0 max-md:border-l max-md:py-0 max-md:pr-0 max-md:pl-1';
 
 /** A section's label, such as "Feeds", as the first row of its list. */
-export const navHeading = 'px-2 pb-1 text-xs text-fg-subtle max-md:hidden';
+export const navHeading = 'px-2 pb-1 text-xs font-medium text-fg-subtle max-md:hidden';
 
 /** An icon button at a row's end, such as a folder's rename button. */
 export const navTool =
 	'inline-flex size-6 cursor-pointer items-center justify-center rounded-sm text-fg-subtle hover:text-fg';
 
-/** A quiet text button under the nav, such as "New folder…". */
+/** A quiet button under the nav, such as "New folder…": a row like the folders', in the sidebar's "New agent" grey. */
 export const navAction =
-	'cursor-pointer self-start rounded-sm px-2 py-1 text-xs text-fg-subtle hover:bg-bg-hover hover:text-fg';
+	'flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-left text-fg-subtle hover:bg-bg-hover hover:text-fg';
 
-/** The pane holding a page's folder nav: pinned to the top of the main pane and
- * scrolled on its own, so a long nav and a long list don't scroll each other
+/** The pane holding a page's folder nav: under the page's header, pinned there as the list
+ * scrolls, and scrolled on its own, so a long nav and a long list don't scroll each other
  * away. Its scrollbar is hidden, as the app sidebar's is, so overflowing never
  * narrows it, and it gives back the main pane's bottom padding, so at full
  * height it never makes the main pane scroll too. Above the list on narrow
  * screens, where it scrolls with it. */
 export const navPane =
-	'sticky top-0 -mb-12 max-h-[calc(100dvh-var(--titlebar-inset))] w-(--sidebar-width) flex-none [scrollbar-width:none] self-start overflow-y-auto pt-8 pb-6 max-md:static max-md:mb-0 max-md:max-h-none max-md:w-auto max-md:overflow-visible max-md:pt-4 max-md:pb-0';
+	'sticky top-(--page-header-height) -mb-12 max-h-[calc(100dvh-var(--titlebar-inset)-var(--page-header-height))] w-(--sidebar-width) flex-none [scrollbar-width:none] self-start overflow-y-auto pb-6 max-md:static max-md:mb-0 max-md:max-h-none max-md:w-auto max-md:overflow-visible max-md:pb-0';

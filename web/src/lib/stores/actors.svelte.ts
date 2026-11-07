@@ -125,9 +125,9 @@ export class ActorsStore {
 	}
 
 	/**
-	 * The sessions the sidebar lists: every one not yet resolved, those
-	 * waiting on the user first, then those working, then those done and
-	 * unread, then those done and read, each latest status change first.
+	 * Every session not yet resolved, those waiting on the user first, then
+	 * those working, then those done and unread, then those done and read,
+	 * each latest status change first. The sidebar shows the ones going on.
 	 */
 	get current(): ActorSession[] {
 		return this.sessions.value.toSorted((a, b) => sidebarRank(a) - sidebarRank(b));

@@ -1,7 +1,7 @@
 <!--
 	The sidebar's workspace picker: a popover to switch to or create a
-	workspace, and beside it a menu for the current one (its Rewind page, edit,
-	delete). The rail and the phone top bar show the picker as only its badge:
+	workspace, and beside it a menu for the current one (its Rewind page, what
+	the sidebar shows of it, edit, delete). The rail and the phone top bar show the picker as only its badge:
 	the workspace's emoji, or its initial when it has none.
 -->
 <script lang="ts">
@@ -23,6 +23,9 @@
 	import { workspaces } from '$lib/stores/workspaces.svelte';
 	import { routes } from './routes';
 	import WorkspaceBadge from './WorkspaceBadge.svelte';
+
+	/** Opens the dialog choosing which kinds of resource the sidebar shows. */
+	let { onchoosekinds }: { onchoosekinds: () => void } = $props();
 
 	let open = $state(false);
 	let dialog = $state<'create' | 'edit' | 'delete' | null>(null);
@@ -139,6 +142,7 @@
 			<Menu
 				items={[
 					{ label: 'Rewind', onSelect: () => void goto(routes.rewind(current.id)) },
+					{ label: 'Show in sidebar…', onSelect: onchoosekinds },
 					{ label: 'Edit…', onSelect: () => startDialog('edit', current) },
 					{ label: 'Delete…', danger: true, onSelect: () => startDialog('delete', current) }
 				]}

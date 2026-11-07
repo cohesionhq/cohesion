@@ -5,12 +5,15 @@
 	top. With `tools` (the new session's pickers), the field takes the full
 	width over a row of the attach and send buttons, and the tools sit
 	under the capsule on a solid tray of their own, inset from its sides. Images can also be pasted or dropped anywhere on it. Enter
-	sends, Shift+Enter breaks the line.
+	sends, Shift+Enter breaks the line. A session's own controls (its mode) sit
+	inside the capsule, before Send; while the session runs, an empty field
+	offers Stop in Send's place, as an agent's composer does.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import ArrowUp from '@lucide/svelte/icons/arrow-up';
 	import ImagePlus from '@lucide/svelte/icons/image-plus';
+	import Square from '@lucide/svelte/icons/square';
 	import type { ImageUpload } from '$lib/protocol/types';
 	import ImageTray from '$lib/ui/ImageTray.svelte';
 	import { attachImages, imageFiles } from '$lib/ui/images';
@@ -24,6 +27,10 @@
 		onsend: () => void;
 		/** Drawn on a tray under the capsule, inset from its sides. */
 		tools?: Snippet;
+		/** The session's own controls (its mode), inside the capsule before Send. */
+		controls?: Snippet;
+		/** Stops the session's work; while it runs, an empty field offers it in Send's place. */
+		onstop?: () => void;
 		/** Shown under the field, until the next send. */
 		error?: string | null;
 	}
@@ -35,6 +42,8 @@
 		placeholder,
 		onsend,
 		tools,
+		controls,
+		onstop,
 		error = null
 	}: Props = $props();
 
@@ -139,14 +148,26 @@
 {/snippet}
 
 {#snippet send()}
-	<button
-		class="inline-flex size-9 flex-none cursor-pointer items-center justify-center rounded-full bg-primary text-primary-fg transition-colors enabled:hover:bg-primary-hover disabled:cursor-default disabled:opacity-40"
-		type="submit"
-		disabled={!canSend}
-		aria-label="Send"
-	>
-		<ArrowUp size={18} strokeWidth={2.25} />
-	</button>
+	{#if onstop && !canSend}
+		<!-- One disc at the corner: Stop while the session runs and nothing is typed, Send otherwise. -->
+		<button
+			class="inline-flex size-9 flex-none cursor-pointer items-center justify-center rounded-full bg-bg-hover text-fg transition-colors hover:bg-danger/10 hover:text-danger"
+			type="button"
+			aria-label="Stop"
+			onclick={onstop}
+		>
+			<Square size={12} fill="currentColor" strokeWidth={0} aria-hidden="true" />
+		</button>
+	{:else}
+		<button
+			class="inline-flex size-9 flex-none cursor-pointer items-center justify-center rounded-full bg-primary text-primary-fg transition-colors enabled:hover:bg-primary-hover disabled:cursor-default disabled:opacity-45"
+			type="submit"
+			disabled={!canSend}
+			aria-label="Send"
+		>
+			<ArrowUp size={18} strokeWidth={2.25} />
+		</button>
+	{/if}
 {/snippet}
 
 {#snippet capsule()}
@@ -174,6 +195,9 @@
 			<div class="flex items-end gap-1">
 				{@render attachButton()}
 				{@render field()}
+				{#if controls}
+					<div class="flex flex-none items-center gap-1">{@render controls()}</div>
+				{/if}
 				{@render send()}
 			</div>
 		{/if}

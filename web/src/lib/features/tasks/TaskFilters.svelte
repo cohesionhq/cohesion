@@ -1,5 +1,5 @@
 <!--
-	The Tasks page's filters, on one line under its header: the Filters button,
+	The Tasks page's filters, in its header's row beside the order: the Filters button,
 	which counts everything narrowing the list and opens a panel of every filter,
 	then the priorities and sizes kept, then the tags, which say which tasks these
 	are. A line too long for the width scrolls sideways; on a phone it keeps only
@@ -10,9 +10,10 @@
 	import Flag from '@lucide/svelte/icons/flag';
 	import type { MouseEventHandler } from 'svelte/elements';
 	import { filterRowClass } from '$lib/features/tags/TagFilter.svelte';
-	import FilterPill, { pillClass, type PillState } from '$lib/features/tags/FilterPill.svelte';
+	import FilterPill, { type PillState } from '$lib/features/tags/FilterPill.svelte';
 	import type { Tag, TaskPriority, TaskSize } from '$lib/protocol/types';
 	import { pane } from '$lib/shell/pane.svelte';
+	import { secondaryClass } from '$lib/ui/Button.svelte';
 	import Popover from '$lib/ui/Popover.svelte';
 	import { priorities as allPriorities } from './priority';
 	import { sizes as allSizes } from './size';
@@ -77,11 +78,15 @@
 	/>
 {/snippet}
 
-<div class="mb-4 flex items-center gap-1.5">
+<div class="flex min-w-0 items-center gap-1.5">
 	<Popover bind:open>
 		{#snippet trigger(props)}
 			<button
-				class={[pillClass(active > 0 ? 'with' : null), 'flex-none cursor-pointer']}
+				class={[
+					'inline-flex h-7.5 flex-none cursor-pointer items-center gap-1.5 rounded-sm border px-2.5 font-medium transition-colors',
+					// Outlined as the header's other menus are; tinted while something narrows the list.
+					active > 0 ? 'border-transparent bg-accent-soft text-accent' : secondaryClass
+				]}
 				type="button"
 				aria-label={active > 0 ? `Filters, ${active} active` : 'Filters'}
 				{...props}
@@ -132,7 +137,7 @@
 			{/if}
 		</div>
 	</Popover>
-	<nav class={[filterRowClass, 'min-w-0 flex-1']} aria-label="Filters in use and tags">
+	<nav class={[filterRowClass, 'max-w-80 min-w-0']} aria-label="Filters in use and tags">
 		{#each allPriorities().filter((p) => priorities.includes(p.value)) as p (p.value)}
 			{@render priorityPill(p)}
 		{/each}

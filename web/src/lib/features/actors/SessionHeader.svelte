@@ -3,8 +3,8 @@
 	session's title over what its actor is, the device it runs on and where it
 	works, as the new session's composer says it, then the model it runs on,
 	where it stands and the actions at the trailing end. From 1100px, in the
-	half the column right of the sheet speaks for, only the way back, the
-	title stay: the column shows the rest, Resolve included (`SessionGutter`).
+	half the column right of the sheet speaks for, the actor and the model move
+	to that column (`SessionGutter`); where it stands and Resolve stay here.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
@@ -44,7 +44,8 @@
 				>{model}</span
 			>
 		{/if}
-		<span class={['flex min-w-0', inGutter]}>
+		<!-- Where it stands and Resolve stay beside the title at every width: what to do about it belongs with what it is. -->
+		<span class="flex min-w-0">
 			<StatusPill status={session.status} label={vocabulary.actorSessionStatus(session.status)} />
 		</span>
 		{#if actions}

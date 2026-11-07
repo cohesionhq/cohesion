@@ -127,8 +127,7 @@ are in the `web-ui-change` skill.
 ## Split view
 
 The sheet can hold two pages side by side, the sidebar and the actor sessions
-column staying as they are. A page header's Split view button (top right;
-the Dashboard, whose centred greeting is its header, has none)
+column staying as they are. A page header's Split view button (top right)
 opens a blank second half; ⌥-clicking a link, or ⌥↩ on a ⌘K result,
 opens it there; each half's close button leaves the other filling the
 sheet, and at a phone's width the split closes to the half last used. The
@@ -155,8 +154,9 @@ pieces, in `src/lib/shell/`:
 
 ## Going back
 
-A way back is always `ui/BackLink.svelte` (`PageHeader`'s `back`, or the chevron
-alone in a conversation's header). A plain click steps the half it is in back
+A way back is always `ui/BackLink.svelte`: the chevron alone before the title
+in a page's or a conversation's header, or "‹ {label}" in a header with no title
+(`PageHeader`'s `back`). A plain click steps the half it is in back
 through history to the page you came from, named by that page's title; the
 `href` and `label` a page gives are only for when nothing in history leads back
 (a deep link, a reload, the first page of a second half), so they name the page
@@ -169,7 +169,7 @@ and a push for anything else.
 ## Look and feel
 
 The page looks professional and calm: neutral greys and one hue. Indigo
-(`accent`) marks a screen's main action, focus, unread and live states;
+(`accent`) marks the action that settles a dialog or a form, focus, unread and live states;
 amber (`warn`) means something needs the user; agent colours are the only
 other hues. Dark mode follows the system (`prefers-color-scheme`), with no
 switch of its own. Words for what the daemon names (permissions, hooks,
@@ -195,8 +195,8 @@ only these exist:
   the window the sidebar sits on; `bg` is the page's sheet. The chrome is
   neutral: the current item in a list of places (the sidebar, a page's
   folders, Settings' sections) takes `current-item`, a grey tint, never a hue.
-  `accent` is the only hue, kept for the filled button that is a
-  screen's main action (`primary`), focus, unread and live states,
+  `accent` is the only hue, kept for the filled button that settles a
+  dialog, a form or a card (`primary`), focus, unread and live states,
   links, a chosen filter pill (`features/tags/FilterPill.svelte`: a check when
   it keeps what matches, an X and a strike-through when it hides that) and a
   medium-priority task's flag; a high-priority task's flag takes
@@ -207,8 +207,12 @@ only these exist:
   `text-fg-subtle`, `bg-bg-hover`, `border-border`, `bg-danger/10`.
 - **Spacing** is a 4px step: `p-1` is 4px, `gap-2` 8px, `px-3` 12px.
 - **Type**: `text-3xs` 10px (a dial's percentage only), `text-2xs` 11px, `text-xs` 13, `text-sm` 14 (body), `text-md`
-  15, `text-lg` 20, `text-xl` 28. A page's title is `text-lg` semibold, its
-  meta beside it `text-xs`; a section's or a conversation's title is
+  15, `text-lg` 20, `text-xl` 28. Every page's header is one bar
+  (`ui/PageHeader.svelte`, as tall as a conversation's `ChatHeader`), running to the
+  sheet's edges over a hairline, its title `text-md` semibold and its meta beside it
+  `text-xs`, its tools at the sheet's right edge; a page that reads in a column (a
+  document, an article, the journal) puts the column under the bar, and a document's or
+  an article's own title, `text-xl`, at the column's head. A section's title is
   `text-md` semibold; a group label (Agents, Today) is `text-xs` medium in
   `fg-subtle`, in sentence case. `font-sans` is the UI; `font-serif` sets
   an article for reading; `font-mono` is code.
@@ -221,20 +225,20 @@ only these exist:
   sidebar; on a phone it meets the screen's edges. From 1100px, on an
   agent's conversation or an actor session, a second column sits on the canvas
   right of the sheet (`shell/ConversationGutter.svelte`) and takes what the
-  conversation's header would otherwise carry, in a summary card over flat groups ruled by
-  hairlines, inset a little from its edges (`ui/GutterCard.svelte`, `ui/GutterGroup.svelte`): for an agent its context size and what it is doing, its
+  conversation's header would otherwise carry, in a summary row as tall as that header over flat groups, all ruled by
+  hairlines and inset a little from its edges (`ui/GutterCard.svelte`, `ui/GutterGroup.svelte`): for an agent its context size and what it is doing, its
   actor sessions not yet resolved and its cues (`AgentGutter`), for a session where
-  it stands, its usage, its actor, where it works and its model, with Resolve at the
-  column's foot (`SessionGutter`). It speaks
+  its actor, where it works and its model, then its usage as bars (`SessionGutter`); where it
+  stands and Resolve stay in the header at every width. It speaks
   for the main half only; a second half's header keeps all of it, as does every
   header below 1100px. Pages fill the sheet,
-  with no max-width column. Each page's outer element takes
+  with no max-width column, so every header's tools end at the sheet's right edge. Each page's outer element takes
   `px-(--page-inset)` (28px, 20 below 1100px, 16 below 900). Lists sit flat
   on the sheet, ruled by hairlines, with no box of their own. Two
   exceptions read in a centred column: an article, at a book's line length
-  (`max-w-240`), and a conversation (`max-w-190`), whose messages and cards
-  take at most 70% of it. A conversation's header is `ui/ChatHeader.svelte`,
-  a frosted bar across the sheet with its own even insets. `--gutter` is
+  (`max-w-240`), and a conversation (`max-w-190`), whose messages take at
+  most 70% of it and whose question cards take all of it. A conversation's header is `ui/ChatHeader.svelte`,
+  a solid bar across the sheet, so nothing scrolled under it shows through, with its own even insets. `--gutter` is
   what overlays keep clear of the viewport's edges. `w-(--sidebar-width)` and
   similar for the other layout variables.
 - **WebUI harnesses**: the Mac and iPad WebUI harnesses show the page edge to edge, under the
@@ -281,7 +285,7 @@ only these exist:
   fade in over the old on its one line, so nothing moves. While an agent works its
   header is its name alone; its role comes back when it stops. The icon rail and
   the top bar, which hide names, ring the agent's avatar in grey instead. An actor session's status stays a
-  spinner, one of `ui/StatusIcon.svelte`'s set. What repeats in step goes on the
+  turning ring on an accent disc, one of `ui/StatusIcon.svelte`'s set of discs. What repeats in step goes on the
   page clock in `ui/motion.ts`, one timer beating every 2.5s: `shimmerOnPageClock`
   starts a 0.9s crossing on every beat and `blinkOnPageClock` the following eye's
   double blink on every second one, so nothing keeps its own timing.
@@ -308,6 +312,13 @@ Markdown or CodeMirror's DOM.
 
 Each kind of overlay or choice has one component; pick by what the user is
 doing, not by how it looks.
+
+- **Making something new** from a page (New document, New contact, Add
+  account) is a `secondary` `Button` (outlined) led by a plus in the page header's actions.
+  A page's buttons come in three kinds and no others: `primary`, filled in the accent,
+  settles a dialog, a form or a card; `secondary`, outlined, is a page's own action and
+  its header's menus (the order, Filters, Resolve), through `secondaryClass` where it isn't a
+  `Button`; a toolbar's icon-only buttons are square and quiet.
 
 - **Menu** (`ui/Menu.svelte`, `RowMenu` for a row's ⋯) is for actions: each
   item does something, and may name a bare key that picks it.

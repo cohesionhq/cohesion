@@ -300,11 +300,16 @@ export function listTouchedBy(key: Invalidation, { workspace_id, view }: TaskLis
 	return key.id.folder_id === viewFolder(view);
 }
 
-/** Folders, saved views and one page of the task list for one view of a workspace. */
+/** A workspace and the first day after the ones due ("2026-11-08"): `workspace:day`. */
+export type DueKey = `${number}:${string}`;
+
+/** Folders, saved views and one page of the task list for one view of a workspace; and its open tasks due by today. */
 export class TasksStore {
 	readonly folders: Resource<TaskFolder[], number>;
 	readonly views: Resource<SavedTaskView[], number>;
 	readonly list: Resource<TaskPage, TaskListKey>;
+	/** A workspace's open tasks due today or earlier, soonest first: what the Dashboard's Today lists. */
+	readonly due: Resource<TaskPage, DueKey>;
 
 	#send: Send;
 
@@ -331,6 +336,21 @@ export class TasksStore {
 			matches: listTouchedBy,
 			// A filter, the order or the page changing swaps the rows in place.
 			keepsValue: (from, to) => from.workspace_id === to.workspace_id && from.view === to.view
+		});
+		this.due = new Resource({
+			fetch: (key) => {
+				const [workspace, day] = key.split(':');
+				return send('listTasks', {
+					workspace_id: Number(workspace),
+					statuses: ['incomplete'],
+					due_date: { before: day },
+					sort: 'dueDate',
+					limit: 20
+				});
+			},
+			initial: { tasks: [], total: 0 },
+			matches: (key, due) =>
+				key.kind === 'taskList' && key.id.workspace_id === Number(due.split(':')[0])
 		});
 	}
 
