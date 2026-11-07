@@ -45,6 +45,11 @@ tokio = "1.53.1"
 [profile.dev.package.libsqlite3-sys]
 opt-level = 3
 
+# The JS runtime's limits (a diagram's 15 s layout budget) are set for an
+# optimised QuickJS; unoptimised, its tests measure the build, not the code.
+[profile.dev.package.rquickjs-sys]
+opt-level = 3
+
 # No LTO, so a local install relinks fast; set CARGO_PROFILE_RELEASE_LTO=true
 # for an LTO build.
 [profile.release]
