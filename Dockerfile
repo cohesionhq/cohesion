@@ -9,25 +9,28 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-# The workspace with every source emptied, so it only changes when a manifest,
-# the lockfile or the crate layout does.
-FROM docker.io/library/rust:1.99-slim-trixie AS skeleton
+# cargo-chef builds the dependencies from the workspace's manifests alone.
+# rust-toolchain.toml comes first, so rustup installs the pinned release here and
+# everything below builds with it: dependencies cooked with another toolchain
+# would all be compiled again by the real build.
+FROM docker.io/library/rust:1.99-slim-trixie AS chef
 WORKDIR /src
-COPY . .
-RUN find . -type f ! -name Cargo.toml ! -name Cargo.lock ! -path './.cargo/*' \
-        ! -name build.rs ! -name main.rs ! -name lib.rs -delete \
-    && find . -type f \( -name build.rs -o -name main.rs \) \
-        | while read -r f; do echo 'fn main() {}' > "$f"; done \
-    && find . -type f -name lib.rs -exec truncate -s 0 {} + \
-    && find . -type d -empty -delete
+COPY rust-toolchain.toml ./
+RUN cargo install cargo-chef --locked --version 0.1.78
 
-FROM docker.io/library/rust:1.99-slim-trixie AS build
-WORKDIR /src
-# Dependencies get their own layer, which every commit that leaves the skeleton
-# alone reuses. The stubs' own artifacts go, so the real crates are compiled.
-COPY --from=skeleton /src ./
-RUN cargo build --release --locked -p cohesiond -p cohesion \
-    && find target/release -name '*cohesion*' -prune -exec rm -rf {} +
+# The recipe: the manifests, the lockfile, rust-toolchain.toml and
+# .cargo/config.toml, so it only changes when one of them or the crate layout
+# does.
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS build
+# Dependencies get their own layer, which every commit that leaves the recipe
+# alone reuses. The workspace's own crates are empty stand-ins here; the real
+# ones are compiled below.
+COPY --from=planner /src/recipe.json recipe.json
+RUN cargo chef cook --release --locked -p cohesiond -p cohesion --recipe-path recipe.json
 COPY . .
 COPY --from=web /src/web/build web/build
 # What the binaries say they are. Declared here so that a new version doesn't
