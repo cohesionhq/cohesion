@@ -276,6 +276,7 @@
 					cues={agents.cues.key === gutterAgent.id ? agents.cues.value : []}
 					actors={actors.list.value}
 					sessions={actors.followedBy(gutterAgent.id)}
+					onresolve={resolveSession}
 				/>
 			{:else if gutterSession}
 				<SessionGutter

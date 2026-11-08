@@ -23,6 +23,9 @@ under "Unreleased" with any change users would notice.
   pair again. The protocol gains `exportDatabase`, `readDatabaseExport`,
   `beginDatabaseImport`, `writeDatabaseImport` and `finishDatabaseImport`;
   no other client needs them.
+- In an agent's conversation, each session under Monitoring has an archive
+  button to resolve it, shown on hover or focus and always on touch. It asks
+  first while the actor is still working.
 - `rust-toolchain.toml` pins the Rust release Cohesion builds with.
 - The web UI's second design pass: the Dashboard's greeting leads the page, and a
   task due today can be completed from it; documents read as rendered Markdown
