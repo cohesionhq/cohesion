@@ -39,6 +39,7 @@ mod retention;
 mod sandbox_key;
 mod secrets;
 mod sql_value;
+mod storage_areas;
 #[cfg(test)]
 mod test_support;
 mod transfer;

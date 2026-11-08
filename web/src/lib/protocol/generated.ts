@@ -1328,15 +1328,20 @@ export interface DatabaseImport {
 	id: string;
 }
 
-/** How large the database file is. */
+/** How large the database file is, and what fills it. */
 export interface DatabaseSize {
-	/** The whole file, in bytes. */
+	/** The whole file, in bytes: its pages, without the `-wal` file beside it. */
 	bytes: number;
 	/**
 	 * What of it is free pages, in bytes: space SQLite reuses before the
 	 * file grows, given back once the cleanup vacuums.
 	 */
 	free_bytes: number;
+	/**
+	 * What each area's tables and their indexes take up, largest first and
+	 * [`StorageArea::Other`] last. With `free_bytes` they add up to `bytes`.
+	 */
+	areas: StorageAreaSize[];
 }
 
 /**
@@ -3976,6 +3981,27 @@ export interface StopActorSessionRequest {
  */
 export interface StopAgentTurnRequest {
 	agent_id: number;
+}
+
+/**
+ * A part of what Cohesion keeps, as Settings › Storage breaks the
+ * database's size down.
+ */
+export type StorageArea =
+	| 'agentChats'
+	| 'actorSessions'
+	| 'documentsAndTasks'
+	| 'feedsAndArticles'
+	| 'resources'
+	| 'memories'
+	| 'rewindVersions'
+	| 'other';
+
+/** One area's share of the database file. */
+export interface StorageAreaSize {
+	area: StorageArea;
+	/** The pages its tables and indexes take up, in bytes. */
+	bytes: number;
 }
 
 /**

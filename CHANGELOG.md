@@ -7,6 +7,11 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- Settings › Storage shows what fills the database under Usage, with Backup
+  its own section after it: one bar split by area, then agent chats, actor sessions, documents and tasks, feeds and articles,
+  resources, memories, Rewind versions, everything else and free space, each
+  with its size and share. `getDatabaseSize` answers each area's bytes in a new
+  `areas` field; the iPhone app can show the same breakdown from it.
 - The technical documentation is rebuilt from the code as one reference,
   [Architecture](docs/architecture.md). It replaces the tour and the separate
   pages on actors, extensions and serving the web UI.

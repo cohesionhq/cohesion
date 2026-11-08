@@ -669,6 +669,20 @@ does.
 while it is open. Nearly everything Cohesion keeps is in this one file: see
 "Outside the database" below.
 
+**How large it is** (`GetDatabaseSize`, `Container::size`; Settings ›
+Storage). `DatabaseSize{bytes, free_bytes, areas}`: `page_count` and
+`freelist_count` times `page_size`, so the database's pages without the
+`-wal` file's own size, and `areas`, what each `StorageArea` takes up
+(`cohesion-db/src/storage_areas.rs`). SQLite's `dbstat` table, which the
+bundled SQLite is built with, counts every table's and index's pages
+exactly, and `placement` names the area of each table, its indexes and FTS
+tables with it; a test refuses a table it doesn't name. `attachments`, the
+one table two areas share, has its pages divided between agent chats and
+actor sessions by the bytes of image each holds there, so those two are
+close estimates. Whatever `dbstat` doesn't count as a table goes to
+`other`, so the areas and `free_bytes` add up to `bytes`. Measuring reads
+every page; on a 384 MB database it takes about 90 ms on the worker.
+
 **One connection, one thread.** `Container` (`cohesion-db/src/container.rs`)
 owns a single rusqlite connection, and `DatabaseContext::new`
 (`database_context.rs`) gives it to one OS thread, the worker. There is no

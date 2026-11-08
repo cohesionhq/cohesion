@@ -1171,7 +1171,20 @@ function seed(): MockState {
 			memory_limit: 20
 		},
 		versions: [],
-		databaseSize: { bytes: 48_234_496, free_bytes: 1_310_720 },
+		databaseSize: {
+			bytes: 48_234_496,
+			free_bytes: 1_310_720,
+			areas: [
+				{ area: 'agentChats', bytes: 21_430_272 },
+				{ area: 'actorSessions', bytes: 12_582_912 },
+				{ area: 'feedsAndArticles', bytes: 6_291_456 },
+				{ area: 'rewindVersions', bytes: 2_621_440 },
+				{ area: 'documentsAndTasks', bytes: 1_835_008 },
+				{ area: 'resources', bytes: 393_216 },
+				{ area: 'memories', bytes: 49_152 },
+				{ area: 'other', bytes: 1_720_320 }
+			]
+		},
 		profile: { id: 1, name: null, bio: null, photo: { kind: 'none' } },
 		securityEvents: [
 			securityEvent(1, now - 40 * DAY, 'clientPaired', 1, 'iPhone', '192.168.1.31'),

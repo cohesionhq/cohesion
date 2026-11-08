@@ -1,5 +1,5 @@
 <!--
-	Settings › Storage: how large the database is, how long the hourly
+	Settings › Storage: how large the database is and what fills it, how long the hourly
 	cleanup keeps agent messages, actor sessions, Rewind's versions and deleted
 	items, and how many memories each scope keeps. Each number saves as
 	it's entered. A backup writes a copy on the daemon's computer.
@@ -14,6 +14,7 @@
 	import { list } from '$lib/ui/list';
 	import ResourceState from '$lib/ui/ResourceState.svelte';
 	import Section from './Section.svelte';
+	import StorageAreas from './StorageAreas.svelte';
 	import StorageNumberRow from './StorageNumberRow.svelte';
 
 	$effect(() => {
@@ -41,45 +42,43 @@
 	}
 </script>
 
-<Section title="Database" description="Cohesion keeps everything in this file.">
+<Section title="Usage">
 	<ResourceState resource={storage.size}>
 		{#snippet loaded()}
 			{#if size}
-				<ul class={list.rows}>
-					<li class={list.row}>
-						<div class={[list.main, 'flex-col']}>
-							<span>Size</span>
-							<span class="text-xs text-fg-subtle">
-								{fileSize(size.free_bytes)} of this is free space. Cohesion reuses it before the file
-								grows.
-							</span>
-						</div>
-						<span class="ml-auto tabular-nums">{fileSize(size.bytes)}</span>
-					</li>
-					<li class={list.row}>
-						<div class={[list.main, 'flex-col']}>
-							<span>Backup</span>
-							<span class="text-xs text-fg-subtle">
-								Cohesion will write a copy to the computer it’s running on. The copy holds
-								everything except images in actor sessions and agent messages.
-							</span>
-							{#if backup}
-								<span class="text-xs break-all text-fg-subtle">
-									{fileSize(backup.bytes)} at {backup.path}
-								</span>
-							{/if}
-							{#if backupError}
-								<p class="text-xs text-danger" role="alert">{backupError}</p>
-							{/if}
-						</div>
-						<Button class="ml-auto" disabled={backingUp} onclick={backUp}>
-							{backingUp ? 'Backing up…' : 'Back up'}
-						</Button>
-					</li>
-				</ul>
+				<StorageAreas {size} />
+				<p class={list.note}>
+					Agent chats and actor sessions share the space their images take by size, so those two are
+					close estimates.
+				</p>
 			{/if}
 		{/snippet}
 	</ResourceState>
+</Section>
+
+<Section title="Backup">
+	<ul class={list.rows}>
+		<li class={list.row}>
+			<div class={[list.main, 'flex-col']}>
+				<span>Capture</span>
+				<span class="text-xs text-fg-subtle">
+					Take a backup of your critical data stored in Cohesion. This won’t include actor session
+					attachments.
+				</span>
+				{#if backup}
+					<span class="text-xs break-all text-fg-subtle">
+						{fileSize(backup.bytes)} at {backup.path}
+					</span>
+				{/if}
+				{#if backupError}
+					<p class="text-xs text-danger" role="alert">{backupError}</p>
+				{/if}
+			</div>
+			<Button class="ml-auto" disabled={backingUp} onclick={backUp}>
+				{backingUp ? 'Backing up…' : 'Back up'}
+			</Button>
+		</li>
+	</ul>
 </Section>
 
 <ResourceState resource={storage.settings}>

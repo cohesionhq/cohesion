@@ -24,14 +24,53 @@ pub struct UpdateStorageSettingsRequest {
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct GetDatabaseSizeRequest;
 
-/// How large the database file is.
+/// How large the database file is, and what fills it.
 #[derive(Serialize, Deserialize, Clone, TsWire)]
 pub struct DatabaseSize {
-    /// The whole file, in bytes.
+    /// The whole file, in bytes: its pages, without the `-wal` file beside it.
     pub bytes: i64,
     /// What of it is free pages, in bytes: space SQLite reuses before the
     /// file grows, given back once the cleanup vacuums.
     pub free_bytes: i64,
+    /// What each area's tables and their indexes take up, largest first and
+    /// [`StorageArea::Other`] last. With `free_bytes` they add up to `bytes`.
+    pub areas: Vec<StorageAreaSize>,
+}
+
+/// One area's share of the database file.
+#[derive(Serialize, Deserialize, Clone, TsWire)]
+pub struct StorageAreaSize {
+    pub area: StorageArea,
+    /// The pages its tables and indexes take up, in bytes.
+    pub bytes: i64,
+}
+
+/// A part of what Cohesion keeps, as Settings › Storage breaks the
+/// database's size down.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, TsWire)]
+#[serde(rename_all = "camelCase")]
+pub enum StorageArea {
+    /// Agents' messages, the model threads behind them, their runs and
+    /// the images in their messages.
+    AgentChats,
+    /// Actor sessions, their messages, the images in them, and their
+    /// search index.
+    ActorSessions,
+    /// Documents, journal entries, tasks, their folders, tags and saved
+    /// views.
+    DocumentsAndTasks,
+    /// Feeds, their articles and the corpus's search index.
+    FeedsAndArticles,
+    /// Resources and their kinds.
+    Resources,
+    /// Agents' and teams' memories.
+    Memories,
+    /// Rewind's earlier versions of tasks, documents and journal entries.
+    RewindVersions,
+    /// Everything else: the workspace search index, metadata, contacts,
+    /// workspaces, settings, extensions and their storage, actors,
+    /// connectors, models and spend records.
+    Other,
 }
 
 /// Writes a backup of the database to a new file on the daemon's computer:

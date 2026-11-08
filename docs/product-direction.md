@@ -58,7 +58,11 @@ this page in the same pull request and say so in its description.
   security activity is a fixed 30 days; Rewind versions (7) and deleted
   items (30) are set under Retention too. Settings › Storage shows and sets
   these and Memory capacity (the memories an agent keeps per scope), with the
-  database's size. `cohesion export` and `import` move a server's data to
+  database's size and what each area takes up of it (agent chats, actor
+  sessions, documents and tasks, feeds and articles, resources, memories,
+  Rewind versions, everything else and free space), drawn as the iPhone's
+  storage screen draws it: one bar split by area, then a row each with its
+  size and share. `cohesion export` and `import` move a server's data to
   another running server, replacing all of its data; that server keeps its
   key and paired clients, so only the devices of the old server pair again.
   It's CLI only. Grants,

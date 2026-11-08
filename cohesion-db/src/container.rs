@@ -21,6 +21,7 @@ use crate::database_error::DatabaseError;
 use crate::migrations::{CASCADING_MIGRATIONS, MIGRATIONS};
 use crate::retention::worth_vacuuming;
 use crate::sql_value::{ParamRef, SqlRow};
+use crate::storage_areas;
 
 /// The open SQLite connection and the raw statement helpers every query goes
 /// through. Borrow it as a [`WriteContainer`] (or [`ReadContainer`]) to query it.
@@ -211,16 +212,21 @@ impl Container {
             .map(PathBuf::from)
     }
 
-    /// How large the database file is, and how much of it is free pages.
+    /// How large the database file is, how much of it is free pages, and
+    /// what each area takes up of the rest.
     pub(crate) fn size(&self) -> Result<DatabaseSize, DatabaseError> {
         let pragma = |name| {
             self.connection
                 .pragma_query_value(None, name, |row| row.get::<_, i64>(0))
         };
         let page_size = pragma("page_size")?;
+        let bytes = pragma("page_count")? * page_size;
+        let free_bytes = pragma("freelist_count")? * page_size;
+        self.trace_sql("dbstat");
         Ok(DatabaseSize {
-            bytes: pragma("page_count")? * page_size,
-            free_bytes: pragma("freelist_count")? * page_size,
+            bytes,
+            free_bytes,
+            areas: storage_areas::measure(&self.connection, bytes, free_bytes)?,
         })
     }
 
