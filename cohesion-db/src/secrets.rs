@@ -77,7 +77,7 @@ impl PairingWindow {
 }
 
 /// Generates a cryptographically secure random alphanumeric string.
-fn random_string(len: usize) -> String {
+pub(crate) fn random_string(len: usize) -> String {
     use aws_lc_rs::rand::{SecureRandom, SystemRandom};
 
     const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";

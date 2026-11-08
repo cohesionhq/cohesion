@@ -385,6 +385,23 @@ pub enum Command {
     /// Writes a backup of the database to a new file on the daemon's computer.
     #[reply(DatabaseBackup, request = BackupDatabaseRequest, via = Local)]
     BackupDatabase,
+    /// Copies the whole database to a new file on the daemon's computer, for
+    /// another daemon to import; read it with `ReadDatabaseExport`.
+    #[reply(DatabaseExport, request = ExportDatabaseRequest, via = Local)]
+    ExportDatabase,
+    /// Answers part of an export, removing it once the part reaches the end.
+    #[reply(DatabaseExportPart, via = Local)]
+    ReadDatabaseExport(ReadDatabaseExportRequest),
+    /// Starts an import, which `WriteDatabaseImport` fills.
+    #[reply(DatabaseImport, request = BeginDatabaseImportRequest, via = Local)]
+    BeginDatabaseImport,
+    /// Adds part of the file to an import.
+    #[reply(AcceptedResponse, via = Local)]
+    WriteDatabaseImport(WriteDatabaseImportRequest),
+    /// Replaces everything in the database with an import, keeping this
+    /// server's key and clients, then restarts the daemon.
+    #[reply(AcceptedResponse, via = Local)]
+    FinishDatabaseImport(FinishDatabaseImportRequest),
     /// Answers the user's profile.
     #[reply(Profile, request = GetProfileRequest)]
     GetProfile,

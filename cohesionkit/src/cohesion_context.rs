@@ -19,6 +19,7 @@ use crate::endpoint_relay::EndpointRelay;
 use crate::extension_manager::{ExtensionManager, ScriptServices};
 use crate::hooks::{HookManager, LaunchHook};
 use crate::hostname::hostname;
+use crate::pending_import::PendingImport;
 use crate::presence::Presence;
 use crate::script_actors::ScriptActors;
 use crate::security::Security;
@@ -56,6 +57,8 @@ pub struct CohesionContext {
     pub security: Security,
     /// The PKCE verifier of each extension's sign-in under way.
     pub(crate) sign_ins: PendingSignIns,
+    /// An import a client finished, which cohesiond restarts onto.
+    pub pending_import: PendingImport,
     /// The work in flight: client requests, queued hooks, agent turns and
     /// runs, and periodic passes. [`shutdown`](Self::shutdown) closes it.
     pub work: WorkTracker,
@@ -110,6 +113,7 @@ impl CohesionContext {
             presence: Presence::new(ctx.clone()),
             security: Security::new(ctx.clone()),
             sign_ins: PendingSignIns::default(),
+            pending_import: PendingImport::default(),
             database: ctx,
             work,
         }

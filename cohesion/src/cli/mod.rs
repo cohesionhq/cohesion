@@ -20,6 +20,7 @@ mod tag;
 mod task;
 mod team;
 mod terminal_io;
+mod transfer;
 mod workspace;
 
 pub use cli_command::{CliCommand, run};

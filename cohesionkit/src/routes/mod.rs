@@ -18,6 +18,7 @@
 //! - `catalog_routes`: refreshing the model catalog.
 //! - `script_routes`: running scripts and their documentation.
 //! - `mermaid_routes`: drawing a Mermaid diagram.
+//! - `transfer_routes`: exporting the database, and importing one in its place.
 
 mod actor_routes;
 mod agent_routes;
@@ -30,6 +31,7 @@ mod extension_routes;
 mod feed_routes;
 mod mermaid_routes;
 mod script_routes;
+mod transfer_routes;
 
 #[cfg(test)]
 mod tests;

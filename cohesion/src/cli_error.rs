@@ -25,6 +25,9 @@ pub enum CliError {
     CannotReadFile(io::Error),
     CannotWriteFile(io::Error),
     FileExists(PathBuf),
+    ExportExists(PathBuf),
+    CannotWriteExport(io::Error),
+    CannotReadExport(io::Error),
     CannotReadStdin(io::Error),
     CannotReadTerminal(io::Error),
     NothingToAppend,
@@ -79,6 +82,13 @@ impl fmt::Display for CliError {
             Self::CannotLaunchEditor(err) => write!(f, "Couldn't open your editor: {err}"),
             Self::CannotReadFile(err) => write!(f, "Couldn't read the script file: {err}"),
             Self::CannotWriteFile(err) => write!(f, "Couldn't write the script file: {err}"),
+            Self::ExportExists(path) => write!(
+                f,
+                "{} already exists. Choose a new file name.",
+                path.display()
+            ),
+            Self::CannotWriteExport(err) => write!(f, "Couldn't write the export: {err}"),
+            Self::CannotReadExport(err) => write!(f, "Couldn't read the export: {err}"),
             Self::FileExists(path) => write!(
                 f,
                 "{} already exists. Pass --force to replace it.",

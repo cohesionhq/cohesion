@@ -59,6 +59,8 @@ cohesion script new script.js        # write a starter script and cohesion.d.ts
 cohesion extension install ext.js    # install an extension with its grants off, or `-o` to replace one
 cohesion extension call <identifier> <name> '{"q":1}'   # call its `serviceRequest` and print the JSON
 cohesion open                        # serve the web UI on 127.0.0.1:7343 and open it
+cohesion export data.db              # copy all of cohesiond's data to a file
+cohesion import data.db              # replace all of cohesiond's data with it, then restart it
 ```
 
 `cohesion open` also takes `--port`, `--no-browser`, `--dev`, `--reset-token` and

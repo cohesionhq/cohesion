@@ -1,24 +1,24 @@
-//! cohesiond: exports or imports its data when asked (`transfer`); otherwise
-//! opens the database, builds the [`CohesionContext`], prints the
+//! cohesiond: opens the database, builds the [`CohesionContext`], prints the
 //! first setup code, and serves clients, clients among them, over HTTPS and a
 //! local Unix socket until
 //! a signal (or, with `--exit-with-parent`, its parent exiting) shuts it
-//! down cleanly.
+//! down cleanly. A client finishing an import shuts it down the same way,
+//! then it starts again onto the import (`restart`).
 
 mod args;
 mod daemon_storage;
+mod restart;
 mod server;
 mod settings;
 mod shutdown;
-mod transfer;
 
 use clap::Parser;
 use std::fmt::Display;
 use std::process::exit;
 
-use cohesionkit::db::{Container, ListClientsCommand, Secrets};
+use cohesionkit::db::{Container, ListClientsCommand, Secrets, StagedImport, clear_transfers};
 use cohesionkit::log::{ConsoleAdapter, Logger, Module};
-use cohesionkit::{CohesionContext, ServerAddress, log_info};
+use cohesionkit::{CohesionContext, ServerAddress, log_info, log_warn};
 
 use crate::{
     args::CohesiondArgs,
@@ -35,10 +35,6 @@ async fn main() {
         Some(cfg) => StoragePath::resolve(cfg),
     }
     .unwrap_or_else(|err| fatal("could not use the config directory", err));
-    if let Some(command) = &args.command {
-        transfer::run(command, &storage_path.database_file()).await;
-        return;
-    }
     let settings = Settings::resolve(args, &storage_path)
         .unwrap_or_else(|err| fatal("could not read the settings", err));
     let _ = Logger::new()
@@ -49,6 +45,12 @@ async fn main() {
     let mut container =
         Container::open(storage_path.database_file()).expect("could not open the database");
     container.migrate().expect("could not migrate the database");
+    if let Err(err) = clear_transfers(&storage_path.database_file()) {
+        log_warn!(
+            Module::Database,
+            "Couldn’t remove old exports and imports: {err}"
+        );
+    }
 
     let storage = ApplicationData::make(&storage_path)
         .unwrap_or_else(|err| fatal("could not load the server key", err));
@@ -76,24 +78,42 @@ async fn main() {
         settings.socket,
         settings.proxy_protocol,
     ));
-    let ended = tokio::select! {
-        ended = &mut server => Some(ended),
+    let stop = tokio::select! {
+        ended = &mut server => Stop::Server(ended),
         reason = shutdown::requested(&mut signals, settings.exit_with_parent) => {
             log_info!(Module::Server, "{reason}; shutting down. Press Ctrl-C again to stop now.");
-            None
+            Stop::Asked
+        }
+        staged = context.pending_import.requested() => {
+            log_info!(Module::Server, "A client imported data; restarting to put it in place.");
+            Stop::Import(staged)
         }
     };
     let clean = shutdown::run(&context, &mut signals).await;
     // Dropping the server removes the socket file. One that ended on its
     // own has already dropped, and polling its handle again would panic.
-    if ended.is_none() {
+    if !matches!(stop, Stop::Server(_)) {
         server.abort();
         let _ = server.await;
     }
     // A server that could not serve (a port already held, say) exits
     // non-zero, so a supervisor restarts it rather than reading a clean stop.
-    let failed = ended.is_some_and(|ended| !matches!(ended, Ok(Ok(()))));
+    let failed = match stop {
+        Stop::Import(staged) => restart::onto(staged),
+        Stop::Server(ended) => !matches!(ended, Ok(Ok(()))),
+        Stop::Asked => false,
+    };
     exit(if clean && !failed { 0 } else { 1 });
+}
+
+/// Why the daemon stopped serving.
+enum Stop {
+    /// The server ended on its own, with what it returned.
+    Server(Result<std::io::Result<()>, tokio::task::JoinError>),
+    /// A signal, or the parent exiting.
+    Asked,
+    /// A client finished an import, which the daemon restarts onto.
+    Import(StagedImport),
 }
 
 /// With no clients yet, opens a pairing window and prints its setup code, the

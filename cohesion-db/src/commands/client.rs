@@ -231,16 +231,31 @@ impl DatabaseCommand for RevokeOtherClientsCommand {
     }
 }
 
-/// Revokes every live client, as [`DeleteClientCommand`] does each; answers
-/// the clients revoked. An imported database's clients paired with another
-/// server's key, so none of them carries over.
-pub struct RevokeEveryClientCommand;
-impl DatabaseCommand for RevokeEveryClientCommand {
-    type Response = Vec<Client>;
+/// Revokes every live client, as [`DeleteClientCommand`] does each, then
+/// pairs `clients` again as they were. An import runs it on the database it
+/// brings in: that database's clients paired with another server's key, and
+/// `clients`, the ones of the database it replaces, with this server's.
+pub struct ReplaceClientsCommand {
+    pub clients: Vec<Client>,
+}
+impl DatabaseCommand for ReplaceClientsCommand {
+    type Response = ();
     type Access = Write;
-    fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<Vec<Client>>> {
+    fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<()>> {
         let every: Vec<i64> = ctx.db.select_id::<Client>().live().all()?;
-        revoke_all(ctx, every, SecurityEventKind::ClientRevoked)
+        let revoked = revoke_all(ctx, every, SecurityEventKind::ClientRevoked)?;
+        for client in self.clients {
+            ctx.db
+                .insert::<Client>()
+                .set(Client::KEY_KIND, client.key_kind)
+                .set(Client::KEY, client.key)
+                .set(Client::CLIENT_NAME, client.client_name)
+                .set(Client::CREATED_AT, client.created_at)
+                .set(Client::LAST_SEEN_AT, client.last_seen_at)
+                .set(Client::LAST_ADDRESS, client.last_address)
+                .execute()?;
+        }
+        Ok(revoked.map(|_| ()))
     }
 }
 

@@ -4,7 +4,7 @@ use clap::Subcommand;
 
 use super::{
     agent, article, extension, intelligence, journal, noun::Noun, open, pair, script, search,
-    status::status, tag, task, team, workspace,
+    status::status, tag, task, team, transfer, workspace,
 };
 use crate::{cli_context::Context, cli_error::CliError};
 
@@ -61,6 +61,29 @@ pub enum CliCommand {
     Team(Noun<team::TeamCommand>),
     /// Print a setup code that pairs another client with this cohesiond.
     Pair,
+    /// Copy all data on cohesiond to a new file, for `cohesion import` on another server.
+    /// Safe while cohesiond is running.
+    ///
+    /// The file holds everything cohesiond keeps: workspaces, tasks, documents, agents and
+    /// their chats, images, extensions and settings. It doesn't hold the server's key.
+    Export {
+        /// The file to write. It mustn't exist yet.
+        file: PathBuf,
+    },
+    /// Replace all data on cohesiond with a file from `cohesion export`, then restart it.
+    ///
+    /// Everything on this cohesiond will be replaced. This can't be undone, so export it
+    /// first to keep a copy.
+    ///
+    /// Only data moves. This cohesiond keeps its own key and the clients paired with it.
+    /// Clients paired with the server the file came from need to pair with this one.
+    Import {
+        /// A file written by `cohesion export`.
+        file: PathBuf,
+        /// Replace without asking first.
+        #[arg(short, long)]
+        yes: bool,
+    },
     /// Serve the web UI on this machine, open it in your browser, and run until Ctrl-C.
     Open(open::OpenArgs),
 }
@@ -82,6 +105,8 @@ pub async fn run(ctx: &mut Context, command: CliCommand) -> Result<(), CliError>
         CliCommand::Team(Noun { verb }) => team::run(ctx, verb).await,
         CliCommand::Extension(ext) => extension::run(ctx, ext).await,
         CliCommand::Pair => pair::pair(ctx).await,
+        CliCommand::Export { file } => transfer::export(ctx, file).await,
+        CliCommand::Import { file, yes } => transfer::import(ctx, file, yes).await,
         CliCommand::Open(args) => open::run(ctx, args).await,
     }
 }

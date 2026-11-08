@@ -1389,19 +1389,29 @@ foreign keys cascade with the message, and `intelligence_thread_images`), since
 they don't compress and nothing depends on them. A backup is
 written on request; nothing schedules one or removes old ones.
 
-Moving a daemon's data to another daemon is `cohesiond export` and
-`cohesiond import` (`cohesiond/src/transfer.rs` over
-`cohesion-db/src/transfer.rs`), which run instead of serving and touch no
-socket. Export opens the database read-only beside the running daemon and
-`VACUUM INTO`s a new private file: one read transaction, so consistent, and
-whole, `BackupClass` notwithstanding. Import needs the daemon stopped, and
-tells by taking the database out of WAL mode, which SQLite refuses while
-another connection has it open. It copies the export to a staging file beside
-the database, migrates it, revokes every client (`RevokeEveryClientCommand`:
-they paired with the other server's key) and closes it, which runs
-`ShutdownCleanupCommand`, then renames it over the database. Only
-`cohesion.db` moves: `key.pem` and `config.json` stay the destination's, so it
-keeps its identity and, with no live client, prints a setup code at start.
+Moving a daemon's data to another goes through a client (`cohesion export`
+and `cohesion import`), in parts of 8 MB, so it works over every transport
+and under the body limit (`transfer_routes.rs` over `cohesion-db/src/transfer.rs`).
+`ExportDatabase` opens the database read-only beside the worker and
+`VACUUM INTO`s a new file in a `transfers` directory beside it: one read
+transaction, so consistent while commands carry on, and whole,
+`BackupClass` notwithstanding. `ReadDatabaseExport` answers it a part at a
+time and removes it with the last part. `BeginDatabaseImport` and
+`WriteDatabaseImport` fill an import there, each part at the offset the
+file already reaches. `FinishDatabaseImport` stages it: a copy beside the
+database, migrated, with this daemon's live clients in place of its own
+(`ReplaceClientsCommand`, which revokes the copy's: they paired with the
+other server's key), closed, which runs `ShutdownCleanupCommand`. The route
+hands the staged copy to `PendingImport`, which cohesiond waits on as on a
+signal: it shuts down as usual, renames the copy over the database once
+SQLite agrees no connection has it open (`StagedImport::replace`, which
+takes it out of WAL mode), and runs its own binary again with the same
+arguments (`cohesiond/src/restart.rs`), keeping its process id. Only
+`cohesion.db` moves: `key.pem` and `config.json` stay the destination's.
+The daemon empties `transfers` at start, since no id names what is left.
+Rows aren't copied into the live database instead: the daemon's memory
+(extensions, agents, actor sessions) follows the rows it read, and the
+triggers would rewrite what they copied.
 
 Work that ends where it began is scoped with `WorkTracker::run_new`, which
 holds the guard exactly across one future (`WorkTracker::every` runs each

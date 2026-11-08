@@ -1,6 +1,7 @@
 //! The handle the rest of the server uses to run commands: a channel to the
 //! single worker thread that owns the connection.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -51,6 +52,9 @@ pub struct DatabaseContext {
     tx: mpsc::Sender<Job>,
     invalidations: broadcast::Sender<Arc<InvalidationBatch>>,
     credential_locks: Arc<CredentialLocks>,
+    /// The database's file, which exports and imports work beside; `None`
+    /// for one in memory.
+    pub(crate) file: Option<Arc<PathBuf>>,
 }
 
 impl DatabaseContext {
@@ -60,6 +64,7 @@ impl DatabaseContext {
         secrets: Secrets,
         listener: L,
     ) -> Self {
+        let file = container.file().map(Arc::new);
         let (tx, mut rx) = mpsc::channel::<Job>(64);
         let (invalidations, _) = broadcast::channel(256);
         let mut worker = Worker {
@@ -85,6 +90,7 @@ impl DatabaseContext {
             tx,
             invalidations,
             credential_locks: Arc::default(),
+            file,
         }
     }
 

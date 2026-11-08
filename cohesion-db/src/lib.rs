@@ -13,8 +13,8 @@
 //! key/value store, which always run. Connector credentials are out of
 //! every command's reach but the `CredentialManager`'s, which hands one only
 //! to the extension serving its account and refreshes it once at a time.
-//! `export_database` and `import_database` move a whole database from one
-//! daemon to another.
+//! `DatabaseContext::export` and the import methods beside it move a whole
+//! database from one daemon to another.
 
 // Lets `#[derive(FromRequest)]`'s `::cohesion_db::...` paths resolve inside this crate.
 extern crate self as cohesion_db;
@@ -64,5 +64,5 @@ pub use invalidation_watch::{InvalidationWatch, Watched};
 pub use query::{Delete, Filtered, Insert, ReadableDatabase, Select, Update};
 pub use sandbox_key::SandboxKey;
 pub use secrets::Secrets;
-pub use transfer::{TransferError, export_database, import_database};
+pub use transfer::{StagedImport, TransferError, clear_transfers};
 pub use work_tracker::{PendingWork, WorkGuard, WorkTracker};

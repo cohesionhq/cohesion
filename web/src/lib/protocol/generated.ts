@@ -1311,6 +1311,23 @@ export interface DatabaseBackup {
 	bytes: number;
 }
 
+/** An export the daemon wrote, waiting to be read. */
+export interface DatabaseExport {
+	id: string;
+	/** How large it is, in bytes. */
+	bytes: number;
+}
+
+/** Part of an export. */
+export interface DatabaseExportPart {
+	data: string;
+}
+
+/** An import under way. */
+export interface DatabaseImport {
+	id: string;
+}
+
 /** How large the database file is. */
 export interface DatabaseSize {
 	/** The whole file, in bytes. */
@@ -1833,6 +1850,15 @@ export interface FeedSummary {
 	created_at: number;
 	/** How many of its live items haven't been read. */
 	unread: number;
+}
+
+/**
+ * Replaces everything in the database with import `id`, then restarts the
+ * daemon. The daemon keeps its key and the clients paired with it; the
+ * clients the import holds are revoked.
+ */
+export interface FinishDatabaseImportRequest {
+	id: string;
 }
 
 /** Forgets memory `memory_id`. */
@@ -2993,6 +3019,15 @@ export interface PruneFeedsRequest {
  *   shown as that date in every time zone.
  */
 export type PublishedPrecision = 'time' | 'day';
+
+/**
+ * Answers the part of export `id` that starts at `offset`. The part that
+ * reaches the end removes the export from the daemon's computer.
+ */
+export interface ReadDatabaseExportRequest {
+	id: string;
+	offset: number;
+}
 
 /** A connector account without its credential, safe to send to clients. */
 export interface RedactedConnectorAccount {
@@ -4534,6 +4569,16 @@ export interface WorkspaceResourceKind {
 	sort_order: number;
 }
 
+/**
+ * Adds `data` to import `id`. `offset` is how much it holds already, so a
+ * part sent twice or out of order is refused.
+ */
+export interface WriteDatabaseImportRequest {
+	id: string;
+	offset: number;
+	data: string;
+}
+
 /** Every request `type` and the shape of its `args`. */
 export interface Requests {
 	about: NoArgs;
@@ -4790,6 +4835,22 @@ export interface Requests {
 	getDatabaseSize: NoArgs;
 	/** Writes a backup of the database to a new file on the daemon's computer. */
 	backupDatabase: NoArgs;
+	/**
+	 * Copies the whole database to a new file on the daemon's computer, for
+	 * another daemon to import; read it with `ReadDatabaseExport`.
+	 */
+	exportDatabase: NoArgs;
+	/** Answers part of an export, removing it once the part reaches the end. */
+	readDatabaseExport: ReadDatabaseExportRequest;
+	/** Starts an import, which `WriteDatabaseImport` fills. */
+	beginDatabaseImport: NoArgs;
+	/** Adds part of the file to an import. */
+	writeDatabaseImport: WriteDatabaseImportRequest;
+	/**
+	 * Replaces everything in the database with an import, keeping this
+	 * server's key and clients, then restarts the daemon.
+	 */
+	finishDatabaseImport: FinishDatabaseImportRequest;
 	/** Answers the user's profile. */
 	getProfile: NoArgs;
 	/** Sets or removes the user's name. */
@@ -5230,6 +5291,22 @@ export interface Replies {
 	getDatabaseSize: DatabaseSize;
 	/** Writes a backup of the database to a new file on the daemon's computer. */
 	backupDatabase: DatabaseBackup;
+	/**
+	 * Copies the whole database to a new file on the daemon's computer, for
+	 * another daemon to import; read it with `ReadDatabaseExport`.
+	 */
+	exportDatabase: DatabaseExport;
+	/** Answers part of an export, removing it once the part reaches the end. */
+	readDatabaseExport: DatabaseExportPart;
+	/** Starts an import, which `WriteDatabaseImport` fills. */
+	beginDatabaseImport: DatabaseImport;
+	/** Adds part of the file to an import. */
+	writeDatabaseImport: AcceptedResponse;
+	/**
+	 * Replaces everything in the database with an import, keeping this
+	 * server's key and clients, then restarts the daemon.
+	 */
+	finishDatabaseImport: AcceptedResponse;
 	/** Answers the user's profile. */
 	getProfile: Profile;
 	/** Sets or removes the user's name. */

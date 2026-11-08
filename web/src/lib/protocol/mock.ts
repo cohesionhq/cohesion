@@ -3652,6 +3652,13 @@ export function createMock(): Mock {
 			path: '/home/you/.config/cohesiond/backups/cohesion-2026-11-03-120000.db',
 			bytes: state.databaseSize.bytes
 		}),
+		// Moving data between daemons is the CLI's (`cohesion export` and
+		// `cohesion import`); the web UI never sends these.
+		exportDatabase: noTransfers,
+		readDatabaseExport: noTransfers,
+		beginDatabaseImport: noTransfers,
+		writeDatabaseImport: noTransfers,
+		finishDatabaseImport: noTransfers,
 		getProfile: () => ({ ...state.profile }),
 		setProfileName: ({ name }) => {
 			state.profile.name = name?.trim() || null;
@@ -5406,4 +5413,9 @@ export function createMock(): Mock {
 	};
 
 	return { send, sendRaw, state };
+}
+
+/** Refuses an export or import: mock mode has no database file to move. */
+function noTransfers(): never {
+	throw new ProtocolError('badRequest', 'Mock mode has no data to export or import.');
 }

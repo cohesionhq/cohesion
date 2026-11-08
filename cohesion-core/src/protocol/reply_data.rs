@@ -21,7 +21,9 @@ use super::security_requests::SecurityEventPage;
 use super::server_requests::{
     AboutResponse, AcceptedResponse, PairingAccess, PairingCode, WebBundle, WebBundleHash,
 };
-use super::storage_requests::{DatabaseBackup, DatabaseSize};
+use super::storage_requests::{
+    DatabaseBackup, DatabaseExport, DatabaseExportPart, DatabaseImport, DatabaseSize,
+};
 use super::task_requests::TaskPage;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, Article, Attachment,
@@ -63,6 +65,9 @@ pub enum ReplyData {
     RestoredItem(RestoredItem),
     DatabaseSize(DatabaseSize),
     DatabaseBackup(DatabaseBackup),
+    DatabaseExport(DatabaseExport),
+    DatabaseExportPart(DatabaseExportPart),
+    DatabaseImport(DatabaseImport),
     Profile(Profile),
     TaskFolders(Vec<TaskFolder>),
     TaskFolder(TaskFolder),

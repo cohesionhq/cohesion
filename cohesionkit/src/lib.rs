@@ -19,6 +19,8 @@
 //! sessions to the actors clients offer and keeps an activity for each while it
 //! goes on, and scripts reach it through `ScriptActors` (`script_actors.rs`). [`web_bundle`] is the web UI
 //! the daemon was built with, which it hands clients, and [`web_bundle_hash`] identifies it.
+//! [`PendingImport`] holds an import a client finished until cohesiond
+//! restarts onto it.
 
 pub use cohesion_core::*;
 
@@ -38,6 +40,7 @@ mod extension_manager;
 mod feeds;
 mod hooks;
 mod hostname;
+mod pending_import;
 mod periodic_cleanup;
 mod presence;
 mod routes;
@@ -49,6 +52,7 @@ pub use actor_sessions::ActorSessions;
 pub use capability_clients::{CapabilityClients, ClientCallError, ClientSessionHandle, OfferError};
 pub use client_request::ClientRequest;
 pub use cohesion_context::CohesionContext;
+pub use pending_import::PendingImport;
 pub use presence::{Presence, PresenceHandle};
 pub use security::Security;
 pub use web_bundle::{web_bundle, web_bundle_hash};

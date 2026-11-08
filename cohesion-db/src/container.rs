@@ -181,10 +181,9 @@ impl Container {
     /// file. Fails inside a transaction, and for a database with no file.
     pub(crate) fn copy_for_backup(&self) -> Result<PathBuf, DatabaseError> {
         let directory = self
-            .connection
-            .path()
-            .filter(|path| !path.is_empty())
-            .and_then(|path| Path::new(path).parent())
+            .file()
+            .as_deref()
+            .and_then(Path::parent)
             .ok_or_else(|| {
                 DatabaseError::Storage(std::io::Error::other("the database has no file"))
             })?
@@ -202,6 +201,14 @@ impl Container {
         self.connection
             .execute("VACUUM INTO ?1", [file.to_string_lossy()])?;
         Ok(file)
+    }
+
+    /// The database's file; `None` for one in memory.
+    pub(crate) fn file(&self) -> Option<PathBuf> {
+        self.connection
+            .path()
+            .filter(|path| !path.is_empty())
+            .map(PathBuf::from)
     }
 
     /// How large the database file is, and how much of it is free pages.

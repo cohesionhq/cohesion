@@ -69,16 +69,18 @@ Some text does leave that computer:
 Settings › Storage shows what Cohesion cleans up over time and when. You can
 change those times there.
 
-To move your data to another server, export it there and import it on the
-other one. Only data moves: the other server keeps its own key, so every
-device pairs with it again.
+To move your data to another server, export it with the CLI paired with the
+old server, then import it with one paired with the new server. Both servers
+keep running.
 
 ```sh
-cohesiond export cohesion-export.db    # on the old server, while it runs
-cohesiond import cohesion-export.db    # on the new server, while it's stopped
+cohesion export cohesion-export.db           # paired with the old server
+cohesion -c ~/new-server import cohesion-export.db   # paired with the new one
 ```
 
-Importing replaces everything on the new server and can't be undone. See
+Importing replaces everything on the new server and can't be undone. Only data
+moves: the new server keeps its own key and the devices paired with it, so
+devices paired with the old server pair again. See
 [Move to another server](docs/self-hosting.md#move-to-another-server).
 
 ## Getting started

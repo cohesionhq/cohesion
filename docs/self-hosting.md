@@ -92,40 +92,29 @@ To connect the command line, see [Connect the CLI](cli.md#connect-the-cli).
 
 ## Move to another server
 
-`cohesiond export <file>` copies everything in this server's database to a new
-file: workspaces, tasks, documents, agents and their chats, images, extensions
-and settings. It's safe while `cohesiond` runs. `cohesiond import <file>` on
-another server replaces everything in that server's database with the file.
-Stop `cohesiond` there first (`import` refuses while it's running), and start it
-again afterward. Both take `--config` like `cohesiond` itself.
+The CLI moves everything from one server to another while both run.
+`cohesion export <file>` copies all of the paired server's data to a file on
+your computer: workspaces, tasks, documents, agents and their chats, images,
+extensions and settings. `cohesion import <file>` replaces all of the paired
+server's data with that file, after asking (`-y` skips the question), and the
+server restarts with it. Use one CLI configuration for each server
+(`-c <dir>`, see [CLI](cli.md)).
 
 ```sh
-cohesiond export cohesion-export.db                 # on the old server
-scp cohesion-export.db new-server:
-systemctl --user stop cohesion                      # on the new server
-cohesiond import cohesion-export.db
-systemctl --user start cohesion
+cohesion export cohesion-export.db                       # paired with the old server
+cohesion -c ~/new-server setup <setup-code>              # pair with the new server
+cohesion -c ~/new-server import cohesion-export.db
 ```
 
-Only data moves. The new server keeps its own key and `config.json`, so the
-clients that paired with the old server can't connect to it: `import` revokes
-them, and the new server prints a setup code when it starts, as on a first
-start. Pair each device again with it. Importing can't be undone, so run
-`cohesiond export` on the new server first if you want to keep what it has.
+Only data moves. The new server keeps its own key, `config.json` and the clients
+paired with it. Clients paired with the old server can't connect to the new one,
+and the import revokes them there, so pair each of those devices with the new
+server. Importing can't be undone, so export the new server's data first if you
+want to keep it.
 
-In a container, export with `docker exec` and import with a one-off container
-on the same volume while the server's container is stopped. The import's file
-must be readable by uid 1000.
-
-```sh
-docker exec cohesion cohesiond export /data/cohesion-export.db    # old server
-docker cp cohesion:/data/cohesion-export.db .
-
-docker stop cohesion                                              # new server
-docker run --rm -v cohesion-data:/data -v "$PWD":/import \
-  ghcr.io/cohesionhq/cohesion:<tag> import /import/cohesion-export.db
-docker start cohesion
-```
+While it imports, the server shuts down as it would for a signal, puts the import
+in place and runs itself again in the same process, so it needs no supervisor to
+come back. Its clients reconnect.
 
 ## Run in a container
 

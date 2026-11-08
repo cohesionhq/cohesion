@@ -1,8 +1,6 @@
 //! cohesiond's command-line arguments.
 
-use std::path::PathBuf;
-
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use cohesionkit::log::Level;
 
 #[derive(Parser)]
@@ -10,11 +8,8 @@ use cohesionkit::log::Level;
 pub struct CohesiondArgs {
     /// Config directory holding the database, server key and config.json,
     /// which can set any other flag.
-    #[arg(long = "config", short = 'c', global = true)]
+    #[arg(long = "config", short = 'c')]
     pub config_directory: Option<String>,
-
-    #[command(subcommand)]
-    pub command: Option<DataCommand>,
 
     /// IP address or DNS name clients should reach this server at, embedded in
     /// the setup code. Defaults to this machine's outbound address.
@@ -68,34 +63,4 @@ pub struct CohesiondArgs {
     /// Off by default.
     #[arg(long, value_name = "ADDRESS")]
     pub proxy_protocol: Vec<std::net::IpAddr>,
-}
-
-// Moving this server's data to another server. Without one, cohesiond serves.
-// (A `///` here would replace cohesiond's own description in `--help`.)
-#[derive(Subcommand)]
-pub enum DataCommand {
-    /// Copy this server's data to a new file, for `cohesiond import` on
-    /// another server. Safe while cohesiond is running.
-    ///
-    /// The file holds everything in the database: workspaces, tasks,
-    /// documents, agents and their chats, images, extensions and settings.
-    /// It doesn't hold the server key or config.json.
-    Export {
-        /// The file to write. It mustn't exist yet.
-        file: PathBuf,
-    },
-    /// Replace this server's data with a file from `cohesiond export`. Stop
-    /// cohesiond first, and start it again afterward.
-    ///
-    /// Everything in this server's database will be replaced. This can't be
-    /// undone, so export it first to keep a copy.
-    ///
-    /// Only data moves. This server keeps its own key and config.json, so
-    /// every client needs to pair with it again, using the setup code
-    /// cohesiond prints when it starts. Clients paired with the exporting
-    /// server are revoked.
-    Import {
-        /// A file written by `cohesiond export`.
-        file: PathBuf,
-    },
 }
