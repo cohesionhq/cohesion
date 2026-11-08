@@ -59,4 +59,13 @@ describe('memories an agent sees', () => {
 		const seen = await store.seenBy(2);
 		expect(seen.map((m) => m.scope.kind).toSorted()).toEqual(['agent', 'global', 'team']);
 	});
+
+	it('drops a forgotten memory from what the agent sees', async () => {
+		const mock = createMock();
+		const store = createMemoriesStore(mock.send);
+		await store.seen.load(2);
+		expect(store.seen.value).toHaveLength(3);
+		await store.forget(1);
+		expect(store.seen.value.map((m) => m.id).toSorted()).toEqual([2, 3]);
+	});
 });

@@ -26,6 +26,7 @@
 	import AgentMenu from './AgentMenu.svelte';
 	import Composer from './Composer.svelte';
 	import CuesDialog from './CuesDialog.svelte';
+	import MemoriesDialog from './MemoriesDialog.svelte';
 	import RunsDialog from './RunsDialog.svelte';
 	import TeamDialog from './TeamDialog.svelte';
 	import { pane } from '$lib/shell/pane.svelte';
@@ -54,6 +55,7 @@
 	let editing = $state(false);
 	let runsOpen = $state(false);
 	let cuesOpen = $state(false);
+	let memoriesOpen = $state(false);
 	let newTeamOpen = $state(false);
 	/** The agent "New team…" in its menu moves onto the team once it's made. */
 	let joining = $state<number | null>(null);
@@ -304,6 +306,7 @@
 									}}
 									onedit={() => (editing = true)}
 									oncues={cues?.length ? () => (cuesOpen = true) : undefined}
+									onmemories={() => (memoriesOpen = true)}
 									onruns={() => (runsOpen = true)}
 									ondelete={remove}
 								/>
@@ -386,6 +389,7 @@
 />
 {#if agent}
 	<AgentDialog bind:open={editing} {agent} />
+	<MemoriesDialog bind:open={memoriesOpen} {agent} />
 	<RunsDialog bind:open={runsOpen} agentId={agent.id} />
 	<CuesDialog
 		bind:open={cuesOpen}

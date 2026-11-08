@@ -1,6 +1,6 @@
 <!--
 	The conversation's overflow menu: pin, edit, the team it's on, the cues,
-	runs, and a confirmed delete.
+	memories, runs, and a confirmed delete.
 -->
 <script lang="ts">
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
@@ -24,6 +24,7 @@
 		onnewteam: () => void;
 		/** Opens the cues; absent when the agent has none. */
 		oncues?: () => void;
+		onmemories: () => void;
 		onruns: () => void;
 		ondelete: () => Promise<unknown>;
 	}
@@ -38,6 +39,7 @@
 		onmove,
 		onnewteam,
 		oncues,
+		onmemories,
 		onruns,
 		ondelete
 	}: Props = $props();
@@ -75,6 +77,7 @@
 			detail: oncues ? undefined : 'No cues yet.',
 			onSelect: () => oncues?.()
 		},
+		{ label: 'Memories…', onSelect: onmemories },
 		{ label: 'Runs…', onSelect: onruns },
 		{ label: 'Delete…', danger: true, separated: true, onSelect: () => (confirming = true) }
 	]}

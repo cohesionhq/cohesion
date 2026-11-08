@@ -7,6 +7,11 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- An agent's ⋯ menu has Memories…, which shows every memory the agent can
+  see: its own, its team's and the global ones, each with the day it was
+  remembered. Forget removes one, with the same confirmation as Settings ›
+  Memories. The iPhone app can offer the same from `listMemories` and
+  `forgetMemory`.
 - Cohesion for Linux: a WebUI harness in GTK 4 and libadwaita, in
   `cohesionhq/webshell` under `gtk/`. It pairs with a setup code, shows the
   web UI in WebKitGTK, and offers a newer web UI once the server serves one.

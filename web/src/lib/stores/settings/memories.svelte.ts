@@ -38,6 +38,8 @@ const memoriesChanged = (key: Invalidation) =>
 
 export class MemoriesStore {
 	readonly list: Resource<MemoryList>;
+	/** The memories one agent sees, keyed by its id: its own, its team's and the global ones. */
+	readonly seen: Resource<Memory[], number>;
 
 	#send: Send;
 
@@ -74,6 +76,11 @@ export class MemoriesStore {
 			initial: { global: [], teams: [], agents: [] },
 			matches: memoriesChanged
 		});
+		this.seen = new Resource({
+			fetch: (agent_id) => send('listMemories', { agent_id }),
+			initial: [],
+			matches: memoriesChanged
+		});
 	}
 
 	load(): Promise<void> {
@@ -98,6 +105,7 @@ export class MemoriesStore {
 			teams: teams.map((t) => ({ ...t, memories: without(t.memories) })),
 			agents: agents.map((a) => ({ ...a, memories: without(a.memories) }))
 		}));
+		this.seen.update(without);
 		return forgotten;
 	}
 }

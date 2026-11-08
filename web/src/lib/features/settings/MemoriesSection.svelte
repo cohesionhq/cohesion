@@ -12,25 +12,11 @@
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
 	import { list } from '$lib/ui/list';
 	import ResourceState from '$lib/ui/ResourceState.svelte';
+	import { noLongerSeen, type Seers } from './forgetMemory';
 	import Section from './Section.svelte';
-
-	/** Who sees a memory: every agent, a team's agents or one agent. */
-	type Seers =
-		{ kind: 'global' } | { kind: 'team'; title: string } | { kind: 'agent'; name: string };
 
 	/** The memory being forgotten, and who sees it. */
 	let forgetting = $state<{ memory: Memory; seers: Seers } | null>(null);
-
-	const noLongerSeen = (seers: Seers) => {
-		switch (seers.kind) {
-			case 'global':
-				return 'No agent will see this memory again. This can’t be undone.';
-			case 'team':
-				return `Agents on ${seers.title} will no longer see this memory. This can’t be undone.`;
-			case 'agent':
-				return `${seers.name} will no longer see this memory. This can’t be undone.`;
-		}
-	};
 
 	$effect(() => {
 		untrack(() => void memories.load());
