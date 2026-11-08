@@ -15,6 +15,8 @@
 		/** As the Editor's: fills its flex column, at body size for long prose. */
 		fill?: boolean;
 		size?: 'sm' | 'md';
+		/** As the Editor's: the title drawn above, which a first heading repeating it gives way to. */
+		title?: string;
 	}
 
 	let {
@@ -25,7 +27,8 @@
 		onblur,
 		onsubmit,
 		fill = false,
-		size = 'md'
+		size = 'md',
+		title
 	}: Props = $props();
 
 	let editor = $state<Editor>();
@@ -53,6 +56,7 @@
 		{placeholder}
 		{fill}
 		{size}
+		{title}
 		onchange={(text) => draft.edit(text)}
 		{onblur}
 		{onsubmit}

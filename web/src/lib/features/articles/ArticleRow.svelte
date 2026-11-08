@@ -40,13 +40,16 @@
 		'inline-flex size-7 flex-none cursor-pointer items-center justify-center rounded-sm text-fg-subtle transition-colors hover:bg-bg-hover hover:text-fg';
 </script>
 
-<li class="group/row flex items-start gap-2 border-border not-first:border-t">
+<li class="group/row relative flex items-start gap-2 border-border not-first:border-t">
 	<!-- A fixed slot for the unread dot, so every title starts at the same place. -->
 	<!-- Centred on the title's line: the row's top padding and half its line, less half the dot. -->
 	<span class="flex w-2 flex-none pt-4.5" aria-hidden="true">
 		{#if !article.read}<span class="size-1.5 rounded-full bg-accent"></span>{/if}
 	</span>
-	<a class="group flex min-w-0 flex-1 flex-col gap-0.5 py-2.5 text-fg hover:no-underline" {href}>
+	<a
+		class="group flex min-w-0 flex-1 flex-col gap-0.5 py-2.5 text-fg hover:no-underline touch:pr-9"
+		{href}
+	>
 		<span class="flex items-baseline justify-between gap-4">
 			<span
 				class={[
@@ -55,25 +58,26 @@
 				]}
 				>{article.title}{#if !article.read}<span class="sr-only">, unread</span>{/if}</span
 			>
-			<span class="flex-none text-xs text-fg-subtle tabular-nums">
-				{publishedAge(article, now)}
+			<!-- The age ends the row at the list's edge; the menu takes its place on hover. -->
+			<span
+				class="flex-none text-xs text-fg-subtle tabular-nums transition-opacity group-focus-within/row:opacity-0 group-hover/row:opacity-0 touch:hidden"
+			>
+				<!-- A state of the row, not part of its byline: a status of its own before the age, which
+				     keeps the form every row's has. -->
+				{#if article.snapshot?.state === 'failed'}<span class="mr-3">Not fetched</span
+					>{/if}{publishedAge(article, now)}
 			</span>
 		</span>
-		{#if article.author || place || article.snapshot?.state === 'failed'}
-			<span class="flex min-w-0 items-baseline gap-1.5 text-xs text-fg-subtle">
-				{#if article.author}<span class="min-w-0 truncate">{article.author}</span>{/if}
-				{#if article.author && place}<span aria-hidden="true">·</span>{/if}
-				{#if place}<span class="min-w-0 flex-none truncate">{place}</span>{/if}
-				{#if article.snapshot?.state === 'failed'}
-					{#if article.author || place}<span aria-hidden="true">·</span>{/if}
-					<span class="flex-none">Not fetched</span>
-				{/if}
-			</span>
+		{#if article.author || place}
+			<!-- Joined with a spaced dot, as every "Label · time" line in the app is. -->
+			<span class="min-w-0 truncate text-xs text-fg-subtle"
+				>{[article.author, place].filter(Boolean).join(' · ')}</span
+			>
 		{/if}
 		{#if excerpt}<span class="line-clamp-2 text-xs text-fg-muted">{excerpt}</span>{/if}
 	</a>
 	<span
-		class="flex items-center gap-0.5 pt-2 opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 has-data-[state=open]:opacity-100 touch:opacity-100"
+		class="absolute top-2 right-0 flex items-center opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 has-data-[state=open]:opacity-100 touch:opacity-100"
 	>
 		<Menu {items}>
 			{#snippet trigger(props)}

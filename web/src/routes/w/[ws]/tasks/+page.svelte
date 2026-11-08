@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { tick, untrack } from 'svelte';
 	import FolderNav from '$lib/features/folders/FolderNav.svelte';
-	import { navHeading, navItem, navLink, navPane, navRuled } from '$lib/features/folders/nav';
+	import { navHeading, navItem, navLink, navPane } from '$lib/features/folders/nav';
 	import AddTaskRow from '$lib/features/tasks/AddTaskRow.svelte';
 	import SavedViewsNav from '$lib/features/tasks/SavedViewsNav.svelte';
 	import SortMenu from '$lib/features/tasks/SortMenu.svelte';
@@ -513,7 +513,7 @@
 	</PageHeader>
 	<div class="flex gap-6 max-md:flex-col max-md:gap-0">
 		<aside class={navPane}>
-			<div class="flex flex-col gap-2 max-md:gap-1">
+			<div class="flex flex-col gap-4 max-md:gap-1">
 				<FolderNav
 					folders={tasks.folders.value}
 					current={typeof shown === 'number' ? shown : null}
@@ -524,38 +524,18 @@
 					onreorder={(ids) => tasks.reorderFolders(ws, ids).catch((e) => toasts.error(e))}
 				>
 					{#snippet before()}
-						<!-- Labelled as the Articles page labels its feeds, and as views are below. -->
+						<!-- The lists across folders first, unlabelled as Articles' and Settings' first rows
+						     are, then the folders under their label. -->
+						{#each [['inbox', 'Inbox'], ['all', 'All'], ['done', 'Done'], ['cancelled', 'Cancelled']] as const as [v, label] (v)}
+							<li class={navItem}>
+								<a
+									class={navLink}
+									href={viewHref(v)}
+									aria-current={shown === v ? 'page' : undefined}>{label}</a
+								>
+							</li>
+						{/each}
 						<li class={navHeading}>Folders</li>
-						<li class={navItem}>
-							<a
-								class={navLink}
-								href={viewHref('inbox')}
-								aria-current={shown === 'inbox' ? 'page' : undefined}>Inbox</a
-							>
-						</li>
-					{/snippet}
-					{#snippet after()}
-						<li class={navRuled}>
-							<a
-								class={[navLink, 'hover:bg-bg-hover']}
-								href={viewHref('all')}
-								aria-current={shown === 'all' ? 'page' : undefined}>All</a
-							>
-						</li>
-						<li class={navItem}>
-							<a
-								class={navLink}
-								href={viewHref('done')}
-								aria-current={shown === 'done' ? 'page' : undefined}>Done</a
-							>
-						</li>
-						<li class={navItem}>
-							<a
-								class={navLink}
-								href={viewHref('cancelled')}
-								aria-current={shown === 'cancelled' ? 'page' : undefined}>Cancelled</a
-							>
-						</li>
 					{/snippet}
 				</FolderNav>
 

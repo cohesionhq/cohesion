@@ -92,7 +92,7 @@
 					{/snippet}
 				</PageHeader>
 
-				<div class="mx-auto flex w-full max-w-190 flex-1 flex-col">
+				<div class="mx-auto flex w-full max-w-170 flex-1 flex-col pt-6">
 					<DocumentBody
 						draft={documents.text}
 						{preview}

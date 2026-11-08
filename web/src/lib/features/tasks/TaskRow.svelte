@@ -249,6 +249,17 @@
 		}
 		event.preventDefault();
 	}
+
+	// What the task carries shows on a second line; the checkbox and its days then sit on the first.
+	const twoLines = $derived(
+		task.size !== null ||
+			showId ||
+			folder !== undefined ||
+			tagged.length > 0 ||
+			task.description !== '' ||
+			assignee ||
+			task.priority !== 'none'
+	);
 </script>
 
 <li
@@ -257,12 +268,14 @@
 		highlighted && 'bg-accent-soft'
 	]}
 >
-	<Checkbox
-		round
-		checked={finished}
-		aria-label={finished ? `Reopen ${task.title}` : `Complete ${task.title}`}
-		onchange={ontoggle}
-	/>
+	<span class={['flex flex-none', twoLines && 'mt-0.5 self-start']}>
+		<Checkbox
+			round
+			checked={finished}
+			aria-label={finished ? `Reopen ${task.title}` : `Complete ${task.title}`}
+			onchange={ontoggle}
+		/>
+	</span>
 	{#if editing}
 		<div class="min-w-0 flex-1">
 			<TextInput
@@ -294,7 +307,7 @@
 			>
 				<span class={['block', finished && 'line-through']}>{task.title}</span>
 			</button>
-			{#if task.size !== null || showId || folder !== undefined || tagged.length > 0 || task.description !== '' || assignee || task.priority !== 'none'}
+			{#if twoLines}
 				<div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-subtle">
 					{#if showId}<span>#{task.id}</span>{/if}
 					{#if task.size !== null}
@@ -323,14 +336,17 @@
 					{/if}
 					{#if folder !== undefined}<span>{folder}</span>{/if}
 					<TagPills tags={tagged} />
-					<!-- A task with a description says so in its line, as the trailing details button shows only on hover. -->
+					<!-- A task with a description says so in its line, in a word as everything else there is,
+					     as the trailing details button shows only on hover. -->
 					{#if task.description !== ''}
-						<NotebookText
-							class="flex-none"
-							size={12}
-							strokeWidth={1.75}
-							aria-label="Has a description"
-						/>
+						<span class="inline-flex items-center gap-1">
+							<NotebookText
+								class="flex-none"
+								size={12}
+								strokeWidth={1.75}
+								aria-hidden="true"
+							/>Notes
+						</span>
 					{/if}
 				</div>
 			{/if}
@@ -340,20 +356,22 @@
 	     or focus (and always on a touch screen, beside them) the row's controls take their place. -->
 	{#if chips.length > 0}
 		<span
+			class:self-start={twoLines}
+			class:pt-px={twoLines}
 			class="flex flex-none items-center gap-3 text-xs whitespace-nowrap group-focus-within/row:hidden group-hover/row:hidden has-[~div_[data-state=open]]:hidden touch:flex"
 		>
 			{#each chips as chip (chip.day)}
 				<span
 					class={[
-						'inline-flex items-center gap-1',
-						// One weight; only past due takes a hue, so orange stays for what needs the user.
+						// Words alone, in one weight, as the Dashboard's Due says them: past due red, today at
+						// full strength, so orange stays for what needs the user.
 						chip.tone === 'overdue' && 'text-danger',
 						chip.tone === 'today' && 'text-fg',
 						chip.tone === 'upcoming' && 'text-fg-muted',
 						chip.tone === 'muted' && 'text-fg-subtle'
 					]}
 				>
-					<CalendarIcon size={12} strokeWidth={2} aria-hidden="true" />{chip.label}
+					{chip.label}
 				</span>
 			{/each}
 		</span>

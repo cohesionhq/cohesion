@@ -23,6 +23,8 @@
 		/** Bump to move focus into the textarea. */
 		focusKey?: unknown;
 		placeholder: string;
+		/** Sits on the page, as the Dashboard's does, rather than floating over a feed: no shadow or blur. */
+		resting?: boolean;
 	}
 
 	let {
@@ -35,7 +37,8 @@
 		onclearerror,
 		leading,
 		focusKey,
-		placeholder
+		placeholder,
+		resting = false
 	}: Props = $props();
 
 	const id = $props.id();
@@ -120,7 +123,10 @@
      also be pasted or dropped anywhere on it. -->
 <form
 	class={[
-		'pointer-events-auto flex flex-col rounded-lg border border-border bg-[color-mix(in_srgb,var(--bg-floating)_72%,transparent)] p-1.5 shadow-[var(--shadow-floating)] backdrop-blur-xl backdrop-saturate-150 transition-[border-color,box-shadow] focus-within:border-border-strong',
+		'pointer-events-auto flex flex-col rounded-lg border p-1.5 transition-[border-color,box-shadow] focus-within:border-border-strong',
+		resting
+			? 'border-border-strong/70 bg-bg'
+			: 'border-border bg-[color-mix(in_srgb,var(--bg-floating)_72%,transparent)] shadow-[var(--shadow-floating)] backdrop-blur-xl backdrop-saturate-150',
 		dragging && 'shadow-focus'
 	]}
 	{onsubmit}
@@ -163,18 +169,19 @@
 		<!-- While a turn runs, an empty field offers to stop it; typing turns it back into Send. -->
 		{#if onstop && !canSend}
 			<button
-				class={[roundButton, 'bg-bg-hover text-fg hover:bg-danger/10 hover:text-danger']}
+				class={[roundButton, 'bg-n3 text-fg hover:bg-n4']}
 				type="button"
 				aria-label="Stop"
 				onclick={onstop}
 			>
-				<Square size={12} fill="currentColor" strokeWidth={0} aria-hidden="true" />
+				<!-- Drawn at the Send arrow's stroke, so the two read as one control. -->
+				<Square size={14} strokeWidth={2.25} aria-hidden="true" />
 			</button>
 		{:else}
 			<button
 				class={[
 					roundButton,
-					'bg-primary text-primary-fg enabled:hover:bg-primary-hover disabled:cursor-default disabled:opacity-45'
+					'bg-primary text-primary-fg enabled:hover:bg-primary-hover disabled:cursor-default disabled:bg-n3 disabled:text-fg-subtle'
 				]}
 				type="submit"
 				disabled={!canSend}

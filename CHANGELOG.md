@@ -17,3 +17,9 @@ under "Unreleased" with any change users would notice.
 - Extensions install from a URL: under Extensions, Install from URL downloads
   the script and opens the same review as a file. A download stops at 5 MB.
 - `rust-toolchain.toml` pins the Rust release Cohesion builds with.
+- The web UI's second design pass: the Dashboard's greeting leads the page, and a
+  task due today can be completed from it; documents read as rendered Markdown
+  away from the line being edited, in a prose-width column; Documents rows show
+  where their text starts; an actor session's header leads with its status; a
+  disabled button turns grey; a working session's mark is grey, so the accent
+  means unread.

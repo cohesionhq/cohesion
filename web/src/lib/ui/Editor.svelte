@@ -9,7 +9,7 @@
 	import { javascript } from '@codemirror/lang-javascript';
 	import { markdown } from '@codemirror/lang-markdown';
 	import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
-	import { Compartment, EditorState, Prec, RangeSetBuilder } from '@codemirror/state';
+	import { Compartment, EditorState, Facet, Prec, RangeSetBuilder } from '@codemirror/state';
 	import {
 		Decoration,
 		EditorView,
@@ -41,6 +41,8 @@
 		fill?: boolean;
 		/** `sm`: body size with looser leading and paragraph gaps, for long prose such as the journal. */
 		size?: 'sm' | 'md';
+		/** The document's own title, drawn above: a first-line heading saying only it is hidden, as the title shows it. */
+		title?: string;
 	}
 
 	let {
@@ -54,13 +56,19 @@
 		readonly = false,
 		minHeight = '50vh',
 		fill = false,
-		size = 'md'
+		size = 'md',
+		title = ''
 	}: Props = $props();
 
 	let host: HTMLDivElement;
 	let view: EditorView | null = null;
 	const languageSlot = new Compartment();
 	const readOnlySlot = new Compartment();
+	const titleSlot = new Compartment();
+	/** The title the page draws above the text (`title`). */
+	const titleFacet = Facet.define<string, string>({ combine: (values) => values[0] ?? '' });
+	// A line out of the flow, where the title already says it.
+	const hiddenLine = Decoration.line({ class: 'cm-hidden-line' });
 
 	// Colors come from the tokens, so light and dark follow the page.
 	const theme = EditorView.theme({
@@ -88,7 +96,13 @@
 			fontSize: '1.15em',
 			lineHeight: '1'
 		},
-		'.cm-activeLine': { backgroundColor: 'transparent' }
+		'.cm-activeLine': { backgroundColor: 'transparent' },
+		'.cm-hidden-line': { display: 'none' },
+		'.cm-inline-code': {
+			backgroundColor: 'var(--bg-hover)',
+			borderRadius: '4px',
+			padding: '0.1em 0.3em'
+		}
 	});
 
 	const monoTheme = EditorView.theme({
@@ -124,6 +138,7 @@
 
 	// A bullet list's "-", "*" or "+" drawn as a bullet, so a list reads as a list while the
 	// source stays Markdown; the mark is one character, so the cursor steps over it as before.
+	// Drawn by `livePreview` below.
 	class Bullet extends WidgetType {
 		toDOM() {
 			const mark = document.createElement('span');
@@ -137,33 +152,89 @@
 	}
 	const bullet = Decoration.replace({ widget: new Bullet() });
 
-	function bulletMarks(view: EditorView): DecorationSet {
-		const marks = new RangeSetBuilder<Decoration>();
+	// Inline code, backticks and all, on a quiet tint, as rendered Markdown draws it.
+	const inlineCode = Decoration.mark({ class: 'cm-inline-code' });
+	const hidden = Decoration.replace({});
+
+	/** The lines the selection touches, where the source shows as typed so it can be edited. */
+	function editingLines(view: EditorView): (line: number) => boolean {
+		if (!view.hasFocus) return () => false;
+		const spans = view.state.selection.ranges.map((range) => [
+			view.state.doc.lineAt(range.from).number,
+			view.state.doc.lineAt(range.to).number
+		]);
+		return (line) => spans.some(([first, last]) => line >= first && line <= last);
+	}
+
+	/**
+	 * Markdown read as it renders, Live Preview style: a list's mark as a bullet always, and away
+	 * from the lines being edited, a heading's "#"s, code's backticks and emphasis's asterisks
+	 * hidden. The source stays Markdown; on a line the caret is in, every mark shows as typed.
+	 */
+	function markdownMarks(view: EditorView): DecorationSet {
+		const marks: { from: number; to: number; deco: Decoration }[] = [];
+		const editing = editingLines(view);
+		const doc = view.state.doc;
+		// A first line that is the title as a heading, and the blank line after it, until the caret goes there.
+		const title = view.state.facet(titleFacet).trim();
+		if (title !== '' && doc.lines > 1 && !editing(1) && !editing(2)) {
+			const first = doc.line(1);
+			if (/^#{1,2} /.test(first.text) && first.text.replace(/^#+ /, '').trim() === title) {
+				marks.push({ from: first.from, to: first.from, deco: hiddenLine });
+				const next = doc.line(2);
+				if (next.text.trim() === '')
+					marks.push({ from: next.from, to: next.from, deco: hiddenLine });
+			}
+		}
 		for (const { from, to } of view.visibleRanges) {
 			syntaxTree(view.state).iterate({
 				from,
 				to,
 				enter: (node) => {
-					if (node.name !== 'ListMark') return;
-					const mark = view.state.doc.sliceString(node.from, node.to);
-					if (mark === '-' || mark === '*' || mark === '+') marks.add(node.from, node.to, bullet);
+					const away = !editing(doc.lineAt(node.from).number);
+					if (node.name === 'ListMark') {
+						const mark = doc.sliceString(node.from, node.to);
+						if (mark === '-' || mark === '*' || mark === '+')
+							marks.push({ from: node.from, to: node.to, deco: bullet });
+					} else if (node.name === 'InlineCode') {
+						marks.push({ from: node.from, to: node.to, deco: inlineCode });
+					} else if (node.name === 'HeaderMark' && away) {
+						// The "#"s and the space after them.
+						const end = doc.sliceString(node.to, node.to + 1) === ' ' ? node.to + 1 : node.to;
+						marks.push({ from: node.from, to: end, deco: hidden });
+					} else if ((node.name === 'CodeMark' || node.name === 'EmphasisMark') && away) {
+						// Only inline marks: a fenced block's fence keeps its line.
+						if (node.node.parent?.name !== 'FencedCode')
+							marks.push({ from: node.from, to: node.to, deco: hidden });
+					}
 				}
 			});
 		}
-		return marks.finish();
+		// A mark decoration and a replace inside it may start at one place; the builder wants them sorted.
+		marks.sort((x, y) => x.from - y.from || x.deco.startSide - y.deco.startSide);
+		const set = new RangeSetBuilder<Decoration>();
+		for (const m of marks) set.add(m.from, m.to, m.deco);
+		return set.finish();
 	}
 
-	const listBullets = ViewPlugin.fromClass(
+	const livePreview = ViewPlugin.fromClass(
 		class {
 			decorations: DecorationSet;
 			constructor(view: EditorView) {
-				this.decorations = bulletMarks(view);
+				this.decorations = markdownMarks(view);
 			}
 			update(update: ViewUpdate) {
 				// The tree also grows after an edit, as the parser catches up.
 				const parsed = syntaxTree(update.startState) !== syntaxTree(update.state);
-				if (update.docChanged || update.viewportChanged || parsed) {
-					this.decorations = bulletMarks(update.view);
+				if (
+					update.docChanged ||
+					update.viewportChanged ||
+					update.selectionSet ||
+					update.focusChanged ||
+					update.startState.facet(titleFacet) !== update.state.facet(titleFacet) ||
+					parsed
+				) {
+					this.decorations = markdownMarks(update.view);
 				}
 			}
 		},
@@ -172,7 +243,7 @@
 
 	function languageExtension(lang: 'markdown' | 'javascript') {
 		return lang === 'markdown'
-			? [markdown(), proseAttributes, listBullets]
+			? [markdown(), proseAttributes, livePreview]
 			: [javascript({ typescript: true }), monoTheme];
 	}
 
@@ -201,6 +272,7 @@
 					syntaxHighlighting(highlight),
 					languageSlot.of(languageExtension(language)),
 					readOnlySlot.of(readOnlyExtension(readonly)),
+					titleSlot.of(titleFacet.of(title)),
 					EditorView.contentAttributes.of({ 'aria-label': label }),
 					EditorView.updateListener.of((update) => {
 						if (update.docChanged) onchange?.(update.state.doc.toString());
@@ -225,6 +297,11 @@
 	$effect(() => {
 		const lang = language;
 		view?.dispatch({ effects: languageSlot.reconfigure(languageExtension(lang)) });
+	});
+
+	$effect(() => {
+		const next = title;
+		view?.dispatch({ effects: titleSlot.reconfigure(titleFacet.of(next)) });
 	});
 
 	$effect(() => {

@@ -9,7 +9,8 @@
 	let { share }: { share: number } = $props();
 </script>
 
-<div class="h-1.5 overflow-hidden rounded-full bg-n3">
+<!-- The track a tint of the text, so it reads on the canvas as on the sheet. -->
+<div class="h-1.5 overflow-hidden rounded-full bg-fg/10">
 	<div
 		class={[
 			'h-full rounded-full',

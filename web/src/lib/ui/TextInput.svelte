@@ -17,7 +17,7 @@
 
 <input
 	class={[
-		'h-8 w-full rounded-sm border border-border bg-bg px-2 text-fg transition-colors placeholder:text-fg-subtle hover:border-border-strong focus:border-accent focus:shadow-focus focus:outline-none',
+		'h-7.5 w-full rounded-sm border border-border bg-bg px-2 text-fg transition-colors placeholder:text-fg-subtle hover:border-border-strong focus:border-accent focus:shadow-focus focus:outline-none',
 		className
 	]}
 	{type}

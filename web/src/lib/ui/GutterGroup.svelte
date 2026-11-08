@@ -9,7 +9,7 @@
 </script>
 
 <div
-	class="mx-2 flex flex-none flex-col gap-1.5 pt-3 [&+&]:mt-3 [&+&]:border-t [&+&]:border-border"
+	class="mx-2 flex flex-none flex-col gap-1.5 pt-3 [&+&]:mt-3 [&+&]:border-t [&+&]:border-border-strong/60"
 >
 	{@render children()}
 </div>

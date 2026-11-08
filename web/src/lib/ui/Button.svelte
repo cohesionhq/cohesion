@@ -25,8 +25,9 @@
 
 	const variants = {
 		quiet: 'border-transparent text-fg enabled:hover:bg-bg-hover',
-		// Disabled, a main action keeps its fill, faded, so the page still has two kinds of button, not three.
-		primary: 'border-transparent bg-primary text-primary-fg enabled:hover:bg-primary-hover',
+		// Disabled, a main action greys out, as Apple's do: only an action that can run carries the accent.
+		primary:
+			'border-transparent bg-primary text-primary-fg enabled:hover:bg-primary-hover disabled:bg-n3 disabled:text-fg-subtle',
 		secondary: secondaryClass,
 		'danger-quiet': 'border-transparent text-danger enabled:hover:bg-danger/10'
 	};
@@ -35,7 +36,7 @@
 <button
 	class={[
 		'inline-flex h-7.5 cursor-pointer items-center gap-1.5 rounded-sm border px-3 font-medium transition-colors disabled:cursor-default',
-		'disabled:opacity-45',
+		variant !== 'primary' && 'disabled:opacity-45',
 		variants[variant],
 		className
 	]}

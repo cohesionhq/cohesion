@@ -10,14 +10,7 @@
 	import { failureSentence } from '$lib/features/articles/failure';
 	import { markAllRead, markRead } from '$lib/features/articles/read';
 	import FolderNav from '$lib/features/folders/FolderNav.svelte';
-	import {
-		navCount,
-		navHeading,
-		navItem,
-		navLink,
-		navPane,
-		navRuled
-	} from '$lib/features/folders/nav';
+	import { navCount, navHeading, navItem, navLink, navPane } from '$lib/features/folders/nav';
 	import { toProtocolError } from '$lib/protocol/errors';
 	import type { Feed } from '$lib/protocol/types';
 	import { workspaceLoadError } from '$lib/shell/loadError';
@@ -350,7 +343,8 @@
 				onreorder={(ids) => feeds.reorder(ids).catch((e) => toasts.error(e))}
 			>
 				{#snippet before()}
-					<li class={navHeading}>Feeds</li>
+					<!-- The places first, unlabelled as Tasks' and Settings' first rows are: every feed's
+					     articles, and Research, a page of its own. Then the feeds under their label. -->
 					<li class={navItem}>
 						<a
 							class={navLink}
@@ -363,12 +357,10 @@
 							<span class={navCount} aria-hidden="true">{feeds.unread}</span>
 						{/if}
 					</li>
-				{/snippet}
-				{#snippet after()}
-					<!-- Research is a page of its own, so it is a place in the list, ruled off from the feeds, not an action under it. -->
-					<li class={navRuled}>
-						<a class={[navLink, 'hover:bg-bg-hover']} href={routes.research(ws)}>Research</a>
+					<li class={navItem}>
+						<a class={navLink} href={routes.research(ws)}>Research</a>
 					</li>
+					<li class={navHeading}>Feeds</li>
 				{/snippet}
 			</FolderNav>
 		</aside>

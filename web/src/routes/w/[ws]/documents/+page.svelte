@@ -1,5 +1,6 @@
 <script lang="ts">
 	import SearchField from '$lib/ui/SearchField.svelte';
+	import FileText from '@lucide/svelte/icons/file-text';
 	import Plus from '@lucide/svelte/icons/plus';
 	import { untrack } from 'svelte';
 	import { localMidnight, nowSeconds, relativeTime } from '$lib/format/dates';
@@ -7,9 +8,10 @@
 	import type { Document } from '$lib/protocol/types';
 	import { workspaceLoadError } from '$lib/shell/loadError';
 	import { routes } from '$lib/shell/routes';
-	import { SERVER_FILTER_THRESHOLD, groupByRecency } from '$lib/stores/documents.svelte';
+	import { SERVER_FILTER_THRESHOLD, excerpt, groupByRecency } from '$lib/stores/documents.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import EmptyState from '$lib/ui/EmptyState.svelte';
+	import { list } from '$lib/ui/list';
 	import PageHeader from '$lib/ui/PageHeader.svelte';
 	import { toasts } from '$lib/ui/toasts.svelte';
 	import { pane } from '$lib/shell/pane.svelte';
@@ -105,22 +107,41 @@
 			{:else}
 				{#each groups as group (group.key)}
 					<section class="[&+section]:mt-6" aria-labelledby="group-{group.key}">
-						<h2 class="mb-1 text-xs font-medium text-fg-subtle" id="group-{group.key}">
-							{group.label}
+						<!-- Headed as the Dashboard's sections are: the day, a count, a hairline. -->
+						<h2 class={list.heading} id="group-{group.key}">
+							{group.label}<span class={list.count}>{group.items.length}</span>
 						</h2>
 						<ul>
 							{#each group.items as doc (doc.id)}
+								{@const line = excerpt(doc.contents, 140, doc.title)}
+								<!-- Two lines, as an article's row: the title, then where the text starts. -->
 								<li class="border-border not-first:border-t">
 									<a
-										class="group flex items-baseline justify-between gap-4 py-2 text-fg hover:no-underline"
+										class="group flex items-start gap-3 py-2.5 text-fg hover:no-underline"
 										href={routes.document(ws, doc.id)}
 									>
-										<span class="min-w-0 truncate transition-colors group-hover:text-accent"
-											>{doc.title}</span
-										>
-										<span class="flex-none text-xs text-fg-subtle tabular-nums"
-											>{relativeTime(doc.modified, now)}</span
-										>
+										<FileText
+											class="mt-0.5 flex-none text-fg-subtle"
+											size={16}
+											strokeWidth={1.75}
+											aria-hidden="true"
+										/>
+										<span class="flex min-w-0 flex-1 flex-col gap-0.5">
+											<span class="flex items-baseline justify-between gap-4">
+												<span class="min-w-0 truncate transition-colors group-hover:text-accent"
+													>{doc.title}</span
+												>
+												<span class="flex-none text-xs text-fg-subtle tabular-nums"
+													>{relativeTime(doc.modified, now)}</span
+												>
+											</span>
+											<span
+												class={[
+													'max-w-170 truncate text-xs',
+													line ? 'text-fg-subtle' : 'text-fg-subtle/70'
+												]}>{line || 'Empty'}</span
+											>
+										</span>
 									</a>
 								</li>
 							{/each}

@@ -170,7 +170,7 @@ and a push for anything else.
 ## Look and feel
 
 The page looks professional and calm: neutral greys and one hue. Indigo
-(`accent`) marks the action that settles a dialog or a form, focus, unread and live states;
+(`accent`) marks the action that settles a dialog or a form, focus and what is unread;
 amber (`warn`) means something needs the user; agent colours are the only
 other hues. Dark mode follows the system (`prefers-color-scheme`), with no
 switch of its own. Words for what the daemon names (permissions, hooks,
@@ -197,14 +197,16 @@ only these exist:
   neutral: the current item in a list of places (the sidebar, a page's
   folders, Settings' sections) takes `current-item`, a grey tint, never a hue.
   `accent` is the only hue, kept for the filled button that settles a
-  dialog, a form or a card (`primary`), focus, unread and live states,
+  dialog, a form or a card (`primary`), focus, what is unread,
   links, a chosen filter pill (`features/tags/FilterPill.svelte`: a check when
   it keeps what matches, an X and a strike-through when it hides that) and a
   medium-priority task's flag; a high-priority task's flag takes
   `agent-orange`, a deliberate exception, so it reads a step below urgent's red
   without being mistaken for amber; in an agent's conversation `primary` is the agent's color, so its
-  main actions take it. Status reads the same everywhere: amber (`warn`)
-  for what needs the user, drawn by `ui/StatusIcon.svelte`. For example
+  main actions take it, and so does the Dashboard composer's for the agent it
+  addresses. Status reads the same everywhere: amber (`warn`) for what needs the
+  user, the same hue lifted in the dark; work going on is grey, never the accent,
+  drawn by `ui/StatusIcon.svelte`. For example
   `text-fg-subtle`, `bg-bg-hover`, `border-border`, `bg-danger/10`.
 - **Spacing** is a 4px step: `p-1` is 4px, `gap-2` 8px, `px-3` 12px.
 - **Type**: `text-3xs` 10px (a dial's percentage only), `text-2xs` 11px, `text-xs` 13, `text-sm` 14 (body), `text-md`
@@ -236,9 +238,12 @@ only these exist:
   with no max-width column, so every header's tools end at the sheet's right edge. Each page's outer element takes
   `px-(--page-inset)` (28px, 20 below 1100px, 16 below 900). Lists sit flat
   on the sheet, ruled by hairlines, with no box of their own. Two
-  exceptions read in a centred column: an article, at a book's line length
-  (`max-w-240`), and a conversation (`max-w-190`), whose messages take at
-  most 70% of it and whose question cards take all of it. A conversation's header is `ui/ChatHeader.svelte`,
+  exceptions read in a centred column, its title 24px under the bar: an article, at a book's line length
+  (`max-w-240`); a document, a journal entry and Today, at prose's (`max-w-170`, about 75
+  characters); and a conversation and the Dashboard (`max-w-190`), whose messages take at
+  most 70% of it and whose question cards take all of it. A list's sections are headed by
+  `list.heading` (a semibold label, its count, a hairline); a folder column's groups by a
+  quiet `text-xs` label, its first group unlabelled. A conversation's header is `ui/ChatHeader.svelte`,
   a solid bar across the sheet, so nothing scrolled under it shows through, with its own even insets. `--gutter` is
   what overlays keep clear of the viewport's edges. `w-(--sidebar-width)` and
   similar for the other layout variables.
@@ -285,8 +290,8 @@ only these exist:
   off ("Thinking…"), or "Working…" without one and for an actor session. New words
   fade in over the old on its one line, so nothing moves. While an agent works its
   header is its name alone; its role comes back when it stops. The icon rail and
-  the top bar, which hide names, ring the agent's avatar in grey instead. An actor session's status stays a
-  turning ring on an accent disc, one of `ui/StatusIcon.svelte`'s set of discs. What repeats in step goes on the
+  the top bar, which hide names, ring the agent's avatar in grey instead. An actor session at work is a
+  grey disc with a turning ring, one of `ui/StatusIcon.svelte`'s set of discs. What repeats in step goes on the
   page clock in `ui/motion.ts`, one timer beating every 2.5s: `shimmerOnPageClock`
   starts a 0.9s crossing on every beat and `blinkOnPageClock` the following eye's
   double blink on every second one, so nothing keeps its own timing.
@@ -317,9 +322,12 @@ doing, not by how it looks.
 - **Making something new** from a page (New document, New contact, Add
   account) is a `secondary` `Button` (outlined) led by a plus in the page header's actions.
   A page's buttons come in three kinds and no others: `primary`, filled in the accent,
-  settles a dialog, a form or a card; `secondary`, outlined, is a page's own action and
+  settles a dialog, a form or a card, and turns grey while it can't (only an action that can
+  run carries the accent); `secondary`, outlined, is a page's own action and
   its header's menus (the order, Filters, Resolve), through `secondaryClass` where it isn't a
-  `Button`; a toolbar's icon-only buttons are square and quiet.
+  `Button`; a toolbar's icon-only buttons are square and quiet. Resolve goes quiet while its
+  session waits on the user, so what the session asks is the screen's action. A composer's
+  Stop is a light grey disc, its Send the screen's `primary`.
 
 - **Menu** (`ui/Menu.svelte`, `RowMenu` for a row's ⋯) is for actions: each
   item does something, and may name a bare key that picks it.

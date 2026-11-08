@@ -1,5 +1,5 @@
 <!--
-	The column beside an agent's conversation: its context size, the actor sessions
+	The column beside an agent's conversation: its context size, role and how many sessions it follows, the actor sessions
 	not yet resolved that it handed work and follows, each led by where it stands
 	and naming its actor, then its cues.
 -->
@@ -43,22 +43,21 @@
 	);
 </script>
 
+<!-- Two lines, as the session column's card is: how much context the conversation fills (its name
+     is the header's), then its role and how many sessions it follows, which the sidebar's eye counts. -->
 <GutterCard>
-	<!-- A caption and its value on one line, as the session column's context reads: diagnostics, not a headline. -->
-	<p class="flex items-baseline justify-between gap-2 text-xs">
-		<span class="text-fg-muted">Context</span>
-		<span class="flex items-baseline gap-1">
-			<!-- Muted until there is a count, so the placeholder never reads as one. -->
-			<span
-				class={[
-					'text-sm font-medium tabular-nums transition-colors',
-					agent.context_tokens === null ? 'text-fg-muted' : 'text-fg'
-				]}
-			>
-				<ContextTokens tokens={agent.context_tokens} />
-			</span>
-			<span class="text-fg-subtle">tokens</span>
-		</span>
+	<p class="truncate text-sm text-fg">
+		<span class="tabular-nums"><ContextTokens tokens={agent.context_tokens} /></span> tokens in context
+	</p>
+	<p class="truncate text-xs text-fg-muted">
+		{[
+			agent.agent_role,
+			agent.following_count > 0
+				? `Following ${agent.following_count} ${agent.following_count === 1 ? 'session' : 'sessions'}`
+				: 'Following no sessions'
+		]
+			.filter(Boolean)
+			.join(' · ')}
 	</p>
 </GutterCard>
 
@@ -72,7 +71,7 @@
 			{#each sessions as session (session.id)}
 				{@const actor = namesActors ? actorTitle(session.actor_id) : undefined}
 				<a
-					class="flex cursor-pointer items-start gap-2 py-1 text-left text-xs text-fg-muted no-underline hover:text-fg hover:no-underline"
+					class="flex cursor-pointer items-start gap-2 py-1 text-left text-sm text-fg-muted no-underline hover:text-fg hover:no-underline"
 					href={routes.actorSession(session.id)}
 					in:fly={{ y: 8, duration: motion.duration }}
 					out:fade={{ duration: motion.duration }}
@@ -80,21 +79,22 @@
 				>
 					<span class="sr-only">{vocabulary.actorSessionStatus(session.status)}, </span>
 					<!-- Centred on the title's line, where the main sidebar draws a session's icon. -->
-					<span class="flex h-5 w-4 flex-none items-center justify-center">
+					<span class="flex h-5.25 w-4 flex-none items-center justify-center">
 						{#key session.status}
 							<span
 								class="flex"
 								in:scale={{ start: 0.4, duration: motion.duration, easing: backOut }}
-								><StatusIcon status={session.status} unread={session.unread} size={14} /></span
+								><StatusIcon status={session.status} unread={session.unread} size={16} /></span
 							>
 						{/key}
 					</span>
 					<!-- What the sidebar can't say: where it stands and since when, then its actor when they differ. -->
 					<span class="flex min-w-0 flex-col">
-						<span class="truncate">{session.title}</span>
+						<span class="line-clamp-2 text-balance">{session.title}</span>
 						<span
 							class={[
-								'truncate text-2xs',
+								// The size the Dashboard gives the same words.
+								'truncate text-xs',
 								session.status === 'needsAttention' ? 'text-warn' : 'text-fg-subtle'
 							]}
 							>{[

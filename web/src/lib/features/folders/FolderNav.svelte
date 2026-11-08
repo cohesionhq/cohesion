@@ -2,7 +2,6 @@
      reorder by dragging, or with Alt+↑/↓. The Articles page lists its feeds with it too. -->
 <script lang="ts">
 	import Pencil from '@lucide/svelte/icons/pencil';
-	import Plus from '@lucide/svelte/icons/plus';
 	import Trash from '@lucide/svelte/icons/trash';
 	import type { Snippet } from 'svelte';
 	import { Reorderable } from '$lib/ui/reorder.svelte';
@@ -68,7 +67,7 @@
 </script>
 
 <nav
-	class="flex flex-col gap-3 max-md:flex-row max-md:flex-wrap max-md:items-center max-md:gap-1"
+	class="flex flex-col max-md:flex-row max-md:flex-wrap max-md:items-center max-md:gap-1"
 	aria-label={label}
 >
 	<!-- Left out while empty (a page with no saved views yet), so its gap goes with it. -->
@@ -129,7 +128,8 @@
 	{/if}
 	<div class="flex flex-col max-md:flex-row">
 		<button class={navAction} type="button" onclick={onnew}>
-			<Plus size={14} strokeWidth={1.75} aria-hidden="true" />{newLabel}
+			<!-- No glyph: the column has no icons, so the label keeps the rows' left edge; its grey says it's an action. -->
+			{newLabel}
 		</button>
 		{@render actions?.()}
 	</div>

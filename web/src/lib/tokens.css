@@ -157,7 +157,7 @@
 	--accent: color(display-p3 0.369 0.373 0.89);
 	--accent-hover: color(display-p3 0.31 0.315 0.8);
 	--accent-fg: #ffffff;
-	--accent-soft: color(display-p3 0.369 0.373 0.89 / 0.18);
+	--accent-soft: color(display-p3 0.369 0.373 0.89 / 0.22);
 	--focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px color(display-p3 0.369 0.373 0.89 / 0.45);
 
 	--primary: var(--accent);
@@ -261,7 +261,7 @@
 		--n3: oklch(0.26 0.006 265);
 		--n4: oklch(0.32 0.007 265);
 		--n5: oklch(0.45 0.008 265);
-		--n6: oklch(0.68 0.008 265);
+		--n6: oklch(0.7 0.008 265);
 		--n7: oklch(0.77 0.006 265);
 		--n8: oklch(0.89 0.004 265);
 		--n9: oklch(0.965 0.002 265);
@@ -275,7 +275,8 @@
 
 		--danger: #e58585;
 		--ok: #8cc496;
-		--warn: #d9b46a;
+		/* The light scheme's orange, lifted: "needs you" keeps its hue in the dark. */
+		--warn: #ee9a52;
 
 		--agent-blue: #7f9fe0;
 		--agent-green: #85c290;
@@ -290,8 +291,8 @@
 		--knob: var(--n9);
 
 		/* The sheet lifts off a darker canvas, a clear step below it so the sheet's edge reads. */
-		--canvas: oklch(0.11 0.004 265);
-		--bg: oklch(0.2 0.005 265);
+		--canvas: oklch(0.125 0.004 265);
+		--bg: oklch(0.205 0.005 265);
 		--bg-raised: oklch(0.24 0.006 265);
 		--bg-hover: oklch(0.28 0.006 265);
 		--current-item: oklch(1 0 0 / 0.08);

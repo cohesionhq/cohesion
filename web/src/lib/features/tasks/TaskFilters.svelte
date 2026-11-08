@@ -1,9 +1,8 @@
 <!--
 	The Tasks page's filters, in its header's row beside the order: the Filters button,
 	which counts everything narrowing the list and opens a panel of every filter,
-	then the priorities and sizes kept, then the tags, which say which tasks these
-	are. A line too long for the width scrolls sideways; on a phone it keeps only
-	the tags in use, the rest being in the panel.
+	then the priorities, sizes and tags in use, which say which tasks these are.
+	Every other filter is in the panel. A line too long for the width scrolls sideways.
 -->
 <script lang="ts">
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
@@ -137,21 +136,17 @@
 			{/if}
 		</div>
 	</Popover>
-	<nav class={[filterRowClass, 'max-w-80 min-w-0']} aria-label="Filters in use and tags">
-		{#each allPriorities().filter((p) => priorities.includes(p.value)) as p (p.value)}
-			{@render priorityPill(p)}
-		{/each}
-		{#each allSizes().filter((s) => sizes.includes(s.value)) as s (s.value)}
-			{@render sizePill(s)}
-		{/each}
-		{#each tags as tag (tag.id)}
-			{@const filter = tagState(tag.id)}
-			<FilterPill
-				label={tag.name}
-				{filter}
-				href={tagHref(tag.id)}
-				class={filter === null ? 'max-sm:hidden' : undefined}
-			/>
-		{/each}
-	</nav>
+	{#if active > 0}
+		<nav class={[filterRowClass, 'max-w-80 min-w-0']} aria-label="Filters in use">
+			{#each allPriorities().filter((p) => priorities.includes(p.value)) as p (p.value)}
+				{@render priorityPill(p)}
+			{/each}
+			{#each allSizes().filter((s) => sizes.includes(s.value)) as s (s.value)}
+				{@render sizePill(s)}
+			{/each}
+			{#each tags.filter((t) => tagState(t.id) !== null) as tag (tag.id)}
+				<FilterPill label={tag.name} filter={tagState(tag.id)} href={tagHref(tag.id)} />
+			{/each}
+		</nav>
+	{/if}
 </div>

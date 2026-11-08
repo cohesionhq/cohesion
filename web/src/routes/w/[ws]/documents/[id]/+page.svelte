@@ -120,7 +120,7 @@
 					/>
 				{/snippet}
 			</PageHeader>
-			<div class="mx-auto w-full max-w-190">
+			<div class="mx-auto w-full max-w-170 pt-6">
 				<!-- A heading, not a box: focus shows as an accent underline. -->
 				<div
 					class="mb-4 [&_input]:h-auto [&_input]:rounded-none [&_input]:border-x-0 [&_input]:border-t-0 [&_input]:border-b [&_input]:border-b-transparent [&_input]:bg-transparent [&_input]:p-0 [&_input]:text-xl [&_input]:leading-[1.25] [&_input]:font-semibold [&_input]:text-ellipsis [&_input:focus]:border-b-accent [&_input:focus]:shadow-none"
@@ -146,6 +146,7 @@
 					draft={documents.text}
 					{preview}
 					label="Document"
+					{title}
 					placeholder="Start writing…"
 					onblur={save}
 				/>

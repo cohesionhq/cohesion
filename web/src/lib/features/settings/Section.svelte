@@ -18,7 +18,9 @@
 
 <!-- `section` marks the block so the next one can space itself from it. -->
 <section class="section [.section+&]:mt-8">
-	<header class="mb-2 flex items-end justify-between gap-3">
+	<!-- Its first line sits level with the nav's first row; a hairline under it starts the rows, as a
+	     list section's heading does elsewhere. -->
+	<header class="flex items-end justify-between gap-3 border-b border-border pt-1 pb-3">
 		<div>
 			<h2 class="text-md">{title}</h2>
 			{#if description}<p class="mt-1 text-fg-muted">{description}</p>{/if}

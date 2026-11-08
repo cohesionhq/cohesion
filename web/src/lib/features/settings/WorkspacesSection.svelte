@@ -128,14 +128,12 @@
 							<div class={list.main}>
 								<WorkspaceBadge {workspace} />
 								<a class="text-fg" href={routes.workspace(workspace.id)}>{workspace.title}</a>
-								{#if workspace.id === workspaces.currentId}
-									<span
-										class="rounded-full bg-bg-hover px-1.5 py-px text-2xs font-medium text-fg-muted"
-										>Current</span
-									>
-								{/if}
 							</div>
+							<!-- Where every list keeps a row's state: at its trailing edge. -->
 							<div class={list.actions}>
+								{#if workspace.id === workspaces.currentId}
+									<span class="px-1 text-xs text-fg-subtle">Current</span>
+								{/if}
 								<RowMenu
 									label="More for {workspace.title}"
 									items={[

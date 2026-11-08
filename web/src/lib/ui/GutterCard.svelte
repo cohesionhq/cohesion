@@ -9,6 +9,8 @@
 	let { children }: { children: Snippet } = $props();
 </script>
 
-<div class="mx-2 flex min-h-14 flex-none flex-col justify-center gap-1 border-b border-border py-2">
+<div
+	class="mx-2 flex h-14 flex-none flex-col justify-center gap-0.5 border-b border-border-strong leading-tight"
+>
 	{@render children()}
 </div>

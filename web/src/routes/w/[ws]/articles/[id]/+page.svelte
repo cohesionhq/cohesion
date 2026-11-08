@@ -181,7 +181,7 @@
 					{/snippet}
 				</PageHeader>
 
-				<div class="mx-auto max-w-240" bind:this={content}>
+				<div class="mx-auto max-w-240 pt-6" bind:this={content}>
 					<div class="mb-6">
 						<h1 class="font-serif text-xl leading-tight">{article.title}</h1>
 						<p class="mt-1 text-xs text-fg-subtle">

@@ -14,6 +14,8 @@
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 	import AgentAvatar from '$lib/ui/AgentAvatar.svelte';
 	import StatusIcon from '$lib/ui/StatusIcon.svelte';
+	import { list } from '$lib/ui/list';
+	import { sectionRow } from './section';
 
 	const { actors, agents } = pageStores();
 
@@ -35,11 +37,8 @@
 			.sort((a, b) => (b.last_message_at ?? 0) - (a.last_message_at ?? 0))
 	);
 
-	/** Each section's heading: a title over a hairline. */
-	const heading = 'border-b border-border pb-2 text-xs font-semibold text-fg-muted';
-
-	const row =
-		'flex h-9 items-center gap-2.5 rounded-md px-2 text-fg no-underline transition-colors hover:bg-bg-hover hover:no-underline';
+	const heading = [list.heading, 'mb-0'];
+	const row = sectionRow;
 </script>
 
 {#snippet session(s: (typeof waiting)[number], needsYou: boolean)}
@@ -59,7 +58,11 @@
 
 {#if waiting.length > 0 || finished.length > 0 || unreadAgents.length > 0}
 	<section aria-labelledby="recap-heading">
-		<h2 id="recap-heading" class={heading}>What’s new</h2>
+		<h2 id="recap-heading" class={heading}>
+			What’s new<span class={list.count}
+				>{waiting.length + finished.length + unreadAgents.length}</span
+			>
+		</h2>
 		<ul class="-mx-2 flex flex-col pt-1">
 			{#each waiting as s (s.id)}
 				{@render session(s, true)}
@@ -89,7 +92,9 @@
 
 {#if working.length > 0}
 	<section aria-labelledby="working-heading">
-		<h2 id="working-heading" class={heading}>Working</h2>
+		<h2 id="working-heading" class={heading}>
+			Working<span class={list.count}>{working.length}</span>
+		</h2>
 		<ul class="-mx-2 flex flex-col pt-1">
 			{#each working as s (s.id)}
 				{@render session(s, false)}

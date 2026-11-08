@@ -1,6 +1,7 @@
 <!--
 	Where an actor session stands, as an icon, each a filled disc of one size:
-	accent with a turning ring while working, an amber disc with an exclamation
+	grey with a turning ring while working (the accent
+	is for unread), an amber disc with an exclamation
 	mark while it needs the user, and how it ended. A session that is done
 	reads as ready (a filled green disc with a check) until its result has been
 	seen, then as a grey one, and once resolved as a quiet double check; one
@@ -47,7 +48,7 @@
 {#if status === 'working'}
 	<!-- A filled accent disc with three quarters of a ring cut out of it, turning, so working is a disc like the rest. -->
 	<svg
-		class="flex-none text-accent motion-safe:animate-spin"
+		class="flex-none text-fg-subtle motion-safe:animate-spin"
 		width={size}
 		height={size}
 		viewBox="0 0 24 24"

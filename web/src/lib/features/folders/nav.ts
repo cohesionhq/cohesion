@@ -12,18 +12,15 @@ export const navLink =
 /** A quiet count at a row's end: a feed's unread articles. */
 export const navCount = 'flex-none px-2 text-xs text-fg-subtle tabular-nums';
 
-/** The first row after the folders, ruled off from them. */
-export const navRuled =
-	'mt-2 flex items-center border-t border-border pt-2 max-md:m-0 max-md:border-t-0 max-md:border-l max-md:py-0 max-md:pr-0 max-md:pl-1';
-
-/** A section's label, such as "Feeds", as the first row of its list. */
-export const navHeading = 'px-2 pb-1 text-xs font-medium text-fg-subtle max-md:hidden';
+/** A group's label, such as "Feeds", as a row of its list: a step down from the group above it. */
+export const navHeading =
+	'mt-4 px-2 pb-1 text-xs font-medium text-fg-subtle first:mt-0 max-md:hidden';
 
 /** An icon button at a row's end, such as a folder's rename button. */
 export const navTool =
 	'inline-flex size-6 cursor-pointer items-center justify-center rounded-sm text-fg-subtle hover:text-fg';
 
-/** A quiet button under the nav, such as "New folder…": a row like the folders', in the sidebar's "New agent" grey. */
+/** A quiet button ending a group, such as "New folder…": a row on the folders' rhythm, in the sidebar's "New agent" grey. */
 export const navAction =
 	'flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-left text-fg-subtle hover:bg-bg-hover hover:text-fg';
 

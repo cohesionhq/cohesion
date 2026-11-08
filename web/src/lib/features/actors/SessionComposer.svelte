@@ -151,16 +151,17 @@
 	{#if onstop && !canSend}
 		<!-- One disc at the corner: Stop while the session runs and nothing is typed, Send otherwise. -->
 		<button
-			class="inline-flex size-9 flex-none cursor-pointer items-center justify-center rounded-full bg-bg-hover text-fg transition-colors hover:bg-danger/10 hover:text-danger"
+			class="inline-flex size-9 flex-none cursor-pointer items-center justify-center rounded-full bg-n3 text-fg transition-colors hover:bg-n4"
 			type="button"
 			aria-label="Stop"
 			onclick={onstop}
 		>
-			<Square size={12} fill="currentColor" strokeWidth={0} aria-hidden="true" />
+			<!-- Drawn at the Send arrow's stroke, so the two read as one control. -->
+			<Square size={14} strokeWidth={2.25} aria-hidden="true" />
 		</button>
 	{:else}
 		<button
-			class="inline-flex size-9 flex-none cursor-pointer items-center justify-center rounded-full bg-primary text-primary-fg transition-colors enabled:hover:bg-primary-hover disabled:cursor-default disabled:opacity-45"
+			class="inline-flex size-9 flex-none cursor-pointer items-center justify-center rounded-full bg-primary text-primary-fg transition-colors enabled:hover:bg-primary-hover disabled:cursor-default disabled:bg-n3 disabled:text-fg-subtle"
 			type="submit"
 			disabled={!canSend}
 			aria-label="Send"

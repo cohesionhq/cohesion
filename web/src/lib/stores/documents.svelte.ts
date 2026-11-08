@@ -49,13 +49,21 @@ export function groupByMonth(journals: Document[]): Group<Document>[] {
 	return groups;
 }
 
-/** The first non-empty line, without leading Markdown markers, cut to `max` characters. */
-export function excerpt(contents: string, max = 90): string {
+/**
+ * The first non-empty line, without leading Markdown markers, code ticks or bold marks, cut to `max` characters;
+ * a line that only repeats `skip` (a document's title as its first heading) is passed over.
+ */
+export function excerpt(contents: string, max = 90, skip?: string): string {
 	const line =
 		contents
 			.split('\n')
-			.map((l) => l.replace(/^[\s#>*+-]+/, '').trim())
-			.find((l) => l !== '') ?? '';
+			.map((l) =>
+				l
+					.replace(/^[\s#>*+-]+/, '')
+					.replace(/`|\*\*/g, '')
+					.trim()
+			)
+			.find((l) => l !== '' && l !== skip) ?? '';
 	return line.length > max ? `${line.slice(0, max - 1).trimEnd()}…` : line;
 }
 

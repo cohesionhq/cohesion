@@ -26,6 +26,7 @@ describe('document helpers', () => {
 	it('excerpts the first non-empty line without Markdown markers', () => {
 		expect(excerpt('\n\n# Today\n\nMore')).toBe('Today');
 		expect(excerpt('  - Morning walk')).toBe('Morning walk');
+		expect(excerpt('# Plans\n\nFirst step', 90, 'Plans')).toBe('First step');
 		expect(excerpt('')).toBe('');
 		const long = 'word '.repeat(40);
 		const cut = excerpt(long);

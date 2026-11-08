@@ -8,12 +8,12 @@
 	name shimmering while it works, and in the column an eye that opens beside the pin
 	and blinks twice every 5 seconds, in step with every other, while it
 	follows actor sessions not yet resolved, with how many:
-	pinned agents first, each marked with a pin and
-	shown only there whatever its team, a rule, then the rest in the
+	pinned agents first,
+	shown only there whatever its team, then the rest in the
 	daemon's order, grouped under their teams by title (each group folds
 	away in the column, remembered on this device) and then those on no
 	team. On the rail and the top bar the groups lie open. In the column, hovering an
-	agent shows the pin on the rest too, and the pin pins or unpins it. Pinned agents and the
+	agent shows its pin (struck through on a pinned one), which pins or unpins it. Pinned agents and the
 	workspace's kinds reorder by dragging, or with Alt+↑/↓. Under them, in
 	the column, the actor sessions not yet resolved,
 	each led by where it stands, with a Resolve button on hover (a confirmation first if it is going), holding their rows while the pointer is over them, after a
@@ -34,6 +34,7 @@
 	import Newspaper from '@lucide/svelte/icons/newspaper';
 	import NotebookPen from '@lucide/svelte/icons/notebook-pen';
 	import Pin from '@lucide/svelte/icons/pin';
+	import PinOff from '@lucide/svelte/icons/pin-off';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Puzzle from '@lucide/svelte/icons/puzzle';
 	import Search from '@lucide/svelte/icons/search';
@@ -312,7 +313,8 @@
 		onkeydown={(e) => kindOrder.key(e, index)}
 	>
 		<!-- An extension's own icon, quieted to the outline glyphs' weight beside it: grey, a little faded. -->
-		<span class="flex opacity-60 grayscale"
+		<!-- Inverted in the dark, so a dark tile keeps its edge on the near-black canvas. -->
+		<span class="flex opacity-60 grayscale dark:invert"
 			><IconTile icon={connector.icon} title={connector.title} size={16} /></span
 		>
 		<span class={['truncate', labelClass]}>{kind.plural}</span>
@@ -321,9 +323,9 @@
 
 {#snippet unreadDot()}
 	<span class="sr-only">, unread messages</span>
-	<!-- After the label in the column; on the icon's corner on the rail and the top bar. -->
+	<!-- After the label in the column, centred where the eye's 12px mark is; on the icon's corner on the rail and the top bar. -->
 	<span
-		class="ml-auto size-1.5 flex-none rounded-full bg-accent max-md:absolute max-md:top-1.5 max-md:right-1.5"
+		class="mr-0.75 ml-auto size-1.5 flex-none rounded-full bg-accent max-md:absolute max-md:top-1.5 max-md:right-1.5 max-md:mr-0"
 		aria-hidden="true"
 	></span>
 {/snippet}
@@ -340,7 +342,10 @@
 			<span class="flex" transition:eyeOpen>
 				<span class="flex" {@attach blinkOnPageClock}><Eye size={12} strokeWidth={2} /></span>
 			</span>
-			<RollingText text={String(count)} />
+			<!-- The eye alone at rest; how many it follows on hover, as the side column says it. -->
+			<span class="hidden group-focus-within/agent:inline group-hover/agent:inline"
+				><RollingText text={String(count)} /></span
+			>
 		</span>
 	{/if}
 {/snippet}
@@ -354,7 +359,7 @@
 		transition:fade={{ duration: motion.duration }}
 	>
 		<LoaderCircle
-			class="text-accent motion-safe:animate-spin max-md:size-2.5"
+			class="text-fg-subtle motion-safe:animate-spin max-md:size-2.5"
 			size={12}
 			strokeWidth={2}
 		/>
@@ -434,12 +439,9 @@
 				{#if agent.agent_unread}{@render unreadDot()}{/if}
 				{@render followingCount(agent.following_count)}
 				{#if isPinned}<span class="sr-only">, pinned</span>{/if}
-				<!-- Room for the pin button, which sits over it: always for a pinned agent, on hover for the rest. -->
+				<!-- Room for the pin button, which sits over it on hover. -->
 				<span
-					class={[
-						'size-3 flex-none max-md:hidden',
-						!isPinned && 'hidden group-focus-within/agent:block group-hover/agent:block'
-					]}
+					class="hidden size-3 flex-none group-focus-within/agent:block group-hover/agent:block touch:block max-md:hidden"
 					aria-hidden="true"
 				></span>
 			</span>
@@ -450,14 +452,17 @@
 		<!-- Beside the link, not in it, so it stays a button of its own; centred on the room the link leaves. -->
 		<button
 			class={[
-				'absolute top-1/2 right-1 flex size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm text-fg-subtle hover:text-fg max-md:hidden',
-				!isPinned && 'opacity-0 group-focus-within/agent:opacity-100 group-hover/agent:opacity-100'
+				'absolute top-1/2 right-1 flex size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm text-fg-subtle opacity-0 group-focus-within/agent:opacity-100 group-hover/agent:opacity-100 hover:text-fg touch:opacity-100 max-md:hidden'
 			]}
 			type="button"
 			aria-label="{isPinned ? 'Unpin' : 'Pin'} {agent.agent_name}"
 			onclick={() => onpin(agent.id, !isPinned)}
 		>
-			<Pin size={12} strokeWidth={1.75} aria-hidden="true" />
+			{#if isPinned}<PinOff size={12} strokeWidth={1.75} aria-hidden="true" />{:else}<Pin
+					size={12}
+					strokeWidth={1.75}
+					aria-hidden="true"
+				/>{/if}
 		</button>
 	</div>
 {/snippet}
@@ -518,27 +523,19 @@
 				id="nav-agents">Agents</a
 			>
 			{#if pinned.length}
-				<!-- First, in the order the user put them, then a rule before the rest. -->
+				<!-- First, in the order the user put them; the teams' folder rows set the rest apart. -->
 				<div class="flex flex-col gap-px max-sm:flex-row" {...agentOrder.list}>
 					{#each agentOrder.items as agent, index (agent.id)}
 						{@render agentLink(agent, index)}
 					{/each}
 				</div>
-				{#if unpinned.length}
-					<div class="mx-2 my-1 h-px flex-none bg-border max-md:mx-1 max-sm:hidden"></div>
-				{/if}
 			{/if}
-			{#each teamGroups as { team, members }, index (team.id)}
+			{#each teamGroups as { team, members } (team.id)}
 				{@const open = !folded.includes(team.id)}
 				<!-- The column folds a team away; the rail and the top bar have no room for its name, so it lies open there. -->
 				<!-- A folder row among the agents, not a third section label: the chevron in the icons' slot. -->
 				<button
-					class={[
-						linkClass,
-						'text-fg-muted max-md:hidden',
-						// Under the rule after the pinned agents, its own margin is the gap.
-						index === 0 && pinned.length && unpinned.length ? '' : 'mt-1'
-					]}
+					class={[linkClass, 'mt-1 text-fg-muted max-md:hidden']}
 					type="button"
 					aria-expanded={open}
 					aria-controls="nav-team-{team.id}"
@@ -627,11 +624,15 @@
 								<span
 									class="flex"
 									in:scale={{ start: 0.4, duration: motion.duration, easing: backOut }}
-									><StatusIcon status={session.status} unread={session.unread} size={14} /></span
+									><StatusIcon status={session.status} unread={session.unread} size={16} /></span
 								>
 							{/key}
 						</span>
-						<span class="truncate">{session.title}</span>
+						<!-- A long title wraps inside one line's height, so the word that doesn't fit drops out of
+						     sight whole (its hyphens made non-breaking, so "hill-climb" is one word). -->
+						<span class="mr-2 h-[1lh] min-w-0 flex-1 overflow-hidden break-normal whitespace-normal"
+							>{session.title.replaceAll('-', '\u2011')}</span
+						>
 						{#if session.unread && session.status !== 'idle'}
 							<span class="sr-only">, unread</span>
 							<span

@@ -270,8 +270,9 @@
 						<SessionHeader {session} {actor}>
 							{#snippet actions()}
 								{#if session.status !== 'resolved'}
+									<!-- Quiet while the session waits on the user, so what it asks is the screen's action. -->
 									<Button
-										variant="secondary"
+										variant={session.status === 'needsAttention' ? 'quiet' : 'secondary'}
 										onclick={() =>
 											isGoing(session)
 												? (resolving = true)

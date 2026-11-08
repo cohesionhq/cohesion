@@ -28,7 +28,7 @@
 		<span class="relative inline-grid flex-none place-items-center">
 			<input
 				class={[
-					'peer size-4.5 cursor-pointer appearance-none rounded-full border-[1.5px] border-fg-subtle bg-bg transition-colors checked:border-accent checked:bg-accent hover:border-accent',
+					'peer size-4.5 cursor-pointer appearance-none rounded-full border-[1.5px] border-fg-subtle bg-bg transition-colors checked:border-accent checked:bg-accent hover:border-accent dark:border-[1.75px] dark:border-fg-muted',
 					className
 				]}
 				type="checkbox"

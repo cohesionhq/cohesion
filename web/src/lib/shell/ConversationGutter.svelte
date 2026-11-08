@@ -23,7 +23,7 @@
 	     between them, and starts a pixel into that gap so its scroller doesn't clip the card's hairline. -->
 	<div class="flex flex-none max-lg:hidden" in:column={motion.slideIn} out:column={motion.slideOut}>
 		<aside
-			class="-ml-px flex w-55 flex-none [scrollbar-width:none] flex-col overflow-y-auto pt-[max(var(--sheet-inset),var(--titlebar-inset))] pr-(--sheet-inset) pb-(--sheet-inset) pl-px"
+			class="-ml-px flex w-60 flex-none [scrollbar-width:none] flex-col overflow-y-auto pt-[max(var(--sheet-inset),var(--titlebar-inset))] pr-(--sheet-inset) pb-(--sheet-inset) pl-px"
 			aria-label="About this conversation"
 		>
 			{@render children()}

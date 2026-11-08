@@ -24,7 +24,7 @@
 	>
 		<!-- Pinned under the page header, where it starts, so it never moves. -->
 		<nav
-			class="sticky top-(--page-header-height) flex flex-col gap-px max-md:static max-md:-mx-(--page-inset) max-md:-mt-3 max-md:[scrollbar-width:none] max-md:flex-row max-md:gap-1 max-md:overflow-x-auto max-md:overscroll-y-auto max-md:border-b max-md:border-border max-md:px-(--page-inset) max-md:pb-2"
+			class="sticky top-(--page-header-height) flex flex-col max-md:static max-md:-mx-(--page-inset) max-md:-mt-3 max-md:[scrollbar-width:none] max-md:flex-row max-md:gap-1 max-md:overflow-x-auto max-md:overscroll-y-auto max-md:border-b max-md:border-border max-md:px-(--page-inset) max-md:pb-2"
 			aria-label="Settings"
 		>
 			{#each SECTIONS as section (section.slug)}

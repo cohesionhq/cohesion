@@ -29,7 +29,7 @@
 </script>
 
 <header
-	class="relative -mx-(--page-inset) flex min-h-14 items-center gap-2.5 border-b border-border bg-bg px-3.5 py-2 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-5 after:bg-linear-to-b after:from-bg after:to-transparent"
+	class="relative -mx-(--page-inset) flex min-h-14 items-center gap-2.5 border-b border-border bg-bg px-3.5 py-2 after:pointer-events-none after:absolute after:inset-x-0 after:top-[calc(100%+1px)] after:h-5 after:bg-linear-to-b after:from-bg after:to-transparent"
 >
 	{#if leading}{@render leading()}{/if}
 	<div class="flex min-w-0 flex-1 flex-col">

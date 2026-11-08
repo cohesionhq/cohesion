@@ -33,7 +33,7 @@
 >
 	{#snippet trigger(props)}
 		<button
-			class="inline-flex h-7.5 max-w-full min-w-0 cursor-pointer items-center gap-1 rounded-sm border border-border px-2.5 text-sm text-fg-muted transition-colors hover:bg-bg-hover hover:text-fg disabled:cursor-default disabled:opacity-50 data-[state=open]:bg-bg-hover data-[state=open]:text-fg"
+			class="inline-flex h-9 max-w-full min-w-0 cursor-pointer items-center gap-1 rounded-full px-3 text-sm text-fg-muted transition-colors hover:bg-bg-hover hover:text-fg disabled:cursor-default disabled:opacity-50 data-[state=open]:bg-bg-hover data-[state=open]:text-fg"
 			type="button"
 			{...props}
 			{disabled}

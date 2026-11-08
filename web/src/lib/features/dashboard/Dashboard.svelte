@@ -1,6 +1,6 @@
 <!--
-	The Dashboard, where a workspace opens: a greeting for the time of day as
-	the page's title, then a message to an agent (who it goes to picked in the
+	The Dashboard, where a workspace opens: a greeting for the time of day at
+	the head of its column, with the day under it, then a message to an agent (who it goes to picked in the
 	composer; the reply waits in the agent's conversation, which the toast
 	opens). Quick journal, in the header's tools, opens a dialog that adds a
 	note to today's entry. Under it, the tasks due today (DashboardToday) and
@@ -12,6 +12,7 @@
 	import { onMount, untrack } from 'svelte';
 	import Composer from '$lib/features/agents/Composer.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import { localDay, longDay } from '$lib/format/dates';
 	import { toProtocolError } from '$lib/protocol/errors';
 	import type { ImageUpload } from '$lib/protocol/types';
 	import { routes } from '$lib/shell/routes';
@@ -34,6 +35,7 @@
 	const hour = new Date().getHours();
 	const pick = Math.random();
 	const hello = $derived(greeting(hour, profile.profile.value?.name ?? null, pick));
+	const todayLabel = longDay(localDay());
 
 	onMount(() => {
 		void agents.loadList();
@@ -100,9 +102,8 @@
 </script>
 
 <div class="flex flex-col px-(--page-inset) pb-10">
-	<!-- The greeting is the page's title, in the header every page has; Quick journal, a note for
-	     today's entry rather than a message, is a tool of the page beside it. -->
-	<PageHeader title={hello}>
+	<!-- Quick journal, a note for today's entry rather than a message, is a tool of the page. -->
+	<PageHeader title="Dashboard">
 		{#snippet actions()}
 			<Button variant="secondary" onclick={() => (journaling = true)}>
 				<NotebookPen size={14} strokeWidth={1.75} aria-hidden="true" />Quick journal
@@ -113,7 +114,21 @@
 	<!-- One centred column, as a document's and a conversation's are: the composer, then what
 	     needs the user today and what the agents and actors left. -->
 	<div class="mx-auto flex w-full max-w-190 flex-col">
-		<section aria-label="Message an agent" class="flex flex-col gap-5">
+		<!-- The greeting leads the column at a reading page's title size, the day under it. -->
+		<div class="flex flex-col gap-1 pt-6 pb-6">
+			<p class="text-xl leading-tight font-semibold tracking-[-0.01em]">{hello}</p>
+			<p class="text-sm text-fg-subtle">{todayLabel}</p>
+		</div>
+		<!-- Its send takes the chosen agent's color, as the agent's own conversation's does. -->
+		<section
+			aria-label="Message an agent"
+			class="flex flex-col gap-5"
+			style:--primary={agent ? `var(--agent-${agent.agent_color})` : undefined}
+			style:--primary-hover={agent
+				? `color-mix(in oklch, var(--agent-${agent.agent_color}) 85%, var(--fg))`
+				: undefined}
+			style:--primary-fg={agent ? 'var(--on-fill)' : undefined}
+		>
 			{#if agents.list.loaded && list.length === 0}
 				<p class="text-sm text-fg-subtle">
 					No agents yet. <a href={routes.newAgent()}>New agent</a>
@@ -128,6 +143,7 @@
 					onsend={send}
 					onclearerror={() => (sendError = null)}
 					{focusKey}
+					resting
 				>
 					{#snippet leading()}
 						<!-- Who the message goes to, inside the composer: a chip opening a picker of every
@@ -171,7 +187,7 @@
 
 		<QuickJournal {ws} bind:open={journaling} />
 
-		<div class="flex flex-col gap-8 pt-8">
+		<div class="flex flex-col gap-8 pt-10">
 			<DashboardToday {ws} />
 			<DashboardRecap />
 		</div>

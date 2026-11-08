@@ -110,7 +110,7 @@
 		class={[
 			'mt-0.5 grid size-4 flex-none place-items-center border transition-colors',
 			multi ? 'rounded-sm' : 'rounded-full',
-			on ? 'border-accent bg-accent text-accent-fg' : 'border-border-strong'
+			on ? 'border-accent bg-accent text-accent-fg' : 'border-border-strong dark:border-fg-subtle'
 		]}
 	>
 		{#if on}<Check size={10} strokeWidth={3} aria-hidden="true" />{/if}
@@ -130,7 +130,7 @@
 					{#if question.header}
 						<span class="text-xs font-medium text-fg-subtle">{question.header}</span>
 					{/if}
-					<span class="font-medium wrap-anywhere">{question.question}</span>
+					<span class="wrap-anywhere">{question.question}</span>
 				</legend>
 				{#each question.options as option (option.label)}
 					{@const on = chosen(index)?.includes(option.label) ?? false}
@@ -165,13 +165,16 @@
 						<span class="min-w-0 flex-1 wrap-anywhere whitespace-pre-wrap">{said}</span>
 					</p>
 				{:else if takesWords(question) && !answered}
-					<TextInput
-						class="mt-1"
-						id="{id}-other-{index}"
-						bind:value={other[index]}
-						placeholder={question.options.length ? 'Something else…' : 'Your answer…'}
-						aria-label="Answer in your own words"
-					/>
+					<!-- Under the options, at their text's left edge (past the row's inset and its mark), so
+					     the card's answers share one edge; alone, with no options, it takes the whole width. -->
+					<div class={['mt-1', question.options.length > 0 && 'pl-8.5']}>
+						<TextInput
+							id="{id}-other-{index}"
+							bind:value={other[index]}
+							placeholder={question.options.length ? 'Something else…' : 'Your answer…'}
+							aria-label="Answer in your own words"
+						/>
+					</div>
 				{/if}
 			</fieldset>
 		</div>

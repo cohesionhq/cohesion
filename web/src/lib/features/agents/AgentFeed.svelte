@@ -349,22 +349,22 @@
 	</Popover>
 {/snippet}
 
-<!-- The reaction: a small gray disc under the message on the side nearer the
-     screen's edge. On the user's bubble it tucks over the bottom edge with a
-     ring of the page between them; under the agent's text, which has no edge,
-     it starts at the text's left edge just below it. Its emoji is half the
-     diameter, smaller than an avatar's, so it reads against the disc; a colored
-     disc (the agent's, the accent) drowned it out, and the message it sits
-     under already says who reacted. -->
+<!-- The reaction under a message, the agent's on the user's bubble or the user's on the agent's text. -->
 {#snippet reaction(message: AgentMessage)}
 	{#if message.reaction}
-		{@const badge =
-			'relative z-1 grid size-6 flex-none place-items-center overflow-hidden rounded-full bg-n3 text-[length:calc(var(--spacing)*6*0.5)] leading-none whitespace-nowrap'}
+		<!-- One chip for every reaction, as a thread draws them: an outlined capsule under the
+		     message, on its side. The agent's, under the user's bubble, is only shown; the user's,
+		     under the agent's text, clears on a click. -->
+		{@const chip =
+			'mt-1 inline-flex h-6 items-center rounded-full border border-border bg-bg px-2 text-xs leading-none'}
 		{#if message.sender === 'user'}
-			<span class={[badge, 'mx-2 -mt-1.5 ring-2 ring-bg']}>{message.reaction}</span>
+			<span class={[chip, 'self-end']}>{message.reaction}</span>
 		{:else}
 			<button
-				class={[badge, 'mt-1 cursor-pointer hover:bg-n4']}
+				class={[
+					chip,
+					'cursor-pointer self-start transition-colors hover:border-border-strong hover:bg-bg-hover'
+				]}
 				type="button"
 				aria-label="Remove your reaction {message.reaction}"
 				onclick={() => onreact(message, null)}>{message.reaction}</button
@@ -414,7 +414,7 @@
 	<span
 		class={[
 			'group/react pointer-events-none absolute top-full z-1 pt-1 group-focus-within:pointer-events-auto group-hover:pointer-events-auto touch:hidden',
-			message.reaction ? 'left-7' : 'left-0'
+			message.reaction ? 'left-9' : 'left-0'
 		]}
 	>
 		<button
@@ -494,8 +494,9 @@
 				<Icon class="flex-none" size={12} strokeWidth={1.75} aria-hidden="true" />
 				<span class="min-w-0 truncate">{runTitle(anchor)}</span>
 				<!-- Beside what woke it, as an actor transcript's rows place their duration. -->
-				<span class="flex-none tabular-nums">
-					<span aria-hidden="true">·</span>
+				<!-- Pulled back over the row's gap, so "· 5 steps" follows the title at a word space. -->
+				<span class="-ml-1.5 flex-none tabular-nums">
+					<span aria-hidden="true">&nbsp;·</span>
 					<RollingText text={String(steps.length)} reserve={1} />
 					{steps.length === 1 ? 'step' : 'steps'}
 				</span>

@@ -88,7 +88,7 @@
 	}
 </script>
 
-<!-- Without views yet, "New view…" stands alone. -->
+<!-- Labelled even without views yet, so "New view…" reads as part of a group. -->
 {#snippet heading()}
 	<li class={navHeading}>Views</li>
 {/snippet}
@@ -97,7 +97,7 @@
 	label="Views"
 	newLabel="New view…"
 	folders={rows}
-	before={rows.length > 0 ? heading : undefined}
+	before={heading}
 	{current}
 	href={(id) => href(byId(id))}
 	onpick={(row) => onpick(byId(row.id))}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { list } from '$lib/ui/list';
 	import { untrack } from 'svelte';
 	import { dayToDate, localDay } from '$lib/format/dates';
 	import type { Document } from '$lib/protocol/types';
@@ -57,8 +58,8 @@
 		{:else}
 			{#each groups as group (group.key)}
 				<section class="[section+&]:mt-6" aria-labelledby="month-{group.key}">
-					<h2 class="mb-1 text-xs font-medium text-fg-subtle" id="month-{group.key}">
-						{group.label}
+					<h2 class={list.heading} id="month-{group.key}">
+						{group.label}<span class={list.count}>{group.items.length}</span>
 					</h2>
 					<ul>
 						{#each group.items as doc (doc.id)}
