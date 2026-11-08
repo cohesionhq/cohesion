@@ -1,4 +1,5 @@
-//! cohesiond: opens the database, builds the [`CohesionContext`], prints the
+//! cohesiond: exports or imports its data when asked (`transfer`); otherwise
+//! opens the database, builds the [`CohesionContext`], prints the
 //! first setup code, and serves clients, clients among them, over HTTPS and a
 //! local Unix socket until
 //! a signal (or, with `--exit-with-parent`, its parent exiting) shuts it
@@ -9,6 +10,7 @@ mod daemon_storage;
 mod server;
 mod settings;
 mod shutdown;
+mod transfer;
 
 use clap::Parser;
 use std::fmt::Display;
@@ -33,6 +35,10 @@ async fn main() {
         Some(cfg) => StoragePath::resolve(cfg),
     }
     .unwrap_or_else(|err| fatal("could not use the config directory", err));
+    if let Some(command) = &args.command {
+        transfer::run(command, &storage_path.database_file()).await;
+        return;
+    }
     let settings = Settings::resolve(args, &storage_path)
         .unwrap_or_else(|err| fatal("could not read the settings", err));
     let _ = Logger::new()

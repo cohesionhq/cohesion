@@ -16,6 +16,10 @@ under "Unreleased" with any change users would notice.
   the web UI's build lists the packages it bundles in `third-party-licenses.md`.
 - Extensions install from a URL: under Extensions, Install from URL downloads
   the script and opens the same review as a file. A download stops at 5 MB.
+- `cohesiond export <file>` copies a server's data, images included, while it
+  runs, and `cohesiond import <file>` replaces another, stopped server's data
+  with it. The importing server keeps its own key, so every device pairs with
+  it again.
 - `rust-toolchain.toml` pins the Rust release Cohesion builds with.
 - The web UI's second design pass: the Dashboard's greeting leads the page, and a
   task due today can be completed from it; documents read as rendered Markdown

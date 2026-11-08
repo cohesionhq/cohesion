@@ -1389,6 +1389,20 @@ foreign keys cascade with the message, and `intelligence_thread_images`), since
 they don't compress and nothing depends on them. A backup is
 written on request; nothing schedules one or removes old ones.
 
+Moving a daemon's data to another daemon is `cohesiond export` and
+`cohesiond import` (`cohesiond/src/transfer.rs` over
+`cohesion-db/src/transfer.rs`), which run instead of serving and touch no
+socket. Export opens the database read-only beside the running daemon and
+`VACUUM INTO`s a new private file: one read transaction, so consistent, and
+whole, `BackupClass` notwithstanding. Import needs the daemon stopped, and
+tells by taking the database out of WAL mode, which SQLite refuses while
+another connection has it open. It copies the export to a staging file beside
+the database, migrates it, revokes every client (`RevokeEveryClientCommand`:
+they paired with the other server's key) and closes it, which runs
+`ShutdownCleanupCommand`, then renames it over the database. Only
+`cohesion.db` moves: `key.pem` and `config.json` stay the destination's, so it
+keeps its identity and, with no live client, prints a setup code at start.
+
 Work that ends where it began is scoped with `WorkTracker::run_new`, which
 holds the guard exactly across one future (`WorkTracker::every` runs each
 timed pass that way); work that must carry its guard elsewhere, through a

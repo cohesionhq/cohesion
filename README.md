@@ -69,6 +69,18 @@ Some text does leave that computer:
 Settings › Storage shows what Cohesion cleans up over time and when. You can
 change those times there.
 
+To move your data to another server, export it there and import it on the
+other one. Only data moves: the other server keeps its own key, so every
+device pairs with it again.
+
+```sh
+cohesiond export cohesion-export.db    # on the old server, while it runs
+cohesiond import cohesion-export.db    # on the new server, while it's stopped
+```
+
+Importing replaces everything on the new server and can't be undone. See
+[Move to another server](docs/self-hosting.md#move-to-another-server).
+
 ## Getting started
 
 You'll need [Rust](https://rustup.rs), [Node.js](https://nodejs.org) 22 or later,

@@ -231,6 +231,19 @@ impl DatabaseCommand for RevokeOtherClientsCommand {
     }
 }
 
+/// Revokes every live client, as [`DeleteClientCommand`] does each; answers
+/// the clients revoked. An imported database's clients paired with another
+/// server's key, so none of them carries over.
+pub struct RevokeEveryClientCommand;
+impl DatabaseCommand for RevokeEveryClientCommand {
+    type Response = Vec<Client>;
+    type Access = Write;
+    fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<Vec<Client>>> {
+        let every: Vec<i64> = ctx.db.select_id::<Client>().live().all()?;
+        revoke_all(ctx, every, SecurityEventKind::ClientRevoked)
+    }
+}
+
 /// Revokes the clients that haven't connected for as long as the security
 /// settings allow, if they set a limit, except the `online` ones, whose
 /// connection may have lasted that long. A client never seen since pairing

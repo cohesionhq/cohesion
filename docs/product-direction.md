@@ -58,7 +58,9 @@ this page in the same pull request and say so in its description.
   security activity is a fixed 30 days; Rewind versions (7) and deleted
   items (30) are set under Retention too. Settings › Storage shows and sets
   these and Memory capacity (the memories an agent keeps per scope), with the
-  database's size. Grants,
+  database's size. `cohesiond export` and `import` move a server's data to
+  another server, replacing all of its data; the server key doesn't move,
+  so every device pairs again. Grants,
   pinning and cue creation are web only.
 - **Area: Actors.** An actor is an agent on one of the user's devices,
   offered by a client that is online or offline. Statuses: working, needs

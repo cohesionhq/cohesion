@@ -90,6 +90,43 @@ Settings › Security can limit pairing to clients on the computer running
 
 To connect the command line, see [Connect the CLI](cli.md#connect-the-cli).
 
+## Move to another server
+
+`cohesiond export <file>` copies everything in this server's database to a new
+file: workspaces, tasks, documents, agents and their chats, images, extensions
+and settings. It's safe while `cohesiond` runs. `cohesiond import <file>` on
+another server replaces everything in that server's database with the file.
+Stop `cohesiond` there first (`import` refuses while it's running), and start it
+again afterward. Both take `--config` like `cohesiond` itself.
+
+```sh
+cohesiond export cohesion-export.db                 # on the old server
+scp cohesion-export.db new-server:
+systemctl --user stop cohesion                      # on the new server
+cohesiond import cohesion-export.db
+systemctl --user start cohesion
+```
+
+Only data moves. The new server keeps its own key and `config.json`, so the
+clients that paired with the old server can't connect to it: `import` revokes
+them, and the new server prints a setup code when it starts, as on a first
+start. Pair each device again with it. Importing can't be undone, so run
+`cohesiond export` on the new server first if you want to keep what it has.
+
+In a container, export with `docker exec` and import with a one-off container
+on the same volume while the server's container is stopped. The import's file
+must be readable by uid 1000.
+
+```sh
+docker exec cohesion cohesiond export /data/cohesion-export.db    # old server
+docker cp cohesion:/data/cohesion-export.db .
+
+docker stop cohesion                                              # new server
+docker run --rm -v cohesion-data:/data -v "$PWD":/import \
+  ghcr.io/cohesionhq/cohesion:<tag> import /import/cohesion-export.db
+docker start cohesion
+```
+
 ## Run in a container
 
 The `Dockerfile` builds one image holding `cohesiond` and the `cohesion` CLI.
@@ -151,7 +188,9 @@ is registered yet.
 
 `/data` holds `cohesiond/` (the database, server key and `config.json`, which
 works as under [config.json](#configjson)) and `cohesion/` (the CLI's identity).
-Keep the volume, and a new container is the same server to its clients. The image
+Keep the volume, and a new container is the same server to its clients. To move
+only the data to a server with a key of its own, see
+[Move to another server](#move-to-another-server). The image
 runs as uid 1000, so a bind mount in place of the volume must be writable by that
 user.
 
