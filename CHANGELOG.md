@@ -26,6 +26,9 @@ under "Unreleased" with any change users would notice.
 - In an agent's conversation, each session under Monitoring has an archive
   button to resolve it, shown on hover or focus and always on touch. It asks
   first while the actor is still working.
+- On the Tasks page, the filters in use sit before the Filters button, so the
+  button stays put as filters are picked, and its panel opens leftwards from it.
+  Popovers keep 16px from the window's edges.
 - `rust-toolchain.toml` pins the Rust release Cohesion builds with.
 - The web UI's second design pass: the Dashboard's greeting leads the page, and a
   task due today can be completed from it; documents read as rendered Markdown

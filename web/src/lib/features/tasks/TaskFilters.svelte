@@ -1,8 +1,8 @@
 <!--
-	The Tasks page's filters, in its header's row beside the order: the Filters button,
-	which counts everything narrowing the list and opens a panel of every filter,
-	then the priorities, sizes and tags in use, which say which tasks these are.
-	Every other filter is in the panel. A line too long for the width scrolls sideways.
+	The Tasks page's filters, in its header's row beside the order: the priorities, sizes
+	and tags in use, which say which tasks these are, then the Filters button, which counts
+	everything narrowing the list and opens a panel of every filter. Every other filter is
+	in the panel. A line too long for the width scrolls sideways.
 -->
 <script lang="ts">
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
@@ -77,8 +77,23 @@
 	/>
 {/snippet}
 
+<!-- The filters in use lead, so the button keeps its place at the header's trailing edge as
+     they come and go, and its panel opens leftwards from it. -->
 <div class="flex min-w-0 items-center gap-1.5">
-	<Popover bind:open>
+	{#if active > 0}
+		<nav class={[filterRowClass, 'max-w-80 min-w-0']} aria-label="Filters in use">
+			{#each allPriorities().filter((p) => priorities.includes(p.value)) as p (p.value)}
+				{@render priorityPill(p)}
+			{/each}
+			{#each allSizes().filter((s) => sizes.includes(s.value)) as s (s.value)}
+				{@render sizePill(s)}
+			{/each}
+			{#each tags.filter((t) => tagState(t.id) !== null) as tag (tag.id)}
+				<FilterPill label={tag.name} filter={tagState(tag.id)} href={tagHref(tag.id)} />
+			{/each}
+		</nav>
+	{/if}
+	<Popover bind:open align="end">
 		{#snippet trigger(props)}
 			<button
 				class={[
@@ -136,17 +151,4 @@
 			{/if}
 		</div>
 	</Popover>
-	{#if active > 0}
-		<nav class={[filterRowClass, 'max-w-80 min-w-0']} aria-label="Filters in use">
-			{#each allPriorities().filter((p) => priorities.includes(p.value)) as p (p.value)}
-				{@render priorityPill(p)}
-			{/each}
-			{#each allSizes().filter((s) => sizes.includes(s.value)) as s (s.value)}
-				{@render sizePill(s)}
-			{/each}
-			{#each tags.filter((t) => tagState(t.id) !== null) as tag (tag.id)}
-				<FilterPill label={tag.name} filter={tagState(tag.id)} href={tagHref(tag.id)} />
-			{/each}
-		</nav>
-	{/if}
 </div>

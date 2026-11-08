@@ -59,7 +59,9 @@
 			{#if meta}<div class="flex-none text-xs text-fg-muted">{@render meta()}</div>{/if}
 		</div>
 		{#if actions || controls}
-			<div class="flex flex-none items-center gap-2">
+			<!-- Shrinks only when the row is too narrow for it, so a tool that scrolls
+			     sideways (the Tasks page's filters in use) scrolls inside the bar. -->
+			<div class="flex min-w-0 items-center gap-2">
 				{@render actions?.()}{#if controls}<div class={['flex', controlsClass]}>
 						{@render controls()}
 					</div>{/if}

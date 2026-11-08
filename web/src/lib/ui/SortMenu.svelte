@@ -58,7 +58,7 @@
 	{#snippet trigger(props)}
 		<button
 			class={[
-				'inline-flex h-7.5 cursor-pointer items-center gap-1.5 rounded-sm border px-2.5 font-medium transition-colors',
+				'inline-flex h-7.5 flex-none cursor-pointer items-center gap-1.5 rounded-sm border px-2.5 font-medium transition-colors',
 				secondaryClass
 			]}
 			type="button"
