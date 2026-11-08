@@ -44,14 +44,16 @@ work and reply from any client.
 [actor-agentsdk](https://github.com/cohesionhq/actor-agentsdk) offers Claude
 Code as actors, [actor-opencode](https://github.com/cohesionhq/actor-opencode)
 offers OpenCode and [actor-codex](https://github.com/cohesionhq/actor-codex)
-offers Codex. [Actors](docs/actors.md) covers writing your own.
+offers Codex. "Actors" in [Architecture](docs/architecture.md#e-actors) covers
+writing your own.
 
 ## Add what's missing
 
 Extensions are JavaScript or TypeScript programs that add to Cohesion. An
 extension can connect another service, respond to events or run on a timer. A
 new extension has no access until you give it some.
-[Writing an extension](docs/extensions.md) covers how they work.
+"Extensions" in [Architecture](docs/architecture.md#19-extensions) covers how
+they work.
 
 ## Your data
 
@@ -191,11 +193,10 @@ rather not host it yourself.
 - [Command line](docs/cli.md): every common command, AI setup and `cohesion api`.
 - [Self-hosting](docs/self-hosting.md): installing, server options, pairing and
   containers.
-- [Extensions](docs/extensions.md): writing an extension.
-- [Actors](docs/actors.md): writing a client that offers actors.
-- [Tour](docs/tour/): an illustrated walk through the product and how it's built.
-- [Architecture](docs/architecture.md) and
-  [Contributing](CONTRIBUTING.md): how the code fits together and how to change it.
+- [Architecture](docs/architecture.md): how Cohesion is built, from the daemon
+  and its protocol to agents, actors, clients and extensions, including writing
+  an extension or a client that offers actors.
+- [Contributing](CONTRIBUTING.md): how to change the code.
 - [Changelog](CHANGELOG.md): what changed in each release.
 
 ## Contributing

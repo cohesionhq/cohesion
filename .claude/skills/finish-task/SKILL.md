@@ -17,10 +17,13 @@ committing, reread the ones your change touches and update in the same
 commit whatever it made wrong; where a doc and the code already disagreed,
 fix the doc or name the drift in the report:
 
-- `docs/architecture.md`: crate roles, request flow, hooks, run kinds, clients.
-- `docs/actors.md`: anything an actor client sends or receives.
-- `docs/extensions.md`: the script API and extension permissions.
-- `docs/serving-the-webui.md`: the web bundle and the page's session API.
+- `docs/architecture.md`: the technical reference, one section per area:
+  repository and build, the daemon and wire protocol (frames, routes,
+  limits, pairing, hooks), storage and search (tables, migrations,
+  retention, backup and transfer), agents, actors (anything an actor client
+  sends or receives), clients (the web UI, the web bundle and the page's
+  session API, the CLI), extensions, connectors and feeds (the script API
+  and permissions), and security, operations and testing.
 - `web/README.md`: web layout, styling, Copy, components, the new-screen
   checklist.
 - `CONTRIBUTING.md`: a recipe you followed that turned out wrong, CLI

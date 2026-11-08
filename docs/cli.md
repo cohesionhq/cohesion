@@ -25,8 +25,8 @@ A client is known by its certificate or its local key. Its name (`--name`) is on
 how it's listed, and Settings › Clients can change it.
 
 Any client can also offer capabilities: the actors on its device, such as Claude
-Code, that Cohesion hands actor sessions to. See "Capabilities" in
-[Architecture](architecture.md) and [Actors](actors.md).
+Code, that Cohesion hands actor sessions to. See "Actors" in
+[Architecture](architecture.md#e-actors).
 
 `-c <DIR>` keeps this client's identity and settings in another directory. Without
 it, the CLI uses your per-user config directory.

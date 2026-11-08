@@ -7,6 +7,9 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- The technical documentation is rebuilt from the code as one reference,
+  [Architecture](docs/architecture.md). It replaces the tour and the separate
+  pages on actors, extensions and serving the web UI.
 - Cohesion is open source, under the GNU Affero General Public License, version
   3 only. See [Licensing](docs/licensing.md).
 - The repository starts a new history at `cohesionhq/cohesion`, with a code of

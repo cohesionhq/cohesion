@@ -6,7 +6,8 @@ CLI. Start with `README.md`, then `docs/architecture.md` (crate graph,
 request flow) and `CONTRIBUTING.md` (recipes for models, commands, script
 entities). Follow those recipes rather than inventing new wiring. The iPhone
 app (`apple`), the WebUI harnesses (`webshell`), the actor clients and Cohesion
-Cloud live in their own repos (see "Other repos" in `docs/architecture.md`).
+Cloud live in their own repos (see "Native clients and other repositories" in
+`docs/architecture.md`).
 Cohesion is free software under `AGPL-3.0-only` (`docs/licensing.md`).
 
 ## Product direction
@@ -131,8 +132,7 @@ task that is truly blocked. Ask with a short recommendation.
   real data unless told to.
 
 Skills in `.claude/skills/`: `verify`, `dirty-checkout`, `finish-task`,
-`protocol-change`, `web-ui-change`, `run-locally`. `docs/tour/` is a
-longer illustrated walk through the product and the daemon.
+`protocol-change`, `web-ui-change`, `run-locally`.
 
 ## Trust model
 
@@ -262,7 +262,7 @@ features.
   the connection uses, and `--titlebar-inset`, which the WebUI harnesses set. `cohesion open` and the WebUI harnesses'
   `CohesionWebKit` bridge (in `cohesionhq/webshell`) stand in for them;
   change all three together or not at all (see "The page's side is a stable API" in
-  `docs/serving-the-webui.md`).
+  `docs/architecture.md`).
 - A change to `Cargo.lock` regenerates `THIRD_PARTY_NOTICES.md`
   (`node scripts/third-party-notices.mjs`).
 - Times show on a 12-hour clock (`3:14 PM`) on every client, whatever the

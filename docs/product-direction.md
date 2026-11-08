@@ -126,4 +126,5 @@ policy below holds until it changes.
   `CONTRIBUTING.md`.
 - Web UI: `web/README.md`, the `web-ui-change` skill,
   `web/src/lib/stores/README.md`.
-- Hosts of the web UI and the push path: `docs/serving-the-webui.md`.
+- Hosts of the web UI and the push path: "The web UI" and "Native clients and
+  other repositories" in `docs/architecture.md`.

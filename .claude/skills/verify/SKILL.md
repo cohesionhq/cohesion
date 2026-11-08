@@ -5,7 +5,8 @@ description: Run the checks a change in the cohesion repo needs (cargo fmt, clip
 
 # Verify a change
 
-There is no CI, so these local checks are the only gate. Run the
+CI (`.github/workflows/checks.yml`) runs the same checks on every pull
+request and push to `master`, but run them locally first. Run the
 checks that cover what you touched, from the repo root:
 
 | You changed | Run |

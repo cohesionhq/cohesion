@@ -142,8 +142,8 @@ reply, regenerate it and commit the result.
 
 cohesiond embeds `web/build/` and hands it to any paired client that sends
 `WebBundle`; `cohesion open` fetches it at launch and serves it from memory,
-so the UI always matches the daemon (`docs/serving-the-webui.md` has the
-details, for writing another client). It is embedded at compile time, so run `npm run build` before
+so the UI always matches the daemon ("The web UI" in `docs/architecture.md`
+has the details, for writing another client). It is embedded at compile time, so run `npm run build` before
 building `cohesiond` (`scripts/install.sh` and `scripts/install-server.sh` do). With no build
 present the workspace still compiles (`web/build/.gitkeep` keeps the
 directory), with a warning, and `WebBundle` fails until one exists.

@@ -32,8 +32,10 @@ cohesiond --config ./scratch/daemon --socket /tmp/cohesion.sock
 
 - `--config <DIR>` holds `cohesion.db`, the server key and `config.json`.
   Without this flag, `cohesiond` uses your platform's per-user config directory.
-- `--socket <PATH>` is the Unix socket local clients connect to. The default is
-  in the runtime directory on Linux, and `<config>/cohesiond.sock` elsewhere.
+- `--socket <PATH>` is the Unix socket local clients connect to. With
+  `--config`, the default is `<config>/cohesiond.sock`. Otherwise it is in the
+  runtime directory where there is one (`$XDG_RUNTIME_DIR` on Linux), and
+  `<config>/cohesiond.sock` where there isn't.
 - `--host <HOST>` is the IP address or DNS name in the setup code remote clients
   use, such as `cohesion.example.com` for a server behind a forwarded port. The
   default is this computer's outbound address.
@@ -51,7 +53,8 @@ cohesiond --config ./scratch/daemon --socket /tmp/cohesion.sock
   `cohesiond`, which writes a PROXY v2 header with each client's real address.
   Repeat the flag for several routers. Connections from a named address must open
   with the header, and no other peer can claim an address. This is off by default.
-  See "Behind a pass-through router" in [Architecture](architecture.md).
+  See "Behind a pass-through router" in
+  [Architecture](architecture.md#behind-a-pass-through-router).
 
 ### config.json
 

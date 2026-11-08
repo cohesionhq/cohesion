@@ -51,8 +51,9 @@ under "Choices made":
    `cohesion api` reaches it, with no change.
 7. **Scripts**, if extensions or agents should reach it: `#[js_entity]`,
    behind the right mount, with `///` comments written for the JS reader.
-8. **Docs**: `docs/architecture.md`, `docs/actors.md` for actor-facing
-   frames, `docs/extensions.md` for the script API.
+8. **Docs**: `docs/architecture.md`: its "Wire protocol" section for frames
+   and requests, "Actors" for actor-facing frames, "Extensions" for the
+   script API and permissions.
 9. **Web UI control**: a setting or feature the user controls at run time
    gets a control in the web UI (`web-ui-change`); the daemon never ships
    one only the CLI or `cohesion api` can reach.
@@ -66,19 +67,19 @@ under "Choices made":
 
 ## Other clients
 
-The other repos read this protocol (see "Other repos" in
-`docs/architecture.md`), all under `github.com/cohesionhq`:
+The other repos read this protocol (see "Native clients and other
+repositories" in `docs/architecture.md`), all under `github.com/cohesionhq`:
 
 - `apple` (the iPhone app) has hand-written Swift models
   (`Cohesion/Models/`) and commands (`Cohesion/Connection/Commands.swift`);
   a renamed or removed field breaks it.
-- `cohesion-ts`, used by the actor clients (`actor-agentsdk`,
+- `ts`, the TypeScript library used by the actor clients (`actor-agentsdk`,
   `actor-opencode`, `actor-codex`), copies this repo's
   `generated.ts` (`bun run generate`) and hand-writes the session frames
   in `src/frames.ts` from `envelope.rs` and `capabilities.rs`.
 - `webshell`, the WebUI harnesses and their CohesionWebKit bridge,
   show the web UI and depend on the page's session API
-  (`docs/serving-the-webui.md`).
+  ("The page's side is a stable API" in `docs/architecture.md`).
 
 Don't edit those repos from here. Nothing is kept for an older client
 (see "Compatibility" in `CLAUDE.md`): change the shape outright, with no
