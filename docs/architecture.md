@@ -1781,7 +1781,7 @@ WebUI harness, a native shell around the web UI.
 
 - **Reaching the daemon**: pairing with a setup code at `/register`, then `POST /command` for one-off requests or `/connect` for a session; or the Unix socket on the same computer ([4](#4-starting-the-daemon), [6](#6-pairing-and-trust)).
 - **What they share with the web UI**: the protocol and its types (generated from Rust for the web; other clients copy `generated.ts` or model them by hand), `hello.vocabulary`, the subscribe-and-invalidate model, and the `cohesion://` links, which every client opens over the current screen.
-- **A WebUI harness** pairs natively, fetches the bundle with `WebBundle`, serves it, and stands in for the page's session API ([16](#16-the-web-ui)). The web UI keeps a few things a web view needs: `--titlebar-inset`, and keyboard and mouse-button history steps a web view doesn't do itself (`web/src/lib/shell/shortcuts.svelte.ts`).
+- **A WebUI harness** pairs natively, fetches the bundle with `WebBundle`, serves it, and stands in for the page's session API ([16](#16-the-web-ui)). There are two, both in `cohesionhq/webshell`: the Mac and iPad app in `mac/`, built on the `CohesionWebKit` Swift package, and the Linux app in `gtk/`, a Rust copy of the same flow that takes `SetupCode`, the self-signed certificate and the protocol's types from `cohesion-core` and runs `CohesionWebKit`'s bridge script unchanged (`gtk/src/bridge.js`). The web UI keeps a few things a web view needs: `--titlebar-inset`, and keyboard and mouse-button history steps a web view doesn't do itself (`web/src/lib/shell/shortcuts.svelte.ts`).
 - **Push notifications** are not the daemon's: it raises hooks (`notification:send`, `agent:message`, `client:revoke`…) and an installed extension with `network` sends pushes. The iOS companion extension (`com.cohesion.cloud.ios-companion`) appears here only in doc comments.
 
 The repositories in the `cohesionhq` organization, as their GitHub
@@ -1791,7 +1791,7 @@ descriptions (or, for `apple` and `webshell`, `CLAUDE.md`) describe them:
 |---|---|
 | `cohesion` | This repository: the daemon, the CLI and the web UI |
 | `apple` | The iPhone app |
-| `webshell` | The WebUI harnesses |
+| `webshell` | The WebUI harnesses: the Mac and iPad app in `mac/` (Swift, on `CohesionWebKit`), and the Linux app in `gtk/` (Rust, GTK 4, libadwaita, WebKitGTK) |
 | `CohesionWebKit` | The Swift package the Mac and iPad apps use to show the web UI |
 | `cohesiond-macos` | A menu bar app for macOS that runs `cohesiond` |
 | `ts` | The TypeScript library for Cohesion clients |
