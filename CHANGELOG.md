@@ -7,6 +7,9 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- Cohesion for Linux: a WebUI harness in GTK 4 and libadwaita, in
+  `cohesionhq/webshell` under `gtk/`. It pairs with a setup code, shows the
+  web UI in WebKitGTK, and offers a newer web UI once the server serves one.
 - Settings › Storage shows what fills the database under Usage, with Backup
   its own section after it: one bar split by area, then agent chats, actor sessions, documents and tasks, feeds and articles,
   resources, memories, Rewind versions, everything else and free space, each

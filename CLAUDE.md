@@ -260,8 +260,8 @@ features.
 - The page's session API is stable: `web/src/lib/protocol/session.ts`
   (`#token=`, `/client`, `/connect?token=`), the parts of `WebSocket`
   the connection uses, and `--titlebar-inset`, which the WebUI harnesses set. `cohesion open` and the WebUI harnesses'
-  `CohesionWebKit` bridge (in `cohesionhq/webshell`) stand in for them;
-  change all three together or not at all (see "The page's side is a stable API" in
+  bridges (`CohesionWebKit`, and `gtk/` in `cohesionhq/webshell`) stand in for them;
+  change them all together or not at all (see "The page's side is a stable API" in
   `docs/architecture.md`).
 - A change to `Cargo.lock` regenerates `THIRD_PARTY_NOTICES.md`
   (`node scripts/third-party-notices.mjs`).

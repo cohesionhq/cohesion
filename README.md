@@ -182,7 +182,7 @@ see [Self-hosting](docs/self-hosting.md).
 |---|---|
 | Web UI | Every Cohesion feature, in your browser. Run `cohesion open`. |
 | [apple](https://github.com/cohesionhq/apple) | Cohesion for iPhone and iPad, a native app with a share extension and notifications. |
-| [webshell](https://github.com/cohesionhq/webshell) | The web UI as a Mac app. |
+| [webshell](https://github.com/cohesionhq/webshell) | The web UI as an app for Mac, iPad and Linux. |
 | [`cohesion`](docs/cli.md) | The command line, for small jobs and scripts. |
 
 [Cohesion Cloud](https://hellocohesion.cloud) runs Cohesion for you, if you'd

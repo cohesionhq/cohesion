@@ -76,8 +76,9 @@ this page in the same pull request and say so in its description.
   until answered. The daemon pushes no needs-you alert; the iPhone app
   raises one through a Live Activity. Idle or failed, read actor sessions go after 7 days
   by default (Settings › Storage).
-- **Area: Clients and devices.** The web UI and the WebUI harnesses are the
-  same UI and the full surface; the iPhone app is the native twin; the CLI, actor
+- **Area: Clients and devices.** The web UI and the WebUI harnesses (for
+  Mac, iPad and Linux, in `cohesionhq/webshell`) are the same UI and the full
+  surface; the iPhone app is the native twin; the CLI, actor
   clients and extensions are clients too. A paired client can do anything;
   revoking evicts its sessions and drops its push registrations. Clients
   keep no data and need the daemon, which is meant to be reachable publicly;

@@ -248,12 +248,13 @@ only these exist:
   a solid bar across the sheet, so nothing scrolled under it shows through, with its own even insets. `--gutter` is
   what overlays keep clear of the viewport's edges. `w-(--sidebar-width)` and
   similar for the other layout variables.
-- **WebUI harnesses**: the Mac and iPad WebUI harnesses show the page edge to edge, under the
-  Mac's window controls or the iPad's status bar, and set
+- **WebUI harnesses**: the Mac, iPad and Linux WebUI harnesses show the page edge to edge, under the
+  Mac's window controls, the iPad's status bar or the Linux app's header bar, and set
   `--titlebar-inset` on `<html>` to how much of the top they cover (28px
-  on a Mac, the safe area on an iPad; 0 in a browser). The sidebar pads its
+  on a Mac, the safe area on an iPad, the header bar's height on Linux; 0 in a browser). The sidebar pads its
   top by it and the main pane sits below it. Keep anything clickable out of
-  that strip: the Mac WebUI harness lays a window-drag area over it.
+  that strip: the Mac WebUI harness lays a window-drag area over it, and the
+  Linux one its header bar, with the main menu and window controls at its end.
 - **Avatars**: an agent's emoji or initial on a disc of its color, drawn
   only by `ui/AgentAvatar.svelte`. The glyph's font size is a fixed share
   of the disc's diameter: 0.6 for an emoji, 0.5 for an initial (semibold),
