@@ -27,7 +27,7 @@ use super::storage_requests::{
 use super::task_requests::TaskPage;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, Article, Attachment,
-    CatalogModel, Client, Contact, ContactMethod, DeletedItem, Document, EndpointModel,
+    CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem, Document, EndpointModel,
     ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
     IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
     IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
@@ -48,6 +48,7 @@ pub enum ReplyData {
     Documentation(DocumentationResponse),
     ScriptResult(ScriptResult),
     RenderedMermaid(RenderedMermaid),
+    RenderedResource(Option<Component>),
     Workspaces(Vec<Workspace>),
     Workspace(Workspace),
     Document(Document),

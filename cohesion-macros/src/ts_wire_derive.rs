@@ -368,7 +368,10 @@ fn container(attrs: &[Attribute]) -> syn::Result<Container> {
             out.content = Some(meta.value()?.parse::<LitStr>()?.value());
         } else if meta.path.is_ident("transparent") {
             // A newtype is its field on the wire either way.
-        } else if meta.path.is_ident("from") || meta.path.is_ident("into") {
+        } else if meta.path.is_ident("from")
+            || meta.path.is_ident("try_from")
+            || meta.path.is_ident("into")
+        {
             meta.value()?.parse::<LitStr>()?;
             out.converted = true;
         } else {

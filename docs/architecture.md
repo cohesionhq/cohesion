@@ -1925,7 +1925,7 @@ installs one. Every extension is installed by the user.
 | `timer` | `timer` | | |
 | `registry` | | | The daemon calls its `registryResults(query)` and `registryLookup(identifiers)` |
 | `oauth` | `accounts` | | The daemon calls its sign-in functions |
-| `connector` (needs `oauth`) | | | The daemon calls `getOrganizationUnits`, `listResources`, `getResource` |
+| `connector` (needs `oauth`) | | | The daemon calls `getOrganizationUnits`, `listResources`, `getResource`, and the optional `renderResource` |
 | `service` | | | Clients and scripts holding `services` may call its `serviceRequest` |
 | `service:isolated` | | | Clients only may call its `serviceRequest` |
 | `services` | `services` (`services.use`) | | |
@@ -2050,6 +2050,23 @@ each hosted account with resources, it lists the items and fetches only those
 whose `lastUpdated` changed; `UpdateResourceCommand` writes only real changes
 and raises `resource:update`. Failures are logged and counted
 (`ResourceRefreshSummary{checked, updated, failed}`), never ending the pass.
+
+**Showing a resource** (`render_resource` in `connector_calls.rs`).
+`RenderResource{workspace_id, resource_id}` calls the connector's optional
+`renderResource(resource, kind)` with the resource as a `Resource` entity and
+its kind's short key (`"page"`). It returns a CohesionUI `Component`
+(`cohesion-core/src/model/cohesion_ui.rs`): `{blocks}`, each `Block` told
+apart by `kind`: `text{text}`, `checkbox{checked, text?}`,
+`overview{title, child}` (a labelled value, whose `child` is another block),
+`heading{level: 1 | 2 | 3, text}` and `link{text, destination}`. A client
+draws each its own way but keeps its meaning: a heading is a heading, an
+overview a key and its value. What the script returns is untrusted:
+`Component::from_script` reads it and refuses a link to anything but an
+`https`, `http` or `mailto` address. The reply is `null`, and the client
+shows the contents, when the account is orphaned, the extension is gone,
+lacks `connector` or doesn't define `renderResource`, or the result isn't a
+valid interface (logged as a warning for the extension's author). What the
+script throws is an `upstreamError`.
 
 Agents on a user-started turn reach connectors through the `connectors`
 global (`agent_connectors.rs`); there is no CLI command for them.

@@ -6,15 +6,18 @@
 //! function needs; an orphaned account reaches nothing.
 
 use cohesion_core::log::Module;
-use cohesion_core::log_error;
 use cohesion_core::model::{
-    AccountDescription, AccountHost, ConnectorAccount, ConnectorDefinition, ConnectorResource,
-    ConnectorResourceFilters, ConnectorResourcePreview, Credential, Extension,
-    ExtensionPermissionKind, OrganizationUnit, PkceChallenge, ServiceDescription,
+    AccountDescription, AccountHost, Component, ConnectorAccount, ConnectorDefinition,
+    ConnectorResource, ConnectorResourceFilters, ConnectorResourcePreview, Credential, Extension,
+    ExtensionPermissionKind, OrganizationUnit, PkceChallenge, Resource, ServiceDescription,
 };
 use cohesion_core::protocol::{RedactedConnectorAccount, ServerError};
-use cohesion_db::{DatabaseContext, GetConnectorAccountCommand, UpsertConnectorAccountCommand};
-use cohesion_js::ScriptArgument;
+use cohesion_core::{log_error, log_warn};
+use cohesion_db::{
+    CommandError, DatabaseContext, GetAccountConnectorCommand, GetConnectorAccountCommand,
+    UpsertConnectorAccountCommand,
+};
+use cohesion_js::{ScriptArgument, ScriptError};
 
 use crate::connectors::credential_refresh::fresh_credential;
 use crate::extension_manager::{ExtensionError, ExtensionFn, ExtensionManager, script_fault};
@@ -159,6 +162,29 @@ impl ExtensionFn for GetResourceFn<'_> {
         vec![
             ScriptArgument::String(self.identifier),
             json_argument(self.credential),
+        ]
+    }
+}
+
+/// `renderResource(resource, kind)`: the CohesionUI interface the
+/// connector shows `resource` with, given its kind's short key, such as
+/// `"page"`. Optional; read as JSON so a malformed result can be told from
+/// a failed call.
+struct RenderResourceFn {
+    resource: Resource,
+    kind: String,
+}
+impl ExtensionFn for RenderResourceFn {
+    const NAME: &'static str = "renderResource";
+    const REQUIRES: ExtensionPermissionKind = ExtensionPermissionKind::Connector;
+    type Output = serde_json::Value;
+    fn arguments(self) -> Vec<ScriptArgument> {
+        vec![
+            ScriptArgument::Resource {
+                workspace_id: self.resource.workspace_id,
+                resource_id: self.resource.id,
+            },
+            ScriptArgument::String(self.kind),
         ]
     }
 }
@@ -369,6 +395,88 @@ pub(crate) async fn fetch_resource(
         .await?
         .fetch(extensions, identifier)
         .await
+}
+
+/// The interface `resource`'s connector shows it with, from its
+/// `renderResource`. What a script returns is untrusted, so there is none,
+/// and the client shows the contents, when the account is orphaned, its
+/// extension is gone, lacks `connector` or doesn't define `renderResource`,
+/// or the result isn't a valid interface (logged for the extension's
+/// author). What the script throws is the user's to see.
+pub(crate) async fn render_resource(
+    extensions: &ExtensionManager,
+    database: &DatabaseContext,
+    resource: Resource,
+) -> Result<Option<Component>, ServerError> {
+    let account = database
+        .send(GetConnectorAccountCommand {
+            account_id: resource.account_id,
+        })
+        .await?;
+    let AccountHost::Extension { extension_id, .. } = account.host else {
+        return Ok(None);
+    };
+    let connector = database
+        .send(GetAccountConnectorCommand {
+            account_id: account.id,
+        })
+        .await?;
+    let Some(kind) = connector
+        .kinds
+        .into_iter()
+        .find(|k| k.id == resource.kind_id)
+    else {
+        return Ok(None);
+    };
+    let extension = match extensions
+        .granted(extension_id, RenderResourceFn::REQUIRES)
+        .await
+    {
+        Ok(extension) => extension,
+        Err(
+            ExtensionError::NotGranted(_) | ExtensionError::Database(CommandError::NotFound(_)),
+        ) => {
+            return Ok(None);
+        }
+        Err(e) => return Err(e.into()),
+    };
+    let function = RenderResourceFn {
+        resource,
+        kind: kind.identifier,
+    };
+    let returned = match extensions.call(extension.id, function).await {
+        Ok(returned) => returned,
+        Err(
+            ExtensionError::NotGranted(_)
+            | ExtensionError::Script(ScriptError::MissingFunction(_))
+            | ExtensionError::Database(CommandError::NotFound(_)),
+        ) => return Ok(None),
+        Err(ExtensionError::Script(ScriptError::InvalidFormat(reason))) => {
+            log_warn!(
+                Module::Extensions,
+                "{}: {} didn't return an interface: {reason}",
+                extension.name,
+                RenderResourceFn::NAME
+            );
+            return Ok(None);
+        }
+        Err(e) => return Err(connector_error(&extension, RenderResourceFn::NAME, e)),
+    };
+    if returned.is_null() {
+        return Ok(None);
+    }
+    match Component::from_script(returned) {
+        Ok(component) => Ok(Some(component)),
+        Err(reason) => {
+            log_warn!(
+                Module::Extensions,
+                "{}: {} didn't return a valid interface: {reason}",
+                extension.name,
+                RenderResourceFn::NAME
+            );
+            Ok(None)
+        }
+    }
 }
 
 /// Passes `value` to a script as a plain object.

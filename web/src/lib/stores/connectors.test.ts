@@ -74,6 +74,7 @@ describe('connectors store', () => {
 		const found = await store.searchResources(search);
 		expect(found.map((r) => [r.identifier, r.imported])).toEqual([
 			['page-roadmap', true],
+			['page-launch', true],
 			['page-playlist', true]
 		]);
 		// Each kind lists its own.

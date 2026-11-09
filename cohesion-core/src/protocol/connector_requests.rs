@@ -189,6 +189,14 @@ pub struct GetResourceRequest {
     pub resource_id: i64,
 }
 
+/// Asks the connector of resource `resource_id` in workspace `workspace_id`
+/// for the CohesionUI interface it shows the resource with.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct RenderResourceRequest {
+    pub workspace_id: i64,
+    pub resource_id: i64,
+}
+
 /// Removes resource `resource_id` from workspace `workspace_id`.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct DeleteResourceRequest {

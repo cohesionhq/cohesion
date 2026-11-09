@@ -432,6 +432,10 @@ pub fn derive_js_options(input: TokenStream) -> TokenStream {
 /// `#[serde(rename = "...")]` is declared under that key, the one scripts
 /// write; an `Option` field is declared optional.
 ///
+/// An enum tagged with `#[serde(tag = "kind", rename_all = "camelCase")]`,
+/// each variant wrapping one such struct, is declared as the union
+/// TypeScript narrows on, `({ kind: "text" } & TextBlock) | ...`.
+///
 /// ```ignore
 /// #[derive(Deserialize, TsInterface)]
 /// pub struct ExtensionManifest { pub identifier: String, ... }
@@ -460,7 +464,7 @@ pub fn derive_ts_interface(input: TokenStream) -> TokenStream {
 /// attribute is a compile error. An `Option` field is `T | null`; one marked
 /// `default` or `skip_serializing_if` may also be absent, as may every `Option`
 /// field of a type marked `#[ts_wire(input)]`, since serde reads a missing
-/// one as `None`. A type serde converts (`from`/`into`) gives its JSON as
+/// one as `None`. A type serde converts (`from`, `try_from`, `into`) gives its JSON as
 /// `#[ts_wire(type = "'any' | number")]`.
 ///
 /// Every field's type must implement `TsWire` too; `declare` adds the

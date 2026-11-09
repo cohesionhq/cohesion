@@ -2,6 +2,7 @@
 // per workspace, and the one open resource.
 
 import type {
+	Component,
 	Invalidation,
 	Resource as ImportedResource,
 	ResourceRefreshSummary,
@@ -70,6 +71,11 @@ const inWorkspace = (key: Invalidation, workspace_id: number) =>
 export class ResourcesStore {
 	readonly list: Resource<ImportedResource[], ResourceListKey>;
 	readonly current: Resource<ImportedResource | null, ResourceKey>;
+	/**
+	 * The interface the open resource's connector shows it with, or `null`
+	 * when it has none and its contents show instead.
+	 */
+	readonly view: Resource<Component | null, ResourceKey>;
 	/** The kinds shown in a workspace; every other kind is hidden there. */
 	readonly shownKinds: Resource<WorkspaceResourceKind[], number>;
 
@@ -84,6 +90,12 @@ export class ResourcesStore {
 		});
 		this.current = new Resource({
 			fetch: ({ workspace_id, resource_id }) => send('getResource', { workspace_id, resource_id }),
+			initial: null,
+			matches: (key, { workspace_id }) => inWorkspace(key, workspace_id)
+		});
+		this.view = new Resource({
+			fetch: ({ workspace_id, resource_id }) =>
+				send('renderResource', { workspace_id, resource_id }),
 			initial: null,
 			matches: (key, { workspace_id }) => inWorkspace(key, workspace_id)
 		});
@@ -128,13 +140,23 @@ export class ResourcesStore {
 		const key = this.current.key;
 		// Reuse the loaded key: a new object never matches it.
 		const same = key?.workspace_id === workspace_id && key.resource_id === resource_id;
-		return this.current.load(same ? key : { workspace_id, resource_id });
+		const opened = same ? key : { workspace_id, resource_id };
+		return Promise.all([this.current.load(opened), this.view.load(opened)]).then(() => undefined);
+	}
+
+	/** Stops refetching the open resource until it opens again. */
+	close(): void {
+		this.current.release();
+		this.view.release();
 	}
 
 	/** Removes a resource from its workspace. */
 	async remove(workspace_id: number, resource_id: number): Promise<ImportedResource> {
 		const resource = await this.#send('deleteResource', { workspace_id, resource_id });
-		if (this.current.value?.id === resource.id) this.current.set(null);
+		if (this.current.value?.id === resource.id) {
+			this.current.set(null);
+			this.view.set(null);
+		}
 		if (this.list.key?.workspace_id === workspace_id)
 			this.list.update((list) => list.filter((a) => a.id !== resource.id));
 		return resource;

@@ -43,7 +43,7 @@ use super::task_requests::*;
 use super::workspace_requests::*;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, Article, Attachment,
-    CatalogModel, Client, Contact, ContactMethod, DeletedItem, Document, EndpointModel,
+    CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem, Document, EndpointModel,
     ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
     IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
     IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
@@ -573,6 +573,11 @@ pub enum Command {
     /// Fetches resource `resource_id` in a workspace.
     #[reply(Resource)]
     GetResource(GetResourceRequest),
+    /// Asks the connector of resource `resource_id` for the interface it
+    /// shows the resource with, from its `renderResource`; `null` when it
+    /// has none, so the client shows the contents.
+    #[reply(Option<Component>, via = Local)]
+    RenderResource(RenderResourceRequest),
     /// Removes resource `resource_id` from a workspace.
     #[reply(Resource)]
     DeleteResource(DeleteResourceRequest),
