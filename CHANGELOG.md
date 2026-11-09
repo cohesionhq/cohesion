@@ -7,6 +7,10 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- An actor session shows as one activity for its whole life. When it works
+  again, its activity is reopened instead of a new one being added, so every
+  client lists each session once. Upgrading merges a session's earlier
+  activities into its first, which takes the newest one's title and status.
 - An agent's ⋯ menu has Memories…, which shows every memory the agent can
   see: its own, its team's and the global ones, each with the day it was
   remembered. Forget removes one, with the same confirmation as Settings ›

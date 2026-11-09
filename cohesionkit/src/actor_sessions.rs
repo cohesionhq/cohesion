@@ -1,8 +1,9 @@
 //! The sessions Cohesion hands actors, the agents clients offer on their
 //! devices. The work happens on the client; the daemon keeps the session's
-//! transcript and its status, as the client reports it, and shows each
-//! stretch of its work, from when it starts working until it is idle or
-//! failed, as an activity, which [`ActivityTracker`] runs. A daemon that
+//! transcript and its status, as the client reports it, and shows its work
+//! as one activity for the session's whole life, which [`ActivityTracker`]
+//! runs: open for each stretch, from when it starts working until it is idle
+//! or failed, and reopened when it works again. A daemon that
 //! stops cancels the activity and leaves the session idle until its client
 //! says otherwise; so does a client that goes away.
 
@@ -49,7 +50,7 @@ struct Inner {
     stretches: Mutex<HashMap<i64, Stretch>>,
 }
 
-/// One stretch of a session's work, shown as an activity until it ends.
+/// One stretch of a session's work, its activity open until it ends.
 struct Stretch {
     /// The client whose actor works on it, which going away ends it.
     client_id: i64,

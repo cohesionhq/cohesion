@@ -144,3 +144,45 @@ fn the_shutdown_cleanup_raises_no_activity_event() {
     db.send_blocking(ShutdownCleanupCommand).unwrap();
     assert!(activity_events(events.take()).is_empty());
 }
+
+#[test]
+fn a_session_keeps_one_activity_reopened_each_time_it_works() {
+    let (db, events) = recording_context();
+    let actor_session_id = actor_session(&db);
+    let start = |title: &str| {
+        db.send_blocking(StartActivityCommand {
+            title: title.to_string(),
+            kind: ActivityKind::ActorSession { actor_session_id },
+        })
+    };
+    let first = start("Fix the build").unwrap();
+    report(
+        &db,
+        first.id,
+        ActivityReport::Progress(Some("Building".to_string())),
+    );
+    // Still running: there is nothing to reopen.
+    assert!(start("Again").is_err());
+    db.send_blocking(FinishActivityCommand {
+        activity_id: first.id,
+        outcome: ActivityOutcome::Failed,
+    })
+    .unwrap();
+    events.take();
+
+    let again = start("Fix the tests").unwrap();
+    assert_eq!(again.id, first.id);
+    assert_eq!(again.title, "Fix the tests");
+    assert_eq!(again.status, ActivityStatus::Running);
+    assert_eq!(again.progress, None);
+    assert_eq!(again.started_at, first.started_at);
+    assert_eq!(again.ended_at, None);
+    assert_eq!(
+        activity_events(events.take()),
+        [("started", ActivityStatus::Running, None)]
+    );
+    let listed = db
+        .send_blocking(ListActivitiesCommand { limit: 10 })
+        .unwrap();
+    assert_eq!(listed, [again]);
+}
