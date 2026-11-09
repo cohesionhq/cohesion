@@ -2066,7 +2066,8 @@ overview a key and its value. What the script returns is untrusted:
 shows the contents, when the account is orphaned, the extension is gone,
 lacks `connector` or doesn't define `renderResource`, or the result isn't a
 valid interface (logged as a warning for the extension's author). What the
-script throws is an `upstreamError`.
+script throws is an `upstreamError`. The web UI shows the blocks on the
+resource's page in place of its contents.
 
 Agents on a user-started turn reach connectors through the `connectors`
 global (`agent_connectors.rs`); there is no CLI command for them.

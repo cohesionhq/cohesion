@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import type { Resource as ImportedResource } from '$lib/protocol/types';
 	import { ago } from '$lib/format/dates';
 	import { routes } from '$lib/shell/routes';
 	import { connectors } from '$lib/stores/connectors.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import CohesionUI from '$lib/ui/CohesionUI.svelte';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
 	import IconTile from '$lib/ui/IconTile.svelte';
 	import Markdown from '$lib/ui/Markdown.svelte';
@@ -21,6 +23,8 @@
 	const kindId = $derived(Number(page.params.kind));
 	const id = $derived(Number(page.params.id));
 	const resource = $derived(resources.current.value);
+	/** The connector's own view of it; without one, its contents show. */
+	const view = $derived(resources.view.value);
 	const account = $derived(resource ? connectors.account(resource.account_id) : undefined);
 	/** Where back goes: the kind's page, named once its connector loads. */
 	const back = $derived({
@@ -36,7 +40,7 @@
 	$effect(() => {
 		const [w, a] = [ws, id];
 		untrack(() => void resources.open(w, a));
-		return () => resources.current.release();
+		return () => resources.close();
 	});
 
 	/** JSON contents, indented; as stored if they don't parse. */
@@ -57,7 +61,7 @@
 
 <PageTitle title={`${resource ? `${resource.title} · $${back.label}` : back.label}`} />
 
-<div class="px-(--page-inset)">
+<div class="px-(--page-inset) pb-(--page-inset)">
 	<ResourceState
 		resource={resources.current}
 		missing="Resource not found"
@@ -85,17 +89,30 @@
 				{/snippet}
 			</PageHeader>
 
-			{#if resource.content_kind === 'markdown'}
-				<Markdown source={resource.contents} />
+			{#if view}
+				<CohesionUI component={view} />
+			{:else if !resources.view.loaded && !resources.view.error}
+				<!-- Waits for the connector's view, so the contents don't flash first. -->
 			{:else}
-				<pre
-					class="overflow-x-auto overscroll-y-auto rounded-sm border border-border bg-bg-raised p-3 font-mono text-xs">{pretty(
-						resource.contents
-					)}</pre>
+				{#if resources.view.error}
+					<p class="mb-3 text-xs text-fg-muted">{resources.view.error.message}</p>
+				{/if}
+				{@render contents(resource)}
 			{/if}
 		{/snippet}
 	</ResourceState>
 </div>
+
+{#snippet contents(resource: ImportedResource)}
+	{#if resource.content_kind === 'markdown'}
+		<Markdown source={resource.contents} />
+	{:else}
+		<pre
+			class="overflow-x-auto overscroll-y-auto rounded-sm border border-border bg-bg-raised p-3 font-mono text-xs">{pretty(
+				resource.contents
+			)}</pre>
+	{/if}
+{/snippet}
 
 <ConfirmDialog
 	bind:open={removing}
