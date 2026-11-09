@@ -16,7 +16,7 @@ use super::server_error::ServerError;
 use super::vocabulary::Vocabulary;
 use crate::invalidation::InvalidationBatch;
 
-/// Sent in `Hello`. Stays 1 during active development: do not bump it (`CLAUDE.md`).
+/// Sent in `Hello`. Stays 1 during active development: do not bump it (`docs/design-principles.md`).
 pub const PROTOCOL_VERSION: u32 = 1;
 
 // Client -> Server

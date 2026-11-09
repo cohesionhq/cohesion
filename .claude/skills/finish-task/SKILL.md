@@ -32,6 +32,10 @@ fix the doc or name the drift in the report:
 - `docs/cli.md`: CLI usage, one line per new friendly command.
 - `docs/self-hosting.md`: installing, `cohesiond`'s flags and `config.json`,
   pairing, the container.
+- `docs/design-principles.md`, `docs/conventions.md`,
+  `docs/security-model.md`: a principle, rule, convention or trust boundary
+  that changed; `CLAUDE.md` when how an agent works here changed (it only
+  links to the docs).
 - `docs/product-direction.md`: a capability added or removed, a changed
   default, a surface gaining or losing a feature, or the compatibility
   policy.
@@ -63,8 +67,7 @@ share with someone else's edits goes in whole.
 
 ## 4. Report
 
-End with the standard report (the format is in `CLAUDE.md`, under
-"Report"). Keep it brief: the reader may be a person or the agent that
+End with the standard report, in the format below. Keep it brief: the reader may be a person or the agent that
 dispatched you, and it must make sense without the transcript.
 
 ```

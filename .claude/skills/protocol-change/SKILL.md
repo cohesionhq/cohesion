@@ -18,7 +18,7 @@ under "Choices made":
   shipped entry);
 - basic CRUD commands and replies (`Get…`, `List…`, `Create…`, `Update…`,
   `Delete…`) and their invalidations;
-- where a rule lives, by "One rule, one place" in `CLAUDE.md`.
+- where a rule lives, by "One rule, one place" in `docs/conventions.md`.
 
 **Stop and ask** before:
 
@@ -26,7 +26,7 @@ under "Choices made":
 - a protocol frame or message that isn't basic CRUD: a new `ClientFrame`
   or `ServerMessage` variant, something actor or capability clients must
   speak, a change to `Hello`, pairing or the session handshake;
-- a change to what a trust boundary admits (see "Trust model").
+- a change to what a trust boundary admits (see `docs/security-model.md`).
 
 ## Checklist
 
@@ -37,7 +37,7 @@ under "Choices made":
 2. **DB**: the migration, the command in
    `cohesion-db/src/commands/<domain>.rs` with tests in
    `<domain>/tests.rs`, `every_model!` for a new model. Reads clients see
-   use `select_live`. Naming follows "Conventions" in `CLAUDE.md`.
+   use `select_live`. Naming follows "Code conventions" in `docs/conventions.md`.
 3. **Route**: a `Database` route is automatic; anything else is a
    hand-written `Route` in `cohesionkit/src/routes/<domain>_routes.rs`.
 4. **Generate**: `cd web && npm run generate`. Commit `generated.ts` and
@@ -82,7 +82,7 @@ repositories" in `docs/architecture.md`), all under `github.com/cohesionhq`:
   ("The page's side is a stable API" in `docs/architecture.md`).
 
 Don't edit those repos from here. Nothing is kept for an older client
-(see "Compatibility" in `CLAUDE.md`): change the shape outright, with no
+(see "Compatibility" in `docs/design-principles.md`): change the shape outright, with no
 alias, default or `Option` standing in for what an older frame lacks. A
 breaking change does not bump `PROTOCOL_VERSION` (`envelope.rs`; it stays 1
 during active development), and the report and `CHANGELOG.md` name each of

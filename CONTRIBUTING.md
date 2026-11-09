@@ -1,8 +1,11 @@
 # Contributing
 
 [docs/architecture.md](docs/architecture.md) explains how the crates fit
-together; read it first. This file covers the checks and the recipes for
-common changes.
+together; read it first. The rules a change follows are in
+[docs/design-principles.md](docs/design-principles.md),
+[docs/conventions.md](docs/conventions.md) and
+[docs/security-model.md](docs/security-model.md). This file covers the checks
+and the recipes for common changes.
 
 ## Before you start
 

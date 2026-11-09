@@ -23,8 +23,8 @@ image or commit before reporting.
 
 ## What's in scope
 
-The boundaries the daemon defends are described under "Trust model" in
-[`CLAUDE.md`](CLAUDE.md) and in [`docs/architecture.md`](docs/architecture.md):
+The boundaries the daemon defends are described in
+[`docs/security-model.md`](docs/security-model.md) and in [`docs/architecture.md`](docs/architecture.md):
 
 - Pairing and the setup code, the Unix socket and the `cohesion open` loopback
   proxy, which must give nothing to an unpaired stranger on the network or a

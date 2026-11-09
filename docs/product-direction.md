@@ -126,7 +126,8 @@ policy below holds until it changes.
 
 ## Where the rules for each live
 
-- Daemon design, trust model, layering: `CLAUDE.md`, `docs/architecture.md`.
+- Daemon design, trust model, layering: `docs/design-principles.md`,
+  `docs/security-model.md`, `docs/conventions.md`, `docs/architecture.md`.
 - Recipes for models, commands, CLI commands and script entities:
   `CONTRIBUTING.md`.
 - Web UI: `web/README.md`, the `web-ui-change` skill,

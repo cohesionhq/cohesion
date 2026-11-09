@@ -9,8 +9,10 @@ when the two disagree, the code is right and this page is the bug.
 Product questions (who Cohesion is for, which surface gets a feature) are in
 [product-direction.md](product-direction.md). Installing and running a server is
 in [self-hosting.md](self-hosting.md), and everyday CLI use in [cli.md](cli.md).
-The rules for changing the code (design principles, trust model, layering,
-conventions) are in `CLAUDE.md`, and the recipes in `CONTRIBUTING.md`.
+The rules for changing the code are in [design-principles.md](design-principles.md),
+[security-model.md](security-model.md) (the trust model) and
+[conventions.md](conventions.md) (layering and conventions), and the recipes in
+`CONTRIBUTING.md`.
 
 The sections follow eight groups of questions:
 
@@ -2114,8 +2116,8 @@ can fetch a page (`ArticleFetchAccess`).
 
 ### 22. Trust boundaries and secrets
 
-The trust model itself (who is trusted with what) is in `CLAUDE.md` under
-"Trust model"; this section is what the code does about it.
+The trust model itself (who is trusted with what) is in
+[security-model.md](security-model.md); this section is what the code does about it.
 
 **What the daemon stores.** Nothing is encrypted by the application: the
 protection is the file modes, 0700 for the config directory and 0600 for the
@@ -2246,7 +2248,7 @@ scratch config directory and socket (skill `run-locally`), for example
 then `target/debug/cohesion -c /tmp/cohesion-smoke/client setup --local /tmp/cs.sock`,
 or the web UI with `VITE_MOCK=1 npm run dev`.
 
-**The rules in `CLAUDE.md`.** Write tests for low-level behaviour a
+**The rules in [conventions.md](conventions.md).** Write tests for low-level behaviour a
 regression would quietly break: the JS runtime (sandbox isolation, worker
 survival, deadlines, hooks calling into scripts, read-only enforcement),
 transactions, and migrations and triggers, driven through real scripts against
