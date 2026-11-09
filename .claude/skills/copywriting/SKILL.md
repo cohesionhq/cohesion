@@ -1,17 +1,22 @@
 ---
 name: copywriting
-description: Cohesion's voice for product copy. Use when writing or reviewing anything a user reads, including UI strings, buttons, dialogs, empty states, errors, toasts, CLI messages, user-facing docs, READMEs, landing pages, emails and posts, and when asked to review, audit or fix copy. Doesn't cover commit messages.
+description: Cohesion's voice and words for anything a user reads, including web UI strings, buttons, dialogs, empty states, errors, toasts, CLI messages, user-facing docs, the README, landing pages, emails and posts. Use when writing any of these, and when asked to review, audit or fix copy. Doesn't cover commit messages.
 ---
 
 # Copywriting
 
 Write for end users, in plain language modeled on Apple's product copy. Say what happens, in words the reader already knows.
 
-**Project rules win.** Before writing, look for the project's own copy rules and glossary (its CLAUDE.md, README or docs) and search for how the product already names the thing. Use the product's word for each concept, and only that word. Where a project's stated rule disagrees with this skill, follow the project.
-
-**Writing:** apply these rules, then run the checklist at the end.
+**Writing:** search for how Cohesion already names the thing (`grep -r` the term in `web/src` and `docs/`), apply these rules, then run the checklist at the end.
 
 **Reviewing:** read the file, diff or surface you were given. Report each violation with its location, the current string, the rule it breaks and a rewrite. Change the strings only if asked.
+
+## Cohesion's words
+
+- **One word per concept**, the one the models and docs use: workspace, journal (an entry), document, task, folder (never "task list"), inbox, an agent's extended context and native context (the two stretches of its thread, capitalized as names in the chat's rules), agent, team, cue, fork, choice, extension, permission, hook, registry, connector, account, resource, endpoint, model, default, client. A page has one name in the sidebar, its header, its `<title>`, the ⌘K palette and the shortcuts dialog.
+- **Words for what the daemon names** (permissions, hooks, priorities, sizes, agent settings) come from its vocabulary (`vocabulary.svelte.ts` on the web), never written on the page.
+- **No internals in the web UI** outside Settings › Developer and About: no "daemon", `cohesiond`, protocol versions, raw enum or hook names, `null` or database ids (Copy ID on a task is the one deliberate exception). The server is "Cohesion": "Can’t reach Cohesion. Retrying…". The server's own messages show as they come.
+- **Removal verbs**: Delete is for what you made, which leaves Cohesion. Remove takes out something that lives elsewhere (an imported resource, an account, a cue, a feed) or a detail on an item (a photo, an email address). Extensions are uninstalled and clients revoked.
 
 ## Voice
 
@@ -31,7 +36,7 @@ Name the thing, say what will happen, then say what the person can do about it. 
 - **Don't describe what the screen already shows.** A clause that repeats what the data makes obvious gets cut, and sort order never appears in copy: "Every model call and what it cost, newest first." loses "newest first".
 - **Cut any word that doesn't change the meaning.** Labels take no possessives: "Tasks" and "Name", not "My tasks" or "Your name". "Your" is fine in a sentence: "Cohesion keeps your data on this computer."
 - **Address the reader as "you".**
-- **Use only words the user knows from the product.** No implementation terms, even accurate ones: "Enter a provider identifier" and "Backend" both fail on an end-user screen. Developer screens, CLIs and developer docs may use a technical term when it's the most accurate word.
+- **Use only words the user knows from Cohesion.** No implementation terms, even accurate ones: "Enter a provider identifier" and "Backend" both fail on an end-user screen. Settings › Developer, the CLI and developer docs may use a technical term when it's the most accurate word.
 
 ## Never
 
@@ -44,16 +49,7 @@ Name the thing, say what will happen, then say what the person can do about it. 
 
 ## Capitalization
 
-Match the convention of the toolkit a surface is built with. Sentences are in sentence case everywhere.
-
-| Surface | Buttons, menus and titles |
-|---|---|
-| Native iOS, iPadOS and macOS | Title case: "Add Account" |
-| Web, Windows, Android and Linux | Sentence case: "Add account" |
-| CLI | Sentence case |
-| Marketing pages | Sentence case, headlines included |
-
-A web page keeps sentence case when it's shown inside a native wrapper. Only proper names take capitals in sentence case. A page named in a sentence is lowercase: "Back to installed extensions".
+Sentence case everywhere in this repo: the web UI (including inside the WebUI harnesses), accessible labels, the CLI, docs and marketing headlines. Only proper names take capitals: Cohesion, Markdown, provider and API names. A page named in a sentence is lowercase: "Back to installed extensions". (The native iPhone app, in its own repo, uses title case for buttons, menus and titles.)
 
 ## Punctuation
 
@@ -62,7 +58,7 @@ A web page keeps sentence case when it's shown inside a native wrapper. Only pro
 - **Contractions always:** can’t, couldn’t, isn’t, never "could not" or "is not".
 - **Numerals for counts:** "3 tasks". Write "and", not "&".
 - **No semicolons.** Use two sentences.
-- **Curly quotes and apostrophes** (’ “ ”) in UI and marketing. Straight quotes are fine in a terminal and in Markdown source.
+- **Curly quotes and apostrophes** (’ “ ”) in the web UI and marketing. Straight quotes are fine in a terminal and in Markdown source.
 - **Em dashes** appear only in docs and marketing prose, at most about one per paragraph, closed up: "word—word". Never in UI strings or CLI messages.
 - **An ellipsis** is one character (…).
 
@@ -72,9 +68,9 @@ A web page keeps sentence case when it's shown inside a native wrapper. Only pro
 
 **Ellipses** end a menu item or text button that opens a dialog or picker before it acts ("Delete…", "New folder…"), and a busy label ("Saving…"). Never on a link, the button that confirms, or an accessible label.
 
-**Confirmations** ask a question naming the thing, and the confirm button repeats the verb. Titles people wrote go in curly quotes, names don't: "Delete “Groceries”?", "Delete Ada?". The description says what else will happen. When nothing else goes with it, it says "This can’t be undone."
+**Confirmations** ask a question naming the thing, and the confirm button repeats the verb. Titles go in curly quotes (tasks, documents, folders, workspaces, resources, cues); names don't (agents, extensions, clients, endpoints, accounts): "Delete “Groceries”?", "Delete Ada?". The description says what else will happen. When nothing else goes with it, it says "This can’t be undone."
 
-**Empty states** are a centered pair stacked vertically: a title in the secondary text style with no period, and a subtitle in the tertiary style saying what to do. "No tags" over "Create tags in the filter menu." The subtitle is optional when the action is a button or the page's next step is obvious. Use "No {things} yet" with one action labeled like the page's own button, "No matches" for a search or filter, and "{Thing} not found" with "Back to {page}" for a dead link. In a CLI, the same pair is two lines: "No tags." then "Create one with `app tag create <name>`."
+**Empty states** are a centered pair stacked vertically (`EmptyState` on the web): a title in the secondary text style with no period, and a subtitle in the tertiary style saying what to do. "No tags" over "Create tags in the filter menu." The subtitle is optional when the action is a button or the page's next step is obvious. Use "No {things} yet" with one action labeled like the page's own button, "No matches" for a search or filter, and "{Thing} not found" with "Back to {page}" for a dead link. In the CLI, the same pair is two lines: "No tags." then "Create one with `cohesion tag create <name>`."
 
 An empty message inline in a list, with no pair, is a sentence and takes a period.
 
@@ -84,11 +80,9 @@ An empty message inline in a list, with no pair, is a sentence and takes a perio
 
 **Placeholders:** one that invites writing ends in an ellipsis ("Write about today…"). One that names the field doesn't ("Filter by title"). An optional field says "(optional)" on its label.
 
-**Removal verbs:** give each kind of removal one verb and keep it. A project's rules say which is which.
-
 ## CLI
 
-Use the same voice as the UI. Full sentences take a period and contractions: "Couldn’t open a browser. Open the URL above." Only bare label and value output goes without a period.
+Use the same voice as the web UI. Full sentences take a period and contractions: "Couldn’t open a browser. Open the URL above." Only bare label and value output goes without a period.
 
 ## Marketing
 
@@ -100,17 +94,18 @@ Use the same voice as the UI. Full sentences take a period and contractions: "Co
 
 ## Docs
 
-- **User-facing docs and README openings** use the plain voice, leading with what the reader can do.
+- **User-facing docs and the README opening** (`README.md`, `docs/cli.md`, `docs/self-hosting.md`) use the plain voice, leading with what the reader can do.
 - **Developer and architecture docs** keep the same mechanics and may use technical terms.
 
 ## Checklist
 
 Before finishing, check each new or changed string:
 
-1. Does it use the product's existing word for the concept?
-2. Does a sentence open with a bare "It" or "Its", or trail a tacked-on clause?
-3. Would an end user know every word?
-4. Can any word go without changing the meaning?
-5. Does it end with a period only if it's a sentence?
-6. Does the case match the surface?
-7. Does anything from "Never" appear?
+1. Does it use Cohesion's existing word for the concept?
+2. In the web UI, does it leave out internals (outside Settings › Developer and About)?
+3. Does a sentence open with a bare "It" or "Its", or trail a tacked-on clause?
+4. Would an end user know every word?
+5. Can any word go without changing the meaning?
+6. Does it end with a period only if it's a sentence?
+7. Is it in sentence case?
+8. Does anything from "Never" appear?

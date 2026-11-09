@@ -101,6 +101,8 @@ are in the `web-ui-change` skill.
   `vocabulary.svelte.ts`; never word a kind on the page. `npm run generate`
   also writes the same words to `vocabulary.json`, which only mock mode and
   tests read.
+- `src/lib/features/<area>/`: a feature's components and helpers (agents,
+  tasks, documents, actors, settings…).
 - `src/lib/stores/`: rune stores; see its README for the pattern.
 - `src/lib/ui/`: primitives, which import nothing from `stores/`, `shell/`
   or `features/`. Only `Editor.svelte` imports CodeMirror; only
@@ -178,7 +180,8 @@ priorities, sizes, settings) come from `hello`'s vocabulary, never from the
 page. Nothing explains itself on hover: no tooltips, the label says it. A
 native `title` gets in the way of a resting cursor, so nothing sets one (lint
 refuses it). An icon-only control names itself with `aria-label`, and what
-matters is on the page, not behind a hover.
+matters is on the page, not behind a hover: an action that fades in on
+hover (a row's ⋯) also shows with `touch:opacity-100`.
 The details are in [Styling](#styling), [Components](#components) and
 [Copy](#copy).
 
@@ -392,31 +395,5 @@ Every shortcut the page handles has a row in the ⌘/ dialog
 
 ## Copy
 
-What the UI says follows skill `copywriting`
-(`.claude/skills/copywriting/SKILL.md`), Cohesion's voice across its
-products. This section holds only Cohesion's own choices, which win where the
-two disagree.
-
-1. **Sentence case** everywhere in the web UI, including inside the WebUI
-   harnesses, and on accessible labels. Proper names keep their capitals
-   (Cohesion, Markdown, provider and API names).
-2. **One word per concept**, the one the models and docs use: workspace,
-   journal (an entry), document, task, folder (never "task list"), inbox,
-   an agent's extended context and native context (the two stretches of
-   its thread, capitalized as names in the chat's rules),
-   agent, team, cue, fork, choice, extension, permission, hook,
-   registry, connector, account, resource, endpoint, model, default, client. A
-   page has one name in the sidebar, its header, its `<title>`, the ⌘K
-   palette and the shortcuts dialog.
-3. **No internals** outside Settings › Developer and About: no "daemon",
-   `cohesiond`, protocol versions, raw enum or hook names, `null` or
-   database ids (Copy ID on a task is the one deliberate exception). The
-   server is "Cohesion": "Can’t reach Cohesion. Retrying…". The server's own
-   messages show as they come.
-4. **Removal verbs**: Delete is for what you made, which leaves Cohesion;
-   Remove takes out something that lives elsewhere (an imported resource, an
-   account, a cue, a feed) or a detail on an item (a photo, an email address);
-   extensions are uninstalled and clients revoked.
-5. **Confirmations**: titles (tasks, documents, folders, workspaces,
-   resources, cues) go in curly quotes; names (agents, extensions, clients,
-   endpoints, accounts) don't.
+What the UI says, and the word for each concept, follows skill
+`copywriting` (`.claude/skills/copywriting/SKILL.md`).

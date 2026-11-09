@@ -11,7 +11,12 @@ recipes in [CONTRIBUTING.md](../CONTRIBUTING.md).
 Keeping the docs true is part of every change, not a follow-up: a change
 that makes `CLAUDE.md`, `docs/`, `web/README.md`, `CONTRIBUTING.md`,
 `README.md`, `CHANGELOG.md` or a skill wrong fixes them in the same commit
-(the list is in skill `finish-task`), and a change that moves product
+(what each doc covers is in "Documentation" in `CLAUDE.md`). The same
+holds for a crate's `//!` summary when its role changes, the `///` comments
+on script entities (the LLM reads them as `.d.ts`), a `CHANGELOG.md` entry
+under "Unreleased" for anything a user would notice or any breaking wire
+change with the clients it breaks, and `THIRD_PARTY_NOTICES.md` after a
+change to `Cargo.lock`. A change that moves product
 direction (a new capability, a changed default, a surface gaining or losing a
 feature, a web change the iPhone app should mirror) says so in the report and
 updates [product-direction.md](product-direction.md).
@@ -107,7 +112,7 @@ type would need it, the client keeps that part as raw JSON instead
   (`node scripts/third-party-notices.mjs`).
 - Times show on a 12-hour clock (`3:14 PM`) on every client, whatever the
   locale's habit; on the web through `shortTime` (`web/src/lib/format/dates.ts`).
-- Web UI text follows skill `copywriting` and "Copy" in `web/README.md`, and every Svelte
+- Web UI text follows skill `copywriting`, and every Svelte
   transition takes `motion.duration` (`web/src/lib/ui/motion.ts`), never a
   literal; see "Motion" under "Styling" there.
 - Match the surrounding comment density and naming. Each crate root opens

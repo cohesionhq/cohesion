@@ -113,7 +113,7 @@ The rest of the top level:
 | `docs/` | This page, product direction, self-hosting, the CLI guide and licensing. |
 | `.github/` | Workflows (`checks.yml`, `image.yml`, `release.yml`), issue and pull request templates. |
 | `.githooks/` | `pre-commit` (runs `cargo fmt` and `cargo clippy --fix` when Rust is staged, prettier on staged `web/` files, and re-stages them) and `commit-msg` (removes Claude and Anthropic attribution lines). Turned on per checkout with `git config core.hooksPath .githooks`. |
-| `.claude/` | Skills for coding agents working here (`verify`, `dirty-checkout`, `finish-task`, `protocol-change`, `web-ui-change`, `run-locally`, `copywriting`) and a `launch.json` for the web UI in mock mode. |
+| `.claude/` | Skills for coding agents working here (`contributing`, `protocol-change`, `web-ui-change`, `copywriting`) and a `launch.json` for the web UI in mock mode. |
 | `rust-toolchain.toml` | Rust `1.99`, with rustfmt and clippy. The Dockerfile's builder (`rust:1.99-slim-trixie`) must move with it. |
 | `.cargo/config.toml` | Sets `LIBSQLITE3_FLAGS = "-DSQLITE_DEFAULT_MEMSTATUS=0"`, which speeds up parallel tests. |
 | `MAJOR_VERSION` | `001`, the major part of release versions ([3](#3-what-ships)). |
@@ -2235,7 +2235,7 @@ Settings › Security lists the security events.
 Unit tests live out of line: `#[cfg(test)] mod tests;` at the end of a file,
 the tests in `foo/tests.rs`, never an inline `mod tests { … }`.
 
-**Verifying a change** (skill `verify`; CI runs the same, [2](#2-building-running-and-testing)):
+**Verifying a change** (skill `contributing`; CI runs the same, [2](#2-building-running-and-testing)):
 
 | You changed | Run |
 |---|---|
@@ -2246,7 +2246,7 @@ the tests in `foo/tests.rs`, never an inline `mod tests { … }`.
 | `Cargo.lock` | `node scripts/third-party-notices.mjs` |
 
 To see a change working without touching real data, run the daemon on a
-scratch config directory and socket (skill `run-locally`), for example
+scratch config directory and socket ("Running it locally" in `CLAUDE.md`), for example
 `target/debug/cohesiond -c /tmp/cohesion-smoke --socket /tmp/cs.sock --port 3100`
 then `target/debug/cohesion -c /tmp/cohesion-smoke/client setup --local /tmp/cs.sock`,
 or the web UI with `VITE_MOCK=1 npm run dev`.
