@@ -46,8 +46,9 @@ pub use cohesion_macros::{
 };
 pub use invalidation::{Invalidation, InvalidationBatch, InvalidationContext};
 pub use model::{
-    Client, ClientKeyKind, DayFilter, DayRange, Document, DocumentType, Task, TaskAssignee,
-    TaskFolder, TaskFolderFilter, TaskPriority, TaskSize, TaskSort, TaskStatus, Workspace,
+    Client, ClientKeyKind, DayFilter, DayRange, Document, DocumentFolder, DocumentType, Task,
+    TaskAssignee, TaskFolder, TaskFolderFilter, TaskPriority, TaskSize, TaskSort, TaskStatus,
+    Workspace,
 };
 pub use stored_model::{Column, ColumnGroup, Model, Named, Projection, SingleTable, SoftDelete};
 pub use ts_documentation::TsDocumentation;

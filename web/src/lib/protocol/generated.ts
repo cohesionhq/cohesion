@@ -1188,11 +1188,21 @@ export interface CreateContactRequest {
 	methods: NewContactMethod[];
 }
 
+/** Creates a document folder in a workspace, last among its siblings. */
+export interface CreateDocumentFolderRequest {
+	workspace_id: number;
+	title: string;
+	/** The live folder to create it in; the top level when absent. */
+	parent_id?: number | null;
+}
+
 /** Creates an ordinary document in a workspace. */
 export interface CreateDocumentRequest {
 	workspace_id: number;
 	title: string;
 	contents: string;
+	/** The live document folder to file it in; the Inbox when absent. */
+	folder_id?: number | null;
 }
 
 /** Creates an agent; it runs on the `agent` tier's default model. */
@@ -1401,6 +1411,15 @@ export interface DeleteContactRequest {
 	contact_id: number;
 }
 
+/**
+ * Deletes document folder `folder_id` in a workspace and every folder
+ * inside it; the documents they held move to the Inbox.
+ */
+export interface DeleteDocumentFolderRequest {
+	workspace_id: number;
+	folder_id: number;
+}
+
 /** Deletes document `document_id` in a workspace. */
 export interface DeleteDocumentRequest {
 	workspace_id: number;
@@ -1516,6 +1535,30 @@ export interface Document {
 	 * `null` for normal documents.
 	 */
 	journal_date: string | null;
+	/**
+	 * Id of the document folder this document is filed in, or `null` when
+	 * it is in the Inbox.
+	 *
+	 * Always `null` for journals.
+	 */
+	folder_id: number | null;
+}
+
+/**
+ * A named group of documents in a workspace, which may sit inside another.
+ *
+ * Folders nest without limit. A document in no folder is in the Inbox;
+ * journals are never in a folder.
+ */
+export interface DocumentFolder {
+	id: number;
+	workspace_id: number;
+	/** Id of the folder this one sits in, or `null` at the top level. */
+	parent_id: number | null;
+	title: string;
+	/** Where the folder sits among its siblings; lower comes first. */
+	sort_order: number;
+	deleted: boolean;
 }
 
 /**
@@ -2489,6 +2532,7 @@ export type Invalidation =
 	| { kind: 'agentTeams' }
 	| { kind: 'taskFolders'; id: number }
 	| { kind: 'documents'; id: number }
+	| { kind: 'documentFolders'; id: number }
 	| {
 			kind: 'taskList';
 			id: {
@@ -2626,6 +2670,14 @@ export interface ListContactsRequest {
  * recently deleted first.
  */
 export interface ListDeletedItemsRequest {
+	workspace_id: number;
+}
+
+/**
+ * Lists a workspace's live document folders, each with its `parent_id`,
+ * in their sort order among their siblings.
+ */
+export interface ListDocumentFoldersRequest {
 	workspace_id: number;
 }
 
@@ -2891,6 +2943,28 @@ export interface ModelPrices {
 	output_token_cost: number;
 	cache_read_token_cost?: number | null;
 	cache_write_token_cost?: number | null;
+}
+
+/**
+ * Moves document folder `folder_id` into folder `parent_id`, or the top
+ * level when absent, just before its sibling `before_id`, or last when
+ * absent. A folder can't move into itself or a folder inside it.
+ */
+export interface MoveDocumentFolderRequest {
+	workspace_id: number;
+	folder_id: number;
+	parent_id?: number | null;
+	before_id?: number | null;
+}
+
+/**
+ * Files ordinary document `document_id` in a workspace into folder
+ * `folder_id`, or the Inbox when absent.
+ */
+export interface MoveDocumentRequest {
+	workspace_id: number;
+	document_id: number;
+	folder_id?: number | null;
 }
 
 /** Moves task `task_id` into folder `folder_id`, or the inbox when absent. */
@@ -3195,6 +3269,13 @@ export interface RenameArticleRequest {
 export interface RenameClientRequest {
 	id: number;
 	client_name: string;
+}
+
+/** Retitles document folder `folder_id` in a workspace. */
+export interface RenameDocumentFolderRequest {
+	workspace_id: number;
+	folder_id: number;
+	title: string;
 }
 
 /** Retitles live document `document_id` in a workspace. */
@@ -4657,6 +4738,21 @@ export interface Requests {
 	renameDocument: RenameDocumentRequest;
 	/** Deletes document `document_id` in a workspace. */
 	deleteDocument: DeleteDocumentRequest;
+	/** Files a document into a folder, or the Inbox. */
+	moveDocument: MoveDocumentRequest;
+	/** Lists a workspace's document folders. */
+	listDocumentFolders: ListDocumentFoldersRequest;
+	/** Creates a document folder, at the top level or inside another. */
+	createDocumentFolder: CreateDocumentFolderRequest;
+	/** Retitles a document folder. */
+	renameDocumentFolder: RenameDocumentFolderRequest;
+	/**
+	 * Moves a document folder into another, or the top level, and among its
+	 * new siblings; replies with every folder in the workspace.
+	 */
+	moveDocumentFolder: MoveDocumentFolderRequest;
+	/** Deletes a document folder and the folders inside it. */
+	deleteDocumentFolder: DeleteDocumentFolderRequest;
 	/** Lists an item's kept versions, newest first, without their text. */
 	listVersions: ListVersionsRequest;
 	/** Fetches one kept version. */
@@ -5113,6 +5209,21 @@ export interface Replies {
 	renameDocument: Document;
 	/** Deletes document `document_id` in a workspace. */
 	deleteDocument: Document;
+	/** Files a document into a folder, or the Inbox. */
+	moveDocument: Document;
+	/** Lists a workspace's document folders. */
+	listDocumentFolders: DocumentFolder[];
+	/** Creates a document folder, at the top level or inside another. */
+	createDocumentFolder: DocumentFolder;
+	/** Retitles a document folder. */
+	renameDocumentFolder: DocumentFolder;
+	/**
+	 * Moves a document folder into another, or the top level, and among its
+	 * new siblings; replies with every folder in the workspace.
+	 */
+	moveDocumentFolder: DocumentFolder[];
+	/** Deletes a document folder and the folders inside it. */
+	deleteDocumentFolder: DocumentFolder;
 	/** Lists an item's kept versions, newest first, without their text. */
 	listVersions: VersionSummary[];
 	/** Fetches one kept version. */

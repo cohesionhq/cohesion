@@ -68,10 +68,68 @@ pub struct EditDocumentRequest {
 
 /// Creates an ordinary document in a workspace.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+#[ts_wire(input)]
 pub struct CreateDocumentRequest {
     pub workspace_id: i64,
     pub title: String,
     pub contents: String,
+    /// The live document folder to file it in; the Inbox when absent.
+    pub folder_id: Option<i64>,
+}
+
+/// Files ordinary document `document_id` in a workspace into folder
+/// `folder_id`, or the Inbox when absent.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+#[ts_wire(input)]
+pub struct MoveDocumentRequest {
+    pub workspace_id: i64,
+    pub document_id: i64,
+    pub folder_id: Option<i64>,
+}
+
+/// Lists a workspace's live document folders, each with its `parent_id`,
+/// in their sort order among their siblings.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct ListDocumentFoldersRequest {
+    pub workspace_id: i64,
+}
+
+/// Creates a document folder in a workspace, last among its siblings.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+#[ts_wire(input)]
+pub struct CreateDocumentFolderRequest {
+    pub workspace_id: i64,
+    pub title: String,
+    /// The live folder to create it in; the top level when absent.
+    pub parent_id: Option<i64>,
+}
+
+/// Retitles document folder `folder_id` in a workspace.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct RenameDocumentFolderRequest {
+    pub workspace_id: i64,
+    pub folder_id: i64,
+    pub title: String,
+}
+
+/// Moves document folder `folder_id` into folder `parent_id`, or the top
+/// level when absent, just before its sibling `before_id`, or last when
+/// absent. A folder can't move into itself or a folder inside it.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+#[ts_wire(input)]
+pub struct MoveDocumentFolderRequest {
+    pub workspace_id: i64,
+    pub folder_id: i64,
+    pub parent_id: Option<i64>,
+    pub before_id: Option<i64>,
+}
+
+/// Deletes document folder `folder_id` in a workspace and every folder
+/// inside it; the documents they held move to the Inbox.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct DeleteDocumentFolderRequest {
+    pub workspace_id: i64,
+    pub folder_id: i64,
 }
 
 /// Retitles live document `document_id` in a workspace.

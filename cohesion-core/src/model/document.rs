@@ -41,4 +41,10 @@ pub struct Document {
     ///
     /// `null` for normal documents.
     pub journal_date: Option<String>,
+
+    /// Id of the document folder this document is filed in, or `null` when
+    /// it is in the Inbox.
+    ///
+    /// Always `null` for journals.
+    pub folder_id: Option<i64>,
 }

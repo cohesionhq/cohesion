@@ -7,18 +7,20 @@ use rquickjs::function::Opt;
 use cohesion_core::Workspace;
 use cohesion_core::model::{ResourceSort, TagFilter, VersionedItem};
 use cohesion_db::{
-    CreateContactCommand, CreateDocumentCommand, CreateTagCommand, CreateTaskCommand,
-    CreateTaskFolderCommand, DeleteWorkspaceCommand, EnsureJournalCommand, GetContactCommand,
-    GetDocumentCommand, GetDocumentIncludingDeletedCommand, GetTaskCommand, GetTaskFolderCommand,
+    CreateContactCommand, CreateDocumentCommand, CreateDocumentFolderCommand, CreateTagCommand,
+    CreateTaskCommand, CreateTaskFolderCommand, DeleteWorkspaceCommand, EnsureJournalCommand,
+    GetContactCommand, GetDocumentCommand, GetDocumentFolderCommand,
+    GetDocumentIncludingDeletedCommand, GetTaskCommand, GetTaskFolderCommand,
     GetTaskIncludingDeletedCommand, ListContactsCommand, ListDeletedItemsCommand,
-    ListDocumentsCommand, ListResourcesCommand, ListTagsCommand, ListTaskFoldersCommand,
-    ListTasksCommand, LookupJournalByDateCommand, RenameWorkspaceCommand, SearchWorkspaceCommand,
-    SetWorkspaceEmojiCommand,
+    ListDocumentFoldersCommand, ListDocumentsCommand, ListResourcesCommand, ListTagsCommand,
+    ListTaskFoldersCommand, ListTasksCommand, LookupJournalByDateCommand, RenameWorkspaceCommand,
+    SearchWorkspaceCommand, SetWorkspaceEmojiCommand,
 };
 use cohesion_macros::js_entity;
 
 use super::contact::JsContact;
 use super::document::JsDocument;
+use super::document_folder::JsDocumentFolder;
 use super::resource::JsResource;
 use super::search_result::JsSearchResult;
 use super::tag::{JsTag, find_tag};
@@ -38,7 +40,8 @@ use crate::entities::workspace_options::{TaskFolderCreateOptions, TaskFolderList
 /// List tasks with `tasks()`, read one by id with `task(id)`, find them by
 /// title with `search()`, and make new ones with `createTask()`. Read a
 /// document or journal entry by id with `document(id)`, and make documents
-/// with `createDocument()`.
+/// with `createDocument()`. Documents file into nested folders:
+/// `documentFolders()` and `createDocumentFolder()`.
 /// Read items imported from connected services with `resources()`. Keep people
 /// with `contacts()` and `createContact()`.
 #[js_entity(Workspace, metadata)]
@@ -414,8 +417,9 @@ impl JsWorkspace {
         Ok(JsTask::new(result, self.db.clone()))
     }
 
-    /// Creates a document titled `title` in this workspace, starting with
-    /// `contents` (empty when left out), and returns it.
+    /// Creates a document titled `title` in this workspace's Inbox, starting
+    /// with `contents` (empty when left out), and returns it. To create one
+    /// in a folder, use `DocumentFolder.createDocument()`.
     ///
     /// Saved immediately. An empty title throws.
     #[qjs(rename = "createDocument")]
@@ -431,9 +435,70 @@ impl JsWorkspace {
                 workspace_id: self.inner.id,
                 title,
                 contents: contents.0.unwrap_or_default(),
+                folder_id: None,
             },
         )?;
         Ok(JsDocument::new(result, self.db.clone()))
+    }
+
+    /// Every live document folder in this workspace, at every depth, in
+    /// their order among their siblings; each folder's `parentId` names the
+    /// folder it sits in, `null` at the top level.
+    #[qjs(rename = "documentFolders")]
+    pub fn document_folders<'js>(&self, ctx: Ctx<'js>) -> rquickjs::Result<Vec<JsDocumentFolder>> {
+        Ok(self
+            .read(
+                &ctx,
+                ListDocumentFoldersCommand {
+                    workspace_id: self.inner.id,
+                },
+            )?
+            .into_iter()
+            .map(|folder| JsDocumentFolder::new(folder, self.db.clone()))
+            .collect())
+    }
+
+    /// One of this workspace's document folders, by id, such as a
+    /// `Document`'s `folderId`.
+    ///
+    /// Throws a `ReferenceError` if this workspace has no live folder with
+    /// that id.
+    #[qjs(rename = "documentFolder")]
+    pub fn document_folder<'js>(
+        &self,
+        ctx: Ctx<'js>,
+        id: i64,
+    ) -> rquickjs::Result<JsDocumentFolder> {
+        let folder = self.read(
+            &ctx,
+            GetDocumentFolderCommand {
+                workspace_id: self.inner.id,
+                folder_id: id,
+            },
+        )?;
+        Ok(JsDocumentFolder::new(folder, self.db.clone()))
+    }
+
+    /// Creates a top-level document folder titled `title`, last among them,
+    /// and returns it. For one inside another, use
+    /// `DocumentFolder.createFolder()`.
+    ///
+    /// Saved immediately. An empty title throws.
+    #[qjs(rename = "createDocumentFolder")]
+    pub fn create_document_folder<'js>(
+        &self,
+        ctx: Ctx<'js>,
+        title: String,
+    ) -> rquickjs::Result<JsDocumentFolder> {
+        let folder = self.write(
+            &ctx,
+            CreateDocumentFolderCommand {
+                workspace_id: self.inner.id,
+                title,
+                parent_id: None,
+            },
+        )?;
+        Ok(JsDocumentFolder::new(folder, self.db.clone()))
     }
 
     #[qjs(rename = "createTaskFolder")]

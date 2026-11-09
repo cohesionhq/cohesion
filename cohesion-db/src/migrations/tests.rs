@@ -1,5 +1,5 @@
 use cohesion_core::{
-    Client, Document, Model, Task, TaskFolder, TaskPriority, Workspace,
+    Client, Document, DocumentFolder, Model, Task, TaskFolder, TaskPriority, Workspace,
     model::{
         AccountHost, Activity, Actor, ActorMessageContent, ActorPermissionDecision, ActorSession,
         ActorSessionMessage, ActorSessionMessageContent, ActorSessionStatus, ActorToolKind,
@@ -2645,4 +2645,73 @@ fn articles_only_from_feeds_drops_saving_and_keeps_the_reader_and_task_tags() {
         .execute_batch("DELETE FROM feeds WHERE id = 1")
         .unwrap();
     assert_eq!(count("SELECT COUNT(*) FROM articles"), 0);
+}
+
+#[test]
+fn documents_start_in_the_inbox_and_file_only_into_a_live_folder_of_their_workspace() {
+    let mut db = Container::in_memory().unwrap();
+    let at = MIGRATIONS
+        .iter()
+        .position(|migration| migration.name == "document_folders")
+        .unwrap();
+    // As `migrate` runs them: these later migrations rebuild tables, which
+    // needs foreign keys off.
+    db.connection()
+        .execute_batch("PRAGMA foreign_keys = OFF")
+        .unwrap();
+    db.register_migration_functions().unwrap();
+    for migration in &MIGRATIONS[..at] {
+        db.connection().execute_batch(migration.sql).unwrap();
+    }
+    db.connection()
+        .execute_batch(
+            "INSERT INTO workspaces (id, title) VALUES (1, 'Home'), (2, 'Work');
+             INSERT INTO documents (id, workspace_id, title, contents)
+                 VALUES (1, 1, 'Plan', 'text');
+             INSERT INTO documents (id, workspace_id, title, contents, document_type,
+                     journal_date)
+                 VALUES (2, 1, '2026-11-09', '', 'journal', '2026-11-09');",
+        )
+        .unwrap();
+    db.connection()
+        .pragma_update(None, "user_version", at as i64)
+        .unwrap();
+    db.migrate().unwrap();
+
+    let folder_of = |id: i64| -> Option<i64> {
+        db.connection()
+            .query_row(
+                "SELECT folder_id FROM documents WHERE id = ?",
+                [id],
+                |row| row.get(0),
+            )
+            .unwrap()
+    };
+    assert_eq!(folder_of(1), None);
+    db.connection()
+        .execute_batch(
+            "INSERT INTO document_folders (id, workspace_id, title) VALUES (1, 1, 'Notes');
+             INSERT INTO document_folders (id, workspace_id, parent_id, title)
+                 VALUES (2, 1, 1, 'Old');
+             INSERT INTO document_folders (id, workspace_id, title, deleted)
+                 VALUES (3, 1, 'Gone', TRUE);
+             INSERT INTO document_folders (id, workspace_id, title) VALUES (4, 2, 'Work');",
+        )
+        .unwrap();
+    let file = |document: i64, folder: i64| {
+        db.connection().execute(
+            "UPDATE documents SET folder_id = ? WHERE id = ?",
+            [folder, document],
+        )
+    };
+    file(1, 2).unwrap();
+    assert_eq!(folder_of(1), Some(2));
+    // Another workspace's folder, a deleted one, or any folder for a journal.
+    assert!(file(1, 4).is_err());
+    assert!(file(1, 3).is_err());
+    assert!(file(2, 1).is_err());
+    // A folder's parent is of its own workspace, and never itself.
+    let nest = |sql: &str| db.connection().execute(sql, []);
+    assert!(nest("UPDATE document_folders SET parent_id = 4 WHERE id = 1").is_err());
+    assert!(nest("UPDATE document_folders SET parent_id = 1 WHERE id = 1").is_err());
 }

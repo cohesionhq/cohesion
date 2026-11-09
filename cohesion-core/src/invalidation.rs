@@ -17,6 +17,9 @@ pub enum Invalidation {
     /// A workspace's documents changed: one was created, edited, renamed or
     /// deleted, journals included.
     Documents(i64),
+    /// A workspace's document folders changed: one was created, renamed,
+    /// moved or deleted.
+    DocumentFolders(i64),
     /// The tasks in one list changed; a `None` folder is the inbox.
     TaskList {
         workspace_id: i64,

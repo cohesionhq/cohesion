@@ -29,8 +29,9 @@ use crate::conversion::{FromJsField, ToJs};
 use crate::entities::workspace_options::TaskFolderListOptions;
 use crate::entities::{
     account, actor, actor_session, agent, agent_team, article, connector, connector_account,
-    connector_account_options, contact, document, endpoint_model, feed, intelligence_endpoint,
-    resource, rewind, search_result, tag, task, task_folder, usage, workspace, workspace_options,
+    connector_account_options, contact, document, document_folder, endpoint_model, feed,
+    intelligence_endpoint, resource, rewind, search_result, tag, task, task_folder, usage,
+    workspace, workspace_options,
 };
 use crate::globals::{
     AccountEndpointOptions, AccountsGlobal, ActorDispatchOptions, ActorSessionMessage,
@@ -51,11 +52,12 @@ script_api! {
     /// returns for workspaces, tasks, documents and search, and the types two
     /// modules share.
     CORE = "core", upfront, "`cohesion`: workspaces, tasks and their folders, documents and \
-        search." {
+        their folders, and search." {
         globals: [CohesionGlobal],
         entities: [
             workspace::JsWorkspace,
             document::JsDocument,
+            document_folder::JsDocumentFolder,
             search_result::JsSearchResult,
             task::JsTask,
             task_folder::JsTaskFolder,

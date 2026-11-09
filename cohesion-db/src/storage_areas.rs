@@ -36,6 +36,7 @@ fn placement(table: &str) -> Option<Placement> {
             ActorSessions
         }
         "documents"
+        | "document_folders"
         | "tasks"
         | "task_folders"
         | "tags"

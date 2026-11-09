@@ -445,6 +445,7 @@ the time the client hears back.
 clients refetch. `Invalidation` (`cohesion-core/src/invalidation.rs`, tagged
 `{kind, id}`) has the keys `workspace(id)`, `intelligenceCostEvents`,
 `agent(id)`, `agentTeams`, `taskFolders(ws)`, `documents(ws)`,
+`documentFolders(ws)`,
 `taskList{workspace_id, folder_id}` (null folder is the inbox),
 `connectorAccounts`, `resources(ws)`, `resourceKinds(ws)`, `feeds`,
 `feedArticles`, `intelligence`, `clients`, `security`, `storage`, `profile`,
@@ -775,7 +776,8 @@ deleting sets `deleted`, and client reads use `select_live`.
 | Table | Holds |
 |---|---|
 | `workspaces` (soft) | `title`, `emoji`. |
-| `documents` (soft) | `workspace_id`, `document_type` (`normal` or `journal`), `title`, `contents` (Markdown), `modified`, `journal_date`, `deleted_at`. A journal entry is a document of type `journal`; a unique index allows one live entry per workspace per day. |
+| `documents` (soft) | `workspace_id`, `document_type` (`normal` or `journal`), `title`, `contents` (Markdown), `modified`, `journal_date`, `deleted_at`, `folder_id` (null is the Inbox; never set on a journal). A journal entry is a document of type `journal`; a unique index allows one live entry per workspace per day. |
+| `document_folders` (soft) | `workspace_id`, `parent_id` (null at the top level; a composite key keeps it in the same workspace), `title`, `sort_order` (among its siblings). Folders nest without limit; deleting one deletes those inside it and moves their documents to the Inbox. |
 | `task_folders` (soft) | `workspace_id`, `title`, `sort_order`. |
 | `tasks` (soft) | `workspace_id`, `task_folder_id` (null is the inbox; a composite key keeps it in the same workspace), `title`, `status` (`incomplete`, `completed`, `cancelled`), `priority` 0–4, `size` 1–5, `description`, `start_date`, `due_date`, and one assignee at most: `assigned_to_user`, `assignee_agent_id` or `assignee_contact_id` (the contact must be live and in the same workspace). |
 | `tags`, `task_tags` | Per-workspace tags (names unique ignoring case) and which tasks carry them; composite keys keep both in one workspace. |
@@ -854,6 +856,9 @@ The main relationships (C = cascade, N = set null):
 ```mermaid
 erDiagram
   workspaces ||--o{ documents : C
+  workspaces ||--o{ document_folders : C
+  document_folders ||--o{ document_folders : C
+  document_folders |o--o{ documents : N
   workspaces ||--o{ task_folders : C
   workspaces ||--o{ tasks : C
   task_folders ||--o{ tasks : C
@@ -905,6 +910,7 @@ erDiagram
 `actor_sessions_status_changed`, `activities_actor_session_unread`,
 `intelligence_agent_messages_reply_to`, `intelligence_agent_messages_unread`,
 `resources_same_connector`, `saved_task_views_folder_in_workspace`,
+`documents_folder_in_workspace*`,
 `tasks_assignee_contact_*`, `contacts_deleted_assign_nothing`,
 `task_folders_saved_views_deleted`, `clients_deleted_own_nothing`,
 `extensions_orphan_accounts`, `connector_accounts_orphaned_endpoints`).

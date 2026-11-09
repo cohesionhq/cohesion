@@ -7,6 +7,15 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- Documents file into folders, which nest without limit; a document in no
+  folder is in the Inbox. Deleting a folder deletes the folders inside it and
+  moves their documents to the Inbox. Journals stay out of folders. Scripts reach them
+  through `Workspace.documentFolders()`, `createDocumentFolder()`,
+  `Document.folder()` and `moveTo()`, and the `DocumentFolder` class. The
+  wire gains `listDocumentFolders`, `createDocumentFolder`,
+  `renameDocumentFolder`, `moveDocumentFolder`, `deleteDocumentFolder`,
+  `moveDocument`, a `folder_id` on `Document` and `createDocument`, and the
+  `documentFolders(ws)` invalidation; the iPhone app can offer the same.
 - An agent's ⋯ menu has Memories…, which shows every memory the agent can
   see: its own, its team's and the global ones, each with the day it was
   remembered. Forget removes one, with the same confirmation as Settings ›

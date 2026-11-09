@@ -19,6 +19,7 @@ const doc = (id: number, fields: Partial<Document>): Document => ({
 	modified: 0,
 	journal_date: null,
 	deleted: false,
+	folder_id: null,
 	...fields
 });
 

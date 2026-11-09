@@ -35,6 +35,7 @@ import type {
 	ContactMethodKind,
 	Photo,
 	Document,
+	DocumentFolder,
 	EndpointModel,
 	ExtensionHook,
 	ExtensionManifest,
@@ -604,6 +605,7 @@ interface MockCapture {
 interface MockState {
 	workspaces: Workspace[];
 	documents: Document[];
+	documentFolders: DocumentFolder[];
 	folders: TaskFolder[];
 	tasks: Task[];
 	endpoints: RedactedIntelligenceEndpoint[];
@@ -694,9 +696,12 @@ function seed(): MockState {
 			contents,
 			modified: day + 18 * 3600,
 			journal_date: ymd(day),
-			deleted: false
+			deleted: false,
+			folder_id: null
 		};
 	};
+	// Filed as `documentFolders` below says: Research holds Search, and 8 and 9 sit inside it.
+	const filed: Record<number, number> = { 5: 3, 6: 1, 8: 2, 9: 2 };
 	const doc = (id: number, workspace_id: number, title: string, contents: string): Document => ({
 		id,
 		workspace_id,
@@ -705,7 +710,8 @@ function seed(): MockState {
 		contents,
 		modified: now - id * 3600,
 		journal_date: null,
-		deleted: false
+		deleted: false,
+		folder_id: filed[id] ?? null
 	});
 	const task = (
 		id: number,
@@ -830,6 +836,11 @@ function seed(): MockState {
 				'Rewind: storage and lifecycle',
 				'# Rewind: storage and lifecycle\n\n- Rewind stores full snapshots, not diffs: `task_versions` and `document_versions` (including journals).\n- A plain edit within 120 seconds of the newest version overwrites that version. Deletion and restore each create a separate version.\n- Retention is the "Rewind versions" row under Retention in Settings › Storage, seven days by default. Cleanup runs at startup and hourly.\n- Restore copies the tracked fields back and undeletes the record. A task whose folder is gone returns to Inbox.\n'
 			)
+		],
+		documentFolders: [
+			{ id: 1, workspace_id: 1, parent_id: null, title: 'Design', sort_order: 1, deleted: false },
+			{ id: 2, workspace_id: 1, parent_id: null, title: 'Research', sort_order: 2, deleted: false },
+			{ id: 3, workspace_id: 1, parent_id: 2, title: 'Search', sort_order: 1, deleted: false }
 		],
 		folders: [
 			{ id: 1, workspace_id: 1, title: 'Core', sort_order: 1, deleted: false },
@@ -3009,6 +3020,21 @@ export function createMock(): Mock {
 	const document = (workspace_id: number, id: number) =>
 		state.documents.find((d) => d.id === id && d.workspace_id === workspace_id && !d.deleted) ??
 		notFound('document');
+	const liveDocumentFolders = (workspace_id: number) =>
+		state.documentFolders
+			.filter((f) => f.workspace_id === workspace_id && !f.deleted)
+			.sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+	const documentFolder = (workspace_id: number, id: number) =>
+		state.documentFolders.find(
+			(f) => f.id === id && f.workspace_id === workspace_id && !f.deleted
+		) ?? notFound('document folder');
+	/** `root` and every live folder inside it. */
+	const documentSubtree = (workspace_id: number, root: number): number[] => {
+		const ids = [root];
+		for (let i = 0; i < ids.length; i++)
+			for (const f of liveDocumentFolders(workspace_id)) if (f.parent_id === ids[i]) ids.push(f.id);
+		return ids;
+	};
 	// A contact as the daemon reads it: its row, with its methods by id.
 	type MockContact = Omit<Contact, 'methods'>;
 	const contactRow = (workspace_id: number, id: number) =>
@@ -3203,7 +3229,8 @@ export function createMock(): Mock {
 			contents: '',
 			modified: nowSeconds(),
 			journal_date: date,
-			deleted: false
+			deleted: false,
+			folder_id: null
 		};
 		state.documents.push(created);
 		return created;
@@ -3771,9 +3798,10 @@ export function createMock(): Mock {
 		getDocument: ({ workspace_id, document_id }) => ({ ...document(workspace_id, document_id) }),
 		editDocument: ({ workspace_id, document_id, contents }) =>
 			touch(document(workspace_id, document_id), contents),
-		createDocument: ({ workspace_id, title, contents }) => {
+		createDocument: ({ workspace_id, title, contents, folder_id = null }) => {
 			workspace(workspace_id);
 			requireTitle(title);
+			if (folder_id !== null) documentFolder(workspace_id, folder_id);
 			const created: Document = {
 				id: nextId(state.documents),
 				workspace_id,
@@ -3782,11 +3810,86 @@ export function createMock(): Mock {
 				contents,
 				modified: nowSeconds(),
 				journal_date: null,
-				deleted: false
+				deleted: false,
+				folder_id
 			};
 			state.documents.push(created);
 			keepDocument(created, 'created');
 			return { ...created };
+		},
+		moveDocument: ({ workspace_id, document_id, folder_id = null }) => {
+			const d = document(workspace_id, document_id);
+			if (d.document_type === 'journal')
+				throw new ProtocolError('validationFailed', 'A journal can’t go in a folder.');
+			if (folder_id !== null) documentFolder(workspace_id, folder_id);
+			d.folder_id = folder_id;
+			return { ...d };
+		},
+		listDocumentFolders: ({ workspace_id }) => {
+			workspace(workspace_id);
+			return liveDocumentFolders(workspace_id).map((f) => ({ ...f }));
+		},
+		createDocumentFolder: ({ workspace_id, title, parent_id = null }) => {
+			workspace(workspace_id);
+			requireTitle(title);
+			if (parent_id !== null) documentFolder(workspace_id, parent_id);
+			const created: DocumentFolder = {
+				id: nextId(state.documentFolders),
+				workspace_id,
+				parent_id,
+				title,
+				sort_order:
+					Math.max(
+						0,
+						...state.documentFolders
+							.filter((f) => f.workspace_id === workspace_id)
+							.map((f) => f.sort_order)
+					) + 1,
+				deleted: false
+			};
+			state.documentFolders.push(created);
+			return { ...created };
+		},
+		renameDocumentFolder: ({ workspace_id, folder_id, title }) => {
+			requireTitle(title);
+			const f = documentFolder(workspace_id, folder_id);
+			f.title = title;
+			return { ...f };
+		},
+		moveDocumentFolder: ({ workspace_id, folder_id, parent_id = null, before_id = null }) => {
+			const f = documentFolder(workspace_id, folder_id);
+			if (parent_id !== null) {
+				documentFolder(workspace_id, parent_id);
+				if (documentSubtree(workspace_id, folder_id).includes(parent_id))
+					throw new ProtocolError(
+						'validationFailed',
+						'A folder can’t move into itself or a folder inside it.'
+					);
+			}
+			const siblings = liveDocumentFolders(workspace_id).filter(
+				(s) => s.parent_id === parent_id && s.id !== folder_id
+			);
+			const at =
+				before_id === null ? siblings.length : siblings.findIndex((s) => s.id === before_id);
+			if (at < 0)
+				throw new ProtocolError(
+					'validationFailed',
+					'The folder to go before isn’t in that folder.'
+				);
+			siblings.splice(at, 0, f);
+			f.parent_id = parent_id;
+			siblings.forEach((s, i) => (s.sort_order = i));
+			return liveDocumentFolders(workspace_id).map((s) => ({ ...s }));
+		},
+		deleteDocumentFolder: ({ workspace_id, folder_id }) => {
+			const f = documentFolder(workspace_id, folder_id);
+			const doomed = documentSubtree(workspace_id, folder_id);
+			// The daemon moves their documents, deleted ones too, to the Inbox.
+			for (const d of state.documents)
+				if (d.workspace_id === workspace_id && d.folder_id !== null && doomed.includes(d.folder_id))
+					d.folder_id = null;
+			for (const id of doomed) documentFolder(workspace_id, id).deleted = true;
+			return { ...f };
 		},
 		renameDocument: ({ workspace_id, document_id, title }) => {
 			requireTitle(title);

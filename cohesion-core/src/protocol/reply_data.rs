@@ -27,12 +27,13 @@ use super::storage_requests::{
 use super::task_requests::TaskPage;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, Article, Attachment,
-    CatalogModel, Client, Contact, ContactMethod, DeletedItem, Document, EndpointModel,
-    ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
-    IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
-    IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
-    RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings, Tag, Task,
-    TaskFolder, Version, VersionSummary, Workspace, WorkspaceResourceKind,
+    CatalogModel, Client, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
+    EndpointModel, ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent,
+    IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
+    IntelligenceCostEvent, IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit,
+    Profile, Resource, RestoredItem, SavedTaskView, SearchResult, SecuritySettings,
+    StorageSettings, Tag, Task, TaskFolder, Version, VersionSummary, Workspace,
+    WorkspaceResourceKind,
 };
 
 /// The payload of a successful reply.
@@ -53,6 +54,8 @@ pub enum ReplyData {
     Document(Document),
     Documents(Vec<Document>),
     Journal(Option<Document>),
+    DocumentFolders(Vec<DocumentFolder>),
+    DocumentFolder(DocumentFolder),
     Client(Client),
     Clients(Vec<ListedClient>),
     RevokedClients(Vec<Client>),
