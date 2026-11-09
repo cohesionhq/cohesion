@@ -4,6 +4,7 @@
 import { ProtocolError, toProtocolError } from './errors';
 import type {
 	DayFilter,
+	Embed,
 	Activity,
 	SecurityEvent,
 	SecurityEventKind,
@@ -3236,6 +3237,118 @@ export function createMock(): Mock {
 		(filter: ArticleFilter) =>
 		(l: Article): boolean =>
 			filter === 'feeds' || l.feed_id === filter.feed;
+	/** As the daemon's `excerpt`, roughly: the first line of body text, its marks dropped. */
+	const excerptOf = (text: string): string => {
+		const line = text
+			.split('\n')
+			.map((l) => l.trim())
+			.find((l) => l !== '' && !/^(#|\||```|---)/.test(l));
+		const plain = (line ?? '')
+			.replace(/^(>\s*)?([-*+]\s|\d+[.)]\s)?(\[[ xX]\]\s)?/, '')
+			.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+			.replace(/\*\*|__|~~|[*`]/g, '');
+		return plain.length > 200 ? `${plain.slice(0, 199)}…` : plain;
+	};
+	/** The live item a `cohesion://` link names, as the daemon's `ResolveLinkCommand` finds it. */
+	const resolveLink = (link: string): Embed => {
+		const match =
+			/^cohesion:\/\/(task|document|resource|agent|actor-session|article)\/(\d+)(?:\/(\d+))?$/.exec(
+				link.trim()
+			);
+		const scoped = match?.[3] !== undefined;
+		const kind = match?.[1];
+		if (
+			!match ||
+			(scoped ? !['task', 'document', 'resource'].includes(kind!) : kind === 'resource')
+		)
+			throw new ProtocolError(
+				'validationFailed',
+				'That isn’t a link to a Cohesion item, such as cohesion://task/3/42.',
+				'link'
+			);
+		const id = Number(scoped ? match[3] : match[2]);
+		const ws = scoped ? Number(match[2]) : null;
+		switch (kind) {
+			case 'task': {
+				const found =
+					state.tasks.find(
+						(t) => t.id === id && !t.deleted && (ws === null || t.workspace_id === ws)
+					) ?? notFound('task');
+				workspace(found.workspace_id);
+				return {
+					link: `cohesion://task/${found.workspace_id}/${id}`,
+					kind: 'task',
+					workspace_id: found.workspace_id,
+					title: found.title,
+					excerpt: excerptOf(found.description),
+					item: { kind: 'task', task: withTags(found) }
+				};
+			}
+			case 'document': {
+				const found =
+					state.documents.find(
+						(d) => d.id === id && !d.deleted && (ws === null || d.workspace_id === ws)
+					) ?? notFound('document');
+				workspace(found.workspace_id);
+				return {
+					link: `cohesion://document/${found.workspace_id}/${id}`,
+					kind: found.document_type === 'journal' ? 'journalEntry' : 'document',
+					workspace_id: found.workspace_id,
+					title: found.title,
+					excerpt: excerptOf(found.contents),
+					item: { kind: 'document', document: found }
+				};
+			}
+			case 'resource': {
+				const found = resource(workspace(ws!).id, id);
+				return {
+					link: `cohesion://resource/${ws}/${id}`,
+					kind: 'resource',
+					workspace_id: ws,
+					title: found.title,
+					excerpt: found.content_kind === 'json' ? '' : excerptOf(found.contents),
+					item: { kind: 'resource', resource: found }
+				};
+			}
+			case 'agent': {
+				const found = agentRow(agent(id));
+				return {
+					link: `cohesion://agent/${id}`,
+					kind: 'agent',
+					workspace_id: null,
+					title: found.agent_name,
+					excerpt: excerptOf(found.agent_role),
+					item: { kind: 'agent', agent: found }
+				};
+			}
+			case 'actor-session': {
+				const session = actorSession(id);
+				const actor = state.actors.find((a) => a.id === session.actor_id && !a.deleted);
+				const latest = state.actorSessionMessages.findLast(
+					(m) => m.session_id === id && m.content.sender === 'actor' && m.content.kind === 'text'
+				)?.content;
+				return {
+					link: `cohesion://actor-session/${id}`,
+					kind: 'actorSession',
+					workspace_id: null,
+					title: session.title,
+					excerpt: latest && 'text' in latest ? excerptOf(latest.text) : '',
+					item: { kind: 'actorSession', session, actor_title: actor?.title ?? null }
+				};
+			}
+			default: {
+				const found = article(id);
+				return {
+					link: `cohesion://article/${id}`,
+					kind: 'article',
+					workspace_id: null,
+					title: found.title,
+					excerpt: excerptOf(found.contents),
+					item: { kind: 'article', article: summary(found), feed_title: feed(found.feed_id).title }
+				};
+			}
+		}
+	};
 	const shownKinds = (workspace_id: number) =>
 		state.shownKinds
 			.filter((k) => k.workspace_id === workspace_id)
@@ -5091,6 +5204,7 @@ export function createMock(): Mock {
 			return withTags(found);
 		},
 		getArticle: ({ article_id }) => structuredClone(article(article_id)),
+		resolveLink: ({ link }) => structuredClone(resolveLink(link)),
 		resnapshotArticle: ({ article_id }) => {
 			const found = article(article_id);
 			return record(found, new URL(found.url));

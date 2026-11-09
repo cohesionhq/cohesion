@@ -1644,6 +1644,78 @@ export interface EditTaskDescriptionRequest {
 }
 
 /**
+ * The item a `cohesion://` link names, as `resolveLink` returns it: what
+ * every kind has (its title, the start of its text), which a client
+ * shows for a kind it doesn't know, then the item itself in `item`.
+ */
+export interface Embed {
+	/**
+	 * The item's link written in full, with its workspace:
+	 * `cohesion://task/3/42` even when asked for as `cohesion://task/42`.
+	 */
+	link: string;
+	kind: EmbedKind;
+	/**
+	 * The item's workspace; `null` for an agent, an actor session or an
+	 * article, which belong to none.
+	 */
+	workspace_id: number | null;
+	/** The item's title; an agent's name. */
+	title: string;
+	/**
+	 * The start of the item's text as plain text, at most about 200
+	 * characters: a task's description, a document's or text resource's
+	 * contents, an agent's role, an actor session's last message from its
+	 * actor, an article's text. `""` when it has none.
+	 */
+	excerpt: string;
+	item: EmbedItem;
+}
+
+/**
+ * The item an embed shows, tagged by `kind`: the model a client reads
+ * it as elsewhere, so it can show more than the title and excerpt.
+ */
+export type EmbedItem =
+	| {
+			kind: 'task';
+			task: Task;
+	  }
+	| {
+			kind: 'document';
+			document: Document;
+	  }
+	| {
+			kind: 'resource';
+			resource: Resource;
+	  }
+	| {
+			kind: 'agent';
+			agent: IntelligenceAgent;
+	  }
+	| {
+			kind: 'actorSession';
+			session: ActorSession;
+			/** Its actor's title, `null` when no client offers it any longer. */
+			actor_title: string | null;
+	  }
+	| {
+			kind: 'article';
+			article: ArticleSummary;
+			/** The title of the feed it came from. */
+			feed_title: string;
+	  };
+
+/**
+ * What kind of item an embed shows; `vocabulary.embed_kinds` words each.
+ *
+ * - `"task"`, `"document"`, `"journalEntry"` (a document of type
+ *   `journal`), `"resource"`, `"agent"`, `"actorSession"`, `"article"`.
+ */
+export type EmbedKind =
+	'task' | 'document' | 'journalEntry' | 'resource' | 'agent' | 'actorSession' | 'article';
+
+/**
  * A model an intelligence endpoint offers, one of the models every picker
  * lists. A row the models.dev catalog lists links its catalog row and reads
  * through that link whatever it does not set itself, so catalog prices
@@ -3507,6 +3579,17 @@ export interface ResolveActorSessionRequest {
 }
 
 /**
+ * Resolves `link`, a `cohesion://` link to a task, document or journal
+ * entry, resource, agent, actor session or article, to the item it names
+ * as an `Embed`. A link to an item deleted or never made is `notFound`;
+ * text that isn't such a link fails validation on `link`.
+ */
+export interface ResolveLinkRequest {
+	/** As written in Markdown: `cohesion://task/3/42`. */
+	link: string;
+}
+
+/**
  * A read-only copy of an item imported into a workspace from a connected
  * service. The daemon refreshes it from the service periodically; scripts
  * cannot change it.
@@ -4702,6 +4785,8 @@ export interface Vocabulary {
 	pairing_openers: { kind: PairingOpener; label: string }[];
 	/** What each kind of security activity is called. */
 	security_events: { kind: SecurityEventKind; label: string }[];
+	/** What each kind of item a `cohesion://` link names is called. */
+	embed_kinds: { kind: EmbedKind; label: string }[];
 }
 
 /** The web UI's static build, for a client to serve. */
@@ -5256,6 +5341,11 @@ export interface Requests {
 	resnapshotArticle: ResnapshotArticleRequest;
 	/** Retitles live article `article_id`. */
 	renameArticle: RenameArticleRequest;
+	/**
+	 * Resolves a `cohesion://` link to the item it names, in one shape for
+	 * every kind.
+	 */
+	resolveLink: ResolveLinkRequest;
 }
 
 /** The `ok.data` each request type answers with. */
@@ -5733,4 +5823,9 @@ export interface Replies {
 	resnapshotArticle: RefetchedArticle;
 	/** Retitles live article `article_id`. */
 	renameArticle: Article;
+	/**
+	 * Resolves a `cohesion://` link to the item it names, in one shape for
+	 * every kind.
+	 */
+	resolveLink: Embed;
 }

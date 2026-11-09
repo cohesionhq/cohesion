@@ -400,7 +400,7 @@ A session reads up to 64 requests ahead (`QUEUED_REQUESTS`) and runs them side
 by side, so replies come back in the order they finish; match them by `id`.
 
 **Requests, replies and routes.** `Command` (`cohesion-core/src/protocol/command.rs`)
-is one enum with a variant per request, 190 of them, each tagged
+is one enum with a variant per request, 198 of them, each tagged
 `#[reply(ReplyType, via = Kind)]`. `#[derive(Commands)]` generates the
 dispatch; the request structs live in the `*_requests.rs` modules beside it,
 and `ReplyData` (`reply_data.rs`) is the enum of reply payloads. Each
@@ -458,6 +458,26 @@ response; they go out on a 256-slot broadcast only if it commits.
 online, actor usage). A session gets invalidations only after `subscribe`;
 the web UI subscribes first on every connection, the CLI only to follow an
 agent's turn.
+
+**Links and embeds.** Text names an item with a `cohesion://` link
+(`ItemLink`, `cohesion-core/src/model/item_link.rs`):
+`cohesion://task/<ws>/<id>`, `cohesion://document/<ws>/<id>` (journal entries
+too), `cohesion://resource/<ws>/<id>`, `cohesion://agent/<id>`,
+`cohesion://actor-session/<id>` and `cohesion://article/<id>`. A task or
+document link without its workspace, as links were first written, still names
+one, since those ids are unique across workspaces. `ResolveLink{link}`
+(`cohesion-db/src/commands/embed.rs`) turns a link into an `Embed`
+(`model/embed.rs`), one shape for every kind: the link written in full,
+`kind` (`EmbedKind`, worded by `hello.vocabulary.embed_kinds`),
+`workspace_id`, `title`, `excerpt` (the first paragraph of the item's text as
+plain text, about 200 characters) and `item`, the item's model tagged by kind
+(an actor session with its actor's title, an article as an `ArticleSummary`
+with its feed's title). A client that doesn't know a kind shows the title, the
+excerpt and the kind's word. An item deleted, in a deleted workspace or never
+made is `notFound`; text that isn't such a link fails validation on `link`.
+Nothing pushes an embed: a client asks again on the item's invalidation,
+`taskList` of the task's workspace, `documents(ws)`, `resources(ws)`,
+`agent(id)`, `actorSession(id)` or `feedArticles`.
 
 **Versioning.** `PROTOCOL_VERSION` is `1` and stays 1 while Cohesion is in
 active development. There is no negotiation: the web UI compares the number in
@@ -1235,7 +1255,7 @@ Requests connect within 30 s and finish within 10 minutes
 prefix lasts:
 
 1. `FOREGROUND_AGENT_PROMPT`: what an agent in Cohesion is, its context, memories and storage, working with the user's data, cues, other agents, and replying.
-2. `LINKS`: how to write and read `cohesion://task/<ws>/<id>`, `cohesion://document/<ws>/<id>`, `cohesion://agent/<id>` and `cohesion://actor-session/<id>`.
+2. `LINKS`: how to write and read `cohesion://task/<ws>/<id>`, `cohesion://document/<ws>/<id>`, `cohesion://resource/<ws>/<id>`, `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and `cohesion://article/<id>`, and that in a document a link alone on its line shows as a card.
 3. "Your voice": its personality and verbosity.
 4. "Your role" and "Your directive", when set.
 5. "Your team" and "Other agents", sorted by id.
@@ -1799,7 +1819,7 @@ with it: a client is either native, speaking the wire protocol itself, or a
 WebUI harness, a native shell around the web UI.
 
 - **Reaching the daemon**: pairing with a setup code at `/register`, then `POST /command` for one-off requests or `/connect` for a session; or the Unix socket on the same computer ([4](#4-starting-the-daemon), [6](#6-pairing-and-trust)).
-- **What they share with the web UI**: the protocol and its types (generated from Rust for the web; other clients copy `generated.ts` or model them by hand), `hello.vocabulary`, the subscribe-and-invalidate model, and the `cohesion://` links, which every client opens over the current screen.
+- **What they share with the web UI**: the protocol and its types (generated from Rust for the web; other clients copy `generated.ts` or model them by hand), `hello.vocabulary`, the subscribe-and-invalidate model, and the `cohesion://` links, which every client opens over the current screen and resolves with `resolveLink` to show as a card ([5](#5-the-wire-protocol), "Links and embeds").
 - **A WebUI harness** pairs natively, fetches the bundle with `WebBundle`, serves it, and stands in for the page's session API ([16](#16-the-web-ui)). There are two, both in `cohesionhq/webshell`: the Mac and iPad app in `mac/`, built on the `CohesionWebKit` Swift package, and the Linux app in `gtk/`, a Rust copy of the same flow that takes `SetupCode`, the self-signed certificate and the protocol's envelope from `cohesion-rs` and runs `CohesionWebKit`'s bridge script unchanged (`gtk/src/bridge.js`). The web UI keeps a few things a web view needs: `--titlebar-inset`, and keyboard and mouse-button history steps a web view doesn't do itself (`web/src/lib/shell/shortcuts.svelte.ts`).
 - **Push notifications** are not the daemon's: it raises hooks (`notification:send`, `agent:message`, `client:revoke`…) and an installed extension with `network` sends pushes. The iOS companion extension (`com.cohesion.cloud.ios-companion`) appears here only in doc comments.
 

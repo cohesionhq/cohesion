@@ -14,6 +14,7 @@ mod command;
 mod connector_requests;
 mod contact_requests;
 mod document_requests;
+mod embed_requests;
 mod envelope;
 mod extension_requests;
 mod feed_requests;
@@ -49,6 +50,7 @@ pub use command::Command;
 pub use connector_requests::*;
 pub use contact_requests::*;
 pub use document_requests::*;
+pub use embed_requests::*;
 pub use envelope::{
     CallResult, ClientFrame, ClientHello, Frame, Hello, Outcome, PROTOCOL_VERSION, RegisterRequest,
     Reply, Request, ServerMessage, Subscribe,

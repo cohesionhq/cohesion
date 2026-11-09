@@ -7,6 +7,13 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- Any `cohesion://` link resolves to the item it names in one shape,
+  `Embed`: `resolveLink` returns its title, the start of its text, what kind
+  it is (worded in `hello.vocabulary.embed_kinds`) and the item itself, or
+  `notFound` once it is deleted. Links gain two kinds,
+  `cohesion://resource/<ws>/<id>` and `cohesion://article/<id>`, which agents
+  now write too. The iPhone app can show links as cards from `resolveLink`;
+  until it does, it shows the new kinds as plain links.
 - `cohesion setup` without `--name` names the client after the computer and
   the client, such as `apollo (CLI)`, instead of the hostname alone, so
   clients on one computer can be told apart in Settings › Clients and in actor

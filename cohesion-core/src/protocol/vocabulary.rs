@@ -7,7 +7,7 @@ use cohesion_macros::TsWire;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    AGENT_REACTIONS, ActivityStatus, ActorSessionStatus, ActorSessionStop, Dialect,
+    AGENT_REACTIONS, ActivityStatus, ActorSessionStatus, ActorSessionStop, Dialect, EmbedKind,
     ExtensionPermissionKind, HookKind, IntelligenceAgentColor, IntelligenceAgentPersonality,
     IntelligenceAgentVerbosity, IntelligenceProvider, IntelligenceTier, PairingOpener,
     SecurityEventKind, SpendPeriod, TaskPriority, TaskSize, VersionChange,
@@ -48,6 +48,8 @@ pub struct Vocabulary {
     pub pairing_openers: Vec<Labeled<PairingOpener>>,
     /// What each kind of security activity is called.
     pub security_events: Vec<Labeled<SecurityEventKind>>,
+    /// What each kind of item a `cohesion://` link names is called.
+    pub embed_kinds: Vec<Labeled<EmbedKind>>,
 }
 
 impl Vocabulary {
@@ -129,6 +131,9 @@ impl Vocabulary {
             security_events: words(SecurityEventKind::ALL, |kind| {
                 labeled(*kind, security_event_label(kind))
             }),
+            embed_kinds: words(EmbedKind::ALL, |kind| {
+                labeled(*kind, embed_kind_label(*kind))
+            }),
         }
     }
 }
@@ -182,6 +187,8 @@ interface Vocabulary {
   pairing_openers: { kind: "anyClient" | "localClients"; label: string }[];
   /** What each kind of security activity is called. */
   security_events: { kind: string; label: string }[];
+  /** What each kind of item a `cohesion://` link names is called. */
+  embed_kinds: { kind: EmbedKind; label: string }[];
 }"#;
     const TS_BRIEF: &'static str = Self::TS;
 }
@@ -313,6 +320,18 @@ fn pairing_opener_label(kind: &PairingOpener) -> &'static str {
     match kind {
         PairingOpener::AnyClient => "Any client",
         PairingOpener::LocalClients => "Only clients on this computer",
+    }
+}
+
+fn embed_kind_label(kind: EmbedKind) -> &'static str {
+    match kind {
+        EmbedKind::Task => "Task",
+        EmbedKind::Document => "Document",
+        EmbedKind::JournalEntry => "Journal entry",
+        EmbedKind::Resource => "Resource",
+        EmbedKind::Agent => "Agent",
+        EmbedKind::ActorSession => "Actor session",
+        EmbedKind::Article => "Article",
     }
 }
 
