@@ -9,7 +9,7 @@ pub use setup_args::SetupArgs;
 use std::path::{self, PathBuf};
 
 use cohesion_core::{
-    Authentication, Client, LocalIdentity, SetupCode, paths,
+    Authentication, Client, LocalIdentity, SetupCode, generated_client_name, paths,
     protocol::{ListWorkspacesRequest, Outcome, RegisterRequest},
 };
 
@@ -129,7 +129,9 @@ async fn run_local(
     Ok(())
 }
 
-/// How a client is listed unless named: this computer's hostname.
+/// How this client is listed unless named: this computer's hostname, then the
+/// CLI, as in `apollo (CLI)`.
 pub fn default_name() -> String {
-    host_info::hostname().unwrap_or_else(|| "cohesion".into())
+    let host = host_info::hostname().unwrap_or_else(|| "cohesion".into());
+    generated_client_name(&host, "CLI")
 }

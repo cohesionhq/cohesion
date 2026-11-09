@@ -7,6 +7,11 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- `cohesion setup` without `--name` names the client after the computer and
+  the client, such as `apollo (CLI)`, instead of the hostname alone, so
+  clients on one computer can be told apart in Settings › Clients and in actor
+  titles. The container's own CLI is `Container (CLI)`. Existing clients keep
+  their names.
 - An agent's ⋯ menu has Memories…, which shows every memory the agent can
   see: its own, its team's and the global ones, each with the day it was
   remembered. Forget removes one, with the same confirmation as Settings ›

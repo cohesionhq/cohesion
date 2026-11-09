@@ -14,5 +14,5 @@ pub mod protocol;
 pub use auth::{
     Authentication, Certificate, CertificateError, DEFAULT_PORT, Host, InvalidHost, KeyError,
     LocalHandshakeReply, LocalIdentity, ServerAddress, SetupCode, SetupCodeError, fingerprint,
-    key_fingerprint,
+    generated_client_name, key_fingerprint,
 };
