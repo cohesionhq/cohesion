@@ -63,6 +63,11 @@ pub(super) fn feed_text(html: &str, url: &Url, base: &Url) -> FeedText {
     let article = read(Html::Content(html), base, TEXT_LIMIT);
     let mut text = article.text;
     let footer = footer_start(&text, url).map(|start| text.split_off(start));
+    // A footer after a `<br>` leaves its hard break, whose backslash would
+    // show with no line after it.
+    if footer.is_some() && text.ends_with("\\\n") {
+        text.truncate(text.len() - 2);
+    }
     text.truncate(text.trim_end().len());
     let read_on = footer.as_deref().is_some_and(|footer| {
         footer
