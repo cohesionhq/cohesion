@@ -223,19 +223,18 @@ impl<'a> Writer<'a> {
         }
     }
 
-    /// Ends the paragraph being written.
+    /// Ends the paragraph being written. A line that holds only whitespace
+    /// a reader can't see, such as a no-break space after a `<br>`, parts
+    /// paragraphs as two breaks in a row do: a hard break needs text after
+    /// it, or its backslash shows.
     fn flush(&mut self) {
-        let paragraph = self
-            .line
-            .trim_matches(|c: char| c == ' ' || c == '\n')
-            .split('\n')
-            .map(str::trim)
-            .collect::<Vec<_>>()
-            .join("\\\n");
-        self.line.clear();
-        if !paragraph.is_empty() {
-            self.blocks.push(paragraph);
+        let lines: Vec<&str> = self.line.split('\n').map(str::trim).collect();
+        for paragraph in lines.split(|line| line.is_empty()) {
+            if !paragraph.is_empty() {
+                self.blocks.push(paragraph.join("\\\n"));
+            }
         }
+        self.line.clear();
     }
 
     /// The blocks written, apart by blank lines.

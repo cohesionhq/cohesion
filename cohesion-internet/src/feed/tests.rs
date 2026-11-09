@@ -286,6 +286,20 @@ fn a_feeds_closing_link_back_to_the_item_is_dropped() {
     assert!(!text.excerpt);
 }
 
+/// A footer on the line after a `<br>` takes its hard break with it: a
+/// backslash with no line after it shows as text.
+#[test]
+fn a_footer_after_a_line_break_leaves_no_backslash() {
+    let url = Url::parse("https://bakery.example/posts/ovens/").unwrap();
+    let html = prose().replace("</p>", "")
+        + r#"<br/>This article, "<a href="https://bakery.example/posts/ovens/">Ovens</a>" first
+        appeared on <a href="https://bakery.example">The Bakery</a>"#;
+    let text = feed_text(&html, &url).capture.text;
+    assert!(text.contains("crusted and singing"));
+    assert!(!text.contains("first"), "footer kept");
+    assert!(!text.trim_end().ends_with('\\'), "{text:?}");
+}
+
 #[test]
 fn a_feed_text_is_an_excerpt_only_when_it_says_so() {
     let url = Url::parse("https://bakery.example/posts/ovens").unwrap();
