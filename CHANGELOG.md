@@ -16,6 +16,12 @@ under "Unreleased" with any change users would notice.
   again, its activity is reopened instead of a new one being added, so every
   client lists each session once. Upgrading merges a session's earlier
   activities into its first, which takes the newest one's title and status.
+- A connector can draw its resources: its optional `renderResource(resource,
+  kind)` returns a CohesionUI interface (headings, text, checkboxes, links and
+  overviews of labelled values), which the web UI shows on the resource's page
+  in place of its raw contents. `renderResource` is a new request; the iPhone
+  app can draw the same blocks from it. A connector without it shows as
+  before.
 - An agent's ⋯ menu has Memories…, which shows every memory the agent can
   see: its own, its team's and the global ones, each with the day it was
   remembered. Forget removes one, with the same confirmation as Settings ›

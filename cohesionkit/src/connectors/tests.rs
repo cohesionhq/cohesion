@@ -1,10 +1,10 @@
-use cohesion_core::model::ExtensionPermissionKind;
+use cohesion_core::model::{Block, Component, ExtensionPermissionKind};
 use cohesion_core::protocol::{
     BeginConnectorAuthenticationRequest, CompleteConnectorAuthenticationRequest,
-    DeleteConnectorAccountRequest, ImportResourceRequest, ImportableResource,
+    DeleteConnectorAccountRequest, ErrorCode, ImportResourceRequest, ImportableResource,
     ListConnectorOrganizationUnitsRequest, Local, RedactedEndpointBackend,
-    RedactedIntelligenceEndpoint, Route, SearchConnectorResourcesRequest, ServerError,
-    SetExtensionPermissionRequest,
+    RedactedIntelligenceEndpoint, RenderResourceRequest, Route, SearchConnectorResourcesRequest,
+    ServerError, SetExtensionPermissionRequest,
 };
 use cohesion_db::{
     Container, CreateWorkspaceCommand, GetAccountConnectorCommand, ListAccountResourcesCommand,
@@ -67,7 +67,13 @@ const NOTES_EXTENSION: &str = "function manifest() {
 /// Installs [`NOTES_EXTENSION`] with `oauth` and `connector` on and signs
 /// in: the extension's id and the account's.
 async fn notes(ctx: &CohesionContext) -> (i64, i64) {
-    let (extension_id, account_id) = signed_in(ctx, NOTES_EXTENSION, "a").await;
+    connector(ctx, NOTES_EXTENSION).await
+}
+
+/// Installs `script`, a connector, with `oauth` and `connector` on and signs
+/// in: the extension's id and the account's.
+async fn connector(ctx: &CohesionContext, script: &str) -> (i64, i64) {
+    let (extension_id, account_id) = signed_in(ctx, script, "a").await;
     ctx.extensions
         .set_permission(SetExtensionPermissionRequest {
             extension_id,
@@ -263,6 +269,83 @@ async fn a_refresh_fetches_what_the_listing_gives_no_date() {
 /// An `oauth` extension whose sign-in page carries the PKCE challenge it is
 /// passed, and whose account describes itself as the code, verifier and
 /// challenge its completion saw.
+/// [`NOTES_EXTENSION`] with a `renderResource` that heads a note with its
+/// title and the kind it was passed, links Recipes somewhere no link may go,
+/// and throws once `breaking()` was called.
+fn rendering_notes() -> String {
+    NOTES_EXTENSION.to_string()
+        + "
+     let broken = false;
+     function breaking() { broken = true; return null; }
+     function renderResource(resource, kind) {
+       if (broken) throw new Error('No interface today');
+       if (resource.identifier === 'recipes')
+         return { blocks: [{ kind: 'link', text: 'Run', destination: 'javascript:void 0' }] };
+       return { blocks: [{ kind: 'heading', level: 2, text: resource.title + ' ' + kind }] };
+     }"
+}
+
+async fn render(
+    ctx: &CohesionContext,
+    workspace_id: i64,
+    resource_id: i64,
+) -> Result<Option<Component>, ServerError> {
+    Route::<Local, _>::route(
+        ctx,
+        RenderResourceRequest {
+            workspace_id,
+            resource_id,
+        },
+    )
+    .await
+}
+
+#[tokio::test]
+async fn a_connector_renders_its_resources_when_it_can() {
+    let ctx = context();
+    let (extension_id, account_id) = connector(&ctx, &rendering_notes()).await;
+    let workspace_id = workspace(&ctx).await;
+    let groceries = import(&ctx, account_id, workspace_id, "groceries")
+        .await
+        .unwrap();
+    let recipes = import(&ctx, account_id, workspace_id, "recipes")
+        .await
+        .unwrap();
+
+    let rendered = render(&ctx, workspace_id, groceries.id).await.unwrap();
+    let blocks = rendered.expect("an interface").blocks;
+    assert!(matches!(&blocks[..], [Block::Heading(h)] if h.text == "groceries note"));
+    assert_eq!(render(&ctx, workspace_id, recipes.id).await.unwrap(), None);
+
+    call(&ctx, extension_id, "breaking").await;
+    let thrown = render(&ctx, workspace_id, groceries.id).await.unwrap_err();
+    assert_eq!(thrown.code, ErrorCode::UpstreamError);
+
+    ctx.extensions
+        .set_permission(SetExtensionPermissionRequest {
+            extension_id,
+            permission: ExtensionPermissionKind::Connector,
+            enabled: false,
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        render(&ctx, workspace_id, groceries.id).await.unwrap(),
+        None
+    );
+}
+
+#[tokio::test]
+async fn a_connector_without_render_resource_renders_nothing() {
+    let ctx = context();
+    let (_, account_id) = notes(&ctx).await;
+    let workspace_id = workspace(&ctx).await;
+    let resource = import(&ctx, account_id, workspace_id, "groceries")
+        .await
+        .unwrap();
+    assert_eq!(render(&ctx, workspace_id, resource.id).await.unwrap(), None);
+}
+
 const PKCE_EXTENSION: &str = "function manifest() {
        return { identifier: 'com.example.pkce', name: 'PKCE', version: 1,
                 permissions: ['oauth'], hooks: [] };

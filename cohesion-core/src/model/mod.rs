@@ -10,6 +10,7 @@ mod article;
 mod attachment;
 mod catalog_model;
 mod client;
+mod cohesion_ui;
 mod connector;
 mod connector_account;
 mod contact;
@@ -61,6 +62,10 @@ pub use article::{
 pub use attachment::{Attachment, AttachmentMessage};
 pub use catalog_model::CatalogModel;
 pub use client::{Client, ClientKeyKind};
+pub use cohesion_ui::{
+    Block, CheckboxBlock, Component, HeadingBlock, HeadingLevel, LinkBlock, OverviewBlock,
+    TextBlock,
+};
 pub use connector::{
     AccountDescription, Connector, ConnectorDefinition, ConnectorResource,
     ConnectorResourceFilters, ConnectorResourcePreview, Credential, OrganizationUnit,

@@ -23,6 +23,7 @@ import type {
 	AgentMemoryChange,
 	AgentMessageContent,
 	AgentRunPart,
+	Component,
 	ContextRebuildReason,
 	ArgsOf,
 	Resource,
@@ -478,6 +479,8 @@ interface MockRemoteResource {
 	content_kind: ResourceContentKind;
 	contents: string;
 	last_updated: number;
+	/** What the connector's `renderResource` returns for it; none shows the contents. */
+	render?: Component;
 }
 
 /** What an installed connector extension's functions return, or the error its description throws. */
@@ -499,6 +502,37 @@ const NOTION_ICON =
 	encodeURIComponent(
 		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="#191919"/><text x="50" y="68" font-size="56" font-weight="700" text-anchor="middle" fill="#fff" font-family="Georgia, serif">N</text></svg>'
 	);
+
+/**
+ * The Launch plan page as its connector draws it: every kind of block, at
+ * each heading level, with a checkbox and a link inside overviews.
+ */
+function launchPlanView(): Component {
+	return {
+		blocks: [
+			{ kind: 'heading', level: 1, text: 'Launch plan' },
+			{
+				kind: 'text',
+				text: 'Everything the launch needs, in one place.\nUpdated by the team every Friday.'
+			},
+			{ kind: 'overview', title: 'Status', child: { kind: 'text', text: 'In progress' } },
+			{ kind: 'overview', title: 'Owner', child: { kind: 'text', text: 'Ada Lovelace' } },
+			{ kind: 'overview', title: 'Approved', child: { kind: 'checkbox', checked: true } },
+			{
+				kind: 'overview',
+				title: 'Tracker',
+				child: { kind: 'link', text: 'Open in Notion', destination: 'https://www.notion.so' }
+			},
+			{ kind: 'heading', level: 2, text: 'Checklist' },
+			{ kind: 'checkbox', checked: true, text: 'Write the announcement' },
+			{ kind: 'checkbox', checked: false, text: 'Record the demo' },
+			{ kind: 'checkbox', checked: false, text: 'Tell the beta testers' },
+			{ kind: 'heading', level: 3, text: 'Links' },
+			{ kind: 'link', text: 'Press kit', destination: 'https://example.com/press' },
+			{ kind: 'link', text: 'Email the team', destination: 'mailto:team@example.com' }
+		]
+	};
+}
 
 /**
  * Two connectors: Notion (its extension has an icon), with two units and two
@@ -531,6 +565,16 @@ function seedConnectors(now: number): MockConnector[] {
 					contents:
 						'# Q4 roadmap\n\n- Ship connectors\n- Tidy the inbox\n\nOwners meet **every Monday**.',
 					last_updated: now - 2 * DAY
+				},
+				{
+					identifier: 'page-launch',
+					unit: 'eng',
+					title: 'Launch plan',
+					kind_identifier: 'page',
+					content_kind: 'markdown',
+					contents: '# Launch plan\n\nStatus: in progress. Owner: Ada Lovelace.',
+					last_updated: now - 3 * 3600,
+					render: launchPlanView()
 				},
 				{
 					identifier: 'page-playlist',
@@ -1555,6 +1599,7 @@ function seedConnectorData(
 	const connectors = seedConnectors(now);
 	const notion = connectors[0];
 	const page = notion.resources[0];
+	const launch = notion.resources.find((r) => r.identifier === 'page-launch')!;
 	return {
 		connectors,
 		definitions: [
@@ -1650,6 +1695,20 @@ function seedConnectorData(
 				content_kind: 'markdown',
 				contents: 'Tracks to drive to.',
 				last_updated: 0,
+				modified: now - DAY
+			},
+			// Its connector draws it, so it shows blocks rather than its contents.
+			{
+				id: 4,
+				workspace_id: 1,
+				account_id: 1,
+				identifier: launch.identifier,
+				kind_id: 1,
+				kind: `com.example.notion.${launch.kind_identifier}`,
+				title: launch.title,
+				content_kind: launch.content_kind,
+				contents: launch.contents,
+				last_updated: launch.last_updated,
 				modified: now - DAY
 			}
 		],
@@ -4732,6 +4791,15 @@ export function createMock(): Mock {
 				.map((a) => ({ ...a }));
 		},
 		getResource: ({ workspace_id, resource_id }) => ({ ...resource(workspace_id, resource_id) }),
+		// Like the daemon, a resource whose connector can't draw it has no view.
+		renderResource: ({ workspace_id, resource_id }) => {
+			const found = resource(workspace_id, resource_id);
+			const { host } = connectorAccount(found.account_id);
+			if (host.kind !== 'extension' || !granted(host.extension_id, 'connector')) return null;
+			const service = state.connectors.find((c) => c.extension_id === host.extension_id);
+			const remote = service?.resources.find((r) => r.identifier === found.identifier);
+			return remote?.render ? structuredClone(remote.render) : null;
+		},
 		deleteResource: ({ workspace_id, resource_id }) => {
 			const removed = resource(workspace_id, resource_id);
 			state.resources = state.resources.filter((a) => a.id !== resource_id);

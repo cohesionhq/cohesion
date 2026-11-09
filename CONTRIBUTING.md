@@ -630,7 +630,9 @@ A verb on an existing noun is step 1 and 3 only. The CLI depends only on
    ordinary object. Structs a script returns or receives derive `TsInterface`
    (its fields become the `.d.ts`), with `#[serde(rename = "camelName")]` on
    fields that need camelCase keys; the macro honours `rename` and `alias`,
-   and declares an `Option` field optional.
+   and declares an `Option` field optional. An enum of such structs, tagged
+   with `#[serde(tag = "kind", rename_all = "camelCase")]`, derives it too
+   and is declared as a union (`Block` in `model/cohesion_ui.rs`).
 4. Every column type needs `ToJs` (`conversion/to_js.rs`). `i64`, `f64`, `bool`,
    `String` and `Option<T>` have it; add a `TextEnum` column's type to
    `enums` in `script_api!`, and also to `mounted` if scripts should name its

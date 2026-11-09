@@ -917,6 +917,14 @@ export interface BeginConnectorAuthenticationRequest {
 	extension_id: number;
 }
 
+/** One element of a CohesionUI interface, told apart by `kind`. */
+export type Block =
+	| ({ kind: 'text' } & TextBlock)
+	| ({ kind: 'checkbox' } & CheckboxBlock)
+	| ({ kind: 'overview' } & OverviewBlock)
+	| ({ kind: 'heading' } & HeadingBlock)
+	| ({ kind: 'link' } & LinkBlock);
+
 /**
  * Calls the global `serviceRequest(name, args, caller)` of the extension
  * whose manifest declares `identifier`, which the extension needs the
@@ -976,6 +984,20 @@ export interface ChangeTasksStatusRequest {
 	status: TaskStatus;
 }
 
+/**
+ * `kind: "checkbox"`: a yes or no, shown as a checkbox the user can't
+ * change.
+ */
+export interface CheckboxBlock {
+	/** Whether it is ticked. */
+	checked: boolean;
+	/**
+	 * A label beside it, such as a to-do's text. Leave it out inside an
+	 * overview, whose title labels it.
+	 */
+	text?: string | null;
+}
+
 /** Removes the default model of `tier`. */
 export interface ClearIntelligenceDefaultRequest {
 	tier: IntelligenceTier;
@@ -1033,6 +1055,30 @@ export type ClientKeyKind = 'certificate' | 'local';
 export interface CompleteConnectorAuthenticationRequest {
 	extension_id: number;
 	code: string;
+}
+
+/**
+ * An interface in CohesionUI, such as what a connector's
+ * `renderResource(resource, kind)` returns to show a resource in place of
+ * its raw contents: its blocks, top to bottom.
+ *
+ * ```js
+ * function renderResource(resource, kind) {
+ *   const row = JSON.parse(resource.contents);
+ *   return {
+ *     blocks: [
+ *       { kind: "heading", level: 1, text: resource.title },
+ *       { kind: "overview", title: "Status", child: { kind: "text", text: row.status } },
+ *       { kind: "checkbox", checked: row.done, text: "Done" },
+ *       { kind: "link", text: "Open in Notion", destination: row.url },
+ *     ],
+ *   };
+ * }
+ * ```
+ */
+export interface Component {
+	/** What the interface shows, top to bottom. */
+	blocks: Block[];
 }
 
 /** A connector's stored definition, which its accounts share. */
@@ -1929,6 +1975,17 @@ export interface GetVersionRequest {
 	version_id: number;
 }
 
+/** `kind: "heading"`: a title over what follows. */
+export interface HeadingBlock {
+	/** 1 is the largest, 3 the smallest. */
+	level: HeadingLevel;
+	/** The heading's text. */
+	text: string;
+}
+
+/** How large a heading is: 1, 2 or 3, largest first. */
+export type HeadingLevel = 1 | 2 | 3;
+
 /**
  * An event the daemon calls scripts for: extensions that list it in their
  * manifest's `hooks`, and agents with a cue on it. `launch` calls
@@ -2528,6 +2585,17 @@ export interface InvalidationBatch {
 	keys: Invalidation[];
 }
 
+/** `kind: "link"`: text that opens `destination`. */
+export interface LinkBlock {
+	/** What the link says. */
+	text: string;
+	/**
+	 * Where it goes: an `https://`, `http://` or `mailto:` URL. Any other
+	 * address makes the whole interface invalid.
+	 */
+	destination: string;
+}
+
 /**
  * Lists the activities still running or waiting, then the `limit` that
  * ended most recently, newest first.
@@ -2919,6 +2987,18 @@ export interface OrganizationUnit {
 	display: string;
 }
 
+/**
+ * `kind: "overview"`: one labelled value, such as a status or an
+ * assignee, as the details at the top of a task show them. Overviews in a
+ * row line up as one list.
+ */
+export interface OverviewBlock {
+	/** The label, such as `"Status"`. */
+	title: string;
+	/** The value: usually a `text` block, or a `checkbox` or `link`. */
+	child: Block;
+}
+
 /** Whether the client asking may open pairing now. */
 export interface PairingAccess {
 	/** Why it can't, as `BeginPairing` would refuse it; `None` when it can. */
@@ -3255,6 +3335,15 @@ export interface RenderMermaidRequest {
 	 */
 	width?: number | null;
 	format: MermaidFormat;
+}
+
+/**
+ * Asks the connector of resource `resource_id` in workspace `workspace_id`
+ * for the CohesionUI interface it shows the resource with.
+ */
+export interface RenderResourceRequest {
+	workspace_id: number;
+	resource_id: number;
 }
 
 /** A diagram as drawn, or why it wasn't. */
@@ -4227,6 +4316,12 @@ export type TaskStatus = 'incomplete' | 'completed' | 'cancelled';
  */
 export type TaskViewScope = 'inbox' | 'all' | 'done' | 'cancelled' | number;
 
+/** `kind: "text"`: a paragraph of plain text. */
+export interface TextBlock {
+	/** The text, shown as written; line breaks are kept. */
+	text: string;
+}
+
 /**
  * What a thread message says, tagged by `kind`.
  *
@@ -5014,6 +5109,12 @@ export interface Requests {
 	listResources: ListResourcesRequest;
 	/** Fetches resource `resource_id` in a workspace. */
 	getResource: GetResourceRequest;
+	/**
+	 * Asks the connector of resource `resource_id` for the interface it
+	 * shows the resource with, from its `renderResource`; `null` when it
+	 * has none, so the client shows the contents.
+	 */
+	renderResource: RenderResourceRequest;
 	/** Removes resource `resource_id` from a workspace. */
 	deleteResource: DeleteResourceRequest;
 	/** Refreshes every resource in a workspace from its service now. */
@@ -5470,6 +5571,12 @@ export interface Replies {
 	listResources: Resource[];
 	/** Fetches resource `resource_id` in a workspace. */
 	getResource: Resource;
+	/**
+	 * Asks the connector of resource `resource_id` for the interface it
+	 * shows the resource with, from its `renderResource`; `null` when it
+	 * has none, so the client shows the contents.
+	 */
+	renderResource: Component | null;
 	/** Removes resource `resource_id` from a workspace. */
 	deleteResource: Resource;
 	/** Refreshes every resource in a workspace from its service now. */

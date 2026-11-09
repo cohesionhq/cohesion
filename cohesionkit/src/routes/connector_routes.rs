@@ -5,25 +5,26 @@
 use std::collections::HashSet;
 
 use cohesion_core::model::{
-    ConnectorResourceFilters, ExtensionPermissionKind, OrganizationUnit, Resource,
+    Component, ConnectorResourceFilters, ExtensionPermissionKind, OrganizationUnit, Resource,
 };
 use cohesion_core::protocol::{
     BeginConnectorAuthenticationRequest, CompleteConnectorAuthenticationRequest,
     ConnectorAuthentication, ConnectorService, DeleteConnectorAccountRequest,
     ImportResourceRequest, ImportableResource, ListConnectorOrganizationUnitsRequest,
     ListConnectorServicesRequest, Local, RedactedConnectorAccount, RefreshResourcesRequest,
-    ResourceRefreshSummary, Route, SearchConnectorResourcesRequest, ServerError,
+    RenderResourceRequest, ResourceRefreshSummary, Route, SearchConnectorResourcesRequest,
+    ServerError,
 };
 use cohesion_db::{
-    DeleteConnectorAccountCommand, GetAccountConnectorCommand, GetWorkspaceCommand,
-    ImportResourceCommand, ListAccountResourcesCommand,
+    DeleteConnectorAccountCommand, GetAccountConnectorCommand, GetResourceCommand,
+    GetWorkspaceCommand, ImportResourceCommand, ListAccountResourcesCommand,
 };
 
 use crate::cohesion_context::CohesionContext;
 use crate::connectors::{
     AuthenticationUrlFn, ServiceDescriptionFn, account_items, account_organization_units,
     account_removed, call_connector, complete_connector_authentication, fetch_resource,
-    refresh_resources,
+    refresh_resources, render_resource,
 };
 use crate::extension_manager::ExtensionFn;
 
@@ -205,6 +206,22 @@ impl Route<Local, ImportResourceRequest> for CohesionContext {
                 resource: fetched,
             })
             .await?)
+    }
+}
+
+impl Route<Local, RenderResourceRequest> for CohesionContext {
+    async fn route(
+        &self,
+        request: RenderResourceRequest,
+    ) -> Result<Option<Component>, ServerError> {
+        let resource = self
+            .database
+            .send(GetResourceCommand {
+                workspace_id: request.workspace_id,
+                resource_id: request.resource_id,
+            })
+            .await?;
+        render_resource(&self.extensions, &self.database, resource).await
     }
 }
 
