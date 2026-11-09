@@ -248,11 +248,13 @@
 <PageTitle title={`${session?.title ?? 'Session'} · Actors`} />
 
 <!-- Fill the content area (over its bottom padding) and scroll inside, so
-     the composer stays put. -->
+     the composer stays put. The feed is positioned, so what it positions
+     absolutely (a running row's `sr-only` label) is clipped by it rather
+     than stretching the page into scrolling, composer and all. -->
 <div class="-mb-12 flex h-[calc(100%+var(--s8))]">
 	<div class="relative flex min-w-0 flex-1 flex-col">
 		<div
-			class="min-h-0 flex-1 [scrollbar-width:none] overflow-y-auto pb-6 [overflow-anchor:none]"
+			class="relative min-h-0 flex-1 [scrollbar-width:none] overflow-y-auto pb-6 [overflow-anchor:none]"
 			style:padding-bottom={composerHeight ? `calc(${composerHeight}px + var(--s6))` : undefined}
 			bind:this={scroller}
 			{onscroll}

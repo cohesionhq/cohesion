@@ -243,9 +243,10 @@
 	style:--primary-fg={agent ? 'var(--on-fill)' : undefined}
 >
 	<div class="relative flex min-w-0 flex-1 flex-col">
-		<!-- Anchoring off: loadOlder keeps the reader's place itself. No scrollbar: the feed scrolls like a chat. -->
+		<!-- Anchoring off: loadOlder keeps the reader's place itself. No scrollbar: the feed scrolls like a chat.
+		     Positioned, so what it positions absolutely is clipped by it rather than scrolling the page. -->
 		<div
-			class="min-h-0 flex-1 [scrollbar-width:none] overflow-y-auto pb-6 [overflow-anchor:none]"
+			class="relative min-h-0 flex-1 [scrollbar-width:none] overflow-y-auto pb-6 [overflow-anchor:none]"
 			style:padding-bottom={composerHeight ? `calc(${composerHeight}px + var(--s6))` : undefined}
 			bind:this={scroller}
 			{onscroll}
