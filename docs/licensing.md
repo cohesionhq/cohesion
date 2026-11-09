@@ -29,9 +29,10 @@ WebUI harnesses in `webshell`, the Mac app and the Linux app in `gtk/`, are
 `Apache-2.0`, partly because copyleft can't ship through the App Store.
 
 Interoperability code is `MIT`: the libraries and actors other people build on
-(`ts`, `actor-kit`, `actor-agentsdk`, `actor-opencode`, `actor-codex` and
-`cohesion-proxy`), and `cohesion-rs` in this repository. That way anyone can
-write an actor or client without taking on the core's terms.
+(`ts`, `actor-kit`, `actor-agentsdk`, `actor-opencode`, `actor-codex`,
+`cohesion-proxy` and `CohesionWebKit`), and `cohesion-rs` in this repository.
+That way anyone can write an actor or client without taking on the core's
+terms.
 
 `cohesion-rs` exists so a Rust client doesn't have to link the core. It holds
 what a client needs to talk to a daemon and nothing else: keys, certificates,
@@ -45,7 +46,7 @@ full command and reply types or the storage layer, stays `AGPL-3.0-only` in
 `cohesion-core`. The client protocol keeps those parts as raw JSON instead.
 
 `webshell/gtk/src/bridge.js` is a copy of the script in CohesionWebKit's
-`SocketBridge`, and CohesionWebKit has no licence yet.
+`SocketBridge`, which is `MIT`.
 
 Cohesion Cloud, the hosted service at [hellocohesion.cloud](https://hellocohesion.cloud),
 runs `cohesiond` from this repository. Its own service code in `cloud` is
@@ -62,9 +63,8 @@ Each repository in the `cohesionhq` organisation carries its own `LICENSE`.
 | `hellocohesion.com`, `hellocohesion.cloud` | `AGPL-3.0-only` |
 | `apple`, `webshell` | `Apache-2.0` |
 | `cohesion/cohesion-rs/` | `MIT` |
-| `ts`, `actor-kit`, `actor-agentsdk`, `actor-opencode`, `actor-codex`, `cohesion-proxy` | `MIT` |
+| `ts`, `actor-kit`, `actor-agentsdk`, `actor-opencode`, `actor-codex`, `cohesion-proxy`, `CohesionWebKit` | `MIT` |
 | `cloud` | Proprietary, all rights reserved |
-| `CohesionWebKit` | No licence yet |
 | `cohesiond-macos` | No licence yet. It belongs under `AGPL-3.0-only` once it gets one. |
 
 The permissive licences apply only to code those repositories hold. They don't
