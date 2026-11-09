@@ -700,8 +700,8 @@ function seed(): MockState {
 			folder_id: null
 		};
 	};
-	// Filed as `documentFolders` below says: Research holds Search, and 8 and 9 sit inside it.
-	const filed: Record<number, number> = { 5: 3, 6: 1, 8: 2, 9: 2 };
+	// Filed in `documentFolders` below: Research holds Search and 8 and 9, Search holds 5, and 6 is in the Inbox.
+	const filed: Record<number, number> = { 5: 3, 8: 2, 9: 2 };
 	const doc = (id: number, workspace_id: number, title: string, contents: string): Document => ({
 		id,
 		workspace_id,

@@ -8,8 +8,11 @@ under "Unreleased" with any change users would notice.
 ## Unreleased
 
 - Documents file into folders, which nest without limit; a document in no
-  folder is in the Inbox. Deleting a folder deletes the folders inside it and
-  moves their documents to the Inbox. Journals stay out of folders. Scripts reach them
+  folder is in the Inbox. The Documents page shows the folders as a tree
+  beside the list, under Inbox and All: drag a document onto a folder to file
+  it, or a folder onto another to nest it, and a document's ⋯ menu has Move
+  to. Deleting a folder deletes the folders inside it and moves their
+  documents to the Inbox. Journals stay out of folders. Scripts reach them
   through `Workspace.documentFolders()`, `createDocumentFolder()`,
   `Document.folder()` and `moveTo()`, and the `DocumentFolder` class. The
   wire gains `listDocumentFolders`, `createDocumentFolder`,
