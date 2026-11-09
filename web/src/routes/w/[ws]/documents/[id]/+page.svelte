@@ -5,6 +5,7 @@
 	import { useAutosave } from '$lib/features/documents/autosave.svelte';
 	import { toProtocolError } from '$lib/protocol/errors';
 	import { routes } from '$lib/shell/routes';
+	import { folderPath, folderTree, visibleNodes } from '$lib/features/documents/folderTree';
 	import PageHeader from '$lib/ui/PageHeader.svelte';
 	import ResourceState from '$lib/ui/ResourceState.svelte';
 	import TextInput from '$lib/ui/TextInput.svelte';
@@ -25,6 +26,37 @@
 	let title = $state('');
 	let editingTitle = $state(false);
 	let titleError = $state<string | null>(null);
+
+	$effect(() => {
+		const w = ws;
+		untrack(() => void documents.folders.load(w));
+		return () => documents.folders.release();
+	});
+
+	// The document sits in its folder: the back link goes there, and "Move to" files it elsewhere.
+	const folders = $derived(documents.folders.value);
+	const home = $derived(
+		doc?.folder_id != null ? (folders.find((f) => f.id === doc.folder_id) ?? null) : null
+	);
+	const destinations = $derived([
+		{ id: null, title: 'Inbox' },
+		...visibleNodes(folderTree(folders), new Set()).map(({ folder }) => ({
+			id: folder.id,
+			title: folderPath(folders, folder.id)
+				.map((f) => f.title)
+				.join(' › ')
+		}))
+	]);
+	const back = $derived(
+		home
+			? { href: `${routes.documents(ws)}?folder=${home.id}`, label: home.title }
+			: { href: `${routes.documents(ws)}?folder=inbox`, label: 'Inbox' }
+	);
+
+	function move(folder_id: number | null) {
+		if (doc && doc.folder_id !== folder_id)
+			documents.move(doc, folder_id).catch((error) => toasts.error(error));
+	}
 
 	$effect(() => {
 		const [w, d] = [ws, id];
@@ -99,7 +131,7 @@
 		onmissing={() => page.goto(routes.documents(ws), { replaceState: true })}
 	>
 		{#snippet loaded()}
-			<PageHeader back={{ href: routes.documents(ws), label: 'Documents' }}>
+			<PageHeader {back}>
 				{#snippet actions()}
 					<DocumentMenu
 						bind:preview
@@ -114,6 +146,9 @@
 						ondelete={remove}
 						rewind={{ kind: 'document', workspace_id: ws, id }}
 						title={title.trim() || 'Untitled'}
+						{destinations}
+						folderId={doc?.folder_id ?? null}
+						onmove={move}
 						onrestored={(result) => {
 							if (result.kind === 'document') documents.restored(result.document);
 						}}

@@ -17,6 +17,17 @@
 	import { pane } from '$lib/shell/pane.svelte';
 	import PageTitle from '$lib/shell/PageTitle.svelte';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
+	import DocumentFolderTree, {
+		DOCUMENT_DRAG,
+		type DocumentView
+	} from '$lib/features/documents/DocumentFolderTree.svelte';
+	import { navPane } from '$lib/features/folders/nav';
+	import { subtreeIds } from '$lib/features/documents/folderTree';
+	import type { DocumentFolder } from '$lib/protocol/types';
+	import { toProtocolError } from '$lib/protocol/errors';
+	import Dialog from '$lib/ui/Dialog.svelte';
+	import Field from '$lib/ui/Field.svelte';
+	import TextInput from '$lib/ui/TextInput.svelte';
 
 	const { documents } = pageStores();
 
@@ -30,9 +41,39 @@
 
 	$effect(() => {
 		const id = ws;
-		untrack(() => void documents.list.load(id));
+		untrack(() => {
+			void documents.list.load(id);
+			void documents.folders.load(id);
+		});
 		query = '';
 	});
+	$effect(() => () => documents.folders.release());
+
+	// `?folder=inbox` or a folder's id; every document without it.
+	const folderParam = $derived(page.url.searchParams.get('folder'));
+	const view = $derived.by((): DocumentView => {
+		if (folderParam === 'inbox') return 'inbox';
+		const id = Number(folderParam);
+		return folderParam !== null && Number.isInteger(id) ? id : 'all';
+	});
+	function viewHref(next: DocumentView): string {
+		const base = routes.documents(ws);
+		return next === 'all' ? base : `${base}?folder=${next}`;
+	}
+	const folder = $derived(
+		typeof view === 'number' ? (documents.folders.value.find((f) => f.id === view) ?? null) : null
+	);
+	const folderGone = $derived(
+		typeof view === 'number' && documents.folders.loaded && folder === null
+	);
+	const viewName = $derived(
+		view === 'all' ? 'Documents' : view === 'inbox' ? 'Inbox' : (folder?.title ?? 'Folder')
+	);
+	/** The folder new documents go in from here: the one shown, or the Inbox. */
+	const newIn = $derived(typeof view === 'number' ? view : null);
+	const folderTitles = $derived(new Map(documents.folders.value.map((f) => [f.id, f.title])));
+	const inView = (d: Document) =>
+		view === 'all' || d.folder_id === (view === 'inbox' ? null : view);
 
 	const remote = $derived(documents.list.value.length > SERVER_FILTER_THRESHOLD);
 
@@ -54,9 +95,9 @@
 
 	const shown = $derived.by(() => {
 		const q = query.trim().toLowerCase();
-		if (q === '') return documents.list.value;
-		if (remote) return found ?? [];
-		return documents.list.value.filter((d) => d.title.toLowerCase().includes(q));
+		if (q === '') return documents.list.value.filter(inView);
+		if (remote) return (found ?? []).filter(inView);
+		return documents.list.value.filter((d) => inView(d) && d.title.toLowerCase().includes(q));
 	});
 
 	const now = nowSeconds();
@@ -65,7 +106,7 @@
 	async function create() {
 		creating = true;
 		try {
-			const doc = await documents.create(ws);
+			const doc = await documents.create(ws, undefined, undefined, newIn);
 			void page.goto(routes.document(ws, doc.id));
 		} catch (error) {
 			toasts.error(error);
@@ -73,82 +114,238 @@
 			creating = false;
 		}
 	}
+
+	function run(action: Promise<unknown>) {
+		action.catch((error) => toasts.error(error));
+	}
+
+	function file(document_id: number, folder_id: number | null) {
+		const doc = documents.list.value.find((d) => d.id === document_id);
+		if (doc && doc.folder_id !== folder_id) run(documents.move(doc, folder_id));
+	}
+
+	// ---- Folders ------------------------------------------------------------
+
+	let folderDialog = $state<
+		| { mode: 'new'; parent: DocumentFolder | null }
+		| { mode: 'rename'; folder: DocumentFolder }
+		| null
+	>(null);
+	let folderOpen = $state(false);
+	let folderTitle = $state('');
+	let folderError = $state<string | null>(null);
+	let folderBusy = $state(false);
+
+	function openFolderDialog(next: NonNullable<typeof folderDialog>) {
+		folderDialog = next;
+		folderTitle = next.mode === 'rename' ? next.folder.title : '';
+		folderError = null;
+		folderOpen = true;
+	}
+
+	async function submitFolder(event: SubmitEvent) {
+		event.preventDefault();
+		const title = folderTitle.trim();
+		if (folderDialog === null || title === '') return;
+		folderBusy = true;
+		try {
+			if (folderDialog.mode === 'new') {
+				const created = await documents.createFolder(ws, title, folderDialog.parent?.id ?? null);
+				void page.goto(viewHref(created.id));
+			} else {
+				await documents.renameFolder(ws, folderDialog.folder.id, title);
+			}
+			folderOpen = false;
+		} catch (error) {
+			const e = toProtocolError(error);
+			if (e.code === 'validationFailed') folderError = e.message;
+			else toasts.error(e);
+		} finally {
+			folderBusy = false;
+		}
+	}
+
+	let removingFolder = $state<DocumentFolder | null>(null);
+	let removeFolderOpen = $state(false);
+
+	async function confirmRemoveFolder() {
+		const target = removingFolder;
+		if (target === null) return;
+		// The folder shown goes if it's this one or inside it.
+		const shownGoes =
+			typeof view === 'number' && subtreeIds(documents.folders.value, target.id).includes(view);
+		folderBusy = true;
+		try {
+			await documents.deleteFolder(ws, target.id);
+			removeFolderOpen = false;
+			if (shownGoes) void page.goto(viewHref('inbox'), { replaceState: true });
+		} catch (error) {
+			toasts.error(error);
+		} finally {
+			folderBusy = false;
+		}
+	}
 </script>
 
-<PageTitle title="Documents" />
+<PageTitle title={view === 'all' ? 'Documents' : `${viewName} · Documents`} />
 
 <div class="px-(--page-inset)">
-	<PageHeader title="Documents">
+	<PageHeader title={viewName}>
 		{#snippet actions()}
-			<Button variant="secondary" disabled={creating} onclick={create}
+			<Button variant="secondary" disabled={creating || folderGone} onclick={create}
 				><Plus size={15} strokeWidth={1.75} aria-hidden="true" />New document</Button
 			>
 		{/snippet}
 	</PageHeader>
 
-	{#if documents.list.error && !documents.list.loaded}
-		<EmptyState {...workspaceLoadError(documents.list.error, () => documents.list.refetch())} />
-	{:else if documents.list.loaded}
-		{#if documents.list.value.length === 0}
-			<EmptyState message="No documents yet" actionLabel="New document" onaction={create} />
-		{:else}
-			<div class="mb-5">
-				<SearchField
-					bind:value={query}
-					placeholder="Filter by title"
-					label="Filter documents by title"
-				/>
-			</div>
+	<div class="flex gap-6 max-md:flex-col max-md:gap-0">
+		<aside class={navPane}>
+			<DocumentFolderTree
+				folders={documents.folders.value}
+				current={view}
+				href={viewHref}
+				onnew={(parent) => openFolderDialog({ mode: 'new', parent })}
+				onrename={(f) => openFolderDialog({ mode: 'rename', folder: f })}
+				ondelete={(f) => {
+					removingFolder = f;
+					removeFolderOpen = true;
+				}}
+				onmove={(f, parent_id, before_id) =>
+					run(documents.moveFolder(ws, f.id, parent_id, before_id))}
+				onfile={file}
+			/>
+		</aside>
 
-			{#if groups.length === 0}
-				{#if !remote || found !== null}
-					<p class="text-fg-muted">No documents match “{query.trim()}”.</p>
-				{/if}
-			{:else}
-				{#each groups as group (group.key)}
-					<section class="[&+section]:mt-6" aria-labelledby="group-{group.key}">
-						<!-- Headed as the Dashboard's sections are: the day, a count, a hairline. -->
-						<h2 class={list.heading} id="group-{group.key}">
-							{group.label}<span class={list.count}>{group.items.length}</span>
-						</h2>
-						<ul>
-							{#each group.items as doc (doc.id)}
-								{@const line = excerpt(doc.contents, 140, doc.title)}
-								<!-- Two lines, as an article's row: the title, then where the text starts. -->
-								<li class="border-border not-first:border-t">
-									<a
-										class="group flex items-start gap-3 py-2.5 text-fg hover:no-underline"
-										href={routes.document(ws, doc.id)}
-									>
-										<FileText
-											class="mt-0.5 flex-none text-fg-subtle"
-											size={16}
-											strokeWidth={1.75}
-											aria-hidden="true"
-										/>
-										<span class="flex min-w-0 flex-1 flex-col gap-0.5">
-											<span class="flex items-baseline justify-between gap-4">
-												<span class="min-w-0 truncate transition-colors group-hover:text-accent"
-													>{doc.title}</span
-												>
-												<span class="flex-none text-xs text-fg-subtle tabular-nums"
-													>{relativeTime(doc.modified, now)}</span
-												>
-											</span>
-											<span
-												class={[
-													'max-w-170 truncate text-xs',
-													line ? 'text-fg-subtle' : 'text-fg-subtle/70'
-												]}>{line || 'Empty'}</span
+		<div class="min-w-0 flex-1">
+			{#if folderGone}
+				<EmptyState
+					message="Folder not found"
+					actionLabel="Back to documents"
+					onaction={() => page.goto(viewHref('all'), { replaceState: true })}
+				/>
+			{:else if documents.list.error && !documents.list.loaded}
+				<EmptyState {...workspaceLoadError(documents.list.error, () => documents.list.refetch())} />
+			{:else if documents.list.loaded}
+				{#if documents.list.value.length === 0}
+					<EmptyState message="No documents yet" actionLabel="New document" onaction={create} />
+				{:else if view !== 'all' && !documents.list.value.some(inView)}
+					<EmptyState message="No documents" actionLabel="New document" onaction={create} />
+				{:else}
+					<div class="mb-5">
+						<SearchField
+							bind:value={query}
+							placeholder="Filter by title"
+							label="Filter documents by title"
+						/>
+					</div>
+
+					{#if groups.length === 0}
+						{#if !remote || found !== null}
+							<p class="text-fg-muted">No documents match “{query.trim()}”.</p>
+						{/if}
+					{:else}
+						{#each groups as group (group.key)}
+							<section class="[&+section]:mt-6" aria-labelledby="group-{group.key}">
+								<!-- Headed as the Dashboard's sections are: the day, a count, a hairline. -->
+								<h2 class={list.heading} id="group-{group.key}">
+									{group.label}<span class={list.count}>{group.items.length}</span>
+								</h2>
+								<ul>
+									{#each group.items as doc (doc.id)}
+										{@const line = excerpt(doc.contents, 140, doc.title)}
+										<!-- Two lines, as an article's row: the title, then where the text starts. -->
+										<li class="border-border not-first:border-t">
+											<a
+												class="group flex items-start gap-3 py-2.5 text-fg hover:no-underline"
+												href={routes.document(ws, doc.id)}
+												ondragstart={(e) => {
+													e.dataTransfer?.setData(DOCUMENT_DRAG, String(doc.id));
+													if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+												}}
 											>
-										</span>
-									</a>
-								</li>
-							{/each}
-						</ul>
-					</section>
-				{/each}
+												<FileText
+													class="mt-0.5 flex-none text-fg-subtle"
+													size={16}
+													strokeWidth={1.75}
+													aria-hidden="true"
+												/>
+												<span class="flex min-w-0 flex-1 flex-col gap-0.5">
+													<span class="flex items-baseline justify-between gap-4">
+														<span class="min-w-0 truncate transition-colors group-hover:text-accent"
+															>{doc.title}</span
+														>
+														<span class="flex flex-none gap-3 text-xs text-fg-subtle tabular-nums">
+															{#if view === 'all'}
+																<!-- Across folders, each row names where it's filed. -->
+																<span
+																	>{doc.folder_id === null
+																		? 'Inbox'
+																		: (folderTitles.get(doc.folder_id) ?? '')}</span
+																>
+															{/if}
+															<span>{relativeTime(doc.modified, now)}</span>
+														</span>
+													</span>
+													<span
+														class={[
+															'max-w-170 truncate text-xs',
+															line ? 'text-fg-subtle' : 'text-fg-subtle/70'
+														]}>{line || 'Empty'}</span
+													>
+												</span>
+											</a>
+										</li>
+									{/each}
+								</ul>
+							</section>
+						{/each}
+					{/if}
+				{/if}
 			{/if}
-		{/if}
-	{/if}
+		</div>
+	</div>
 </div>
+
+<Dialog
+	bind:open={folderOpen}
+	title={folderDialog?.mode === 'rename'
+		? 'Rename folder'
+		: folderDialog?.parent
+			? `New folder in “${folderDialog.parent.title}”`
+			: 'New folder'}
+>
+	<form id="document-folder-form" onsubmit={submitFolder}>
+		<Field label="Title" for="document-folder-title" error={folderError}>
+			<TextInput
+				id="document-folder-title"
+				bind:value={folderTitle}
+				autocomplete="off"
+				oninput={() => (folderError = null)}
+			/>
+		</Field>
+	</form>
+	{#snippet footer()}
+		<Button onclick={() => (folderOpen = false)}>Cancel</Button>
+		<Button
+			variant="primary"
+			type="submit"
+			form="document-folder-form"
+			disabled={folderBusy || folderTitle.trim() === ''}
+		>
+			{folderDialog?.mode === 'rename' ? 'Rename' : 'Create'}
+		</Button>
+	{/snippet}
+</Dialog>
+
+<Dialog
+	bind:open={removeFolderOpen}
+	title="Delete “{removingFolder?.title ?? ''}”?"
+	description="Folders inside this folder will also be deleted. The documents in them won’t be deleted and will move to the Inbox."
+>
+	{#snippet footer()}
+		<Button onclick={() => (removeFolderOpen = false)}>Cancel</Button>
+		<Button variant="danger-quiet" disabled={folderBusy} onclick={confirmRemoveFolder}>
+			Delete
+		</Button>
+	{/snippet}
+</Dialog>

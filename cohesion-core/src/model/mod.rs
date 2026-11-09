@@ -16,6 +16,7 @@ mod connector_account;
 mod contact;
 mod day_filter;
 mod document;
+mod document_folder;
 mod endpoint_model;
 mod extension;
 mod feed;
@@ -75,6 +76,7 @@ pub use connector_account::{AccountHost, ConnectorAccount};
 pub use contact::{Contact, ContactMethod, ContactMethodKind, NewContactMethod};
 pub use day_filter::{DayFilter, DayRange};
 pub use document::{Document, DocumentType};
+pub use document_folder::DocumentFolder;
 pub use endpoint_model::EndpointModel;
 pub use extension::{
     Extension, ExtensionHook, ExtensionManifest, ExtensionPermission, ExtensionPermissionKind,

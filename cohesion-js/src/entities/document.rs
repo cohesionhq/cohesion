@@ -2,17 +2,23 @@
 
 use cohesion_core::Document;
 use cohesion_core::model::VersionTarget;
-use cohesion_db::{AppendToDocumentCommand, ListVersionsCommand, commands::EditDocumentCommand};
+use cohesion_db::{
+    AppendToDocumentCommand, GetDocumentFolderCommand, ListVersionsCommand, MoveDocumentCommand,
+    commands::EditDocumentCommand,
+};
 use cohesion_macros::js_entity;
-use rquickjs::Ctx;
+use rquickjs::{Class, Ctx};
 
+use super::document_folder::JsDocumentFolder;
 use super::rewind::JsVersionSummary;
 
 /// A piece of text in a workspace: either a normal document or a daily journal
 /// entry.
 ///
 /// Get them from `Workspace.documents()`, `Workspace.journal()`,
-/// `Workspace.getJournal()`, or `SearchResult.open()`.
+/// `Workspace.getJournal()`, `DocumentFolder.documents()`, or
+/// `SearchResult.open()`. A normal document is filed in a `DocumentFolder`
+/// (`folderId`) or, when `folderId` is `null`, in the Inbox.
 ///
 /// Link one in a message as `[Launch plan](cohesion://document/3/7)`, its
 /// title, `workspaceId` and `id`; the user opens it with a tap.
@@ -69,6 +75,41 @@ impl JsDocument {
             },
         )?;
         self.inner = updated;
+        Ok(())
+    }
+    /// The folder this document is filed in, or `null` when it is in the
+    /// Inbox (always for a journal).
+    pub fn folder<'js>(&self, ctx: Ctx<'js>) -> rquickjs::Result<Option<JsDocumentFolder>> {
+        let Some(folder_id) = self.inner.folder_id else {
+            return Ok(None);
+        };
+        let folder = self.read(
+            &ctx,
+            GetDocumentFolderCommand {
+                workspace_id: self.inner.workspace_id,
+                folder_id,
+            },
+        )?;
+        Ok(Some(JsDocumentFolder::new(folder, self.db.clone())))
+    }
+    /// Files this document in `folder`, from the same workspace, or in the
+    /// Inbox when `null`.
+    ///
+    /// Saved immediately. Filing a journal throws.
+    #[qjs(rename = "moveTo")]
+    pub fn move_to<'js>(
+        &mut self,
+        ctx: Ctx<'js>,
+        folder: Option<Class<'js, JsDocumentFolder>>,
+    ) -> rquickjs::Result<()> {
+        self.inner = self.write(
+            &ctx,
+            MoveDocumentCommand {
+                workspace_id: self.inner.workspace_id,
+                document_id: self.inner.id,
+                folder_id: folder.map(|folder| folder.borrow().inner().id),
+            },
+        )?;
         Ok(())
     }
 }

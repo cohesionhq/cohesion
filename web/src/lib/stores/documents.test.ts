@@ -19,6 +19,7 @@ const doc = (id: number, fields: Partial<Document>): Document => ({
 	modified: 0,
 	journal_date: null,
 	deleted: false,
+	folder_id: null,
 	...fields
 });
 
@@ -107,6 +108,37 @@ describe('documents store', () => {
 		expect(store.current.value).toBeNull();
 		expect(store.list.value.some((d) => d.id === created.id)).toBe(false);
 		expect(mock.state.documents.find((d) => d.id === created.id)?.deleted).toBe(true);
+	});
+
+	it('files documents into folders, nests folders and deletes them into the Inbox', async () => {
+		const store = createDocumentsStore(createMock().send);
+		await Promise.all([store.list.load(1), store.folders.load(1)]);
+		expect(store.folders.value.map((f) => f.title)).toEqual(['Design', 'Search', 'Research']);
+
+		const drafts = await store.createFolder(1, 'Drafts');
+		const inner = await store.createFolder(1, 'Inner', drafts.id);
+		expect(store.folders.value.at(-1)).toEqual(inner);
+		const created = await store.create(1, 'Plan', '', inner.id);
+		expect(created.folder_id).toBe(inner.id);
+
+		const registry = store.list.value.find((d) => d.title === 'Extensions Registry')!;
+		await store.move(registry, drafts.id);
+		expect(store.list.value.find((d) => d.id === registry.id)?.folder_id).toBe(drafts.id);
+
+		await store.renameFolder(1, drafts.id, 'Notes');
+		await store.moveFolder(1, drafts.id, null, 1);
+		const top = store.folders.value
+			.filter((f) => f.parent_id === null)
+			.sort((a, b) => a.sort_order - b.sort_order);
+		expect(top.map((f) => f.title)).toEqual(['Notes', 'Design', 'Research']);
+		await expect(store.moveFolder(1, drafts.id, inner.id)).rejects.toMatchObject({
+			code: 'validationFailed'
+		});
+
+		await store.deleteFolder(1, drafts.id);
+		expect(store.folders.value.map((f) => f.title)).toEqual(['Design', 'Search', 'Research']);
+		for (const id of [created.id, registry.id])
+			expect(store.list.value.find((d) => d.id === id)?.folder_id).toBeNull();
 	});
 
 	it('autosaves the draft and skips refetches while dirty', async () => {

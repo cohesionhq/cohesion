@@ -2939,3 +2939,46 @@ fn a_script_brings_back_a_deleted_item_but_a_read_only_one_only_looks() {
     assert_eq!(output["restored"], "restored");
     assert_eq!(output["left"], 0);
 }
+
+#[test]
+fn documents_file_into_nested_folders_and_the_inbox() {
+    let db = database();
+    create_workspace(&db, "Home");
+    let result = json(
+        &db,
+        r#"
+        const home = cohesion.workspace("Home");
+        const work = home.createDocumentFolder("Work");
+        const plans = work.createFolder("Plans");
+        const launch = plans.createDocument("Launch", "Go");
+        const loose = home.createDocument("Loose");
+        const before = [launch.folder().title, loose.folder(), plans.parent().title];
+        loose.moveTo(work);
+        const filed = work.documents().map((d) => d.title);
+        loose.moveTo(null);
+        plans.moveTo(null);
+        plans.rename("Ideas");
+        const tree = home.documentFolders().map((f) => [f.title, f.parentId]);
+        let refused = false;
+        try { work.moveTo(work); } catch (e) { refused = true; }
+        const inside = work.folders().length;
+        work.delete();
+        [before, filed, loose.folderId, tree, refused, inside,
+         home.documentFolders().map((f) => f.title),
+         home.documentFolder(plans.id).documents().map((d) => d.title)]
+        "#,
+    );
+    assert_eq!(
+        result,
+        serde_json::json!([
+            ["Plans", null, "Work"],
+            ["Loose"],
+            null,
+            [["Work", null], ["Ideas", null]],
+            true,
+            0,
+            ["Ideas"],
+            ["Launch"]
+        ])
+    );
+}

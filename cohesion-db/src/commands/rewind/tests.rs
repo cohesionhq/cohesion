@@ -135,6 +135,7 @@ fn document(db: &DatabaseContext, workspace_id: i64) -> Document {
         workspace_id,
         title: "Plan".to_string(),
         contents: "first".to_string(),
+        folder_id: None,
     })
     .unwrap()
 }

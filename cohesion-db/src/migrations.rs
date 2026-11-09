@@ -4275,6 +4275,51 @@ pub const MIGRATIONS: &[Migration] = &[
             UPDATE actor_sessions SET unread = TRUE WHERE id = new.actor_session_id;
         END;",
     },
+    // Documents file into folders, which nest without limit. A document in
+    // no folder is in the Inbox, where every existing one stays; a journal
+    // is never filed. A document's folder is a live one of its workspace.
+    Migration {
+        name: "document_folders",
+        sql: "
+        CREATE TABLE document_folders (
+            id INTEGER PRIMARY KEY,
+            workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+            parent_id INTEGER CHECK (parent_id IS NOT id),
+            title TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            deleted BOOLEAN NOT NULL DEFAULT FALSE,
+            UNIQUE (workspace_id, id),
+            FOREIGN KEY (workspace_id, parent_id) REFERENCES document_folders(workspace_id, id)
+                ON DELETE CASCADE
+        );
+        CREATE INDEX document_folders_parent ON document_folders(parent_id)
+            WHERE parent_id IS NOT NULL;
+
+        ALTER TABLE documents ADD COLUMN folder_id INTEGER
+            REFERENCES document_folders(id) ON DELETE SET NULL
+            CHECK (folder_id IS NULL OR document_type = 'normal');
+        CREATE INDEX documents_folder ON documents(folder_id) WHERE folder_id IS NOT NULL;
+
+        CREATE TRIGGER documents_folder_in_workspace
+        BEFORE INSERT ON documents
+        WHEN new.folder_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM document_folders WHERE id = new.folder_id
+                AND workspace_id = new.workspace_id AND deleted = FALSE
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'A document is filed only in a live folder of its workspace.');
+        END;
+
+        CREATE TRIGGER documents_folder_in_workspace_au
+        BEFORE UPDATE OF folder_id, workspace_id ON documents
+        WHEN new.folder_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM document_folders WHERE id = new.folder_id
+                AND workspace_id = new.workspace_id AND deleted = FALSE
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'A document is filed only in a live folder of its workspace.');
+        END;",
+    },
 ];
 
 #[cfg(test)]
