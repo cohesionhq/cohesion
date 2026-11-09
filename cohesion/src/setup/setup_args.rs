@@ -7,7 +7,7 @@ pub struct SetupArgs {
     /// The setup code cohesiond printed when it started.
     #[arg(required_unless_present = "local")]
     pub setup_code: Option<String>,
-    /// How cohesiond will list this client. Defaults to this computer's hostname.
+    /// How cohesiond will list this client. Defaults to "<hostname> (CLI)".
     #[arg(long)]
     pub name: Option<String>,
     /// Connect to a cohesiond on this machine through its Unix socket instead of

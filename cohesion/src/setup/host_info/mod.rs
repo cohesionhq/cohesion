@@ -1,4 +1,4 @@
-//! This computer's hostname, which names a newly registered client. One module
+//! This computer's hostname, which starts a newly registered client's name. One module
 //! per platform, each with `hostname()`.
 
 #[cfg(target_os = "linux")]

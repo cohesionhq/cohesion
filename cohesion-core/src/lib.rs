@@ -38,7 +38,8 @@ pub const VERSION: &str = match option_env!("COHESION_VERSION") {
 
 pub use auth::{
     Authentication, Certificate, DEFAULT_PORT, Host, InvalidHost, KeyError, LocalHandshakeReply,
-    LocalIdentity, ServerAddress, SetupCode, SetupCodeError, fingerprint, key_fingerprint,
+    LocalIdentity, ServerAddress, SetupCode, SetupCodeError, fingerprint, generated_client_name,
+    key_fingerprint,
 };
 pub use caller::{Caller, CallerClient, Transport};
 pub use cohesion_macros::{

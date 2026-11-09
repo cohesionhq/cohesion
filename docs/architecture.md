@@ -61,7 +61,7 @@ package, the web UI in `web/`. No crate declares cargo `[features]`.
 | Crate | Kind | What it is for | Depends on (in the workspace) |
 |---|---|---|---|
 | `cohesion-macros` | proc-macro | The derives and attributes every other crate uses: `Model`, `Projection`, `ColumnGroup`, `Fields`, `FromRequest`, `Commands`, `Replies`, `TextEnum`, `TsInterface`, `TsWire`, `JsOptions`, `#[js_entity]`, `#[js_global]`. cohesion-core re-exports them. | none |
-| `cohesion-rs` | lib, `MIT` | What a client needs to talk to a daemon, for clients outside this repository (the Linux WebUI harness): keys, certificates, `key_fingerprint`, setup codes and the socket handshake (`auth/`), private file helpers (`private_files.rs`), and the client's view of the protocol's envelope (`protocol.rs`: `Frame`, `Hello`, `Reply`, `Outcome`, the `WebBundle` reply, `RegisterRequest`, `PROTOCOL_VERSION`), which leaves every other message and reply as raw JSON. cohesion-core re-exports all but `protocol.rs`'s client types from its own paths, and its `protocol/envelope/client_tests.rs` checks the daemon's frames decode into them. | none |
+| `cohesion-rs` | lib, `MIT` | What a client needs to talk to a daemon, for clients outside this repository (the Linux WebUI harness): keys, certificates, `key_fingerprint`, setup codes, the socket handshake and the name a client gets when its user gives none (`auth/`), private file helpers (`private_files.rs`), and the client's view of the protocol's envelope (`protocol.rs`: `Frame`, `Hello`, `Reply`, `Outcome`, the `WebBundle` reply, `RegisterRequest`, `PROTOCOL_VERSION`), which leaves every other message and reply as raw JSON. cohesion-core re-exports all but `protocol.rs`'s client types from its own paths, and its `protocol/envelope/client_tests.rs` checks the daemon's frames decode into them. | none |
 | `cohesion-core` | lib | Types every crate shares: the domain models (`model/`), the wire protocol (`protocol/`), invalidations, keys, certificates and setup codes (`auth/`, re-exported from cohesion-rs but for PKCE), the `Caller`, logging (`log/`), config paths (`paths.rs`), private file helpers (`private_files`, from cohesion-rs), the storage-agnostic `Value` layer, and `ts_wire`, which declares the protocol as TypeScript. No database and no script engine. | cohesion-macros, cohesion-rs |
 | `cohesion-db` | lib | SQLite persistence: `Container` (the rusqlite connection, query builders, migrations), the `DatabaseCommand` trait and every command, `DatabaseContext` (the one database thread), events and `InvalidationWatch`, `GuardedDatabaseContext` (what scripts hold), `CredentialManager`, `Secrets` (the pairing window), `WorkTracker`, `ActivityTracker`, backup, export and import (`transfer.rs`), retention. | cohesion-core |
 | `cohesion-internet` | lib (+ `build.rs`) | Reading the web: `article_snapshot` (a page as Markdown), `feed` (RSS, Atom and JSON Feed, with autodiscovery), `fetch`, `pipeline`, and Coherence, Cohesion's own HTML reader (`coherence/`, whose JSON rules `build.rs` compiles in). Blocking reqwest; knows nothing of the database or scripts. | cohesion-core |
@@ -536,7 +536,12 @@ client, an unknown one becomes a new client, and a revoked one is refused with
 
 **Client identity** is therefore the fingerprint of the client's certificate
 key, or the hash of its local key. Its name is only a label; Settings ›
-Clients and `RenameClient` change it.
+Clients and `RenameClient` change it. The daemon takes the name the client
+sends, trimmed, and never makes one up. A client whose user gives no name
+sends `generated_client_name` (`cohesion-rs`): the device, then the client in
+parentheses, such as `apollo (CLI)`, so clients on one device can be told
+apart in Settings › Clients and in actor titles. Existing clients keep the
+name they have.
 
 **Browser pages** hold no daemon credential. `cohesion open` or a WebUI harness
 gives the page a launch token for its own loopback proxy, and relays the
@@ -1857,7 +1862,7 @@ directory is `-c` or `dirs::config_local_dir()/cohesion` (`~/.config/cohesion`
 on Linux):
 
 - `config.json` (0600): `{"host", "port", "server_fingerprint"}` for a remote server, or `{"socket", "identity": {"key", "name"}}` for a local one, plus `workspace` once one is chosen.
-- `client.pem`: the client certificate and its private key (remote only), made by `setup` with a fresh P-256 key and named `--name` or the hostname.
+- `client.pem`: the client certificate and its private key (remote only), made by `setup` with a fresh P-256 key and named `--name` or `<hostname> (CLI)`.
 - `web-token`: the launch token of `cohesion open`.
 
 **`cohesion open`** (`cohesion/src/cli/open.rs`, `cohesion/src/web_proxy/`):
@@ -2187,7 +2192,7 @@ otherwise). `docker logs` shows the first setup code.
 
 **The CLI in the container.** `/usr/local/bin/cohesion` is
 `scripts/docker-cohesion.sh`: the first time, it pairs the real CLI over the
-socket (`setup --local --name "Container CLI"`, keeping its identity on the
+socket (`setup --local --name "Container (CLI)"`, keeping its identity on the
 volume), then runs it with your arguments. So `docker exec <container>
 cohesion pair` prints a setup code for other devices.
 
