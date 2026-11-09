@@ -26,8 +26,9 @@ pub struct Activity {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ColumnGroup, TsWire)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ActivityKind {
-    /// A stretch of an actor session's work, from when it starts until the
-    /// session is idle again.
+    /// An actor session's work: one activity for the session's whole
+    /// life, open while it works or needs attention and reopened each time
+    /// it works again.
     ActorSession {
         /// The session it shows.
         actor_session_id: i64,

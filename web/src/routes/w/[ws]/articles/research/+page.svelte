@@ -49,8 +49,10 @@
 
 	// ---- Searching ----------------------------------------------------------
 
-	let query = $state('');
-	let feedFilter = $state('all');
+	// The search lives in `?q=` and `?feed=`, so going back to this page, or
+	// reloading it, shows it again.
+	let query = $state(page.url.searchParams.get('q') ?? '');
+	let feedFilter = $state(page.url.searchParams.get('feed') ?? 'all');
 	let hits = $state<FeedCorpusHit[] | null>(null);
 	let hitTotal = $state(0);
 	let hitOffset = $state(0);
@@ -61,6 +63,21 @@
 	$effect(() => {
 		void [query, feedFilter];
 		hitOffset = 0;
+	});
+
+	// Typing replaces this page's entry rather than adding one per keystroke.
+	$effect(() => {
+		const [q, filter] = [query.trim(), feedFilter];
+		const timer = setTimeout(() => {
+			const url = new URL(untrack(() => page.url));
+			if (q === '') url.searchParams.delete('q');
+			else url.searchParams.set('q', q);
+			if (filter === 'all') url.searchParams.delete('feed');
+			else url.searchParams.set('feed', filter);
+			if (url.search === untrack(() => page.url.search)) return;
+			void page.goto(`${url.pathname}${url.search}`, { replaceState: true, keepFocus: true });
+		}, SEARCH_DEBOUNCE_MS);
+		return () => clearTimeout(timer);
 	});
 
 	// Live search, debounced; a newer query drops older answers.

@@ -1,5 +1,6 @@
-<!-- The editor pages' Rewind symbol and overflow menu (save time, preview toggle, copy as Markdown, forward to an
-     agent and a confirmed delete), with a check beside it once the draft is saved. -->
+<!-- The editor pages' Rewind symbol and overflow menu (save time, preview toggle, copy as Markdown, move to a
+     folder for a document, forward to an agent and a confirmed delete), with a check beside it once the draft is
+     saved. -->
 <script lang="ts">
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import { type ForwardedItem, forwarding } from '$lib/features/agents/forward.svelte';
@@ -25,6 +26,11 @@
 		rewind: RewindItem;
 		title: string;
 		onrestored: (restored: Restored) => void;
+		/** Where a document can be filed, the Inbox first; "Move to" lists them. A journal has none. */
+		destinations?: { id: number | null; title: string }[];
+		/** The folder the document is in, or null for the Inbox. */
+		folderId?: number | null;
+		onmove?: (folder_id: number | null) => void;
 	}
 
 	let {
@@ -35,7 +41,10 @@
 		ondelete,
 		rewind,
 		title,
-		onrestored
+		onrestored,
+		destinations,
+		folderId = null,
+		onmove
 	}: Props = $props();
 
 	let confirming = $state(false);
@@ -67,6 +76,19 @@
 				label: 'Copy as Markdown',
 				onSelect: () => copyToClipboard(draft.draft, 'Copied as Markdown.')
 			},
+			...(destinations && onmove
+				? [
+						{
+							label: 'Move to',
+							items: destinations.map((d) => ({
+								id: d.id ?? 'inbox',
+								label: d.title,
+								checked: d.id === folderId,
+								onSelect: () => onmove(d.id)
+							}))
+						}
+					]
+				: []),
 			forwarding.submenu(() => {
 				// The agent reads the saved copy, so save what's typed first.
 				draft.flush().catch(() => undefined);

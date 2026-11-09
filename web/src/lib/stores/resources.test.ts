@@ -13,6 +13,7 @@ describe('resources store', () => {
 
 		await store.load(1);
 		expect(store.list.value.map((a) => a.identifier)).toEqual([
+			'page-launch',
 			'page-roadmap',
 			'db-budget',
 			'page-ideas',
@@ -40,18 +41,27 @@ describe('resources store', () => {
 		expect(store.current.error?.code).toBe('notFound');
 	});
 
+	it('opens a resource with the view its connector draws, if any', async () => {
+		const store = createResourcesStore(createMock().send);
+		await store.open(1, 4);
+		expect(store.view.value?.blocks.length).toBeGreaterThan(0);
+		await store.open(1, 1);
+		expect(store.current.value?.identifier).toBe('page-roadmap');
+		expect(store.view.value).toBeNull();
+	});
+
 	it('refreshes resources whose copy on the service is newer', async () => {
 		const mock = createMock();
 		const store = createResourcesStore(mock.send);
-		expect(await store.refresh(1)).toEqual({ checked: 2, updated: 1, failed: 0 });
-		expect(await store.refresh(1)).toEqual({ checked: 2, updated: 0, failed: 0 });
+		expect(await store.refresh(1)).toEqual({ checked: 3, updated: 1, failed: 0 });
+		expect(await store.refresh(1)).toEqual({ checked: 3, updated: 0, failed: 0 });
 	});
 
 	it('refetches on an resources invalidation for its own workspace only', async () => {
 		const store = createResourcesStore(createMock().send);
 		await store.load(1);
 		await store.open(1, 1);
-		for (const resource of [store.list, store.current]) {
+		for (const resource of [store.list, store.current, store.view]) {
 			expect(resource.touchedBy([{ kind: 'resources', id: 1 }])).toBe(true);
 			expect(resource.touchedBy([{ kind: 'resources', id: 2 }])).toBe(false);
 			expect(resource.touchedBy([{ kind: 'documents', id: 1 }])).toBe(false);

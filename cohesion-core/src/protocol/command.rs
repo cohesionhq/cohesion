@@ -43,12 +43,13 @@ use super::task_requests::*;
 use super::workspace_requests::*;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, Article, Attachment,
-    CatalogModel, Client, Contact, ContactMethod, DeletedItem, Document, EndpointModel,
-    ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
-    IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
-    IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
-    RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings, Tag, Task,
-    TaskFolder, Version, VersionSummary, Workspace, WorkspaceResourceKind,
+    CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
+    EndpointModel, ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent,
+    IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
+    IntelligenceCostEvent, IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit,
+    Profile, Resource, RestoredItem, SavedTaskView, SearchResult, SecuritySettings,
+    StorageSettings, Tag, Task, TaskFolder, Version, VersionSummary, Workspace,
+    WorkspaceResourceKind,
 };
 
 /// Every request a client can send; the `args` of a [`Request`](super::Request).
@@ -123,6 +124,25 @@ pub enum Command {
     /// Deletes document `document_id` in a workspace.
     #[reply(Document)]
     DeleteDocument(DeleteDocumentRequest),
+    /// Files a document into a folder, or the Inbox.
+    #[reply(Document)]
+    MoveDocument(MoveDocumentRequest),
+    /// Lists a workspace's document folders.
+    #[reply(Vec<DocumentFolder>)]
+    ListDocumentFolders(ListDocumentFoldersRequest),
+    /// Creates a document folder, at the top level or inside another.
+    #[reply(DocumentFolder)]
+    CreateDocumentFolder(CreateDocumentFolderRequest),
+    /// Retitles a document folder.
+    #[reply(DocumentFolder)]
+    RenameDocumentFolder(RenameDocumentFolderRequest),
+    /// Moves a document folder into another, or the top level, and among its
+    /// new siblings; replies with every folder in the workspace.
+    #[reply(Vec<DocumentFolder>)]
+    MoveDocumentFolder(MoveDocumentFolderRequest),
+    /// Deletes a document folder and the folders inside it.
+    #[reply(DocumentFolder)]
+    DeleteDocumentFolder(DeleteDocumentFolderRequest),
     /// Lists an item's kept versions, newest first, without their text.
     #[reply(Vec<VersionSummary>)]
     ListVersions(ListVersionsRequest),
@@ -573,6 +593,11 @@ pub enum Command {
     /// Fetches resource `resource_id` in a workspace.
     #[reply(Resource)]
     GetResource(GetResourceRequest),
+    /// Asks the connector of resource `resource_id` for the interface it
+    /// shows the resource with, from its `renderResource`; `null` when it
+    /// has none, so the client shows the contents.
+    #[reply(Option<Component>, via = Local)]
+    RenderResource(RenderResourceRequest),
     /// Removes resource `resource_id` from a workspace.
     #[reply(Resource)]
     DeleteResource(DeleteResourceRequest),

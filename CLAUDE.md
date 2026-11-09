@@ -10,6 +10,10 @@ Cloud live in their own repos (see "Native clients and other repositories" in
 `docs/architecture.md`).
 Cohesion is free software under `AGPL-3.0-only` (`docs/licensing.md`).
 
+Before starting any task, invoke the `contributing` skill
+(`.claude/skills/contribute/`) and follow it through to the report: it
+holds the branch, commit and push rules.
+
 This file holds only how to work here; the documentation is in `docs/`. Read
 the doc a change touches before changing it, and keep it true in the same
 commit ("Keeping the docs true" in `docs/conventions.md`).
@@ -41,10 +45,27 @@ commit ("Keeping the docs true" in `docs/conventions.md`).
   commands, CLI commands and script entities.
 - [web/README.md](web/README.md): the web UI's layout, styling, Copy and
   components.
-- Skills in `.claude/skills/`: `verify` (the checks), `dirty-checkout` (a
-  shared checkout), `finish-task` (docs, commit, report), `protocol-change`
+- Skills in `.claude/skills/`: `contributing` (branch, checks, docs,
+  commit and report, around every task), `protocol-change`
   (anything on the wire), `web-ui-change` (anything under `web/src`),
-  `run-locally` (seeing a change run), `copywriting` (text a user reads).
+  `copywriting` (text a user reads).
+
+## Running it locally
+
+To see a change working, use state that's yours to break: a scratch
+daemon under `/tmp` ("Smoke test" in `CONTRIBUTING.md`) or the web UI in
+mock mode (`VITE_MOCK=1 npm run dev` in `web/`).
+
+- A daemon someone relies on, and the CLI paired with it: read from it if
+  you need to, but don't write to it, restart it or deploy to it unless
+  told.
+- `dev/` is the developer's own state for `scripts/server.sh`,
+  `scripts/client.sh` and `scripts/web-dev.sh`. Don't write to it on their
+  behalf; copy it. `scripts/web-dev.sh` blocks until killed, so hand it to
+  the person rather than running it.
+- Stop every daemon and dev server you start.
+- Behaviour a regression would quietly break belongs in a test, not only
+  in a manual run.
 
 ## Decide, then report
 
@@ -56,29 +77,12 @@ conservative choice and record it:
   model, or basic CRUD command or reply, a rule's home): extend the
   existing seam, make the narrowest schema change, and put the rule in one
   place ("One rule, one place" in `docs/conventions.md`).
-- **Copy** (UI strings, CLI messages, docs prose): follow skill `copywriting`
-  and "Copy" in `web/README.md`, reuse the words the product already uses,
+- **Copy** (UI strings, CLI messages, docs prose): follow skill `copywriting`, reuse the words the product already uses,
   and pick the plainest option.
 
-List every such choice under "Choices made" in the report, architecture
-first. **Stop and ask** only for: a new dependency; a protocol frame or
+Mention every such choice in the report, architecture first. **Stop and ask** only for: a new dependency; a protocol frame or
 message that isn't basic CRUD (a `ClientFrame`/`ServerMessage` variant,
 something actor or capability clients must speak, `Hello`, pairing); a
 change to what a trust boundary admits (`docs/security-model.md`);
 something destructive or irreversible outside the repo (real data,
 deploying); credentials; or a task that is truly blocked. Ask with a short recommendation.
-
-## Working in this checkout
-
-- Work on the branch you're given; use a worktree only when the work needs
-  isolation. Don't push unless asked. Changes reach `master` by pull request,
-  and the `Checks` workflow runs on each.
-- The checkout may be dirty with the owner's or another session's work.
-  Never revert, stash or reset it, and commit only the paths you changed,
-  named on the commit. A file you changed that also holds someone else's
-  edits goes in whole, theirs included; no hunk-splitting, no
-  `--no-verify` (skill `dirty-checkout`).
-- Run the checks before reporting (skill `verify`), then close out with
-  skill `finish-task`.
-- Don't deploy (`scripts/install-server.sh`), restart the daemon or write
-  real data unless told to.

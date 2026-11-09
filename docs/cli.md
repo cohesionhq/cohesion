@@ -8,7 +8,7 @@ sending raw commands. `cohesion <command> --help` lists every option.
 
 On the computer running `cohesiond`, connect through the Unix socket. This needs
 no setup code. The CLI makes a local key that identifies it, under `--name` or the
-hostname.
+hostname followed by "(CLI)", such as `apollo (CLI)`.
 
 ```sh
 cohesion setup --local                 # or give a path: --local /tmp/cohesion.sock

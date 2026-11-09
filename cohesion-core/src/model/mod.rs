@@ -10,11 +10,13 @@ mod article;
 mod attachment;
 mod catalog_model;
 mod client;
+mod cohesion_ui;
 mod connector;
 mod connector_account;
 mod contact;
 mod day_filter;
 mod document;
+mod document_folder;
 mod endpoint_model;
 mod extension;
 mod feed;
@@ -61,6 +63,10 @@ pub use article::{
 pub use attachment::{Attachment, AttachmentMessage};
 pub use catalog_model::CatalogModel;
 pub use client::{Client, ClientKeyKind};
+pub use cohesion_ui::{
+    Block, CheckboxBlock, Component, HeadingBlock, HeadingLevel, LinkBlock, OverviewBlock,
+    TextBlock,
+};
 pub use connector::{
     AccountDescription, Connector, ConnectorDefinition, ConnectorResource,
     ConnectorResourceFilters, ConnectorResourcePreview, Credential, OrganizationUnit,
@@ -70,6 +76,7 @@ pub use connector_account::{AccountHost, ConnectorAccount};
 pub use contact::{Contact, ContactMethod, ContactMethodKind, NewContactMethod};
 pub use day_filter::{DayFilter, DayRange};
 pub use document::{Document, DocumentType};
+pub use document_folder::DocumentFolder;
 pub use endpoint_model::EndpointModel;
 pub use extension::{
     Extension, ExtensionHook, ExtensionManifest, ExtensionPermission, ExtensionPermissionKind,

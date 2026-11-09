@@ -23,6 +23,7 @@ import type {
 	AgentMemoryChange,
 	AgentMessageContent,
 	AgentRunPart,
+	Component,
 	ContextRebuildReason,
 	ArgsOf,
 	Resource,
@@ -35,6 +36,7 @@ import type {
 	ContactMethodKind,
 	Photo,
 	Document,
+	DocumentFolder,
 	EndpointModel,
 	ExtensionHook,
 	ExtensionManifest,
@@ -478,6 +480,8 @@ interface MockRemoteResource {
 	content_kind: ResourceContentKind;
 	contents: string;
 	last_updated: number;
+	/** What the connector's `renderResource` returns for it; none shows the contents. */
+	render?: Component;
 }
 
 /** What an installed connector extension's functions return, or the error its description throws. */
@@ -499,6 +503,37 @@ const NOTION_ICON =
 	encodeURIComponent(
 		'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="#191919"/><text x="50" y="68" font-size="56" font-weight="700" text-anchor="middle" fill="#fff" font-family="Georgia, serif">N</text></svg>'
 	);
+
+/**
+ * The Launch plan page as its connector draws it: every kind of block, at
+ * each heading level, with a checkbox and a link inside overviews.
+ */
+function launchPlanView(): Component {
+	return {
+		blocks: [
+			{ kind: 'heading', level: 1, text: 'Launch plan' },
+			{
+				kind: 'text',
+				text: 'Everything the launch needs, in one place.\nUpdated by the team every Friday.'
+			},
+			{ kind: 'overview', title: 'Status', child: { kind: 'text', text: 'In progress' } },
+			{ kind: 'overview', title: 'Owner', child: { kind: 'text', text: 'Ada Lovelace' } },
+			{ kind: 'overview', title: 'Approved', child: { kind: 'checkbox', checked: true } },
+			{
+				kind: 'overview',
+				title: 'Tracker',
+				child: { kind: 'link', text: 'Open in Notion', destination: 'https://www.notion.so' }
+			},
+			{ kind: 'heading', level: 2, text: 'Checklist' },
+			{ kind: 'checkbox', checked: true, text: 'Write the announcement' },
+			{ kind: 'checkbox', checked: false, text: 'Record the demo' },
+			{ kind: 'checkbox', checked: false, text: 'Tell the beta testers' },
+			{ kind: 'heading', level: 3, text: 'Links' },
+			{ kind: 'link', text: 'Press kit', destination: 'https://example.com/press' },
+			{ kind: 'link', text: 'Email the team', destination: 'mailto:team@example.com' }
+		]
+	};
+}
 
 /**
  * Two connectors: Notion (its extension has an icon), with two units and two
@@ -531,6 +566,16 @@ function seedConnectors(now: number): MockConnector[] {
 					contents:
 						'# Q4 roadmap\n\n- Ship connectors\n- Tidy the inbox\n\nOwners meet **every Monday**.',
 					last_updated: now - 2 * DAY
+				},
+				{
+					identifier: 'page-launch',
+					unit: 'eng',
+					title: 'Launch plan',
+					kind_identifier: 'page',
+					content_kind: 'markdown',
+					contents: '# Launch plan\n\nStatus: in progress. Owner: Ada Lovelace.',
+					last_updated: now - 3 * 3600,
+					render: launchPlanView()
 				},
 				{
 					identifier: 'page-playlist',
@@ -604,6 +649,7 @@ interface MockCapture {
 interface MockState {
 	workspaces: Workspace[];
 	documents: Document[];
+	documentFolders: DocumentFolder[];
 	folders: TaskFolder[];
 	tasks: Task[];
 	endpoints: RedactedIntelligenceEndpoint[];
@@ -694,9 +740,12 @@ function seed(): MockState {
 			contents,
 			modified: day + 18 * 3600,
 			journal_date: ymd(day),
-			deleted: false
+			deleted: false,
+			folder_id: null
 		};
 	};
+	// Filed in `documentFolders` below: Research holds Search and 8 and 9, Search holds 5, and 6 is in the Inbox.
+	const filed: Record<number, number> = { 5: 3, 8: 2, 9: 2 };
 	const doc = (id: number, workspace_id: number, title: string, contents: string): Document => ({
 		id,
 		workspace_id,
@@ -705,7 +754,8 @@ function seed(): MockState {
 		contents,
 		modified: now - id * 3600,
 		journal_date: null,
-		deleted: false
+		deleted: false,
+		folder_id: filed[id] ?? null
 	});
 	const task = (
 		id: number,
@@ -830,6 +880,11 @@ function seed(): MockState {
 				'Rewind: storage and lifecycle',
 				'# Rewind: storage and lifecycle\n\n- Rewind stores full snapshots, not diffs: `task_versions` and `document_versions` (including journals).\n- A plain edit within 120 seconds of the newest version overwrites that version. Deletion and restore each create a separate version.\n- Retention is the "Rewind versions" row under Retention in Settings › Storage, seven days by default. Cleanup runs at startup and hourly.\n- Restore copies the tracked fields back and undeletes the record. A task whose folder is gone returns to Inbox.\n'
 			)
+		],
+		documentFolders: [
+			{ id: 1, workspace_id: 1, parent_id: null, title: 'Design', sort_order: 1, deleted: false },
+			{ id: 2, workspace_id: 1, parent_id: null, title: 'Research', sort_order: 2, deleted: false },
+			{ id: 3, workspace_id: 1, parent_id: 2, title: 'Search', sort_order: 1, deleted: false }
 		],
 		folders: [
 			{ id: 1, workspace_id: 1, title: 'Core', sort_order: 1, deleted: false },
@@ -1555,6 +1610,7 @@ function seedConnectorData(
 	const connectors = seedConnectors(now);
 	const notion = connectors[0];
 	const page = notion.resources[0];
+	const launch = notion.resources.find((r) => r.identifier === 'page-launch')!;
 	return {
 		connectors,
 		definitions: [
@@ -1650,6 +1706,20 @@ function seedConnectorData(
 				content_kind: 'markdown',
 				contents: 'Tracks to drive to.',
 				last_updated: 0,
+				modified: now - DAY
+			},
+			// Its connector draws it, so it shows blocks rather than its contents.
+			{
+				id: 4,
+				workspace_id: 1,
+				account_id: 1,
+				identifier: launch.identifier,
+				kind_id: 1,
+				kind: `com.example.notion.${launch.kind_identifier}`,
+				title: launch.title,
+				content_kind: launch.content_kind,
+				contents: launch.contents,
+				last_updated: launch.last_updated,
 				modified: now - DAY
 			}
 		],
@@ -3009,6 +3079,21 @@ export function createMock(): Mock {
 	const document = (workspace_id: number, id: number) =>
 		state.documents.find((d) => d.id === id && d.workspace_id === workspace_id && !d.deleted) ??
 		notFound('document');
+	const liveDocumentFolders = (workspace_id: number) =>
+		state.documentFolders
+			.filter((f) => f.workspace_id === workspace_id && !f.deleted)
+			.sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+	const documentFolder = (workspace_id: number, id: number) =>
+		state.documentFolders.find(
+			(f) => f.id === id && f.workspace_id === workspace_id && !f.deleted
+		) ?? notFound('document folder');
+	/** `root` and every live folder inside it. */
+	const documentSubtree = (workspace_id: number, root: number): number[] => {
+		const ids = [root];
+		for (let i = 0; i < ids.length; i++)
+			for (const f of liveDocumentFolders(workspace_id)) if (f.parent_id === ids[i]) ids.push(f.id);
+		return ids;
+	};
 	// A contact as the daemon reads it: its row, with its methods by id.
 	type MockContact = Omit<Contact, 'methods'>;
 	const contactRow = (workspace_id: number, id: number) =>
@@ -3203,7 +3288,8 @@ export function createMock(): Mock {
 			contents: '',
 			modified: nowSeconds(),
 			journal_date: date,
-			deleted: false
+			deleted: false,
+			folder_id: null
 		};
 		state.documents.push(created);
 		return created;
@@ -3771,9 +3857,10 @@ export function createMock(): Mock {
 		getDocument: ({ workspace_id, document_id }) => ({ ...document(workspace_id, document_id) }),
 		editDocument: ({ workspace_id, document_id, contents }) =>
 			touch(document(workspace_id, document_id), contents),
-		createDocument: ({ workspace_id, title, contents }) => {
+		createDocument: ({ workspace_id, title, contents, folder_id = null }) => {
 			workspace(workspace_id);
 			requireTitle(title);
+			if (folder_id !== null) documentFolder(workspace_id, folder_id);
 			const created: Document = {
 				id: nextId(state.documents),
 				workspace_id,
@@ -3782,11 +3869,86 @@ export function createMock(): Mock {
 				contents,
 				modified: nowSeconds(),
 				journal_date: null,
-				deleted: false
+				deleted: false,
+				folder_id
 			};
 			state.documents.push(created);
 			keepDocument(created, 'created');
 			return { ...created };
+		},
+		moveDocument: ({ workspace_id, document_id, folder_id = null }) => {
+			const d = document(workspace_id, document_id);
+			if (d.document_type === 'journal')
+				throw new ProtocolError('validationFailed', 'A journal can’t go in a folder.');
+			if (folder_id !== null) documentFolder(workspace_id, folder_id);
+			d.folder_id = folder_id;
+			return { ...d };
+		},
+		listDocumentFolders: ({ workspace_id }) => {
+			workspace(workspace_id);
+			return liveDocumentFolders(workspace_id).map((f) => ({ ...f }));
+		},
+		createDocumentFolder: ({ workspace_id, title, parent_id = null }) => {
+			workspace(workspace_id);
+			requireTitle(title);
+			if (parent_id !== null) documentFolder(workspace_id, parent_id);
+			const created: DocumentFolder = {
+				id: nextId(state.documentFolders),
+				workspace_id,
+				parent_id,
+				title,
+				sort_order:
+					Math.max(
+						0,
+						...state.documentFolders
+							.filter((f) => f.workspace_id === workspace_id)
+							.map((f) => f.sort_order)
+					) + 1,
+				deleted: false
+			};
+			state.documentFolders.push(created);
+			return { ...created };
+		},
+		renameDocumentFolder: ({ workspace_id, folder_id, title }) => {
+			requireTitle(title);
+			const f = documentFolder(workspace_id, folder_id);
+			f.title = title;
+			return { ...f };
+		},
+		moveDocumentFolder: ({ workspace_id, folder_id, parent_id = null, before_id = null }) => {
+			const f = documentFolder(workspace_id, folder_id);
+			if (parent_id !== null) {
+				documentFolder(workspace_id, parent_id);
+				if (documentSubtree(workspace_id, folder_id).includes(parent_id))
+					throw new ProtocolError(
+						'validationFailed',
+						'A folder can’t move into itself or a folder inside it.'
+					);
+			}
+			const siblings = liveDocumentFolders(workspace_id).filter(
+				(s) => s.parent_id === parent_id && s.id !== folder_id
+			);
+			const at =
+				before_id === null ? siblings.length : siblings.findIndex((s) => s.id === before_id);
+			if (at < 0)
+				throw new ProtocolError(
+					'validationFailed',
+					'The folder to go before isn’t in that folder.'
+				);
+			siblings.splice(at, 0, f);
+			f.parent_id = parent_id;
+			siblings.forEach((s, i) => (s.sort_order = i));
+			return liveDocumentFolders(workspace_id).map((s) => ({ ...s }));
+		},
+		deleteDocumentFolder: ({ workspace_id, folder_id }) => {
+			const f = documentFolder(workspace_id, folder_id);
+			const doomed = documentSubtree(workspace_id, folder_id);
+			// The daemon moves their documents, deleted ones too, to the Inbox.
+			for (const d of state.documents)
+				if (d.workspace_id === workspace_id && d.folder_id !== null && doomed.includes(d.folder_id))
+					d.folder_id = null;
+			for (const id of doomed) documentFolder(workspace_id, id).deleted = true;
+			return { ...f };
 		},
 		renameDocument: ({ workspace_id, document_id, title }) => {
 			requireTitle(title);
@@ -4732,6 +4894,15 @@ export function createMock(): Mock {
 				.map((a) => ({ ...a }));
 		},
 		getResource: ({ workspace_id, resource_id }) => ({ ...resource(workspace_id, resource_id) }),
+		// Like the daemon, a resource whose connector can't draw it has no view.
+		renderResource: ({ workspace_id, resource_id }) => {
+			const found = resource(workspace_id, resource_id);
+			const { host } = connectorAccount(found.account_id);
+			if (host.kind !== 'extension' || !granted(host.extension_id, 'connector')) return null;
+			const service = state.connectors.find((c) => c.extension_id === host.extension_id);
+			const remote = service?.resources.find((r) => r.identifier === found.identifier);
+			return remote?.render ? structuredClone(remote.render) : null;
+		},
 		deleteResource: ({ workspace_id, resource_id }) => {
 			const removed = resource(workspace_id, resource_id);
 			state.resources = state.resources.filter((a) => a.id !== resource_id);

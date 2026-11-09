@@ -1,6 +1,7 @@
 import { send as defaultSend } from '$lib/protocol/api';
 import { monthLabel } from '$lib/format/dates';
-import type { Document, Invalidation, Send } from '$lib/protocol/types';
+import { subtreeIds } from '$lib/features/documents/folderTree';
+import type { Document, DocumentFolder, Invalidation, Send } from '$lib/protocol/types';
 import { Draft } from './draft.svelte';
 import { Resource } from './resource.svelte';
 
@@ -78,9 +79,10 @@ export function neighbours(
 	return { prev: sorted[index + 1] ?? null, next: sorted[index - 1] ?? null };
 }
 
-/** Normal documents, the journal archive, and the one open document with an autosaving draft. */
+/** Normal documents and their folders, the journal archive, and the one open document with an autosaving draft. */
 export class DocumentsStore {
 	readonly list: Resource<Document[], number>;
+	readonly folders: Resource<DocumentFolder[], number>;
 	readonly archive: Resource<Document[], number>;
 	readonly current: Resource<Document | null, DocumentKey>;
 	readonly text: Draft;
@@ -98,6 +100,11 @@ export class DocumentsStore {
 				),
 			initial: [],
 			matches: inWorkspace
+		});
+		this.folders = new Resource({
+			fetch: (workspace_id) => send('listDocumentFolders', { workspace_id }),
+			initial: [],
+			matches: (key, workspace_id) => key.kind === 'documentFolders' && key.id === workspace_id
 		});
 		this.archive = new Resource({
 			fetch: (workspace_id) =>
@@ -143,10 +150,72 @@ export class DocumentsStore {
 		);
 	}
 
-	async create(workspace_id: number, title = 'Untitled', contents = ''): Promise<Document> {
-		const doc = await this.#send('createDocument', { workspace_id, title, contents });
+	/** Creates a document in `folder_id`, or the Inbox when it's null. */
+	async create(
+		workspace_id: number,
+		title = 'Untitled',
+		contents = '',
+		folder_id: number | null = null
+	): Promise<Document> {
+		const doc = await this.#send('createDocument', { workspace_id, title, contents, folder_id });
 		if (this.list.key === workspace_id) this.list.update((list) => [doc, ...list]);
 		return doc;
+	}
+
+	/** Files `doc` in `folder_id`, or the Inbox when it's null. */
+	async move(doc: Document, folder_id: number | null): Promise<Document> {
+		const moved = await this.#send('moveDocument', {
+			workspace_id: doc.workspace_id,
+			document_id: doc.id,
+			folder_id
+		});
+		this.#apply(moved);
+		return moved;
+	}
+
+	async createFolder(
+		workspace_id: number,
+		title: string,
+		parent_id: number | null = null
+	): Promise<DocumentFolder> {
+		const folder = await this.#send('createDocumentFolder', { workspace_id, title, parent_id });
+		if (this.folders.key === workspace_id) this.folders.update((list) => [...list, folder]);
+		return folder;
+	}
+
+	async renameFolder(workspace_id: number, folder_id: number, title: string): Promise<void> {
+		const folder = await this.#send('renameDocumentFolder', { workspace_id, folder_id, title });
+		if (this.folders.key === workspace_id)
+			this.folders.update((list) => list.map((f) => (f.id === folder.id ? folder : f)));
+	}
+
+	/** Moves a folder into `parent_id` (the top level when null), before `before_id` or last. */
+	async moveFolder(
+		workspace_id: number,
+		folder_id: number,
+		parent_id: number | null,
+		before_id: number | null = null
+	): Promise<void> {
+		const folders = await this.#send('moveDocumentFolder', {
+			workspace_id,
+			folder_id,
+			parent_id,
+			before_id
+		});
+		if (this.folders.key === workspace_id) this.folders.set(folders);
+	}
+
+	/** Deletes a folder and those inside it; their documents move to the Inbox, as the daemon moves them. */
+	async deleteFolder(workspace_id: number, folder_id: number): Promise<void> {
+		await this.#send('deleteDocumentFolder', { workspace_id, folder_id });
+		if (this.folders.key !== workspace_id) return;
+		const gone = subtreeIds(this.folders.value, folder_id);
+		this.folders.update((list) => list.filter((f) => !gone.includes(f.id)));
+		const out = (d: Document) =>
+			d.folder_id !== null && gone.includes(d.folder_id) ? { ...d, folder_id: null } : d;
+		if (this.list.key === workspace_id) this.list.update((docs) => docs.map(out));
+		const open = this.current.value;
+		if (open && open.workspace_id === workspace_id) this.current.set(out(open));
 	}
 
 	/** Renames the open document. */

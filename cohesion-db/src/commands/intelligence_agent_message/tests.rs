@@ -311,6 +311,7 @@ fn a_forward_carries_the_live_item_it_names() {
             workspace_id: workspace.id,
             title: "Plans".to_string(),
             contents: String::new(),
+            folder_id: None,
         })
         .unwrap();
     let journal = db
@@ -412,6 +413,7 @@ fn the_agent_reacts_to_a_forward() {
             workspace_id: workspace.id,
             title: "Plans".to_string(),
             contents: String::new(),
+            folder_id: None,
         })
         .unwrap();
     let (forward, _) = db

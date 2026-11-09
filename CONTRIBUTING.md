@@ -74,7 +74,17 @@ Gotchas:
 - The default socket lives inside the config directory, and under a deep
   directory that path exceeds the Unix socket path limit (about 104 bytes).
   Pass `--socket /tmp/<short>.sock`.
+- The default port, 3000, may belong to a daemon you rely on. Pass
+  `--port` with a free one.
 - macOS has no `timeout`. Background the daemon and `kill` its pid.
+- To run a migration on real-shaped data, copy a database into the scratch
+  directory with `sqlite3 <db> ".backup <file>"`, not `cp`: it is in WAL
+  mode.
+- A copied database carries its extensions and their accounts' tokens, and
+  the daemon runs each extension's `onLaunch` as it starts. One that
+  refreshes an OAuth token (Todoist) spends the original daemon's refresh
+  token, and the provider may revoke it. Turn extensions off in the copy
+  with `sqlite3` first, or migrate it from a test instead.
 - `journal edit` and `journal append` create today's journal row, so run them
   against scratch state, never a database you care about.
 
@@ -561,7 +571,7 @@ Wiring a new noun:
 4. `cargo test -p cohesion` runs `command_tree_is_consistent`
    (`args/tests.rs`), which catches clashing flags and names. Handlers
    have no tests of their own; try the command against a scratch daemon
-   (`run-locally`).
+   ("Smoke test" above).
 
 A verb on an existing noun is step 1 and 3 only. The CLI depends only on
 `cohesion-core`, never on the database, script or intelligence crates.
@@ -620,7 +630,9 @@ A verb on an existing noun is step 1 and 3 only. The CLI depends only on
    ordinary object. Structs a script returns or receives derive `TsInterface`
    (its fields become the `.d.ts`), with `#[serde(rename = "camelName")]` on
    fields that need camelCase keys; the macro honours `rename` and `alias`,
-   and declares an `Option` field optional.
+   and declares an `Option` field optional. An enum of such structs, tagged
+   with `#[serde(tag = "kind", rename_all = "camelCase")]`, derives it too
+   and is declared as a union (`Block` in `model/cohesion_ui.rs`).
 4. Every column type needs `ToJs` (`conversion/to_js.rs`). `i64`, `f64`, `bool`,
    `String` and `Option<T>` have it; add a `TextEnum` column's type to
    `enums` in `script_api!`, and also to `mounted` if scripts should name its

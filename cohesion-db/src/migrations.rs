@@ -4245,6 +4245,81 @@ pub const MIGRATIONS: &[Migration] = &[
         PRAGMA legacy_alter_table = OFF;
         CREATE INDEX task_tags_task ON task_tags(task_id);",
     },
+    // An actor session has one activity for its whole life, reopened each
+    // time it works again, rather than one per stretch of work. A session's
+    // rows become its first, so its id stays, holding what the newest says;
+    // the rest go. The unread trigger is set aside while they merge, so
+    // copying an old outcome marks no session unread.
+    Migration {
+        name: "one_activity_per_actor_session",
+        sql: "
+        DROP INDEX activities_one_open_actor_session;
+        DROP TRIGGER activities_actor_session_unread;
+
+        UPDATE activities AS kept SET (title, status, progress, ended_at) =
+            (SELECT newest.title, newest.status, newest.progress, newest.ended_at
+             FROM activities AS newest
+             WHERE newest.actor_session_id = kept.actor_session_id
+             ORDER BY newest.id DESC LIMIT 1)
+        WHERE kept.id = (SELECT MIN(first.id) FROM activities AS first
+            WHERE first.actor_session_id = kept.actor_session_id);
+
+        DELETE FROM activities WHERE id > (SELECT MIN(first.id) FROM activities AS first
+            WHERE first.actor_session_id = activities.actor_session_id);
+
+        CREATE UNIQUE INDEX activities_actor_session ON activities(actor_session_id);
+
+        CREATE TRIGGER activities_actor_session_unread AFTER UPDATE OF status ON activities
+        WHEN new.status IN ('succeeded', 'failed')
+        BEGIN
+            UPDATE actor_sessions SET unread = TRUE WHERE id = new.actor_session_id;
+        END;",
+    },
+    // Documents file into folders, which nest without limit. A document in
+    // no folder is in the Inbox, where every existing one stays; a journal
+    // is never filed. A document's folder is a live one of its workspace.
+    Migration {
+        name: "document_folders",
+        sql: "
+        CREATE TABLE document_folders (
+            id INTEGER PRIMARY KEY,
+            workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+            parent_id INTEGER CHECK (parent_id IS NOT id),
+            title TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            deleted BOOLEAN NOT NULL DEFAULT FALSE,
+            UNIQUE (workspace_id, id),
+            FOREIGN KEY (workspace_id, parent_id) REFERENCES document_folders(workspace_id, id)
+                ON DELETE CASCADE
+        );
+        CREATE INDEX document_folders_parent ON document_folders(parent_id)
+            WHERE parent_id IS NOT NULL;
+
+        ALTER TABLE documents ADD COLUMN folder_id INTEGER
+            REFERENCES document_folders(id) ON DELETE SET NULL
+            CHECK (folder_id IS NULL OR document_type = 'normal');
+        CREATE INDEX documents_folder ON documents(folder_id) WHERE folder_id IS NOT NULL;
+
+        CREATE TRIGGER documents_folder_in_workspace
+        BEFORE INSERT ON documents
+        WHEN new.folder_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM document_folders WHERE id = new.folder_id
+                AND workspace_id = new.workspace_id AND deleted = FALSE
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'A document is filed only in a live folder of its workspace.');
+        END;
+
+        CREATE TRIGGER documents_folder_in_workspace_au
+        BEFORE UPDATE OF folder_id, workspace_id ON documents
+        WHEN new.folder_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM document_folders WHERE id = new.folder_id
+                AND workspace_id = new.workspace_id AND deleted = FALSE
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'A document is filed only in a live folder of its workspace.');
+        END;",
+    },
 ];
 
 #[cfg(test)]

@@ -75,6 +75,36 @@ fn breaks_break_lines_and_two_part_paragraphs() {
     assert_eq!(written("<p>a<br><br>b<br></p>"), "a\n\nb");
 }
 
+/// A hard break's backslash shows as text unless a line of text follows it
+/// in the same paragraph, as when a page puts a no-break space after a
+/// `<br>`.
+#[test]
+fn every_hard_break_has_text_after_it() {
+    for html in [
+        "<p>a.<br>&nbsp;</p>",
+        "<p>a.<br><span>\u{a0}</span></p>",
+        "<p>a.<br>&nbsp;<br>b</p>",
+        "<p>&nbsp;<br>a.</p>",
+        "<ul><li>a.<br>&nbsp;</li></ul>",
+        "<blockquote>a.<br>\u{2003}<br>b</blockquote>",
+    ] {
+        let markdown = written(html);
+        let lines: Vec<&str> = markdown.lines().collect();
+        for (i, line) in lines.iter().enumerate() {
+            if line.ends_with('\\') {
+                let next = lines
+                    .get(i + 1)
+                    .map(|next| next.trim_start_matches(['>', ' ']));
+                assert!(
+                    next.is_some_and(|next| !next.trim().is_empty()),
+                    "{html} => {markdown:?}"
+                );
+            }
+        }
+        assert!(markdown.contains("a."), "{html} => {markdown:?}");
+    }
+}
+
 #[test]
 fn links_and_images_are_absolute_and_tooltips_dropped() {
     assert_eq!(

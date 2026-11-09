@@ -4,6 +4,6 @@
 # it makes is kept on the volume, so it stays one client across containers.
 cli=/usr/local/libexec/cohesion
 if [ ! -e "$XDG_CONFIG_HOME/cohesion/config.json" ]; then
-	"$cli" setup --local --name "Container CLI" >/dev/null || exit
+	"$cli" setup --local --name "Container (CLI)" >/dev/null || exit
 fi
 exec "$cli" "$@"

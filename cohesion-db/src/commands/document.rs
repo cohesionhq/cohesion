@@ -9,6 +9,7 @@ use cohesion_core::protocol::{
 use cohesion_core::{Document, DocumentType, FromRequest};
 
 use crate::changed::{Changed, Invalidates};
+use crate::commands::document_folder::GetDocumentFolderCommand;
 use crate::commands::title::ensure_title;
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::{
@@ -118,13 +119,15 @@ impl DatabaseCommand for ListDocumentsCommand {
     }
 }
 
-/// Creates an ordinary document with a non-empty title in a workspace.
+/// Creates an ordinary document with a non-empty title in a workspace, filed
+/// in a live folder of it or in the Inbox.
 #[derive(FromRequest)]
 #[request(CreateDocumentRequest)]
 pub struct CreateDocumentCommand {
     pub workspace_id: i64,
     pub title: String,
     pub contents: String,
+    pub folder_id: Option<i64>,
 }
 impl DatabaseCommand for CreateDocumentCommand {
     type Response = Document;
@@ -132,6 +135,13 @@ impl DatabaseCommand for CreateDocumentCommand {
     fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<Document>> {
         ensure_title(&self.title)?;
         ensure_workspace(ctx.db, self.workspace_id)?;
+        if let Some(folder_id) = self.folder_id {
+            GetDocumentFolderCommand {
+                workspace_id: self.workspace_id,
+                folder_id,
+            }
+            .handle(&mut ctx.as_read())?;
+        }
         let document = ctx
             .db
             .insert()
@@ -139,6 +149,7 @@ impl DatabaseCommand for CreateDocumentCommand {
             .set(Document::TITLE, self.title)
             .set(Document::CONTENTS, self.contents)
             .set(Document::DOCUMENT_TYPE, DocumentType::Normal)
+            .set(Document::FOLDER_ID, self.folder_id)
             .returning_one()
             .found()?;
         Ok(changed(document))

@@ -20,6 +20,7 @@ fn search_ranks_title_matches_first_and_stays_in_its_workspace() {
             workspace_id,
             title: title.to_string(),
             contents: contents.to_string(),
+            folder_id: None,
         })
         .unwrap()
     };

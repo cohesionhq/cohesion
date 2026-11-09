@@ -38,7 +38,8 @@ pub const VERSION: &str = match option_env!("COHESION_VERSION") {
 
 pub use auth::{
     Authentication, Certificate, DEFAULT_PORT, Host, InvalidHost, KeyError, LocalHandshakeReply,
-    LocalIdentity, ServerAddress, SetupCode, SetupCodeError, fingerprint, key_fingerprint,
+    LocalIdentity, ServerAddress, SetupCode, SetupCodeError, fingerprint, generated_client_name,
+    key_fingerprint,
 };
 pub use caller::{Caller, CallerClient, Transport};
 pub use cohesion_macros::{
@@ -46,8 +47,9 @@ pub use cohesion_macros::{
 };
 pub use invalidation::{Invalidation, InvalidationBatch, InvalidationContext};
 pub use model::{
-    Client, ClientKeyKind, DayFilter, DayRange, Document, DocumentType, Task, TaskAssignee,
-    TaskFolder, TaskFolderFilter, TaskPriority, TaskSize, TaskSort, TaskStatus, Workspace,
+    Client, ClientKeyKind, DayFilter, DayRange, Document, DocumentFolder, DocumentType, Task,
+    TaskAssignee, TaskFolder, TaskFolderFilter, TaskPriority, TaskSize, TaskSort, TaskStatus,
+    Workspace,
 };
 pub use stored_model::{Column, ColumnGroup, Model, Named, Projection, SingleTable, SoftDelete};
 pub use ts_documentation::TsDocumentation;

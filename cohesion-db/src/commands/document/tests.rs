@@ -129,6 +129,7 @@ fn document_lifecycle_and_list_filters() {
             workspace_id: workspace.id,
             title: "draft".to_string(),
             contents: "body".to_string(),
+            folder_id: None,
         })
         .unwrap();
     assert_eq!(document.journal_date, None);
@@ -242,6 +243,7 @@ fn journal_and_document_saves_raise_events() {
             workspace_id,
             title: "draft".to_string(),
             contents: String::new(),
+            folder_id: None,
         })
         .unwrap()
         .id;

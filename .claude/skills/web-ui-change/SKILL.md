@@ -1,140 +1,90 @@
 ---
 name: web-ui-change
-description: Make a change to the cohesion web UI (SvelteKit in web/): where code goes, the checklist for a new feature or screen, which component to use, the Copy, styling and motion rules, verifying a large change in a real browser in mock mode with a few screenshots, and noting parity with the iPhone app. Use for any change under web/src, including new pages, components, stores and UI text.
+description: Make a change to the cohesion web UI (SvelteKit in web/): working in mock mode, the checklist for a new feature or screen, choosing copy, verifying a large change in a real browser with a few screenshots, and noting parity with the iPhone app. Use for any change under web/src, including new pages, components, stores and UI text.
 ---
 
 # A web UI change
 
-The web UI is the full surface: every feature exists here first, and the
-Mac, iPad and iPhone WebUI harnesses show this same page (see "Surface:
-WebUI" in `docs/product-direction.md`). Read `web/README.md` first: it
-holds the layout, styling, components, shortcuts, motion and Copy rules,
-and `web/src/lib/stores/README.md` holds the store pattern. This skill is
-what to do with them.
-
-## Where code goes
-
-- `src/lib/features/<area>/`: a feature's components and helpers
-  (agents, tasks, documents, actors, settings…).
-- `src/lib/stores/`: rune stores, one per resource, refetching on the
-  invalidations they `match`.
-- `src/lib/ui/`: primitives. They import nothing from `stores/`, `shell/`
-  or `features/`.
-- `src/lib/shell/`: sidebar, ⌘K palette, shortcuts (`shortcuts.svelte.ts`,
-  `keys.ts`, `ShortcutsDialog.svelte`), route builders (`routes.ts`), the
-  linked-item panel.
-- `src/lib/protocol/`: the connection, the generated types and the mock.
-  Never edit `generated.ts` by hand; change the Rust and run
-  `npm run generate` (`protocol-change`).
-- `src/routes/`: pages. `/w/[ws]/…` are workspace pages.
-
+Read `web/README.md` first (layout, split view, styling, components,
+shortcuts, motion) and `web/src/lib/stores/README.md` for stores.
 Match a nearby feature that does something similar before inventing a
 pattern.
 
+## Work in mock mode
+
+Run the UI against the mock daemon, not a real one:
+
+```sh
+cd web && VITE_MOCK=1 npm run dev     # http://localhost:5173
+```
+
+(or `web-mock` in `.claude/launch.json`). It needs no daemon or CLI, so
+nothing you do there touches anyone's data. Run it in the background and
+stop it when you're done. Anything the feature sends needs a handler and
+seed data in `src/lib/protocol/mock.ts`, or mock mode and the store tests
+break. Don't run `scripts/web-dev.sh` yourself: it runs against the
+developer's own `dev/` state and blocks until killed, so hand it to the
+person in your report.
+
 ## Checklist for a new feature or screen
 
-Go through each line; most are one edit, and each is easy to forget.
+Each item is one edit that's easy to forget; the rule behind it is in
+`web/README.md` unless noted.
 
-- **Either half**: a page can show in either half of a split view, so it
-  reads `params`, `url` and `state` and moves with `pane()`
-  (`shell/pane.svelte.ts`), names itself with `PageTitle`, and takes the
-  stores of what it has open from `pageStores()` (lint refuses `$app/state`
-  and `goto`). Check it in a split half as well as alone ("Split view" in
-  `web/README.md`).
-- **Store**: a `Resource` whose `matches` names the invalidations that
-  touch it; mutations update from the reply, never refetch; a component
-  that loads what only it shows calls `release()` on unmount
-  (`stores/README.md`).
-- **Mock**: a handler and seed data in `src/lib/protocol/mock.ts` for every
-  request the feature sends, so mock mode and the store tests work.
-- **Words from the daemon**: kinds the daemon names (permissions, hooks,
-  priorities, sizes, agent settings) come from `vocabulary.svelte.ts`,
-  never written on the page.
-- **Copy**: every string follows skill `copywriting` and "Copy" in
-  `web/README.md`.
-- **States**: a page or section that loads goes through `ResourceState`
-  (loading, error with retry, not found); an empty list shows
-  `EmptyState` ("No {things} yet" with the page's action, or "No
-  matches").
-- **A page**: a route builder in `shell/routes.ts`; the same name in the
-  sidebar, its `PageHeader`, its `<svelte:head><title>`, the ⌘K palette
-  (`Palette.svelte`, typed by hand), which is how it is reached from the
-  keyboard: pages get no chords.
-- **Any other shortcut**: its handler and a row in
-  `ShortcutsDialog.svelte`, in the same commit ("Keyboard shortcuts" in
-  `web/README.md`). Nothing checks this; the dialog is how people find it.
-- **A new link kind** (`cohesion://…`): a panel of its own on
-  `ui/ItemPanel.svelte` through `shell/linkedItem.svelte.ts`, and an
-  `/open/…` route as the fallback.
-- **Icon-only controls** carry an `aria-label`; no `title` anywhere.
-- **Hover-only actions** (a row's ⋯ that fades in) also show with
-  `touch:opacity-100`, or a touch screen never sees them.
-- **Motion**: Svelte transitions take `motion.duration` (or `slideIn` and
-  `slideOut`), never a literal, so reduced motion zeroes them.
-- **Titlebar inset**: anything pinned to the top of the window keeps clear
-  of `--titlebar-inset`, where the Mac WebUI harness drags the window.
-- **Tests**: a new store or helper gets a vitest test beside it
-  (`*.test.ts`, against the mock); components have none.
-- **Parity**: say in the report whether the iPhone app (`apple`) needs the same change
-  (see `finish-task`).
+- **Either half**: the page works in a split half as well as alone
+  ("Split view"). Check it in both.
+- **Store**: `matches` names its invalidations, mutations update from the
+  reply, and page-only loads `release()` on unmount (`stores/README.md`).
+- **Mock**: a handler and seed data for every request the feature sends.
+- **Words from the daemon** come from `vocabulary.svelte.ts` ("Layout").
+- **States**: `ResourceState` for loading, error and not found;
+  `EmptyState` for an empty list ("Components").
+- **A page**: a route builder in `shell/routes.ts`, the same name in the
+  sidebar, `PageHeader`, `<title>` and the ⌘K palette ("Keyboard
+  shortcuts").
+- **Any other shortcut**: its handler and its row in
+  `ShortcutsDialog.svelte`, in the same commit.
+- **A new link kind** (`cohesion://…`): a panel on `ui/ItemPanel.svelte`
+  and an `/open/…` route.
+- **Look and feel**: `aria-label` on icon-only controls, hover-only
+  actions shown on touch, `motion.duration` on transitions, nothing under
+  `--titlebar-inset`, tokens rather than new values ("Look and feel",
+  "Styling").
+- **Tests**: a vitest test beside a new store or helper.
+- **Parity**: say in the report whether the iPhone app (`apple`) needs the
+  same change.
 
 ## Copy
 
-Pick the wording yourself, taking the plainest option the rules allow and
-reusing words the UI already uses for the same thing (`grep -r` the term).
-List each new or changed string under "Choices made" in the report, so
-the reviewer can reword it.
-
-## Styling
-
-- Tailwind with the tokens in `src/lib/tokens.css`; see "Styling" and
-  "Look and feel" in `web/README.md`. A new colour, shadow or size is a
-  token, not an arbitrary value.
-- Pick components by "Components" in `web/README.md` (Menu, Picker,
-  Select, Dialog, SidePanel).
-- Agent avatars: only `ui/AgentAvatar.svelte` draws one, by the shares in
-  "Avatars" in `web/README.md`.
+Pick the wording yourself by skill `copywriting`, taking the plainest option and reusing words the UI
+already uses for the same thing (`grep -r` the term). Mention each new or
+changed string in the report, so the reviewer can reword it.
 
 ## Verify it in a browser
 
-There are no component or browser tests, by choice; how far you verify
-in a browser depends on the size of the change. Every image you take
-stays in the session's context for the rest of the run, so screenshots
-are the expensive part: take them only where this section asks.
+Every image you take stays in context for the rest of the run, so
+screenshots are the expensive part.
 
 **A small change** (copy, spacing, a colour, one control, a bug fix in
-one component): no browser check and no screenshots. The checks below
-and a read of the diff are enough; if behaviour needs exercising, read
-the page as text (the DOM or accessibility tree), not as images. Under
-"Check by hand" in the report, say what the reviewer should look at.
+one component): no browser and no screenshots. The checks and a read of
+the diff are enough; if behaviour needs exercising, read the page as text
+in mock mode (the DOM or accessibility tree). In the report, say what the
+reviewer should look at.
 
-**A large change** (a new page, screen, panel or dialog, or a redesign of
-an existing layout) gets the browser check, with **at most 6 screenshots
-in the whole task**, your own check and the reviewer's together:
+**A large change** (a new page, screen, panel or dialog, or a redesigned
+layout): at most 6 screenshots in the whole task.
 
-1. Start mock mode: `cd web && VITE_MOCK=1 npm run dev` (or the `web-mock`
-   configuration in `.claude/launch.json`), at http://localhost:5173. Add
-   mock data when the feature needs some to show. Run it in the
-   background and stop it when you're done.
-2. Open the page in a browser tool and exercise the change: the happy
-   path, the empty, loading and error states, the keyboard path, a narrow
-   window (below 900px and 600px) and dark mode where they apply. Check
-   behaviour by reading the page as text; take a screenshot only to judge
-   the look.
-3. Judge the look against `web/README.md` (Copy, "Look and feel",
-   Motion) and fix what's wrong.
-4. End with the screenshots the reviewer looks at: the finished result, one per
-   state worth seeing, within the limit. A screenshot a browser tool
-   returns, or a PNG you `Read`, is attached to the run (the actor session
-   message it appears under) and shows in the task's transcript, which is
-   how the reviewer sees it; make sure each one you mean the reviewer to see is
-   shown that way, not only saved to disk. Under "Check by hand" in the
-   report, list what the screenshots show and what's left to look at:
-   the reviewer still checks final polish.
+1. Open the page in mock mode, adding mock data the feature needs to
+   show.
+2. Exercise the change by reading the page as text: the happy path; the
+   empty, loading and error states; the keyboard path; below 900px and
+   600px; dark mode.
+3. Screenshot only to judge the look against `web/README.md`, and fix
+   what's wrong.
+4. End with the screenshots the reviewer should see, one per state worth
+   seeing. Make sure each is attached to the run (returned by the browser
+   tool or `Read` from a PNG), not only saved to disk. In the report, say
+   what they show and what's left to look at.
 
-Without a browser tool, say so under Caveats: there are no screenshots,
-and the look is left to the reviewer's check.
-
-## Checks
-
-`cd web && npm run check && npm run lint && npm test && npm run build`.
+Without a browser tool, say so in the report: no screenshots, and the
+look is left to the reviewer.

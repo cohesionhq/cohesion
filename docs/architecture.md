@@ -61,7 +61,7 @@ package, the web UI in `web/`. No crate declares cargo `[features]`.
 | Crate | Kind | What it is for | Depends on (in the workspace) |
 |---|---|---|---|
 | `cohesion-macros` | proc-macro | The derives and attributes every other crate uses: `Model`, `Projection`, `ColumnGroup`, `Fields`, `FromRequest`, `Commands`, `Replies`, `TextEnum`, `TsInterface`, `TsWire`, `JsOptions`, `#[js_entity]`, `#[js_global]`. cohesion-core re-exports them. | none |
-| `cohesion-rs` | lib, `MIT` | What a client needs to talk to a daemon, for clients outside this repository (the Linux WebUI harness): keys, certificates, `key_fingerprint`, setup codes and the socket handshake (`auth/`), private file helpers (`private_files.rs`), and the client's view of the protocol's envelope (`protocol.rs`: `Frame`, `Hello`, `Reply`, `Outcome`, the `WebBundle` reply, `RegisterRequest`, `PROTOCOL_VERSION`), which leaves every other message and reply as raw JSON. cohesion-core re-exports all but `protocol.rs`'s client types from its own paths, and its `protocol/envelope/client_tests.rs` checks the daemon's frames decode into them. | none |
+| `cohesion-rs` | lib, `MIT` | What a client needs to talk to a daemon, for clients outside this repository (the Linux WebUI harness): keys, certificates, `key_fingerprint`, setup codes, the socket handshake and the name a client gets when its user gives none (`auth/`), private file helpers (`private_files.rs`), and the client's view of the protocol's envelope (`protocol.rs`: `Frame`, `Hello`, `Reply`, `Outcome`, the `WebBundle` reply, `RegisterRequest`, `PROTOCOL_VERSION`), which leaves every other message and reply as raw JSON. cohesion-core re-exports all but `protocol.rs`'s client types from its own paths, and its `protocol/envelope/client_tests.rs` checks the daemon's frames decode into them. | none |
 | `cohesion-core` | lib | Types every crate shares: the domain models (`model/`), the wire protocol (`protocol/`), invalidations, keys, certificates and setup codes (`auth/`, re-exported from cohesion-rs but for PKCE), the `Caller`, logging (`log/`), config paths (`paths.rs`), private file helpers (`private_files`, from cohesion-rs), the storage-agnostic `Value` layer, and `ts_wire`, which declares the protocol as TypeScript. No database and no script engine. | cohesion-macros, cohesion-rs |
 | `cohesion-db` | lib | SQLite persistence: `Container` (the rusqlite connection, query builders, migrations), the `DatabaseCommand` trait and every command, `DatabaseContext` (the one database thread), events and `InvalidationWatch`, `GuardedDatabaseContext` (what scripts hold), `CredentialManager`, `Secrets` (the pairing window), `WorkTracker`, `ActivityTracker`, backup, export and import (`transfer.rs`), retention. | cohesion-core |
 | `cohesion-internet` | lib (+ `build.rs`) | Reading the web: `article_snapshot` (a page as Markdown), `feed` (RSS, Atom and JSON Feed, with autodiscovery), `fetch`, `pipeline`, and Coherence, Cohesion's own HTML reader (`coherence/`, whose JSON rules `build.rs` compiles in). Blocking reqwest; knows nothing of the database or scripts. | cohesion-core |
@@ -113,7 +113,7 @@ The rest of the top level:
 | `docs/` | This page, product direction, self-hosting, the CLI guide and licensing. |
 | `.github/` | Workflows (`checks.yml`, `image.yml`, `release.yml`), issue and pull request templates. |
 | `.githooks/` | `pre-commit` (runs `cargo fmt` and `cargo clippy --fix` when Rust is staged, prettier on staged `web/` files, and re-stages them) and `commit-msg` (removes Claude and Anthropic attribution lines). Turned on per checkout with `git config core.hooksPath .githooks`. |
-| `.claude/` | Skills for coding agents working here (`verify`, `dirty-checkout`, `finish-task`, `protocol-change`, `web-ui-change`, `run-locally`, `copywriting`) and a `launch.json` for the web UI in mock mode. |
+| `.claude/` | Skills for coding agents working here (`contributing`, `protocol-change`, `web-ui-change`, `copywriting`) and a `launch.json` for the web UI in mock mode. |
 | `rust-toolchain.toml` | Rust `1.99`, with rustfmt and clippy. The Dockerfile's builder (`rust:1.99-slim-trixie`) must move with it. |
 | `.cargo/config.toml` | Sets `LIBSQLITE3_FLAGS = "-DSQLITE_DEFAULT_MEMSTATUS=0"`, which speeds up parallel tests. |
 | `MAJOR_VERSION` | `001`, the major part of release versions ([3](#3-what-ships)). |
@@ -445,6 +445,7 @@ the time the client hears back.
 clients refetch. `Invalidation` (`cohesion-core/src/invalidation.rs`, tagged
 `{kind, id}`) has the keys `workspace(id)`, `intelligenceCostEvents`,
 `agent(id)`, `agentTeams`, `taskFolders(ws)`, `documents(ws)`,
+`documentFolders(ws)`,
 `taskList{workspace_id, folder_id}` (null folder is the inbox),
 `connectorAccounts`, `resources(ws)`, `resourceKinds(ws)`, `feeds`,
 `feedArticles`, `intelligence`, `clients`, `security`, `storage`, `profile`,
@@ -536,7 +537,12 @@ client, an unknown one becomes a new client, and a revoked one is refused with
 
 **Client identity** is therefore the fingerprint of the client's certificate
 key, or the hash of its local key. Its name is only a label; Settings ›
-Clients and `RenameClient` change it.
+Clients and `RenameClient` change it. The daemon takes the name the client
+sends, trimmed, and never makes one up. A client whose user gives no name
+sends `generated_client_name` (`cohesion-rs`): the device, then the client in
+parentheses, such as `apollo (CLI)`, so clients on one device can be told
+apart in Settings › Clients and in actor titles. Existing clients keep the
+name they have.
 
 **Browser pages** hold no daemon credential. `cohesion open` or a WebUI harness
 gives the page a launch token for its own loopback proxy, and relays the
@@ -775,7 +781,8 @@ deleting sets `deleted`, and client reads use `select_live`.
 | Table | Holds |
 |---|---|
 | `workspaces` (soft) | `title`, `emoji`. |
-| `documents` (soft) | `workspace_id`, `document_type` (`normal` or `journal`), `title`, `contents` (Markdown), `modified`, `journal_date`, `deleted_at`. A journal entry is a document of type `journal`; a unique index allows one live entry per workspace per day. |
+| `documents` (soft) | `workspace_id`, `document_type` (`normal` or `journal`), `title`, `contents` (Markdown), `modified`, `journal_date`, `deleted_at`, `folder_id` (null is the Inbox; never set on a journal). A journal entry is a document of type `journal`; a unique index allows one live entry per workspace per day. |
+| `document_folders` (soft) | `workspace_id`, `parent_id` (null at the top level; a composite key keeps it in the same workspace), `title`, `sort_order` (among its siblings). Folders nest without limit; deleting one deletes those inside it and moves their documents to the Inbox. |
 | `task_folders` (soft) | `workspace_id`, `title`, `sort_order`. |
 | `tasks` (soft) | `workspace_id`, `task_folder_id` (null is the inbox; a composite key keeps it in the same workspace), `title`, `status` (`incomplete`, `completed`, `cancelled`), `priority` 0–4, `size` 1–5, `description`, `start_date`, `due_date`, and one assignee at most: `assigned_to_user`, `assignee_agent_id` or `assignee_contact_id` (the contact must be live and in the same workspace). |
 | `tags`, `task_tags` | Per-workspace tags (names unique ignoring case) and which tasks carry them; composite keys keep both in one workspace. |
@@ -815,7 +822,7 @@ deleting sets `deleted`, and client reads use `select_live`.
 | `agent_thread_marks` | One per agent: which model thread the conversation is on and how far it has heard ([12](#12-how-a-turn-runs)). |
 | `thread_prompts`, `intelligence_threads`, `intelligence_thread_messages`, `intelligence_thread_images` | Model threads: their system prompts (stored once), forks (`parent_thread_id`), a Responses API chain (`remote_id`, `remote_cursor`), and every item sent and received. |
 | `attachments` | Images on an agent message or an actor session message: `media_type`, `data` (a blob). |
-| `activities` | Work under way that clients show: `actor_session_id`, `title`, `status`, `progress`, `started_at`, `ended_at`. |
+| `activities` | Work under way that clients show, one per actor session: `actor_session_id`, `title`, `status`, `progress`, `started_at`, `ended_at`. |
 
 **Actors**
 
@@ -854,6 +861,9 @@ The main relationships (C = cascade, N = set null):
 ```mermaid
 erDiagram
   workspaces ||--o{ documents : C
+  workspaces ||--o{ document_folders : C
+  document_folders ||--o{ document_folders : C
+  document_folders |o--o{ documents : N
   workspaces ||--o{ task_folders : C
   workspaces ||--o{ tasks : C
   task_folders ||--o{ tasks : C
@@ -905,6 +915,7 @@ erDiagram
 `actor_sessions_status_changed`, `activities_actor_session_unread`,
 `intelligence_agent_messages_reply_to`, `intelligence_agent_messages_unread`,
 `resources_same_connector`, `saved_task_views_folder_in_workspace`,
+`documents_folder_in_workspace*`,
 `tasks_assignee_contact_*`, `contacts_deleted_assign_nothing`,
 `task_folders_saved_views_deleted`, `clients_deleted_own_nothing`,
 `extensions_orphan_accounts`, `connector_accounts_orphaned_endpoints`).
@@ -1552,11 +1563,14 @@ stateDiagram-v2
 | The device's serving session closes | `ActorSessions::client_left`: that client's working sessions become `idle` as `interrupted`. Not when it was replaced by another session of the same client. |
 | The daemon stops, or starts after a crash | `SettleActorSessionsCommand` sets working and needs-attention sessions to `idle`, raising no event, so no follower wakes. |
 
-**Activities.** While a session works, an activity mirrors it (`activities`,
-at most one open per session): `running` while working, `paused` while it
-needs attention. It ends `succeeded` when the actor reports `idle`, `failed`
-when it reports `failed`, and `cancelled` for a stop, resolve, interruption,
-rolled-back send or shutdown. A trigger (`activities_actor_session_unread`)
+**Activities.** A session has one activity for its whole life
+(`activities`, unique per session), which mirrors it while it works:
+`running` while working, `paused` while it needs attention. It ends
+`succeeded` when the actor reports `idle`, `failed` when it reports
+`failed`, and `cancelled` for a stop, resolve, interruption, rolled-back
+send or shutdown. When the session works again, `StartActivityCommand`
+reopens that row: `running`, its title the session's, progress and
+`ended_at` cleared, its id and `started_at` kept. A trigger (`activities_actor_session_unread`)
 marks the session unread only when its activity ends `succeeded` or `failed`.
 `MarkActorSessionRead` clears it and sets `read_at`.
 
@@ -1857,7 +1871,7 @@ directory is `-c` or `dirs::config_local_dir()/cohesion` (`~/.config/cohesion`
 on Linux):
 
 - `config.json` (0600): `{"host", "port", "server_fingerprint"}` for a remote server, or `{"socket", "identity": {"key", "name"}}` for a local one, plus `workspace` once one is chosen.
-- `client.pem`: the client certificate and its private key (remote only), made by `setup` with a fresh P-256 key and named `--name` or the hostname.
+- `client.pem`: the client certificate and its private key (remote only), made by `setup` with a fresh P-256 key and named `--name` or `<hostname> (CLI)`.
 - `web-token`: the launch token of `cohesion open`.
 
 **`cohesion open`** (`cohesion/src/cli/open.rs`, `cohesion/src/web_proxy/`):
@@ -1925,7 +1939,7 @@ installs one. Every extension is installed by the user.
 | `timer` | `timer` | | |
 | `registry` | | | The daemon calls its `registryResults(query)` and `registryLookup(identifiers)` |
 | `oauth` | `accounts` | | The daemon calls its sign-in functions |
-| `connector` (needs `oauth`) | | | The daemon calls `getOrganizationUnits`, `listResources`, `getResource` |
+| `connector` (needs `oauth`) | | | The daemon calls `getOrganizationUnits`, `listResources`, `getResource`, and the optional `renderResource` |
 | `service` | | | Clients and scripts holding `services` may call its `serviceRequest` |
 | `service:isolated` | | | Clients only may call its `serviceRequest` |
 | `services` | `services` (`services.use`) | | |
@@ -2050,6 +2064,24 @@ each hosted account with resources, it lists the items and fetches only those
 whose `lastUpdated` changed; `UpdateResourceCommand` writes only real changes
 and raises `resource:update`. Failures are logged and counted
 (`ResourceRefreshSummary{checked, updated, failed}`), never ending the pass.
+
+**Showing a resource** (`render_resource` in `connector_calls.rs`).
+`RenderResource{workspace_id, resource_id}` calls the connector's optional
+`renderResource(resource, kind)` with the resource as a `Resource` entity and
+its kind's short key (`"page"`). It returns a CohesionUI `Component`
+(`cohesion-core/src/model/cohesion_ui.rs`): `{blocks}`, each `Block` told
+apart by `kind`: `text{text}`, `checkbox{checked, text?}`,
+`overview{title, child}` (a labelled value, whose `child` is another block),
+`heading{level: 1 | 2 | 3, text}` and `link{text, destination}`. A client
+draws each its own way but keeps its meaning: a heading is a heading, an
+overview a key and its value. What the script returns is untrusted:
+`Component::from_script` reads it and refuses a link to anything but an
+`https`, `http` or `mailto` address. The reply is `null`, and the client
+shows the contents, when the account is orphaned, the extension is gone,
+lacks `connector` or doesn't define `renderResource`, or the result isn't a
+valid interface (logged as a warning for the extension's author). What the
+script throws is an `upstreamError`. The web UI shows the blocks on the
+resource's page in place of its contents.
 
 Agents on a user-started turn reach connectors through the `connectors`
 global (`agent_connectors.rs`); there is no CLI command for them.
@@ -2187,7 +2219,7 @@ otherwise). `docker logs` shows the first setup code.
 
 **The CLI in the container.** `/usr/local/bin/cohesion` is
 `scripts/docker-cohesion.sh`: the first time, it pairs the real CLI over the
-socket (`setup --local --name "Container CLI"`, keeping its identity on the
+socket (`setup --local --name "Container (CLI)"`, keeping its identity on the
 volume), then runs it with your arguments. So `docker exec <container>
 cohesion pair` prints a setup code for other devices.
 
@@ -2235,7 +2267,7 @@ Settings › Security lists the security events.
 Unit tests live out of line: `#[cfg(test)] mod tests;` at the end of a file,
 the tests in `foo/tests.rs`, never an inline `mod tests { … }`.
 
-**Verifying a change** (skill `verify`; CI runs the same, [2](#2-building-running-and-testing)):
+**Verifying a change** (skill `contributing`; CI runs the same, [2](#2-building-running-and-testing)):
 
 | You changed | Run |
 |---|---|
@@ -2246,7 +2278,7 @@ the tests in `foo/tests.rs`, never an inline `mod tests { … }`.
 | `Cargo.lock` | `node scripts/third-party-notices.mjs` |
 
 To see a change working without touching real data, run the daemon on a
-scratch config directory and socket (skill `run-locally`), for example
+scratch config directory and socket ("Running it locally" in `CLAUDE.md`), for example
 `target/debug/cohesiond -c /tmp/cohesion-smoke --socket /tmp/cs.sock --port 3100`
 then `target/debug/cohesion -c /tmp/cohesion-smoke/client setup --local /tmp/cs.sock`,
 or the web UI with `VITE_MOCK=1 npm run dev`.

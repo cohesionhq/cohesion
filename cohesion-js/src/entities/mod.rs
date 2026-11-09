@@ -16,6 +16,7 @@ pub mod connector_account;
 pub mod connector_account_options;
 pub mod contact;
 pub mod document;
+pub mod document_folder;
 pub mod endpoint_model;
 pub mod feed;
 pub mod intelligence_endpoint;

@@ -7,6 +7,33 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- `cohesion setup` without `--name` names the client after the computer and
+  the client, such as `apollo (CLI)`, instead of the hostname alone, so
+  clients on one computer can be told apart in Settings › Clients and in actor
+  titles. The container's own CLI is `Container (CLI)`. Existing clients keep
+  their names.
+- An actor session shows as one activity for its whole life. When it works
+  again, its activity is reopened instead of a new one being added, so every
+  client lists each session once. Upgrading merges a session's earlier
+  activities into its first, which takes the newest one's title and status.
+- A connector can draw its resources: its optional `renderResource(resource,
+  kind)` returns a CohesionUI interface (headings, text, checkboxes, links and
+  overviews of labelled values), which the web UI shows on the resource's page
+  in place of its raw contents. `renderResource` is a new request; the iPhone
+  app can draw the same blocks from it. A connector without it shows as
+  before.
+- Documents file into folders, which nest without limit; a document in no
+  folder is in the Inbox. The Documents page shows the folders as a tree
+  beside the list, under Inbox and All: drag a document onto a folder to file
+  it, or a folder onto another to nest it, and a document's ⋯ menu has Move
+  to. Deleting a folder deletes the folders inside it and moves their
+  documents to the Inbox. Journals stay out of folders. Scripts reach them
+  through `Workspace.documentFolders()`, `createDocumentFolder()`,
+  `Document.folder()` and `moveTo()`, and the `DocumentFolder` class. The
+  wire gains `listDocumentFolders`, `createDocumentFolder`,
+  `renameDocumentFolder`, `moveDocumentFolder`, `deleteDocumentFolder`,
+  `moveDocument`, a `folder_id` on `Document` and `createDocument`, and the
+  `documentFolders(ws)` invalidation; the iPhone app can offer the same.
 - An agent's ⋯ menu has Memories…, which shows every memory the agent can
   see: its own, its team's and the global ones, each with the day it was
   remembered. Forget removes one, with the same confirmation as Settings ›

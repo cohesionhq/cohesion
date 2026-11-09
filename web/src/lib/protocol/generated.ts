@@ -917,6 +917,14 @@ export interface BeginConnectorAuthenticationRequest {
 	extension_id: number;
 }
 
+/** One element of a CohesionUI interface, told apart by `kind`. */
+export type Block =
+	| ({ kind: 'text' } & TextBlock)
+	| ({ kind: 'checkbox' } & CheckboxBlock)
+	| ({ kind: 'overview' } & OverviewBlock)
+	| ({ kind: 'heading' } & HeadingBlock)
+	| ({ kind: 'link' } & LinkBlock);
+
 /**
  * Calls the global `serviceRequest(name, args, caller)` of the extension
  * whose manifest declares `identifier`, which the extension needs the
@@ -976,6 +984,20 @@ export interface ChangeTasksStatusRequest {
 	status: TaskStatus;
 }
 
+/**
+ * `kind: "checkbox"`: a yes or no, shown as a checkbox the user can't
+ * change.
+ */
+export interface CheckboxBlock {
+	/** Whether it is ticked. */
+	checked: boolean;
+	/**
+	 * A label beside it, such as a to-do's text. Leave it out inside an
+	 * overview, whose title labels it.
+	 */
+	text?: string | null;
+}
+
 /** Removes the default model of `tier`. */
 export interface ClearIntelligenceDefaultRequest {
 	tier: IntelligenceTier;
@@ -1033,6 +1055,30 @@ export type ClientKeyKind = 'certificate' | 'local';
 export interface CompleteConnectorAuthenticationRequest {
 	extension_id: number;
 	code: string;
+}
+
+/**
+ * An interface in CohesionUI, such as what a connector's
+ * `renderResource(resource, kind)` returns to show a resource in place of
+ * its raw contents: its blocks, top to bottom.
+ *
+ * ```js
+ * function renderResource(resource, kind) {
+ *   const row = JSON.parse(resource.contents);
+ *   return {
+ *     blocks: [
+ *       { kind: "heading", level: 1, text: resource.title },
+ *       { kind: "overview", title: "Status", child: { kind: "text", text: row.status } },
+ *       { kind: "checkbox", checked: row.done, text: "Done" },
+ *       { kind: "link", text: "Open in Notion", destination: row.url },
+ *     ],
+ *   };
+ * }
+ * ```
+ */
+export interface Component {
+	/** What the interface shows, top to bottom. */
+	blocks: Block[];
 }
 
 /** A connector's stored definition, which its accounts share. */
@@ -1188,11 +1234,21 @@ export interface CreateContactRequest {
 	methods: NewContactMethod[];
 }
 
+/** Creates a document folder in a workspace, last among its siblings. */
+export interface CreateDocumentFolderRequest {
+	workspace_id: number;
+	title: string;
+	/** The live folder to create it in; the top level when absent. */
+	parent_id?: number | null;
+}
+
 /** Creates an ordinary document in a workspace. */
 export interface CreateDocumentRequest {
 	workspace_id: number;
 	title: string;
 	contents: string;
+	/** The live document folder to file it in; the Inbox when absent. */
+	folder_id?: number | null;
 }
 
 /** Creates an agent; it runs on the `agent` tier's default model. */
@@ -1401,6 +1457,15 @@ export interface DeleteContactRequest {
 	contact_id: number;
 }
 
+/**
+ * Deletes document folder `folder_id` in a workspace and every folder
+ * inside it; the documents they held move to the Inbox.
+ */
+export interface DeleteDocumentFolderRequest {
+	workspace_id: number;
+	folder_id: number;
+}
+
 /** Deletes document `document_id` in a workspace. */
 export interface DeleteDocumentRequest {
 	workspace_id: number;
@@ -1516,6 +1581,30 @@ export interface Document {
 	 * `null` for normal documents.
 	 */
 	journal_date: string | null;
+	/**
+	 * Id of the document folder this document is filed in, or `null` when
+	 * it is in the Inbox.
+	 *
+	 * Always `null` for journals.
+	 */
+	folder_id: number | null;
+}
+
+/**
+ * A named group of documents in a workspace, which may sit inside another.
+ *
+ * Folders nest without limit. A document in no folder is in the Inbox;
+ * journals are never in a folder.
+ */
+export interface DocumentFolder {
+	id: number;
+	workspace_id: number;
+	/** Id of the folder this one sits in, or `null` at the top level. */
+	parent_id: number | null;
+	title: string;
+	/** Where the folder sits among its siblings; lower comes first. */
+	sort_order: number;
+	deleted: boolean;
 }
 
 /**
@@ -1928,6 +2017,17 @@ export interface GetVersionRequest {
 	workspace_id: number;
 	version_id: number;
 }
+
+/** `kind: "heading"`: a title over what follows. */
+export interface HeadingBlock {
+	/** 1 is the largest, 3 the smallest. */
+	level: HeadingLevel;
+	/** The heading's text. */
+	text: string;
+}
+
+/** How large a heading is: 1, 2 or 3, largest first. */
+export type HeadingLevel = 1 | 2 | 3;
 
 /**
  * An event the daemon calls scripts for: extensions that list it in their
@@ -2489,6 +2589,7 @@ export type Invalidation =
 	| { kind: 'agentTeams' }
 	| { kind: 'taskFolders'; id: number }
 	| { kind: 'documents'; id: number }
+	| { kind: 'documentFolders'; id: number }
 	| {
 			kind: 'taskList';
 			id: {
@@ -2526,6 +2627,17 @@ export type Invalidation =
 
 export interface InvalidationBatch {
 	keys: Invalidation[];
+}
+
+/** `kind: "link"`: text that opens `destination`. */
+export interface LinkBlock {
+	/** What the link says. */
+	text: string;
+	/**
+	 * Where it goes: an `https://`, `http://` or `mailto:` URL. Any other
+	 * address makes the whole interface invalid.
+	 */
+	destination: string;
 }
 
 /**
@@ -2626,6 +2738,14 @@ export interface ListContactsRequest {
  * recently deleted first.
  */
 export interface ListDeletedItemsRequest {
+	workspace_id: number;
+}
+
+/**
+ * Lists a workspace's live document folders, each with its `parent_id`,
+ * in their sort order among their siblings.
+ */
+export interface ListDocumentFoldersRequest {
 	workspace_id: number;
 }
 
@@ -2893,6 +3013,28 @@ export interface ModelPrices {
 	cache_write_token_cost?: number | null;
 }
 
+/**
+ * Moves document folder `folder_id` into folder `parent_id`, or the top
+ * level when absent, just before its sibling `before_id`, or last when
+ * absent. A folder can't move into itself or a folder inside it.
+ */
+export interface MoveDocumentFolderRequest {
+	workspace_id: number;
+	folder_id: number;
+	parent_id?: number | null;
+	before_id?: number | null;
+}
+
+/**
+ * Files ordinary document `document_id` in a workspace into folder
+ * `folder_id`, or the Inbox when absent.
+ */
+export interface MoveDocumentRequest {
+	workspace_id: number;
+	document_id: number;
+	folder_id?: number | null;
+}
+
 /** Moves task `task_id` into folder `folder_id`, or the inbox when absent. */
 export interface MoveTaskRequest {
 	workspace_id: number;
@@ -2917,6 +3059,18 @@ export interface OrganizationUnit {
 	id: string;
 	/** The unit's name, shown to people. */
 	display: string;
+}
+
+/**
+ * `kind: "overview"`: one labelled value, such as a status or an
+ * assignee, as the details at the top of a task show them. Overviews in a
+ * row line up as one list.
+ */
+export interface OverviewBlock {
+	/** The label, such as `"Status"`. */
+	title: string;
+	/** The value: usually a `text` block, or a `checkbox` or `link`. */
+	child: Block;
 }
 
 /** Whether the client asking may open pairing now. */
@@ -3197,6 +3351,13 @@ export interface RenameClientRequest {
 	client_name: string;
 }
 
+/** Retitles document folder `folder_id` in a workspace. */
+export interface RenameDocumentFolderRequest {
+	workspace_id: number;
+	folder_id: number;
+	title: string;
+}
+
 /** Retitles live document `document_id` in a workspace. */
 export interface RenameDocumentRequest {
 	workspace_id: number;
@@ -3255,6 +3416,15 @@ export interface RenderMermaidRequest {
 	 */
 	width?: number | null;
 	format: MermaidFormat;
+}
+
+/**
+ * Asks the connector of resource `resource_id` in workspace `workspace_id`
+ * for the CohesionUI interface it shows the resource with.
+ */
+export interface RenderResourceRequest {
+	workspace_id: number;
+	resource_id: number;
 }
 
 /** A diagram as drawn, or why it wasn't. */
@@ -4227,6 +4397,12 @@ export type TaskStatus = 'incomplete' | 'completed' | 'cancelled';
  */
 export type TaskViewScope = 'inbox' | 'all' | 'done' | 'cancelled' | number;
 
+/** `kind: "text"`: a paragraph of plain text. */
+export interface TextBlock {
+	/** The text, shown as written; line breaks are kept. */
+	text: string;
+}
+
 /**
  * What a thread message says, tagged by `kind`.
  *
@@ -4657,6 +4833,21 @@ export interface Requests {
 	renameDocument: RenameDocumentRequest;
 	/** Deletes document `document_id` in a workspace. */
 	deleteDocument: DeleteDocumentRequest;
+	/** Files a document into a folder, or the Inbox. */
+	moveDocument: MoveDocumentRequest;
+	/** Lists a workspace's document folders. */
+	listDocumentFolders: ListDocumentFoldersRequest;
+	/** Creates a document folder, at the top level or inside another. */
+	createDocumentFolder: CreateDocumentFolderRequest;
+	/** Retitles a document folder. */
+	renameDocumentFolder: RenameDocumentFolderRequest;
+	/**
+	 * Moves a document folder into another, or the top level, and among its
+	 * new siblings; replies with every folder in the workspace.
+	 */
+	moveDocumentFolder: MoveDocumentFolderRequest;
+	/** Deletes a document folder and the folders inside it. */
+	deleteDocumentFolder: DeleteDocumentFolderRequest;
 	/** Lists an item's kept versions, newest first, without their text. */
 	listVersions: ListVersionsRequest;
 	/** Fetches one kept version. */
@@ -5014,6 +5205,12 @@ export interface Requests {
 	listResources: ListResourcesRequest;
 	/** Fetches resource `resource_id` in a workspace. */
 	getResource: GetResourceRequest;
+	/**
+	 * Asks the connector of resource `resource_id` for the interface it
+	 * shows the resource with, from its `renderResource`; `null` when it
+	 * has none, so the client shows the contents.
+	 */
+	renderResource: RenderResourceRequest;
 	/** Removes resource `resource_id` from a workspace. */
 	deleteResource: DeleteResourceRequest;
 	/** Refreshes every resource in a workspace from its service now. */
@@ -5113,6 +5310,21 @@ export interface Replies {
 	renameDocument: Document;
 	/** Deletes document `document_id` in a workspace. */
 	deleteDocument: Document;
+	/** Files a document into a folder, or the Inbox. */
+	moveDocument: Document;
+	/** Lists a workspace's document folders. */
+	listDocumentFolders: DocumentFolder[];
+	/** Creates a document folder, at the top level or inside another. */
+	createDocumentFolder: DocumentFolder;
+	/** Retitles a document folder. */
+	renameDocumentFolder: DocumentFolder;
+	/**
+	 * Moves a document folder into another, or the top level, and among its
+	 * new siblings; replies with every folder in the workspace.
+	 */
+	moveDocumentFolder: DocumentFolder[];
+	/** Deletes a document folder and the folders inside it. */
+	deleteDocumentFolder: DocumentFolder;
 	/** Lists an item's kept versions, newest first, without their text. */
 	listVersions: VersionSummary[];
 	/** Fetches one kept version. */
@@ -5470,6 +5682,12 @@ export interface Replies {
 	listResources: Resource[];
 	/** Fetches resource `resource_id` in a workspace. */
 	getResource: Resource;
+	/**
+	 * Asks the connector of resource `resource_id` for the interface it
+	 * shows the resource with, from its `renderResource`; `null` when it
+	 * has none, so the client shows the contents.
+	 */
+	renderResource: Component | null;
 	/** Removes resource `resource_id` from a workspace. */
 	deleteResource: Resource;
 	/** Refreshes every resource in a workspace from its service now. */

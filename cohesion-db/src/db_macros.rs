@@ -6,6 +6,7 @@ macro_rules! every_model {
     ($check:ident($db:expr)) => {
         $check::<Workspace>($db);
         $check::<Document>($db);
+        $check::<DocumentFolder>($db);
         $check::<Client>($db);
         $check::<SecuritySettings>($db);
         $check::<SecurityEvent>($db);

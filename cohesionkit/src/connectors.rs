@@ -14,6 +14,7 @@ pub(crate) use agent_connectors::AgentConnectors;
 pub(crate) use connector_calls::{
     AuthenticationUrlFn, ServiceDescriptionFn, account_items, account_organization_units,
     account_removed, call_connector, complete_connector_authentication, fetch_resource,
+    render_resource,
 };
 pub(crate) use credential_refresh::fresh_credential;
 pub(crate) use pending_sign_ins::PendingSignIns;

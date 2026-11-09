@@ -10,13 +10,15 @@ use rquickjs::{Ctx, Exception, FromJs, IntoJs, Object, Value};
 
 use cohesion_core::model::{
     AccountDescription, ActivityStatus, ActorEffort, ActorMode, ActorModel, ActorSessionStatus,
-    ConnectorResource, ConnectorResourceFilters, ConnectorResourcePreview, ContactMethodKind,
-    Credential, Dialect, ExtensionManifest, ExtensionPermissionKind, HookKind,
-    IntelligenceAgentColor, IntelligenceAgentPersonality, IntelligenceAgentVerbosity,
-    IntelligenceEffort, IntelligenceProvider, IntelligenceTier, MetadataKey, NewContactMethod,
-    OrganizationUnit, PkceChallenge, PublishedPrecision, RegistryResult, ResourceContentKind,
-    ResourceKind, ResourceKindDescription, SearchEntityKind, ServiceDescription,
-    ServiceFunctionManifest, ServiceManifest, VersionAuthor, VersionChange, VersionedItem,
+    Block, CheckboxBlock, Component, ConnectorResource, ConnectorResourceFilters,
+    ConnectorResourcePreview, ContactMethodKind, Credential, Dialect, ExtensionManifest,
+    ExtensionPermissionKind, HeadingBlock, HeadingLevel, HookKind, IntelligenceAgentColor,
+    IntelligenceAgentPersonality, IntelligenceAgentVerbosity, IntelligenceEffort,
+    IntelligenceProvider, IntelligenceTier, LinkBlock, MetadataKey, NewContactMethod,
+    OrganizationUnit, OverviewBlock, PkceChallenge, PublishedPrecision, RegistryResult,
+    ResourceContentKind, ResourceKind, ResourceKindDescription, SearchEntityKind,
+    ServiceDescription, ServiceFunctionManifest, ServiceManifest, TextBlock, VersionAuthor,
+    VersionChange, VersionedItem,
 };
 use cohesion_core::protocol::{PlanUsage, Vocabulary};
 use cohesion_core::ts_documentation::TsDocumentation;
@@ -29,8 +31,9 @@ use crate::conversion::{FromJsField, ToJs};
 use crate::entities::workspace_options::TaskFolderListOptions;
 use crate::entities::{
     account, actor, actor_session, agent, agent_team, article, connector, connector_account,
-    connector_account_options, contact, document, endpoint_model, feed, intelligence_endpoint,
-    resource, rewind, search_result, tag, task, task_folder, usage, workspace, workspace_options,
+    connector_account_options, contact, document, document_folder, endpoint_model, feed,
+    intelligence_endpoint, resource, rewind, search_result, tag, task, task_folder, usage,
+    workspace, workspace_options,
 };
 use crate::globals::{
     AccountEndpointOptions, AccountsGlobal, ActorDispatchOptions, ActorSessionMessage,
@@ -51,11 +54,12 @@ script_api! {
     /// returns for workspaces, tasks, documents and search, and the types two
     /// modules share.
     CORE = "core", upfront, "`cohesion`: workspaces, tasks and their folders, documents and \
-        search." {
+        their folders, and search." {
         globals: [CohesionGlobal],
         entities: [
             workspace::JsWorkspace,
             document::JsDocument,
+            document_folder::JsDocumentFolder,
             search_result::JsSearchResult,
             task::JsTask,
             task_folder::JsTaskFolder,
@@ -252,10 +256,12 @@ script_api! {
         mounted: [TimerUnit],
     }
 
-    /// What an extension script returns to describe itself; no mount
-    /// documents it.
+    /// What an extension script returns to describe itself, and the
+    /// CohesionUI interface a connector's `renderResource` returns; no
+    /// mount documents it.
     EXTENSIONS = "extensions", on_demand, "An extension's manifest, permissions, connector \
-        service and registry results." {
+        service, registry results and the CohesionUI interfaces a connector shows resources \
+        with." {
         enums: [ExtensionPermissionKind],
         interfaces: [
             ExtensionManifest,
@@ -265,6 +271,14 @@ script_api! {
             ServiceDescription,
             PkceChallenge,
             ResourceKindDescription,
+            Component,
+            Block,
+            TextBlock,
+            CheckboxBlock,
+            OverviewBlock,
+            HeadingBlock,
+            HeadingLevel,
+            LinkBlock,
         ],
     }
 
