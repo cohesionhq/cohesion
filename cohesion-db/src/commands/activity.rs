@@ -13,8 +13,12 @@ use crate::{
 };
 
 /// Starts an activity, `running`, under `title` trimmed, which must not be
-/// empty, raising `ActivityStarted`. Only `ActivityTracker` writes activities, so the commands that do
-/// are its alone.
+/// empty, raising `ActivityStarted`. What it shows has one activity for its
+/// whole life: once that one has ended, it is reopened, keeping its id and
+/// `started_at`, its progress and `ended_at` cleared; only the first start
+/// inserts it. Starting what is still running is refused. Only
+/// `ActivityTracker` writes activities, so the commands that do are its
+/// alone.
 pub(crate) struct StartActivityCommand {
     pub title: String,
     pub kind: ActivityKind,
@@ -28,13 +32,28 @@ impl DatabaseCommand for StartActivityCommand {
     ) -> DatabaseCommandResult<Changed<Self::Response>> {
         let title = self.title.trim();
         ensure_title(title)?;
-        let activity = ctx
+        let ActivityKind::ActorSession { actor_session_id } = self.kind;
+        let reopened = ctx
             .db
-            .insert()
+            .update::<Activity>()
             .set(Activity::TITLE, title.to_string())
-            .set_group(self.kind)
-            .returning_one()
-            .found()?;
+            .set(Activity::STATUS, ActivityStatus::Running)
+            .set_null(Activity::PROGRESS)
+            .set_null(Activity::ENDED_AT)
+            .filter("actor_session_id = ?")
+            .bind(actor_session_id)
+            .filter("ended_at IS NOT NULL")
+            .returning_one()?;
+        let activity = match reopened {
+            Some(activity) => activity,
+            None => ctx
+                .db
+                .insert()
+                .set(Activity::TITLE, title.to_string())
+                .set_group(self.kind)
+                .returning_one()
+                .found()?,
+        };
         let event = DatabaseEventKind::ActivityStarted {
             activity: activity.clone(),
         };

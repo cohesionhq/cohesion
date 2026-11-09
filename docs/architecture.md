@@ -820,7 +820,7 @@ deleting sets `deleted`, and client reads use `select_live`.
 | `agent_thread_marks` | One per agent: which model thread the conversation is on and how far it has heard ([12](#12-how-a-turn-runs)). |
 | `thread_prompts`, `intelligence_threads`, `intelligence_thread_messages`, `intelligence_thread_images` | Model threads: their system prompts (stored once), forks (`parent_thread_id`), a Responses API chain (`remote_id`, `remote_cursor`), and every item sent and received. |
 | `attachments` | Images on an agent message or an actor session message: `media_type`, `data` (a blob). |
-| `activities` | Work under way that clients show: `actor_session_id`, `title`, `status`, `progress`, `started_at`, `ended_at`. |
+| `activities` | Work under way that clients show, one per actor session: `actor_session_id`, `title`, `status`, `progress`, `started_at`, `ended_at`. |
 
 **Actors**
 
@@ -1557,11 +1557,14 @@ stateDiagram-v2
 | The device's serving session closes | `ActorSessions::client_left`: that client's working sessions become `idle` as `interrupted`. Not when it was replaced by another session of the same client. |
 | The daemon stops, or starts after a crash | `SettleActorSessionsCommand` sets working and needs-attention sessions to `idle`, raising no event, so no follower wakes. |
 
-**Activities.** While a session works, an activity mirrors it (`activities`,
-at most one open per session): `running` while working, `paused` while it
-needs attention. It ends `succeeded` when the actor reports `idle`, `failed`
-when it reports `failed`, and `cancelled` for a stop, resolve, interruption,
-rolled-back send or shutdown. A trigger (`activities_actor_session_unread`)
+**Activities.** A session has one activity for its whole life
+(`activities`, unique per session), which mirrors it while it works:
+`running` while working, `paused` while it needs attention. It ends
+`succeeded` when the actor reports `idle`, `failed` when it reports
+`failed`, and `cancelled` for a stop, resolve, interruption, rolled-back
+send or shutdown. When the session works again, `StartActivityCommand`
+reopens that row: `running`, its title the session's, progress and
+`ended_at` cleared, its id and `started_at` kept. A trigger (`activities_actor_session_unread`)
 marks the session unread only when its activity ends `succeeded` or `failed`.
 `MarkActorSessionRead` clears it and sets `read_at`.
 

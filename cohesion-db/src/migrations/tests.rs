@@ -1,10 +1,10 @@
 use cohesion_core::{
     Client, Document, Model, Task, TaskFolder, TaskPriority, Workspace,
     model::{
-        AccountHost, Activity, Actor, ActorMessageContent, ActorPermissionDecision, ActorSession,
-        ActorSessionMessage, ActorSessionMessageContent, ActorSessionStatus, ActorToolKind,
-        ActorUserContent, AgentCodeOutcome, AgentMessageContent, AgentThreadMark, Article,
-        Attachment, CatalogModel, Connector, ConnectorAccount, Contact, ContactMethod,
+        AccountHost, Activity, ActivityStatus, Actor, ActorMessageContent, ActorPermissionDecision,
+        ActorSession, ActorSessionMessage, ActorSessionMessageContent, ActorSessionStatus,
+        ActorToolKind, ActorUserContent, AgentCodeOutcome, AgentMessageContent, AgentThreadMark,
+        Article, Attachment, CatalogModel, Connector, ConnectorAccount, Contact, ContactMethod,
         EndpointModel, Extension, ExtensionHook, ExtensionPermission, ExtensionService,
         ExtensionServiceFunction, Feed, FeedFullPagePolicy, FeedStatus, HookKind,
         IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun,
@@ -2645,4 +2645,114 @@ fn articles_only_from_feeds_drops_saving_and_keeps_the_reader_and_task_tags() {
         .execute_batch("DELETE FROM feeds WHERE id = 1")
         .unwrap();
     assert_eq!(count("SELECT COUNT(*) FROM articles"), 0);
+}
+
+#[test]
+fn a_sessions_activities_become_its_first_holding_what_the_newest_says() {
+    let mut db = Container::in_memory().unwrap();
+    let at = MIGRATIONS
+        .iter()
+        .position(|migration| migration.name == "one_activity_per_actor_session")
+        .unwrap();
+    db.register_migration_functions().unwrap();
+    // As `migrate` runs them: the later ones rebuild tables with foreign keys off.
+    db.connection()
+        .pragma_update(None, "foreign_keys", false)
+        .unwrap();
+    for migration in &MIGRATIONS[..at] {
+        db.connection().execute_batch(migration.sql).unwrap();
+    }
+    db.connection()
+        .execute_batch(
+            "INSERT INTO clients (id, key, client_name) VALUES (1, 'k', 'Mac');
+             INSERT INTO actors (id, client_id, identifier, product, scope, modes, models)
+                 VALUES (1, 1, 'code', 'Claude Code', '/src', '[]', '[]');
+             INSERT INTO actor_sessions (id, actor_id, title)
+                 VALUES (1, 1, 'Fix'), (2, 1, 'Ship'), (3, 1, 'Read');
+             INSERT INTO activities (id, title, actor_session_id, status, progress, started_at,
+                     ended_at) VALUES
+                 (1, 'Fix', 1, 'succeeded', NULL, 10, 20),
+                 (2, 'Fix it', 1, 'failed', NULL, 30, 40),
+                 (3, 'Fix it now', 1, 'running', 'Building', 50, NULL),
+                 (4, 'Ship', 2, 'cancelled', NULL, 60, 70),
+                 (5, 'Read', 3, 'cancelled', NULL, 80, 90),
+                 (6, 'Read more', 3, 'succeeded', NULL, 100, 110);",
+        )
+        .unwrap();
+    db.connection()
+        .pragma_update(None, "user_version", at as i64)
+        .unwrap();
+    db.migrate().unwrap();
+
+    let kept: Vec<_> = WriteContainer::new(&db)
+        .select::<Activity>()
+        .order("id")
+        .all()
+        .unwrap()
+        .into_iter()
+        .map(|activity| {
+            (
+                activity.id,
+                activity.title,
+                activity.status,
+                activity.progress,
+                activity.started_at,
+                activity.ended_at,
+            )
+        })
+        .collect();
+    assert_eq!(
+        kept,
+        [
+            (
+                1,
+                "Fix it now".to_string(),
+                ActivityStatus::Running,
+                Some("Building".to_string()),
+                10,
+                None
+            ),
+            (
+                4,
+                "Ship".to_string(),
+                ActivityStatus::Cancelled,
+                None,
+                60,
+                Some(70)
+            ),
+            (
+                5,
+                "Read more".to_string(),
+                ActivityStatus::Succeeded,
+                None,
+                80,
+                Some(110)
+            ),
+        ]
+    );
+    let unread = |session: i64| -> bool {
+        db.connection()
+            .query_row(
+                "SELECT unread FROM actor_sessions WHERE id = ?",
+                [session],
+                |row| row.get(0),
+            )
+            .unwrap()
+    };
+    // Merging marks no session unread.
+    assert!(!unread(3));
+    // One activity per session, open or not.
+    assert!(
+        db.connection()
+            .execute_batch(
+                "INSERT INTO activities (title, actor_session_id, status, ended_at)
+                 VALUES ('Ship', 2, 'succeeded', 5)"
+            )
+            .is_err()
+    );
+    // Ending it still marks its session unread.
+    db.connection()
+        .execute_batch("UPDATE activities SET status = 'succeeded', ended_at = 9 WHERE id = 1")
+        .unwrap();
+    assert!(unread(1));
 }

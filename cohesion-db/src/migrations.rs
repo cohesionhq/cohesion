@@ -4245,6 +4245,36 @@ pub const MIGRATIONS: &[Migration] = &[
         PRAGMA legacy_alter_table = OFF;
         CREATE INDEX task_tags_task ON task_tags(task_id);",
     },
+    // An actor session has one activity for its whole life, reopened each
+    // time it works again, rather than one per stretch of work. A session's
+    // rows become its first, so its id stays, holding what the newest says;
+    // the rest go. The unread trigger is set aside while they merge, so
+    // copying an old outcome marks no session unread.
+    Migration {
+        name: "one_activity_per_actor_session",
+        sql: "
+        DROP INDEX activities_one_open_actor_session;
+        DROP TRIGGER activities_actor_session_unread;
+
+        UPDATE activities AS kept SET (title, status, progress, ended_at) =
+            (SELECT newest.title, newest.status, newest.progress, newest.ended_at
+             FROM activities AS newest
+             WHERE newest.actor_session_id = kept.actor_session_id
+             ORDER BY newest.id DESC LIMIT 1)
+        WHERE kept.id = (SELECT MIN(first.id) FROM activities AS first
+            WHERE first.actor_session_id = kept.actor_session_id);
+
+        DELETE FROM activities WHERE id > (SELECT MIN(first.id) FROM activities AS first
+            WHERE first.actor_session_id = activities.actor_session_id);
+
+        CREATE UNIQUE INDEX activities_actor_session ON activities(actor_session_id);
+
+        CREATE TRIGGER activities_actor_session_unread AFTER UPDATE OF status ON activities
+        WHEN new.status IN ('succeeded', 'failed')
+        BEGIN
+            UPDATE actor_sessions SET unread = TRUE WHERE id = new.actor_session_id;
+        END;",
+    },
 ];
 
 #[cfg(test)]
