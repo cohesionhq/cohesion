@@ -37,6 +37,13 @@ between cohesion-js and cohesion-core. `cohesion-internet-harness` is a tool
 on top of cohesion-internet that nothing depends on. No crate uses cargo
 features.
 
+`cohesion-rs` sits under cohesion-core and depends on no workspace crate. It
+is `MIT` so clients outside this repository can link it, and it holds only
+what a client needs to talk to a daemon. Something whose reason to exist is
+serving or storing the daemon's state stays in cohesion-core; where a client
+type would need it, the client keeps that part as raw JSON instead
+(`docs/licensing.md`).
+
 ## Code conventions
 
 - Happy-path code. Validate only at untrusted boundaries (wire input,

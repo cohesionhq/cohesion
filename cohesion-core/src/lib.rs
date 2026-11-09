@@ -20,12 +20,14 @@ pub mod invalidation;
 pub mod log;
 pub mod model;
 pub mod paths;
-pub mod private_files;
 pub mod protocol;
 pub mod stored_model;
 pub mod ts_documentation;
 pub mod ts_wire;
 pub mod value;
+
+/// Files only the current user may reach; from `cohesion-rs`.
+pub use cohesion_rs::private_files;
 
 /// What this build is: the `vXXXYYYYY` of the release it was built for, or the
 /// crate version in a build that isn't a release.

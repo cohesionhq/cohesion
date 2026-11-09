@@ -18,8 +18,8 @@ Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 Pull requests go to `master`. Keep each one to one change, describe what it
 changes and why, and add an entry under "Unreleased" in
 [CHANGELOG.md](CHANGELOG.md) when users would notice it. By opening a pull
-request you agree to license your contribution under `AGPL-3.0-only`
-([Licensing](docs/licensing.md)).
+request you agree to license your contribution under `AGPL-3.0-only`, or
+`MIT` in `cohesion-rs` ([Licensing](docs/licensing.md)).
 
 ## Checks
 

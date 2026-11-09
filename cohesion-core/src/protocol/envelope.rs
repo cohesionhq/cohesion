@@ -16,8 +16,9 @@ use super::server_error::ServerError;
 use super::vocabulary::Vocabulary;
 use crate::invalidation::InvalidationBatch;
 
-/// Sent in `Hello`. Stays 1 during active development: do not bump it (`docs/design-principles.md`).
-pub const PROTOCOL_VERSION: u32 = 1;
+// Shared with clients from `cohesion-rs`, whose client view of these frames
+// the tests check against them.
+pub use cohesion_rs::protocol::{PROTOCOL_VERSION, RegisterRequest};
 
 // Client -> Server
 
@@ -140,13 +141,6 @@ pub struct CallResult {
     pub outcome: ClientOutcome,
 }
 
-/// Asks the server to trust the caller's certificate (sent to `/register`).
-#[derive(Serialize, Deserialize)]
-pub struct RegisterRequest {
-    pub setup_key: String,
-    pub client_name: String,
-}
-
 // Server -> client
 
 /// Every server message, numbered in send order.
@@ -215,5 +209,7 @@ pub enum Outcome {
     Error(ServerError),
 }
 
+#[cfg(test)]
+mod client_tests;
 #[cfg(test)]
 mod tests;

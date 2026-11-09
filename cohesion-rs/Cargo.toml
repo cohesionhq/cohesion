@@ -1,0 +1,20 @@
+[package]
+name = "cohesion-rs"
+description = "What a client needs to talk to a Cohesion daemon: pairing, keys and the protocol's envelope"
+version.workspace = true
+edition.workspace = true
+# Not the workspace's AGPL-3.0-only: this crate is the interoperability code
+# a client links, so clients under any licence can (docs/licensing.md).
+license = "MIT"
+repository.workspace = true
+
+# Depends on no other workspace crate, so nothing AGPL reaches a client
+# through it.
+[dependencies]
+aws-lc-rs.workspace = true
+base64 = "0.22.1"
+rcgen.workspace = true
+rustls.workspace = true
+rustls-webpki = "0.103.15"
+serde.workspace = true
+serde_json.workspace = true

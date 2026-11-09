@@ -54,13 +54,15 @@ Each crate's root opens with a `//!` summary.
 ### 1. Crates, packages and directories
 
 The repository is one Cargo workspace (`Cargo.toml`: `resolver = "2"`, edition
-2024, licence `AGPL-3.0-only`, every member at version `0.1.0`) plus one npm
+2024, licence `AGPL-3.0-only` except `cohesion-rs`, which is `MIT`, every
+member at version `0.1.0`) plus one npm
 package, the web UI in `web/`. No crate declares cargo `[features]`.
 
 | Crate | Kind | What it is for | Depends on (in the workspace) |
 |---|---|---|---|
 | `cohesion-macros` | proc-macro | The derives and attributes every other crate uses: `Model`, `Projection`, `ColumnGroup`, `Fields`, `FromRequest`, `Commands`, `Replies`, `TextEnum`, `TsInterface`, `TsWire`, `JsOptions`, `#[js_entity]`, `#[js_global]`. cohesion-core re-exports them. | none |
-| `cohesion-core` | lib | Types every crate shares: the domain models (`model/`), the wire protocol (`protocol/`), invalidations, keys, certificates and setup codes (`auth/`), the `Caller`, logging (`log/`), config paths (`paths.rs`), private file helpers (`private_files.rs`), the storage-agnostic `Value` layer, and `ts_wire`, which declares the protocol as TypeScript. No database and no script engine. | cohesion-macros |
+| `cohesion-rs` | lib, `MIT` | What a client needs to talk to a daemon, for clients outside this repository (the Linux WebUI harness): keys, certificates, `key_fingerprint`, setup codes and the socket handshake (`auth/`), private file helpers (`private_files.rs`), and the client's view of the protocol's envelope (`protocol.rs`: `Frame`, `Hello`, `Reply`, `Outcome`, the `WebBundle` reply, `RegisterRequest`, `PROTOCOL_VERSION`), which leaves every other message and reply as raw JSON. cohesion-core re-exports all but `protocol.rs`'s client types from its own paths, and its `protocol/envelope/client_tests.rs` checks the daemon's frames decode into them. | none |
+| `cohesion-core` | lib | Types every crate shares: the domain models (`model/`), the wire protocol (`protocol/`), invalidations, keys, certificates and setup codes (`auth/`, re-exported from cohesion-rs but for PKCE), the `Caller`, logging (`log/`), config paths (`paths.rs`), private file helpers (`private_files`, from cohesion-rs), the storage-agnostic `Value` layer, and `ts_wire`, which declares the protocol as TypeScript. No database and no script engine. | cohesion-macros, cohesion-rs |
 | `cohesion-db` | lib | SQLite persistence: `Container` (the rusqlite connection, query builders, migrations), the `DatabaseCommand` trait and every command, `DatabaseContext` (the one database thread), events and `InvalidationWatch`, `GuardedDatabaseContext` (what scripts hold), `CredentialManager`, `Secrets` (the pairing window), `WorkTracker`, `ActivityTracker`, backup, export and import (`transfer.rs`), retention. | cohesion-core |
 | `cohesion-internet` | lib (+ `build.rs`) | Reading the web: `article_snapshot` (a page as Markdown), `feed` (RSS, Atom and JSON Feed, with autodiscovery), `fetch`, `pipeline`, and Coherence, Cohesion's own HTML reader (`coherence/`, whose JSON rules `build.rs` compiles in). Blocking reqwest; knows nothing of the database or scripts. | cohesion-core |
 | `cohesion-internet-harness` | bin, `publish = false` | A tool: `cargo run -p cohesion-internet-harness -- page <url>` or `feed <url>` prints the Markdown the daemon would store, for building Coherence's rules. Nothing depends on it. | cohesion-core, cohesion-internet |
@@ -73,6 +75,7 @@ package, the web UI in `web/`. No crate declares cargo `[features]`.
 ```mermaid
 flowchart BT
   macros[cohesion-macros] --> core[cohesion-core]
+  rs[cohesion-rs] --> core
   core --> db[cohesion-db]
   core --> net[cohesion-internet]
   db --> js[cohesion-js]
@@ -228,7 +231,7 @@ Running the image is in [23](#23-deployment).
 |---|---|---|
 | `-c, --config <DIR>` | | The config directory. Default `dirs::config_local_dir()/cohesiond`: `~/.config/cohesiond` on Linux, `~/Library/Application Support/cohesiond` on macOS. Created with mode 0700 if missing. |
 | `--host <HOST>` | | The IP address or DNS name put in setup codes. Default: this machine's outbound IPv4 address, found by pointing a UDP socket at 192.0.2.1 without sending anything, else `127.0.0.1`. |
-| `--port <PORT>` | `COHESIOND_PORT` | The HTTPS port, default `3000` (`DEFAULT_PORT`, `cohesion-core/src/auth/setup.rs`). Listens on `0.0.0.0` (IPv4 only). |
+| `--port <PORT>` | `COHESIOND_PORT` | The HTTPS port, default `3000` (`DEFAULT_PORT`, `cohesion-rs/src/auth/setup.rs`). Listens on `0.0.0.0` (IPv4 only). |
 | `--public-port <PORT>` | `COHESIOND_PUBLIC_PORT` | The port put in setup codes when a forwarded port differs. Default: `--port`. |
 | `--socket <PATH>` | | The Unix socket. With `--config`, `<config>/cohesiond.sock`; with the default config directory, `$XDG_RUNTIME_DIR/cohesiond.sock` where there is one (`dirs::runtime_dir()`), else `<config>/cohesiond.sock` (`paths::default_socket_path`, `paths::socket_path_in`). |
 | `--log-level <LEVEL>` | `COHESIOND_LOG` | `debug`, `info` (default), `warn` or `error`. SQL statements log at `debug`. |
@@ -245,7 +248,7 @@ default; `exit_with_parent` is true if either says so, and a non-empty
 `--proxy-protocol` list replaces the file's.
 
 **The config directory.** Directories are created 0700 and files 0600, with the
-mode set before any data is written (`cohesion-core/src/private_files.rs`).
+mode set before any data is written (`cohesion-rs/src/private_files.rs`).
 
 ```mermaid
 flowchart TB
@@ -508,7 +511,7 @@ one setup key: 32 random letters and digits, valid for 10 minutes
 (`PAIRING_WINDOW`) and one registration, kept in memory only. Opening a new
 window replaces the old one. It is checked in constant time.
 
-**The setup code** (`SetupCode`, `cohesion-core/src/auth/setup.rs`) is base64
+**The setup code** (`SetupCode`, `cohesion-rs/src/auth/setup.rs`) is base64
 of `<key>|<host:port>|<fingerprint>`, with IPv6 hosts in brackets. Decoding
 wants exactly three parts and a port (`NotBase64`, `Malformed`,
 `InvalidAddress`).
@@ -1783,7 +1786,7 @@ WebUI harness, a native shell around the web UI.
 
 - **Reaching the daemon**: pairing with a setup code at `/register`, then `POST /command` for one-off requests or `/connect` for a session; or the Unix socket on the same computer ([4](#4-starting-the-daemon), [6](#6-pairing-and-trust)).
 - **What they share with the web UI**: the protocol and its types (generated from Rust for the web; other clients copy `generated.ts` or model them by hand), `hello.vocabulary`, the subscribe-and-invalidate model, and the `cohesion://` links, which every client opens over the current screen.
-- **A WebUI harness** pairs natively, fetches the bundle with `WebBundle`, serves it, and stands in for the page's session API ([16](#16-the-web-ui)). There are two, both in `cohesionhq/webshell`: the Mac and iPad app in `mac/`, built on the `CohesionWebKit` Swift package, and the Linux app in `gtk/`, a Rust copy of the same flow that takes `SetupCode`, the self-signed certificate and the protocol's types from `cohesion-core` and runs `CohesionWebKit`'s bridge script unchanged (`gtk/src/bridge.js`). The web UI keeps a few things a web view needs: `--titlebar-inset`, and keyboard and mouse-button history steps a web view doesn't do itself (`web/src/lib/shell/shortcuts.svelte.ts`).
+- **A WebUI harness** pairs natively, fetches the bundle with `WebBundle`, serves it, and stands in for the page's session API ([16](#16-the-web-ui)). There are two, both in `cohesionhq/webshell`: the Mac and iPad app in `mac/`, built on the `CohesionWebKit` Swift package, and the Linux app in `gtk/`, a Rust copy of the same flow that takes `SetupCode`, the self-signed certificate and the protocol's envelope from `cohesion-rs` and runs `CohesionWebKit`'s bridge script unchanged (`gtk/src/bridge.js`). The web UI keeps a few things a web view needs: `--titlebar-inset`, and keyboard and mouse-button history steps a web view doesn't do itself (`web/src/lib/shell/shortcuts.svelte.ts`).
 - **Push notifications** are not the daemon's: it raises hooks (`notification:send`, `agent:message`, `client:revoke`…) and an installed extension with `network` sends pushes. The iOS companion extension (`com.cohesion.cloud.ios-companion`) appears here only in doc comments.
 
 The repositories in the `cohesionhq` organization, as their GitHub

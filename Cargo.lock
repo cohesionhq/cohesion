@@ -502,10 +502,8 @@ dependencies = [
  "aws-lc-rs",
  "base64 0.22.1",
  "cohesion-macros",
+ "cohesion-rs",
  "dirs",
- "rcgen",
- "rustls",
- "rustls-webpki",
  "serde",
  "serde_json",
 ]
@@ -583,6 +581,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "cohesion-rs"
+version = "0.1.0"
+dependencies = [
+ "aws-lc-rs",
+ "base64 0.22.1",
+ "rcgen",
+ "rustls",
+ "rustls-webpki",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

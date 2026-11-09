@@ -7,6 +7,7 @@ members = [
     "cohesion-internet-harness",
     "cohesion-js",
     "cohesion-macros",
+    "cohesion-rs",
     "cohesiond",
     "cohesionkit",
 ]
@@ -27,6 +28,7 @@ cohesion-intelligence = { path = "cohesion-intelligence" }
 cohesion-internet = { path = "cohesion-internet" }
 cohesion-js = { path = "cohesion-js" }
 cohesion-macros = { path = "cohesion-macros" }
+cohesion-rs = { path = "cohesion-rs" }
 cohesionkit = { path = "cohesionkit" }
 
 # External versions shared by more than one crate

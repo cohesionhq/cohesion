@@ -2,8 +2,9 @@
 
 Cohesion is copyright Jackson Zamorano and is licensed under the GNU Affero
 General Public License, version 3 only (`AGPL-3.0-only`). The full text is in
-[`LICENSE`](../LICENSE). Every crate in the workspace and the web UI's
-`package.json` declare it.
+[`LICENSE`](../LICENSE). Every crate in the workspace but one, and the web UI's
+`package.json`, declare it. The exception is `cohesion-rs`, which is `MIT`, with
+its own [`LICENSE`](../cohesion-rs/LICENSE).
 
 ## What the licence asks
 
@@ -22,20 +23,29 @@ The core is copyleft. `cohesiond`, the CLI and the embedded web UI are
 offer them its source. `extensions`, `relay` and the two `hellocohesion`
 websites use the same licence.
 
-Clients and actor libraries are permissive. They talk to `cohesiond` over its
-protocol and nothing in this repository is compiled into them, so they don't
-need to be copyleft. The iOS, iPadOS and macOS app (`apple`) and the Mac shell
-in `webshell` are `Apache-2.0`, because copyleft can't ship through the App
-Store. The libraries and actors that other people build on (`ts`, `actor-kit`,
-`actor-agentsdk`, `actor-opencode`, `actor-codex` and `cohesion-proxy`) are
-`MIT`, so anyone can write an actor or client without taking on the core's
-terms.
+Clients are permissive. They talk to `cohesiond` over its protocol, so they
+don't need to be copyleft. The iOS, iPadOS and macOS app (`apple`) and both
+WebUI harnesses in `webshell`, the Mac app and the Linux app in `gtk/`, are
+`Apache-2.0`, partly because copyleft can't ship through the App Store.
 
-`webshell/gtk/` is the exception. The Linux app links the `cohesion-core` crate
-from this repository (a path dependency in `gtk/Cargo.toml`), which makes it a
-combined work with an `AGPL-3.0-only` library. It stays `AGPL-3.0-only`, with
-its own `LICENSE`. Its `src/bridge.js` is a copy of the script in
-CohesionWebKit's `SocketBridge`, and CohesionWebKit has no licence yet.
+Interoperability code is `MIT`: the libraries and actors other people build on
+(`ts`, `actor-kit`, `actor-agentsdk`, `actor-opencode`, `actor-codex` and
+`cohesion-proxy`), and `cohesion-rs` in this repository. That way anyone can
+write an actor or client without taking on the core's terms.
+
+`cohesion-rs` exists so a Rust client doesn't have to link the core. It holds
+what a client needs to talk to a daemon and nothing else: keys, certificates,
+the TLS key fingerprint, setup codes, the socket handshake, the private-file
+helpers, and the client's view of the protocol's envelope. It depends on no
+other crate in this repository. `cohesion-core` depends on it and re-exports
+what it shares. The Linux app in `webshell/gtk/` links `cohesion-rs` rather
+than `cohesion-core`, which is why it can be `Apache-2.0`. Anything whose
+purpose is serving or storing the daemon's state, like the domain models, the
+full command and reply types or the storage layer, stays `AGPL-3.0-only` in
+`cohesion-core`. The client protocol keeps those parts as raw JSON instead.
+
+`webshell/gtk/src/bridge.js` is a copy of the script in CohesionWebKit's
+`SocketBridge`, and CohesionWebKit has no licence yet.
 
 Cohesion Cloud, the hosted service at [hellocohesion.cloud](https://hellocohesion.cloud),
 runs `cohesiond` from this repository. Its own service code in `cloud` is
@@ -47,19 +57,19 @@ Each repository in the `cohesionhq` organisation carries its own `LICENSE`.
 
 | Repository | Licence |
 | --- | --- |
-| `cohesion`, `extensions`, `relay` | `AGPL-3.0-only` |
+| `cohesion`, except `cohesion-rs/` | `AGPL-3.0-only` |
+| `extensions`, `relay` | `AGPL-3.0-only` |
 | `hellocohesion.com`, `hellocohesion.cloud` | `AGPL-3.0-only` |
-| `webshell/gtk/` | `AGPL-3.0-only` |
-| `apple` | `Apache-2.0` |
-| `webshell`, except `gtk/` | `Apache-2.0` |
+| `apple`, `webshell` | `Apache-2.0` |
+| `cohesion/cohesion-rs/` | `MIT` |
 | `ts`, `actor-kit`, `actor-agentsdk`, `actor-opencode`, `actor-codex`, `cohesion-proxy` | `MIT` |
 | `cloud` | Proprietary, all rights reserved |
 | `CohesionWebKit` | No licence yet |
 | `cohesiond-macos` | No licence yet. It belongs under `AGPL-3.0-only` once it gets one. |
 
 The permissive licences apply only to code those repositories hold. They don't
-relax this repository's: a program that links code from `cohesion` is bound by
-`AGPL-3.0-only` whatever its own repository says.
+relax this repository's: a program that links code from `cohesion` other than
+`cohesion-rs` is bound by `AGPL-3.0-only` whatever its own repository says.
 
 ## Third-party software
 
@@ -73,7 +83,8 @@ CI fails when the file is out of date.
 ## Contributions
 
 By opening a pull request, you agree that your contribution is licensed under
-`AGPL-3.0-only`, the same as the rest of Cohesion.
+`AGPL-3.0-only`, the same as the rest of Cohesion, or under `MIT` where it
+changes `cohesion-rs`.
 
 ## Trademarks
 

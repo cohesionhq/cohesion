@@ -1,18 +1,14 @@
 //! Key management shared by clients and the server: keys, fingerprints, the
 //! self-signed certificates each side presents over TLS, the handshake a
 //! client identifies itself with on the Unix socket, and the PKCE pairs an
-//! extension's sign-in is sent.
+//! extension's sign-in is sent. All but PKCE live in the MIT `cohesion-rs`,
+//! which clients link, and are re-exported here.
 
-mod certificate;
-mod host;
-mod key;
-mod local_handshake;
 mod pkce;
-mod setup;
 
-pub use certificate::{Certificate, CertificateError, key_fingerprint};
-pub use host::{Host, InvalidHost};
-pub use key::{Authentication, KeyError, fingerprint};
-pub use local_handshake::{LocalHandshakeReply, LocalIdentity};
+pub use cohesion_rs::auth::{
+    Authentication, Certificate, CertificateError, DEFAULT_PORT, Host, InvalidHost, KeyError,
+    LocalHandshakeReply, LocalIdentity, ServerAddress, SetupCode, SetupCodeError, fingerprint,
+    key_fingerprint,
+};
 pub use pkce::Pkce;
-pub use setup::{DEFAULT_PORT, ServerAddress, SetupCode, SetupCodeError};
