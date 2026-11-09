@@ -13,7 +13,8 @@ to. The work itself has its own skills: `protocol-change`,
 
 When given a task by the user, first check and see if any branch currently
 on the user's machine matches the work they've asked you to do. If not,
-make a new branch out of master.
+make a new branch out of master. Nothing is built or committed on master
+itself.
 
 ## Checks
 

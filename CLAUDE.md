@@ -10,6 +10,10 @@ Cloud live in their own repos (see "Native clients and other repositories" in
 `docs/architecture.md`).
 Cohesion is free software under `AGPL-3.0-only` (`docs/licensing.md`).
 
+Before starting any task, invoke the `contributing` skill
+(`.claude/skills/contribute/`) and follow it through to the report: it
+holds the branch, commit and push rules.
+
 This file holds only how to work here; the documentation is in `docs/`. Read
 the doc a change touches before changing it, and keep it true in the same
 commit ("Keeping the docs true" in `docs/conventions.md`).
