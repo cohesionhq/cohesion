@@ -524,14 +524,34 @@
 		animation: fade-out var(--duration) ease-in forwards;
 	}
 
-	/* Page navigations dissolve: the old page (whichever scope the root
-	   layout names `page`) fades out as the new one fades in over it, the
-	   two overlapping so the page never dips to empty between them.
+	/* Page navigations dissolve (`shell/fade.ts`): the old page (whichever
+	   scope is named `page`) fades out as the new one fades in, over the same
+	   time on the same curve. The browser adds the two (plus-lighter), so
+	   what both pages share stays still and the rest dissolves without
+	   dipping towards the sheet; staggering them makes the page blink. The
+	   column beside a conversation (`page-aside`) dissolves the same way, so
+	   moving between two conversations fades its contents in place. Neither
+	   moves or resizes: each is drawn at its own size where it ends up,
+	   rather than stretched from the old page's box to the new one's.
 	   Everything else (sidebar, toasts, the page header) swaps without
 	   animating or blending. Reduced motion zeroes --duration, which makes
 	   these instant too. */
 	::view-transition-group(*) {
 		animation-duration: var(--duration);
+		animation-timing-function: ease-out;
+	}
+
+	::view-transition-group(page),
+	::view-transition-group(page-aside) {
+		animation-name: none;
+	}
+
+	::view-transition-old(page),
+	::view-transition-new(page),
+	::view-transition-old(page-aside),
+	::view-transition-new(page-aside) {
+		inline-size: auto;
+		block-size: auto;
 	}
 
 	/* The transition's snapshots sit over the whole page and would take the
@@ -562,14 +582,16 @@
 	}
 
 	::view-transition-old(page),
+	::view-transition-old(page-aside),
 	::view-transition-old(page-header):only-child {
 		display: block;
-		animation: fade-out calc(var(--duration) * 0.7) ease-out both;
+		animation: fade-out var(--duration) ease-out both;
 	}
 
 	::view-transition-new(page),
+	::view-transition-new(page-aside),
 	::view-transition-new(page-header):only-child {
-		animation: fade-in var(--duration) ease-out calc(var(--duration) * 0.2) both;
+		animation: fade-in var(--duration) ease-out both;
 	}
 
 	/* On the dialogs' layer, so the stacking follows the portals' order: a

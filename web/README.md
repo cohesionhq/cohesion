@@ -288,7 +288,13 @@ only these exist:
   from `ui/motion.ts`, 200ms, longer because they move or resize content.
   A column sliding in beside the page takes `motion.slideIn` and
   `motion.slideOut` instead, 180ms in and 140ms out, as the side panel
-  slides. Reduced motion zeroes them all. A short changing value (the
+  slides. Reduced motion zeroes them all. A page navigation cross-fades
+  (`shell/fade.ts`): the old page and the new dissolve over the same 120ms
+  on the same curve, so what they share holds still, and nothing moves or
+  resizes. The column beside a conversation doesn't slide in a navigation:
+  it opens or shuts at once and fades with the page, and between two
+  conversations it stays open while its contents fade. Data that lands
+  after the fade has stopped waiting fades in rather than popping in. A short changing value (the
   agent header's token count, a fork's step count) is drawn with
   `ui/RollingText.svelte`, which rolls only the characters that change.
   Text in progress shimmers, drawn with `ui/Shimmer.svelte`: an agent's name

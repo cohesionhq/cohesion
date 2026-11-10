@@ -29,9 +29,18 @@ const active = new Set<Resource<unknown, unknown>>();
 /** Released resources: they skip refetches, but remember missing one. */
 // eslint-disable-next-line svelte/prefer-svelte-reactivity
 const released = new Set<Resource<unknown, unknown>>();
-/** Fetches for a key with nothing to show yet: what a page opening waits on. */
+/** Puts a value on the page; a page fade calls it inside a transition of its own. */
+export type Reveal = (show: () => void) => Promise<void>;
+
+/** A fetch for a key with nothing to show yet: what a page opening waits on. */
+interface FirstFetch {
+	done: Promise<void>;
+	/** Set once a page fade stopped waiting for it, so its value fades in rather than popping in. */
+	reveal?: Reveal;
+}
+
 // eslint-disable-next-line svelte/prefer-svelte-reactivity
-const firstFetches = new Set<Promise<void>>();
+const firstFetches = new Set<FirstFetch>();
 
 export class Resource<T, K = void> {
 	value: T = $state() as T;
@@ -79,17 +88,21 @@ export class Resource<T, K = void> {
 	/** Fetches again for the current key; a newer fetch wins over an older one. */
 	refetch(): Promise<void> {
 		if (!this.#hasKey) return Promise.resolve();
-		const run = this.#fetch();
+		const first: FirstFetch | null = this.loaded ? null : { done: Promise.resolve() };
+		const run = this.#fetch(first);
 		this.#inflight = run;
-		if (!this.loaded) firstFetches.add(run);
+		if (first) {
+			first.done = run;
+			firstFetches.add(first);
+		}
 		void run.finally(() => {
 			if (this.#inflight === run) this.#inflight = null;
-			firstFetches.delete(run);
+			if (first) firstFetches.delete(first);
 		});
 		return run;
 	}
 
-	async #fetch(): Promise<void> {
+	async #fetch(first: FirstFetch | null): Promise<void> {
 		const generation = ++this.#generation;
 		this.#stale = false;
 		const key = this.key as K;
@@ -97,10 +110,15 @@ export class Resource<T, K = void> {
 		try {
 			const value = await working.load(() => this.#options.fetch(key));
 			if (generation !== this.#generation) return;
-			this.value = value;
-			this.error = null;
-			this.loaded = true;
-			this.#options.onFetched?.(value);
+			const show = () => {
+				if (generation !== this.#generation) return;
+				this.value = value;
+				this.error = null;
+				this.loaded = true;
+				this.#options.onFetched?.(value);
+			};
+			if (first?.reveal) await first.reveal(show);
+			else show();
 		} catch (error) {
 			if (generation !== this.#generation) return;
 			this.error = toProtocolError(error);
@@ -156,11 +174,22 @@ export class Resource<T, K = void> {
  * Settles once every fetch for a key with nothing loaded yet has finished,
  * or after `ms`, whichever comes first: a page that just mounted has asked
  * for its data, and a page navigation waits on this so it fades to the page
- * as it will look rather than to an empty one.
+ * as it will look rather than to an empty one. A fetch still running at `ms`
+ * puts its value on the page through `reveal`, so what lands late fades in
+ * too rather than popping in after the fade.
  */
-export function firstFetchesSettled(ms: number): Promise<void> {
-	const settled = Promise.allSettled([...firstFetches]).then(() => undefined);
-	return Promise.race([settled, new Promise<void>((resolve) => setTimeout(resolve, ms))]);
+export function firstFetchesSettled(ms: number, reveal?: Reveal): Promise<void> {
+	const waiting = [...firstFetches];
+	return new Promise((resolve) => {
+		const timer = setTimeout(() => {
+			for (const fetch of waiting) if (reveal && firstFetches.has(fetch)) fetch.reveal = reveal;
+			resolve();
+		}, ms);
+		void Promise.allSettled(waiting.map((fetch) => fetch.done)).then(() => {
+			clearTimeout(timer);
+			resolve();
+		});
+	});
 }
 
 /** Refetches every loaded resource (window focus, `reset`, reconnect). */
