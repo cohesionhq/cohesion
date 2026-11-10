@@ -5,6 +5,8 @@
 	import { isMac, keyLabel } from './keys';
 	import { shortcuts } from './shortcuts.svelte';
 
+	const newFolderKeys = isMac ? keyLabel('shift', 'mod', 'n') : keyLabel('mod', 'shift', 'n');
+
 	const groups: { title: string; rows: { keys: string[]; label: string }[] }[] = [
 		{
 			title: 'Anywhere',
@@ -22,13 +24,21 @@
 			]
 		},
 		{
+			title: 'Documents and databases',
+			rows: [
+				{ keys: [keyLabel('mod', 'n')], label: 'New document or database' },
+				{ keys: [newFolderKeys], label: 'New folder (documents)' }
+			]
+		},
+		{
 			title: 'Search',
 			rows: [{ keys: [keyLabel('alt', 'enter')], label: 'Open in split view' }]
 		},
 		{
 			title: 'Tasks',
 			rows: [
-				{ keys: ['n'], label: 'New task' },
+				{ keys: ['n', keyLabel('mod', 'n')], label: 'New task' },
+				{ keys: [newFolderKeys], label: 'New folder' },
 				{ keys: ['j', 'k'], label: 'Next / previous task' },
 				{ keys: [keyLabel('space')], label: 'Complete or reopen' },
 				{ keys: [keyLabel('enter')], label: 'Rename' },

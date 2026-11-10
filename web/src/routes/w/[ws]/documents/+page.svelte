@@ -28,6 +28,7 @@
 	import Dialog from '$lib/ui/Dialog.svelte';
 	import Field from '$lib/ui/Field.svelte';
 	import TextInput from '$lib/ui/TextInput.svelte';
+	import { asksForNew, asksForNewFolder } from '$lib/shell/shortcuts.svelte';
 
 	const { documents } = pageStores();
 
@@ -185,7 +186,21 @@
 			folderBusy = false;
 		}
 	}
+
+	/** ⌘N makes a document and ⇧⌘N a folder, unless a dialog is open. */
+	function onWindowKey(event: KeyboardEvent) {
+		if (event.target instanceof HTMLElement && event.target.closest('[role="dialog"]')) return;
+		if (asksForNewFolder(event)) {
+			event.preventDefault();
+			openFolderDialog({ mode: 'new', parent: null });
+		} else if (asksForNew(event) && !creating && !folderGone) {
+			event.preventDefault();
+			void create();
+		}
+	}
 </script>
+
+<svelte:window onkeydown={onWindowKey} />
 
 <PageTitle title={view === 'all' ? 'Documents' : `${viewName} · Documents`} />
 
