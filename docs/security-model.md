@@ -24,7 +24,7 @@ Validate at these boundaries and nowhere else:
   paired client is trusted: it may do anything the protocol offers, except
   open pairing when the security settings keep that to clients on this
   computer (a `FromClient` route, the one kind that sees its sender).
-  A client's offers and call results are wire input. A database formula is
+  A client's offers and call results are wire input. A table's formula is
   a client's code that the daemon runs again whenever its rows change, so it
   runs with nothing: no mount and no database, only the row's values in and
   one value out, under a time and memory limit, and a slow or failing

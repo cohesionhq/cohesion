@@ -35,49 +35,62 @@ describe('embeds store', () => {
 		release();
 	});
 
-	it('asks again about a database row when its database changes', () => {
-		const row: Embed = {
-			link: 'cohesion://database-row/1/5/21',
-			kind: 'databaseRow',
+	it('asks again about a folder when its table or the folders change', () => {
+		const folder: Embed = {
+			link: 'cohesion://document-folder/1/5',
+			kind: 'documentFolder',
 			workspace_id: 1,
-			title: 'Dune',
+			title: 'Books',
 			excerpt: '',
 			item: {
-				kind: 'databaseRow',
-				row: { id: 21, database_id: 5, document_id: null, cells: [] },
-				database_title: 'Books',
-				properties: []
+				kind: 'documentFolder',
+				folder: {
+					id: 5,
+					workspace_id: 1,
+					parent_id: null,
+					title: 'Books',
+					sort_order: 1,
+					deleted: false,
+					is_table: true
+				},
+				properties: [],
+				rows: [],
+				row_count: 0
 			}
 		};
-		const link = 'cohesion://document/1/9';
-		expect(touches({ kind: 'database', id: 5 }, link, row)).toBe(true);
-		expect(touches({ kind: 'database', id: 6 }, link, row)).toBe(false);
-		expect(touches({ kind: 'documents', id: 1 }, link, row)).toBe(false);
+		const link = 'cohesion://document-folder/1/5';
+		expect(touches({ kind: 'documentTable', id: 5 }, link, folder)).toBe(true);
+		expect(touches({ kind: 'documentTable', id: 6 }, link, folder)).toBe(false);
+		expect(touches({ kind: 'documentFolders', id: 1 }, link, folder)).toBe(true);
+		expect(touches({ kind: 'documents', id: 1 }, link, folder)).toBe(false);
 	});
 
-	it('resolves a database, a row, and a row’s document as its row', async () => {
+	it('resolves a table with its first rows, a plain folder with its titles, and a row as a document', async () => {
 		const mock = createMock();
-		const database = await mock.send('resolveLink', { link: 'cohesion://database/1/1' });
-		expect(database.title).toBe('Reading list');
-		expect(database.item.kind === 'database' && database.item.rows).toHaveLength(5);
-		expect(database.item.kind === 'database' && database.item.row_count).toBe(6);
-		const row = await mock.send('resolveLink', { link: 'cohesion://database-row/1/1/1' });
-		expect(row).toMatchObject({ kind: 'databaseRow', title: 'Dune' });
-		expect(row.excerpt).toMatch(/train/);
-		const document = row.item.kind === 'databaseRow' ? row.item.row.document_id : null;
-		const viaDocument = await mock.send('resolveLink', {
-			link: `cohesion://document/1/${document}`
+		const table = await mock.send('resolveLink', { link: 'cohesion://document-folder/1/4' });
+		expect(table.title).toBe('Reading list');
+		expect(table.item.kind === 'documentFolder' && table.item.rows).toHaveLength(5);
+		expect(table.item.kind === 'documentFolder' && table.item.row_count).toBe(6);
+		expect(table.item.kind === 'documentFolder' && table.item.folder.is_table).toBe(true);
+		const plain = await mock.send('resolveLink', { link: 'cohesion://document-folder/1/2' });
+		expect(plain.item.kind === 'documentFolder' && plain.item.properties).toEqual([]);
+		expect(plain.item.kind === 'documentFolder' && plain.item.folder.is_table).toBe(false);
+		const first = table.item.kind === 'documentFolder' ? table.item.rows[0] : null;
+		const row = await mock.send('resolveLink', {
+			link: `cohesion://document/1/${first?.document_id}`
 		});
-		expect(viaDocument.link).toBe('cohesion://database-row/1/1/1');
+		expect(row).toMatchObject({ kind: 'document', title: 'Dune' });
+		expect(row.excerpt).toMatch(/train/);
 		await expect(
-			mock.send('resolveLink', { link: 'cohesion://database-row/1/2/1' })
+			mock.send('resolveLink', { link: 'cohesion://document-folder/1/99' })
 		).rejects.toMatchObject({ code: 'notFound' });
 	});
 
 	it('lets a missing item come back on any change of its kind', () => {
 		expect(touches({ kind: 'documents', id: 4 }, 'cohesion://document/1/9', null)).toBe(true);
 		expect(touches({ kind: 'taskFolders', id: 1 }, 'cohesion://task/1/9', null)).toBe(false);
-		expect(touches({ kind: 'database', id: 2 }, 'cohesion://database-row/1/2/9', null)).toBe(true);
-		expect(touches({ kind: 'databases', id: 1 }, 'cohesion://database/1/2', null)).toBe(true);
+		expect(
+			touches({ kind: 'documentFolders', id: 1 }, 'cohesion://document-folder/1/2', null)
+		).toBe(true);
 	});
 });

@@ -70,8 +70,8 @@ function modN(event: Chord, shift: boolean): boolean {
 
 /**
  * Whether a key press asks for a new item on the page: ⌘N (Ctrl+N), as a
- * native app's File › New. Each page makes what it lists: a task, a document
- * or a database.
+ * native app's File › New. Each page makes what it lists: a task or a
+ * document, which in a table is a row.
  */
 export function asksForNew(event: Chord): boolean {
 	return modN(event, false);

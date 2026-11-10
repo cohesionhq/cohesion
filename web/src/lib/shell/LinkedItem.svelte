@@ -5,8 +5,8 @@
 	import ArticlePanel from '$lib/features/articles/ArticlePanel.svelte';
 	import ResourcePanel from '$lib/features/connectors/ResourcePanel.svelte';
 	import ContactPanel from '$lib/features/contacts/ContactPanel.svelte';
-	import DatabaseRowPanel from '$lib/features/databases/DatabaseRowPanel.svelte';
 	import DocumentPanel from '$lib/features/documents/DocumentPanel.svelte';
+	import TableRowPanel from '$lib/features/tables/TableRowPanel.svelte';
 	import TaskDetails from '$lib/features/tasks/TaskDetails.svelte';
 	import { mainStores } from '$lib/stores/pageStores.svelte';
 	import { untrack } from 'svelte';
@@ -56,12 +56,6 @@
 	/>
 {:else if item?.kind === 'article'}
 	<ArticlePanel bind:open={linkedItem.open} article={item.article} feedTitle={item.feedTitle} />
-{:else if item?.kind === 'database-row'}
-	<DatabaseRowPanel
-		bind:open={linkedItem.open}
-		ws={item.ws}
-		database={item.database}
-		row={item.row}
-		label={item.label}
-	/>
+{:else if item?.kind === 'table-row'}
+	<TableRowPanel bind:open={linkedItem.open} document={item.document} />
 {/if}

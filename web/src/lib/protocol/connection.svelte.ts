@@ -117,6 +117,11 @@ export class Connection {
 		return () => this.#invalidateListeners.delete(listener);
 	}
 
+	/** Hands `keys` to every invalidation listener, as a push from the daemon (or the mock) does. */
+	invalidated(keys: Invalidation[]): void {
+		for (const listener of this.#invalidateListeners) listener(keys);
+	}
+
 	/** The server dropped its invalidation state: refetch everything. */
 	onReset(listener: () => void): () => void {
 		this.#resetListeners.add(listener);
@@ -162,7 +167,7 @@ export class Connection {
 				return;
 			}
 			case 'invalidate':
-				for (const listener of this.#invalidateListeners) listener(frame.keys);
+				this.invalidated(frame.keys);
 				return;
 			case 'reset':
 				for (const listener of this.#resetListeners) listener();

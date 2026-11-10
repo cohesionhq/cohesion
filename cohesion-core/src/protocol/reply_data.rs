@@ -27,13 +27,13 @@ use super::storage_requests::{
 use super::task_requests::TaskPage;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, Article, Attachment,
-    CatalogModel, Client, Component, Contact, ContactMethod, Database, DatabaseProperty,
-    DatabaseRow, DatabaseRowEntry, DeletedItem, Document, DocumentFolder, Embed, EndpointModel,
-    ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
-    IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
-    IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
-    RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings, Tag, Task,
-    TaskFolder, TextSection, Version, VersionSummary, Workspace, WorkspaceResourceKind,
+    CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
+    DocumentFolderProperty, Embed, EndpointModel, ExtensionHook, ExtensionPermission, Feed,
+    FeedSummary, IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage,
+    IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault,
+    IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource, RestoredItem, SavedTaskView,
+    SearchResult, SecuritySettings, StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection,
+    Version, VersionSummary, Workspace, WorkspaceResourceKind,
 };
 
 /// The payload of a successful reply.
@@ -57,13 +57,10 @@ pub enum ReplyData {
     Journal(Option<Document>),
     DocumentFolders(Vec<DocumentFolder>),
     DocumentFolder(DocumentFolder),
-    Databases(Vec<Database>),
-    Database(Database),
-    DatabaseProperties(Vec<DatabaseProperty>),
-    DatabaseProperty(DatabaseProperty),
-    DatabaseRowEntries(Vec<DatabaseRowEntry>),
-    DatabaseRowEntry(Box<DatabaseRowEntry>),
-    DatabaseRow(DatabaseRow),
+    DocumentFolderProperties(Vec<DocumentFolderProperty>),
+    DocumentFolderProperty(DocumentFolderProperty),
+    TableRows(Vec<TableRow>),
+    TableRow(Box<TableRow>),
     Client(Client),
     Clients(Vec<ListedClient>),
     RevokedClients(Vec<Client>),

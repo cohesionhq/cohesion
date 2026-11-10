@@ -4595,6 +4595,228 @@ pub const MIGRATIONS: &[Migration] = &[
         FROM tasks, json_each(outgoing_links('task', tasks.id, tasks.description)) links
         WHERE tasks.deleted = FALSE AND json_extract(links.value, '$.kind') = 'contact';",
     },
+    // Databases stop being an area of their own: a document folder with
+    // properties is a table, and each document in it is a row. Each
+    // database becomes a top-level folder of its workspace, after the
+    // others, named for it. Each row becomes a document in that folder: its
+    // own document, now an ordinary one, or a new empty one. A row's title
+    // is its value in the database's first text property set by hand, the
+    // title its document had, or "Untitled"; that property and every value
+    // stay as they were. Properties and values keep their ids, keyed now by
+    // folder and document, and a value's folder is its document's and its
+    // property's, which the composite keys hold to (moving a document out
+    // of a table means letting go of its values first). A row's formula
+    // mark moves onto its document. A formula has an update mode, which a
+    // property set by hand never has: every formula carried over is computed
+    // when what it reads changes (`whenChanged`). Rows' documents are no longer kept out
+    // of search or from soft deletion, so the search triggers return to the
+    // first form and every former row's document is indexed. A link no
+    // longer names a database or a row; it names a document folder, so
+    // `backlinks` is rebuilt without the old kinds or their rows. A property
+    // may also be a choice, never a formula, whose values pick one of its
+    // options (`document_property_options`), each named uniquely ignoring
+    // case: an option belongs to a choice property alone (its key takes the
+    // property's type), and a value's option is of its own property, so
+    // deleting an option empties the values that held it. Nothing carried
+    // over is a choice.
+    Migration {
+        name: "document_tables",
+        sql: "
+        DROP TRIGGER documents_database_row_never_soft_deleted;
+        DROP TRIGGER database_rows_document_ad;
+        DROP TRIGGER documents_search_ai;
+        DROP TRIGGER documents_search_au;
+        CREATE TRIGGER documents_search_ai AFTER INSERT ON documents WHEN new.deleted = 0
+        BEGIN
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                VALUES ('document', new.id, new.workspace_id);
+            INSERT INTO search_fts (rowid, title, contents)
+                VALUES (last_insert_rowid(), new.title, new.contents);
+        END;
+        CREATE TRIGGER documents_search_au
+        AFTER UPDATE OF title, contents, deleted, workspace_id ON documents
+        BEGIN
+            DELETE FROM search_fts WHERE rowid =
+                (SELECT id FROM search_entries WHERE entity_kind = 'document' AND entity_id = old.id);
+            DELETE FROM search_entries WHERE entity_kind = 'document' AND entity_id = old.id;
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                SELECT 'document', new.id, new.workspace_id WHERE new.deleted = 0;
+            INSERT INTO search_fts (rowid, title, contents)
+                SELECT last_insert_rowid(), new.title, new.contents WHERE new.deleted = 0;
+        END;
+
+        CREATE TABLE database_folders (
+            database_id INTEGER PRIMARY KEY,
+            folder_id INTEGER NOT NULL,
+            workspace_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            sort_order INTEGER NOT NULL
+        );
+        INSERT INTO database_folders (database_id, folder_id, workspace_id, title, sort_order)
+            SELECT id,
+                (SELECT COALESCE(MAX(id), 0) FROM document_folders)
+                    + ROW_NUMBER() OVER (ORDER BY id),
+                workspace_id, title,
+                (SELECT COALESCE(MAX(sort_order), 0) FROM document_folders
+                    WHERE document_folders.workspace_id = databases.workspace_id)
+                    + ROW_NUMBER() OVER (PARTITION BY workspace_id
+                        ORDER BY title COLLATE NOCASE, id)
+            FROM databases;
+        INSERT INTO document_folders (id, workspace_id, title, sort_order)
+            SELECT folder_id, workspace_id, title, sort_order FROM database_folders;
+
+        CREATE TABLE database_row_documents (
+            row_id INTEGER PRIMARY KEY,
+            folder_id INTEGER NOT NULL,
+            workspace_id INTEGER NOT NULL,
+            document_id INTEGER NOT NULL,
+            existing BOOLEAN NOT NULL,
+            title TEXT NOT NULL,
+            formula_stale INTEGER NOT NULL
+        );
+        INSERT INTO database_row_documents
+                (row_id, folder_id, workspace_id, document_id, existing, title, formula_stale)
+            SELECT rows.id, folders.folder_id, folders.workspace_id,
+                COALESCE(rows.document_id, (SELECT COALESCE(MAX(id), 0) FROM documents)
+                    + ROW_NUMBER() OVER (PARTITION BY rows.document_id IS NULL ORDER BY rows.id)),
+                rows.document_id IS NOT NULL,
+                COALESCE(
+                    (SELECT text_value FROM database_row_values
+                     WHERE row_id = rows.id AND trim(text_value) <> '' AND property_id =
+                        (SELECT id FROM database_properties
+                         WHERE database_id = rows.database_id AND data_type = 'text'
+                             AND formula_source IS NULL
+                         ORDER BY sort_order, id LIMIT 1)),
+                    (SELECT title FROM documents
+                     WHERE id = rows.document_id AND trim(title) <> ''),
+                    'Untitled'),
+                rows.formula_stale
+            FROM database_rows AS rows
+            JOIN database_folders AS folders ON folders.database_id = rows.database_id;
+
+        UPDATE documents SET document_type = 'normal',
+            folder_id = (SELECT folder_id FROM database_row_documents
+                WHERE document_id = documents.id),
+            title = (SELECT title FROM database_row_documents WHERE document_id = documents.id)
+        WHERE id IN (SELECT document_id FROM database_row_documents WHERE existing);
+        INSERT INTO documents (id, workspace_id, title, contents, document_type, folder_id)
+            SELECT document_id, workspace_id, title, '', 'normal', folder_id
+            FROM database_row_documents WHERE NOT existing ORDER BY row_id;
+        UPDATE documents SET document_type = 'normal', title = title
+            WHERE document_type = 'databaseRow';
+
+        ALTER TABLE documents ADD COLUMN formula_stale INTEGER NOT NULL DEFAULT 0;
+        UPDATE documents SET formula_stale =
+            (SELECT formula_stale FROM database_row_documents WHERE document_id = documents.id)
+        WHERE id IN (SELECT document_id FROM database_row_documents WHERE formula_stale > 0);
+        CREATE INDEX documents_formula_stale ON documents(folder_id) WHERE formula_stale > 0;
+        CREATE UNIQUE INDEX documents_folder_id ON documents(folder_id, id);
+
+        CREATE TABLE document_folder_properties (
+            id INTEGER PRIMARY KEY,
+            folder_id INTEGER NOT NULL REFERENCES document_folders(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            data_type TEXT NOT NULL CHECK (data_type IN
+                ('text', 'integer', 'decimal', 'currency', 'checkbox', 'date', 'choice')),
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            formula_source TEXT,
+            formula_update_mode TEXT
+                CHECK (formula_update_mode IN ('whenChanged', 'continuously'))
+                CHECK ((formula_update_mode IS NULL) = (formula_source IS NULL)),
+            formula_error TEXT CHECK (formula_error IS NULL OR formula_source IS NOT NULL),
+            CHECK (data_type <> 'choice' OR formula_source IS NULL),
+            UNIQUE (folder_id, id),
+            UNIQUE (id, data_type)
+        );
+        INSERT INTO document_folder_properties
+                (id, folder_id, name, data_type, sort_order, formula_source, formula_update_mode,
+                formula_error)
+            SELECT properties.id, folders.folder_id, properties.name, properties.data_type,
+                properties.sort_order, properties.formula_source,
+                CASE WHEN properties.formula_source IS NOT NULL THEN 'whenChanged' END,
+                properties.formula_error
+            FROM database_properties AS properties
+            JOIN database_folders AS folders ON folders.database_id = properties.database_id;
+
+        CREATE TABLE document_property_options (
+            id INTEGER PRIMARY KEY,
+            property_id INTEGER NOT NULL,
+            data_type TEXT NOT NULL DEFAULT 'choice' CHECK (data_type = 'choice'),
+            name TEXT NOT NULL CHECK (name <> ''),
+            color TEXT CHECK (color IN
+                ('blue', 'green', 'orange', 'purple', 'red', 'pink', 'teal', 'yellow')),
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            UNIQUE (property_id, id),
+            FOREIGN KEY (property_id, data_type)
+                REFERENCES document_folder_properties(id, data_type) ON DELETE CASCADE
+        );
+        CREATE UNIQUE INDEX document_property_options_name
+            ON document_property_options(property_id, name COLLATE NOCASE);
+
+        CREATE TABLE document_values (
+            id INTEGER PRIMARY KEY,
+            folder_id INTEGER NOT NULL,
+            document_id INTEGER NOT NULL,
+            property_id INTEGER NOT NULL,
+            text_value TEXT NOT NULL,
+            integer_value INTEGER,
+            real_value REAL,
+            option_id INTEGER,
+            UNIQUE (document_id, property_id),
+            FOREIGN KEY (folder_id, document_id) REFERENCES documents(folder_id, id)
+                ON DELETE CASCADE,
+            FOREIGN KEY (folder_id, property_id)
+                REFERENCES document_folder_properties(folder_id, id) ON DELETE CASCADE,
+            FOREIGN KEY (property_id, option_id)
+                REFERENCES document_property_options(property_id, id) ON DELETE CASCADE
+        );
+        CREATE INDEX document_values_option ON document_values(option_id)
+            WHERE option_id IS NOT NULL;
+        CREATE INDEX document_values_property ON document_values(property_id);
+        INSERT INTO document_values
+                (id, folder_id, document_id, property_id, text_value, integer_value, real_value)
+            SELECT vals.id, rows.folder_id, rows.document_id, vals.property_id,
+                vals.text_value, vals.integer_value, vals.real_value
+            FROM database_row_values AS vals
+            JOIN database_row_documents AS rows ON rows.row_id = vals.row_id;
+
+        DROP TABLE database_row_values;
+        DROP TABLE database_rows;
+        DROP TABLE database_properties;
+        DROP TABLE databases;
+        DROP TABLE database_row_documents;
+        DROP TABLE database_folders;
+
+        DROP TRIGGER documents_backlinks_ad;
+        DROP TRIGGER tasks_backlinks_ad;
+        CREATE TABLE backlinks_new (
+            id INTEGER PRIMARY KEY,
+            source_kind TEXT NOT NULL CHECK (source_kind IN ('task', 'document', 'resource',
+                'documentFolder', 'contact', 'agent', 'actorSession', 'article')),
+            source_id INTEGER NOT NULL,
+            target_kind TEXT NOT NULL CHECK (target_kind IN ('task', 'document', 'resource',
+                'documentFolder', 'contact', 'agent', 'actorSession', 'article')),
+            target_id INTEGER NOT NULL,
+            link TEXT NOT NULL,
+            UNIQUE (source_kind, source_id, target_kind, target_id),
+            CHECK (source_kind IS NOT target_kind OR source_id IS NOT target_id)
+        );
+        INSERT INTO backlinks_new (id, source_kind, source_id, target_kind, target_id, link)
+            SELECT id, source_kind, source_id, target_kind, target_id, link FROM backlinks
+            WHERE source_kind NOT IN ('database', 'databaseRow')
+                AND target_kind NOT IN ('database', 'databaseRow');
+        DROP TABLE backlinks;
+        ALTER TABLE backlinks_new RENAME TO backlinks;
+        CREATE INDEX backlinks_target ON backlinks(target_kind, target_id);
+        CREATE TRIGGER documents_backlinks_ad AFTER DELETE ON documents
+        BEGIN
+            DELETE FROM backlinks WHERE source_kind = 'document' AND source_id = old.id;
+        END;
+        CREATE TRIGGER tasks_backlinks_ad AFTER DELETE ON tasks
+        BEGIN
+            DELETE FROM backlinks WHERE source_kind = 'task' AND source_id = old.id;
+        END;",
+    },
 ];
 
 #[cfg(test)]

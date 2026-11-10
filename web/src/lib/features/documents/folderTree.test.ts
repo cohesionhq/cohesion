@@ -1,13 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import type { DocumentFolder } from '$lib/protocol/types';
-import { folderPath, folderTree, siblings, subtreeIds, visibleNodes } from './folderTree';
+import {
+	folderPath,
+	folderTree,
+	listedIn,
+	siblings,
+	subtreeIds,
+	tableIds,
+	visibleNodes
+} from './folderTree';
 
 const folder = (
 	id: number,
 	title: string,
 	parent_id: number | null,
-	sort_order: number
-): DocumentFolder => ({ id, workspace_id: 1, parent_id, title, sort_order, deleted: false });
+	sort_order: number,
+	is_table = false
+): DocumentFolder => ({
+	id,
+	workspace_id: 1,
+	parent_id,
+	title,
+	sort_order,
+	deleted: false,
+	is_table
+});
 
 // Work › Plans › Old, and Home beside Work, listed out of order.
 const folders = [
@@ -46,5 +63,19 @@ describe('folder tree', () => {
 		expect(folderPath(folders, 3).map((f) => f.title)).toEqual(['Work', 'Plans', 'Old']);
 		expect(folderPath(folders, 9)).toEqual([]);
 		expect(siblings(folders, folders[3]).map((f) => f.title)).toEqual(['Home', 'Work']);
+	});
+
+	it('leaves the rows of tables out of All, unless they are searched for', () => {
+		const tables = tableIds([...folders, folder(5, 'Books', null, 2, true)]);
+		expect([...tables]).toEqual([5]);
+		const inbox = { folder_id: null };
+		const plain = { folder_id: 1 };
+		const row = { folder_id: 5 };
+		expect([inbox, plain, row].map((d) => listedIn(d, 'all', tables))).toEqual([true, true, false]);
+		expect(listedIn(row, 'all', tables, true)).toBe(true);
+		expect(listedIn(row, 5, tables)).toBe(true);
+		expect(listedIn(row, 'inbox', tables)).toBe(false);
+		expect(listedIn(inbox, 'inbox', tables)).toBe(true);
+		expect(listedIn(plain, 5, tables)).toBe(false);
 	});
 });

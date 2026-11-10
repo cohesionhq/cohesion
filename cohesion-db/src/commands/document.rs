@@ -10,8 +10,8 @@ use cohesion_core::{Document, DocumentType, FromRequest};
 
 use crate::changed::{Changed, Invalidates};
 use crate::commands::backlink::FollowLinksCommand;
-use crate::commands::database_row::row_of_document;
 use crate::commands::document_folder::GetDocumentFolderCommand;
+use crate::commands::document_formula::formulas_stale;
 use crate::commands::title::ensure_title;
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::{
@@ -44,8 +44,7 @@ fn find_or_create_journal(
 }
 
 /// Invalidates `document`'s workspace and raises `JournalSaved` for a
-/// journal, `DocumentSaved` for an ordinary document, and nothing for a
-/// database row's, which hooks don't see.
+/// journal and `DocumentSaved` for an ordinary document.
 pub(crate) fn saved(
     ctx: &mut CommandContext<'_>,
     document: Document,
@@ -53,19 +52,16 @@ pub(crate) fn saved(
     let document_id = document.id;
     let workspace_id = document.workspace_id;
     let event = match document.document_type {
-        DocumentType::Journal => Some(DatabaseEventKind::JournalSaved {
+        DocumentType::Journal => DatabaseEventKind::JournalSaved {
             document_id,
             workspace_id,
-        }),
-        DocumentType::Normal => Some(DatabaseEventKind::DocumentSaved {
+        },
+        DocumentType::Normal => DatabaseEventKind::DocumentSaved {
             document_id,
             workspace_id,
-        }),
-        DocumentType::DatabaseRow => None,
+        },
     };
-    if let Some(event) = event {
-        ctx.events.send(ctx.trace.event(event));
-    }
+    ctx.events.send(ctx.trace.event(event));
     changed(ctx, document)
 }
 
@@ -79,6 +75,13 @@ pub(crate) fn changed(
     ctx.run(FollowLinksCommand::of(&document))?;
     let key = Invalidation::Documents(document.workspace_id);
     Ok(document.invalidating([key]))
+}
+
+/// The table `document` is a row of, as its folder's key, which a document
+/// coming, going, being renamed or deleted changes; `None` in the Inbox or
+/// for a journal. Every folder has the key, a table or not.
+pub(crate) fn table_of(document: &Document) -> Option<Invalidation> {
+    document.folder_id.map(Invalidation::DocumentTable)
 }
 
 fn create_journal(
@@ -99,8 +102,9 @@ fn create_journal(
 /// Live documents in a workspace, most recently modified first, optionally
 /// only of `document_type`, only journals dated in
 /// `journal_from..journal_to`, and only those carrying every one of the
-/// `metadata` pairs and `has_metadata` keys. A database row's document is
-/// never listed.
+/// `metadata` pairs and `has_metadata` keys. Documents in a table are
+/// listed like any other; a client that keeps them apart reads which
+/// folders are tables from `DocumentFolder::is_table`.
 #[derive(FromRequest)]
 #[request(ListDocumentsRequest)]
 pub struct ListDocumentsCommand {
@@ -120,8 +124,6 @@ impl DatabaseCommand for ListDocumentsCommand {
             .db
             .select_live::<Document>()
             .filter_eq(Document::WORKSPACE_ID, self.workspace_id)
-            .filter("document_type IS NOT ?")
-            .bind(DocumentType::DatabaseRow)
             .with_metadata(self.metadata)
             .with_metadata_keys(self.has_metadata);
         if let Some(document_type) = self.document_type {
@@ -138,7 +140,8 @@ impl DatabaseCommand for ListDocumentsCommand {
 }
 
 /// Creates an ordinary document with a non-empty title in a workspace, filed
-/// in a live folder of it or in the Inbox.
+/// in a live folder of it or in the Inbox. In a table it is a new row, with
+/// no values until its formulas are computed.
 #[derive(FromRequest)]
 #[request(CreateDocumentRequest)]
 pub struct CreateDocumentCommand {
@@ -170,7 +173,11 @@ impl DatabaseCommand for CreateDocumentCommand {
             .set(Document::FOLDER_ID, self.folder_id)
             .returning_one()
             .found()?;
-        changed(ctx, document)
+        if let Some(folder_id) = document.folder_id {
+            formulas_stale(ctx, folder_id, Some(document.id))?;
+        }
+        let table = table_of(&document);
+        Ok(changed(ctx, document)?.and(table))
     }
 }
 
@@ -197,13 +204,14 @@ impl DatabaseCommand for RenameDocumentCommand {
             .filter_eq(Document::ID, self.document_id)
             .returning_one()
             .found()?;
-        changed(ctx, document)
+        let table = table_of(&document);
+        Ok(changed(ctx, document)?.and(table))
     }
 }
 
 /// Soft-deletes a document in a workspace, where Rewind can bring it back.
-/// A database row's document is never soft-deleted: it is removed for good,
-/// which takes it off its row.
+/// A document in a table keeps its folder and values, so it comes back as
+/// the row it was.
 #[derive(FromRequest)]
 #[request(DeleteDocumentRequest)]
 pub struct DeleteDocumentCommand {
@@ -215,17 +223,6 @@ impl DatabaseCommand for DeleteDocumentCommand {
     type Access = Write;
     fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<Document>> {
         ensure_workspace(ctx.db, self.workspace_id)?;
-        if let Some(row) = row_of_document(ctx.db, self.document_id)? {
-            let mut document: Document = ctx
-                .db
-                .delete()
-                .filter_eq(Document::WORKSPACE_ID, self.workspace_id)
-                .filter_eq(Document::ID, self.document_id)
-                .returning_one()
-                .found()?;
-            document.deleted = true;
-            return Ok(changed(ctx, document)?.and([Invalidation::Database(row.database_id)]));
-        }
         let document = ctx
             .db
             .update()
@@ -234,7 +231,8 @@ impl DatabaseCommand for DeleteDocumentCommand {
             .filter_eq(Document::ID, self.document_id)
             .returning_one()
             .found()?;
-        changed(ctx, document)
+        let table = table_of(&document);
+        Ok(changed(ctx, document)?.and(table))
     }
 }
 
@@ -398,8 +396,7 @@ impl DatabaseCommand for AppendToDocumentCommand {
     }
 }
 
-/// Live documents in a workspace whose title contains `query`, but never a
-/// database row's.
+/// Live documents in a workspace whose title contains `query`.
 #[derive(FromRequest)]
 #[request(SearchDocumentRequest)]
 pub struct SearchDocumentsCommand {
@@ -414,10 +411,9 @@ impl DatabaseCommand for SearchDocumentsCommand {
         Ok(ctx
             .db
             .select_live()
-            .filter("workspace_id = ? AND title LIKE ? AND document_type IS NOT ?")
+            .filter("workspace_id = ? AND title LIKE ?")
             .bind(self.workspace_id)
             .bind(format!("%{}%", self.query))
-            .bind(DocumentType::DatabaseRow)
             .all()?)
     }
 }

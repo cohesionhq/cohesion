@@ -30,60 +30,119 @@ under "Unreleased" with any change users would notice.
   links to an item, as a card or in a sentence, shows under that item's
   Backlinks, and moves off it when the link goes or the task is deleted.
   When the daemon is upgraded, it fills the list from existing tasks.
-- The daemon keeps databases: tables in a workspace whose columns each hold
-  one type of value (text, whole number, decimal, currency, checkbox or
-  date), whose rows may each have a document of their own, and whose rows
-  can be filtered and sorted on any column. A row's document stays out of
-  the document list and search. The wire gains `listDatabases`,
-  `getDatabase`, `createDatabase`, `renameDatabase`, `deleteDatabase`,
+- A document folder can be a table: once it has a column, each document in
+  it is a row, titled by the document's title, and each column holds one
+  type of value (text, whole number, decimal, currency, checkbox, date or
+  choice).
+  Rows filter and sort on any column, the title included, on the daemon.
+  Deleting a folder's last column makes it a plain folder again, and the
+  Inbox never has columns. A row is an ordinary document: it shows in the
+  document list and search, keeps versions and goes to Rewind when deleted.
+  Moving a document out of a table, or into another, deletes its values.
+  The wire gains `listDocumentFolderProperties`,
+  `createDocumentFolderProperty`, `renameDocumentFolderProperty`,
+  `setDocumentFolderPropertyType`, `moveDocumentFolderProperty`,
+  `deleteDocumentFolderProperty`, `listTableRows`, `getTableRow` and
+  `setDocumentValue`, `is_table` on `DocumentFolder`, the
+  `documentTable(folder)` invalidation and
+  `hello.vocabulary.property_data_types`; rows are created, renamed, deleted
+  and moved with the document commands. The iPhone app needn't show tables:
+  it lists their rows as plain documents.
+- A table's column can be a formula: a JavaScript function of the row, such
+  as `(row) => row.Price * row.Quantity`, whose result fills the column in
+  every row and is computed again when the row's values or the columns
+  change, or, with its update mode set to continuously, every hour as well,
+  so a formula that reads the date (days until a deadline) stays current.
+  The row holds the values of the columns that aren't formulas, not
+  the document's title or text. Its results filter and sort like any value.
+  A row the formula fails on stays empty, and the formula shows why.
+  Formulas run with nothing but the row, under a time and memory limit. The
+  wire gains `setDocumentFolderPropertyFormula`, a `formula` on
+  `createDocumentFolderProperty` (a `FormulaDefinition{source, update_mode}`
+  or `null`) and on `DocumentFolderProperty` (`{source, update_mode, error}`
+  or `null`), `FormulaUpdateMode` (`whenChanged`, `continuously`) and
+  `hello.vocabulary.formula_update_modes`, and `setDocumentValue` refuses a
+  formula's column. A pass that computes the values already stored doesn't
+  invalidate `documentTable`.
+- A table's column can be a choice: each value is one of the column's
+  options, which have a name, unique ignoring case, and a color from the
+  agents' palette or none. Renaming an option keeps every value that holds
+  it, and deleting one clears them. A choice filters on an option (is,
+  isn't) or emptiness, and sorts by its options' order. Changing a column to
+  a choice makes an option of each different value, and back to text keeps
+  each option's name. A choice is never a formula, and a formula reads it as
+  its option's name. The wire gains `choice` in `PropertyDataType`, the
+  `{"type": "choice", "value": <option id>}` `PropertyValue`, `PropertyOption`
+  (`id`, `property_id`, `name`, `color`, `sort_order`), `options` on a
+  choice's `DocumentFolderProperty` (its type is now the flattened
+  `PropertyType`), an `options` list of `NewPropertyOption{name, color?}` on
+  `createDocumentFolderProperty` (required, empty for other types), and
+  `createPropertyOption`, `renamePropertyOption`, `setPropertyOptionColor`,
+  `movePropertyOption` and `deletePropertyOption`, each replying with the
+  property. This breaks `cohesionfs`, which sends
+  `createDocumentFolderProperty` and reads values.
+- A document folder, and so a table, can be linked to as
+  `cohesion://document-folder/<ws>/<id>`, and `resolveLink`, `resolveEmbeds`
+  and `backlinksOf` answer for it: `EmbedKind` and `LinkKind` gain
+  `documentFolder`, and `EmbedItem` gains `documentFolder` (the folder, its
+  columns, its first 5 rows and its `row_count`). A row is linked as the
+  document it is. `hello.vocabulary.embed_kinds` gains its word, "Folder".
+  Clients that switch on an embed's `kind` or `item.kind` need the new case;
+  the iPhone app can show it by title, excerpt and kind word until it draws
+  it.
+- Breaking: databases are no longer an area of their own. When the daemon
+  is upgraded, each database becomes a top-level document folder named for
+  it, and each row a document in that folder: the row's own document, or a
+  new empty one. A row's title is its value in the database's first text
+  column set by hand, or its document's title, or "Untitled", and every
+  column and value is kept. `listDatabases`, `getDatabase`,
+  `createDatabase`, `renameDatabase`, `deleteDatabase`,
   `listDatabaseProperties`, `createDatabaseProperty`,
   `renameDatabaseProperty`, `setDatabasePropertyType`,
-  `moveDatabaseProperty`, `deleteDatabaseProperty`, `listDatabaseRows`,
-  `getDatabaseRow`, `createDatabaseRow`, `deleteDatabaseRow`,
-  `setDatabaseValue` and `createDatabaseRowDocument`, the `databases(ws)`
-  and `database(id)` invalidations, `hello.vocabulary.database_data_types`,
-  and a `databaseRow` document type, which a client meets only by opening a
-  row's document. The iPhone app needn't show databases.
-- A database column can be a formula: a JavaScript function of the row,
-  such as `(row) => row.Price * row.Quantity`, whose result fills the
-  column in every row and is computed again when the row or the columns
-  change. Its results filter and sort like any value. A row the formula
-  fails on stays empty, and the formula shows why. Formulas run with
-  nothing but the row, under a time and memory limit. The wire gains
-  `setDatabasePropertyFormula`, a `formula` on `createDatabaseProperty`
-  and on `DatabaseProperty` (`{source, error}` or `null`), and
-  `setDatabaseValue` refuses a formula's column.
-- A database and a row of one can be linked to, as
-  `cohesion://database/<ws>/<id>` and
-  `cohesion://database-row/<ws>/<database>/<id>`, and `resolveLink`,
-  `resolveEmbeds` and `backlinksOf` answer for them: `EmbedKind` and
-  `LinkKind` gain `database` and `databaseRow`, and `EmbedItem` gains
-  `database` (its properties, its first 5 rows and its `row_count`) and
-  `databaseRow` (the row's cells, its database's title and properties). A
-  row's title is its first text column's value, or "Untitled". A link to a
-  row's document resolves as the row, and what a row's document links to
-  lists the row among its backlinks. `hello.vocabulary.embed_kinds` gains
-  their words. Clients that switch on an embed's `kind` or `item.kind`
-  need the two new cases; the iPhone app can show them by title, excerpt
-  and kind word until it draws them.
-- The web UI shows databases. Databases, in each workspace's sidebar and
-  ⌘K, lists them, and a database opens as a table: add a column of any type,
-  rename it, change its type, move it or delete it; add and delete rows; edit
-  a cell in place; and sort and filter on any column, which Cohesion does on
-  the server. A formula's column is read-only and shows why it failed.
-- A database row opens over the page, with its value for each of the
-  database's properties, editable there as in the table, and a document of
-  its own below them, which the row gains once you write in it. A new column
-  can be a formula, written in a code editor that explains what the row holds
-  and starts from an example using the database's own columns; a column's
-  menu edits its formula, turns a column set by hand into a formula, which
-  deletes its values, and back.
-- A link to a database or a row alone on its line shows as a card: a
-  database with its first rows as a small table, a row with a few of its
-  values and the start of its document. Clicking a database's card opens its
-  table; clicking a row's opens the row over the page. Copy link is on a
-  database's ⋯ menu, a row's ⋯ menu and the row's panel, and a row's panel
-  lists what links to it.
+  `setDatabasePropertyFormula`, `moveDatabaseProperty`,
+  `deleteDatabaseProperty`, `listDatabaseRows`, `getDatabaseRow`,
+  `createDatabaseRow`, `deleteDatabaseRow`, `setDatabaseValue` and
+  `createDatabaseRowDocument` are gone, as are the `Database`,
+  `DatabaseRow` and `DatabaseRowEntry` models (`DatabaseProperty`,
+  `DatabaseDataType`, `DatabaseFormula`, `DatabaseValue` and `DatabaseCell`
+  are now `DocumentFolderProperty`, `PropertyDataType`, `PropertyFormula`,
+  `PropertyValue` and `DocumentCell`), the `databases(ws)` and
+  `database(id)` invalidations, the `databaseRow` document type,
+  `hello.vocabulary.database_data_types`, and the `database` and
+  `databaseRow` link and embed kinds. `cohesion://database/…` and
+  `cohesion://database-row/…` links no longer name anything. The web UI
+  moves with it (Databases leaves the sidebar and ⌘K); this breaks
+  `cohesionfs`, and the CLI and the iPhone app never had databases.
+- In the web UI, a folder in Documents becomes a table when you add a
+  column to it, from the folder's ⋯ menu or the table's + button. The table
+  shows each document's title, which you can rename in place, then a column
+  for each value: add a column of any type, rename it, change its type, move
+  it or delete it; edit a cell in place; and sort and filter on any column,
+  the title included, which Cohesion does on the server. "New document" and
+  the New line under the table add a row. Deleting the last column makes the
+  folder a plain list again. Tables show in the folder tree with a table
+  icon, and All leaves their rows out unless you search for them.
+- A row opens over the page, with its values above its text, editable there
+  as in the table, and Open goes to the document's own page, which shows the
+  values under the title. A new column can be a formula, written in a code
+  editor that explains what the row holds and starts from an example using
+  the table's own columns, with an update mode, When changed or
+  Continuously; a column's menu edits its formula and its update mode, turns
+  a column set by hand into a formula, which deletes its values, and back. Drag a
+  document onto a table in the folder tree to make it a row, or drag a row
+  onto another folder or the Inbox to take it out; when the row has values
+  set by hand, Cohesion asks first, since they'll be removed. Move to on a
+  document's page asks the same way.
+- In the web UI, a column can be a Choice: adding one takes its options,
+  each with a color and a name, in the drawer; a cell shows its option as a
+  colored pill and picks another from a menu; "Edit options…" on the
+  column's menu renames, recolors, reorders, adds and deletes options, and
+  asks before deleting one that documents hold. The folder's card shows the
+  pills too.
+- A link to a folder alone on its line shows as a card: a table with its
+  first rows as a small table, a plain folder with its first documents'
+  titles. Clicking it opens the folder. Copy link is on the folder's ⋯ menu,
+  a row's ⋯ menu and the row's panel.
 - An item's panel shows Backlinks: the documents and journal entries that
   link to the item, wherever the link is in their text. Click one to open it
   over the page. When nothing links to the item, the section doesn't show.

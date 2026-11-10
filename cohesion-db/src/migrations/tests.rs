@@ -5,15 +5,15 @@ use cohesion_core::{
         ActorSession, ActorSessionMessage, ActorSessionMessageContent, ActorSessionStatus,
         ActorToolKind, ActorUserContent, AgentCodeOutcome, AgentMessageContent, AgentThreadMark,
         Article, Attachment, Backlink, CatalogModel, Connector, ConnectorAccount, Contact,
-        ContactMethod, Database, DatabaseProperty, DatabaseRow, DatabaseRowValue, EndpointModel,
-        Extension, ExtensionHook, ExtensionPermission, ExtensionService, ExtensionServiceFunction,
-        Feed, FeedFullPagePolicy, FeedStatus, HookKind, IntelligenceAgent, IntelligenceAgentCue,
+        ContactMethod, DocumentFolderProperty, DocumentValue, EndpointModel, Extension,
+        ExtensionHook, ExtensionPermission, ExtensionService, ExtensionServiceFunction, Feed,
+        FeedFullPagePolicy, FeedStatus, HookKind, IntelligenceAgent, IntelligenceAgentCue,
         IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
         IntelligenceCostEvent, IntelligenceDefault, IntelligenceEffort, IntelligenceEndpoint,
         IntelligenceSpendLimit, IntelligenceThread, IntelligenceThreadImage,
         IntelligenceThreadMessage, LinkKind, Memory, MemoryScope, Metadata, PairingOpener, Photo,
-        Profile, PublishedPrecision, Resource, ResourceKind, RewindWriter, SavedTaskView,
-        SavedTaskViewPriority, SavedTaskViewSize, SavedTaskViewTag, SecurityEvent,
+        Profile, PropertyOption, PublishedPrecision, Resource, ResourceKind, RewindWriter,
+        SavedTaskView, SavedTaskViewPriority, SavedTaskViewSize, SavedTaskViewTag, SecurityEvent,
         SecurityEventKind, SecuritySettings, StorageEntry, StorageSettings, Tag, TaskTag,
         ThreadItem, ThreadOrigin, ThreadPrompt, Version, VersionedItem, WorkspaceResourceKind,
     },
@@ -462,7 +462,7 @@ const WORDS: &[(&str, &str, &str)] = &[
     ("agent_thread_marks", "source", "conversation"),
     ("backlinks", "source_kind", "document"),
     ("backlinks", "target_kind", "task"),
-    ("database_properties", "data_type", "text"),
+    ("document_folder_properties", "data_type", "text"),
 ];
 
 /// Required JSON columns of a table's own, which take `[]`.
@@ -568,8 +568,9 @@ fn every_model_matches_the_schema() {
     // `endpoint_model_id = 0`, `client_id = 0`, `actor_id = 0`,
     // `task_id = 0`, `contact_id = 0`, `tag_id = 0` (a task tag, with task 0 in
     // workspace 0 to put it on) and `view_id = 0` (a saved view of
-    // workspace 0), `database_id = 0`, `row_id = 0` and `property_id = 0` (a
-    // database value, on database 0's row and property), which must exist; `message_id = 0` is both
+    // workspace 0), `folder_id = 0`, `document_id = 0` and `property_id = 0`
+    // (a document's value, on document 0 in folder 0 and that folder's
+    // property 0, a choice so it can hold an option), which must exist; `message_id = 0` is both
     // an agent's message and an actor task's. That service belongs to another
     // extension, leaving extension 0 free to declare the one checked. The
     // security and storage settings' and the profile's one rows make way for
@@ -602,11 +603,11 @@ fn every_model_matches_the_schema() {
              INSERT INTO feeds (id, url, title, status_state, status_at, added)
                  VALUES (0, '', '', 'refreshed', 0, 0);
              INSERT INTO tasks (id, workspace_id, title) VALUES (0, 0, '');
-             INSERT INTO documents (id, workspace_id, title, contents) VALUES (0, 0, '', '');
-             INSERT INTO databases (id, workspace_id, title) VALUES (0, 0, '');
-             INSERT INTO database_properties (id, database_id, name, data_type)
-                 VALUES (0, 0, '', 'text');
-             INSERT INTO database_rows (id, database_id) VALUES (0, 0);
+             INSERT INTO document_folders (id, workspace_id, title) VALUES (0, 0, '');
+             INSERT INTO documents (id, workspace_id, title, contents, folder_id)
+                 VALUES (0, 0, '', '', 0);
+             INSERT INTO document_folder_properties (id, folder_id, name, data_type)
+                 VALUES (0, 0, '', 'choice');
              INSERT INTO contacts (id, workspace_id, first_name, last_name)
                  VALUES (0, 0, '', '');
              INSERT INTO tags (id, workspace_id, name) VALUES (0, 0, 'checked');
@@ -3043,12 +3044,13 @@ See [me](cohesion://task/42) and `[code](cohesion://task/3/43)`.'),
 
 #[test]
 fn databases_keep_their_values_to_their_own_rows_and_properties_and_rows_take_their_documents() {
-    let mut db = Container::in_memory().unwrap();
+    let db = Container::in_memory().unwrap();
     let at = MIGRATIONS
         .iter()
         .position(|migration| migration.name == "databases")
         .unwrap();
-    // As `migrate` runs them: the later ones rebuild tables with foreign keys off.
+    // As `migrate` runs them: the later ones rebuild tables with foreign keys
+    // off. `document_tables` replaced these tables, so this runs no further.
     db.connection()
         .pragma_update(None, "foreign_keys", false)
         .unwrap();
@@ -3062,10 +3064,7 @@ fn databases_keep_their_values_to_their_own_rows_and_properties_and_rows_take_th
              INSERT INTO documents (id, workspace_id, title, contents) VALUES (1, 1, 'Plan', 'apples');",
         )
         .unwrap();
-    db.connection()
-        .pragma_update(None, "user_version", at as i64)
-        .unwrap();
-    db.migrate().unwrap();
+    db.connection().execute_batch(MIGRATIONS[at].sql).unwrap();
     db.connection()
         .pragma_update(None, "foreign_keys", true)
         .unwrap();
@@ -3134,4 +3133,300 @@ fn databases_keep_their_values_to_their_own_rows_and_properties_and_rows_take_th
     );
     assert_eq!(count("SELECT count(*) FROM database_row_values"), 0);
     assert_eq!(count("SELECT count(*) FROM documents WHERE id = 1"), 1);
+}
+
+/// Runs every migration before `name` on a new database, with the
+/// migration functions and foreign keys off, as `migrate` runs them, and
+/// returns it with its `user_version` there, to be filled and migrated on.
+fn migrated_before(name: &str) -> Container {
+    let db = Container::in_memory().unwrap();
+    let at = MIGRATIONS
+        .iter()
+        .position(|migration| migration.name == name)
+        .unwrap();
+    db.connection()
+        .pragma_update(None, "foreign_keys", false)
+        .unwrap();
+    db.register_migration_functions().unwrap();
+    for migration in &MIGRATIONS[..at] {
+        db.connection().execute_batch(migration.sql).unwrap();
+    }
+    db.connection()
+        .pragma_update(None, "user_version", at as i64)
+        .unwrap();
+    db
+}
+
+#[test]
+fn databases_become_document_folders_whose_rows_are_documents() {
+    let mut db = migrated_before("document_tables");
+    // Books: a formula first, then Pages, then Name, its first text property
+    // set by hand. Its rows: one without a document named by Name, one whose
+    // untitled document Name names, one whose blank Name leaves its
+    // document's title, and an empty one with outdated formulas. Films: one
+    // empty row with an untitled document. A document links to Books.
+    db.connection()
+        .execute_batch(
+            "INSERT INTO workspaces (id, title) VALUES (1, 'Home');
+             INSERT INTO document_folders (id, workspace_id, title, sort_order)
+                 VALUES (1, 1, 'Notes', 1);
+             INSERT INTO documents (id, workspace_id, title, contents)
+                 VALUES (1, 1, 'Plan', '[Books](cohesion://database/1/1)');
+             INSERT INTO documents (id, workspace_id, title, contents, document_type)
+                 VALUES (2, 1, '', 'apples', 'databaseRow'),
+                        (3, 1, 'Old notes', 'pears', 'databaseRow'),
+                        (4, 1, '', '', 'databaseRow');
+             INSERT INTO databases (id, workspace_id, title) VALUES (1, 1, 'films'), (2, 1, 'Books');
+             INSERT INTO database_properties
+                     (id, database_id, name, data_type, sort_order, formula_source, formula_error)
+                 VALUES (1, 2, 'Shout', 'text', 0, '(row) => row.Name', 'TypeError: no'),
+                        (2, 2, 'Pages', 'integer', 1, NULL, NULL),
+                        (3, 2, 'Name', 'text', 2, NULL, NULL),
+                        (4, 1, 'Title', 'text', 0, NULL, NULL);
+             INSERT INTO database_rows (id, database_id, document_id, formula_stale)
+                 VALUES (1, 2, NULL, 0), (2, 2, 2, 0), (3, 2, 3, 0), (4, 2, NULL, 2),
+                        (5, 1, 4, 0);
+             INSERT INTO database_row_values
+                     (id, database_id, row_id, property_id, text_value, integer_value, real_value)
+                 VALUES (1, 2, 1, 1, 'DUNE', NULL, NULL),
+                        (2, 2, 1, 2, '412', 412, 412.0),
+                        (3, 2, 1, 3, 'Dune', NULL, NULL),
+                        (4, 2, 2, 3, 'Emma', NULL, NULL),
+                        (5, 2, 3, 3, '  ', NULL, NULL);
+             INSERT INTO backlinks (source_kind, source_id, target_kind, target_id, link)
+                 VALUES ('document', 1, 'database', 2, 'cohesion://database/1/2'),
+                        ('document', 2, 'document', 1, 'cohesion://document/1/1'),
+                        ('document', 1, 'contact', 7, 'cohesion://contact/1/7');",
+        )
+        .unwrap();
+    db.migrate().unwrap();
+    db.connection()
+        .pragma_update(None, "foreign_keys", true)
+        .unwrap();
+    let run = |sql: &str| db.connection().execute_batch(sql);
+    let rows = |sql: &str| -> Vec<Vec<String>> {
+        let mut statement = db.connection().prepare(sql).unwrap();
+        let width = statement.column_count();
+        statement
+            .query_map([], |row| {
+                (0..width)
+                    .map(|i| {
+                        row.get::<_, rusqlite::types::Value>(i)
+                            .map(|value| match value {
+                                rusqlite::types::Value::Null => "NULL".to_string(),
+                                rusqlite::types::Value::Integer(n) => n.to_string(),
+                                rusqlite::types::Value::Real(n) => n.to_string(),
+                                rusqlite::types::Value::Text(text) => text,
+                                rusqlite::types::Value::Blob(_) => "blob".to_string(),
+                            })
+                    })
+                    .collect()
+            })
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    };
+
+    // Each database is a top-level folder after the others, ordered by
+    // title.
+    assert_eq!(
+        rows("SELECT id, title, parent_id, sort_order FROM document_folders ORDER BY id"),
+        [
+            ["1", "Notes", "NULL", "1"],
+            ["2", "films", "NULL", "3"],
+            ["3", "Books", "NULL", "2"],
+        ]
+    );
+    // Each row is an ordinary document in it, titled by the rule; rows
+    // without one have new, empty ones.
+    assert_eq!(
+        rows(
+            "SELECT id, title, contents, document_type, folder_id, formula_stale
+             FROM documents ORDER BY id"
+        ),
+        [
+            [
+                "1",
+                "Plan",
+                "[Books](cohesion://database/1/1)",
+                "normal",
+                "NULL",
+                "0"
+            ],
+            ["2", "Emma", "apples", "normal", "3", "0"],
+            ["3", "Old notes", "pears", "normal", "3", "0"],
+            ["4", "Untitled", "", "normal", "2", "0"],
+            ["5", "Dune", "", "normal", "3", "0"],
+            ["6", "Untitled", "", "normal", "3", "2"],
+        ]
+    );
+    // Properties and values keep their ids, now by folder and document;
+    // the text column that named the rows keeps its values. A formula is
+    // computed when what it reads changes; a property set by hand has no
+    // update mode.
+    assert_eq!(
+        rows(
+            "SELECT id, folder_id, name, sort_order, formula_source, formula_update_mode,
+                 formula_error
+             FROM document_folder_properties ORDER BY id"
+        ),
+        [
+            [
+                "1",
+                "3",
+                "Shout",
+                "0",
+                "(row) => row.Name",
+                "whenChanged",
+                "TypeError: no"
+            ],
+            ["2", "3", "Pages", "1", "NULL", "NULL", "NULL"],
+            ["3", "3", "Name", "2", "NULL", "NULL", "NULL"],
+            ["4", "2", "Title", "0", "NULL", "NULL", "NULL"],
+        ]
+    );
+    assert_eq!(
+        rows(
+            "SELECT id, folder_id, document_id, property_id, text_value, integer_value
+             FROM document_values ORDER BY id"
+        ),
+        [
+            ["1", "3", "5", "1", "DUNE", "NULL"],
+            ["2", "3", "5", "2", "412", "412"],
+            ["3", "3", "5", "3", "Dune", "NULL"],
+            ["4", "3", "2", "3", "Emma", "NULL"],
+            ["5", "3", "3", "3", "  ", "NULL"],
+        ]
+    );
+    // The old tables are gone, and so are links to a database; a link to a
+    // contact, which `contacts_search_and_links` admitted, is kept.
+    assert!(
+        rows(
+            "SELECT name FROM sqlite_master WHERE name IN
+             ('databases', 'database_properties', 'database_rows', 'database_row_values',
+              'database_folders', 'database_row_documents')"
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        rows("SELECT source_id, target_kind, target_id FROM backlinks ORDER BY source_id"),
+        [["1", "contact", "7"], ["2", "document", "1"]]
+    );
+
+    // Former rows' documents are searchable, new ones by their titles.
+    assert_eq!(search(&db, "apples"), [("document".to_string(), 2)]);
+    assert_eq!(search(&db, "pears"), [("document".to_string(), 3)]);
+    assert_eq!(search(&db, "Dune"), [("document".to_string(), 5)]);
+
+    // A value's document and property are of its folder: it can't name
+    // another's, and a document can't leave its folder with values.
+    assert!(
+        run(
+            "INSERT INTO document_values (folder_id, document_id, property_id, text_value)
+             VALUES (3, 4, 3, 'x')"
+        )
+        .is_err()
+    );
+    assert!(
+        run(
+            "INSERT INTO document_values (folder_id, document_id, property_id, text_value)
+             VALUES (2, 4, 3, 'x')"
+        )
+        .is_err()
+    );
+    assert!(run("UPDATE documents SET folder_id = NULL WHERE id = 5").is_err());
+    run("DELETE FROM document_values WHERE document_id = 5").unwrap();
+    run("UPDATE documents SET folder_id = NULL WHERE id = 5").unwrap();
+    // The Inbox never has properties.
+    assert!(
+        run(
+            "INSERT INTO document_folder_properties (folder_id, name, data_type)
+             VALUES (NULL, 'Pages', 'integer')"
+        )
+        .is_err()
+    );
+    // An update mode belongs to a formula: a property set by hand can't
+    // have one, a formula can't go without one, and it is one of the two.
+    assert!(run("UPDATE document_folder_properties SET formula_update_mode = 'continuously' WHERE id = 2").is_err());
+    assert!(
+        run("UPDATE document_folder_properties SET formula_update_mode = NULL WHERE id = 1")
+            .is_err()
+    );
+    assert!(
+        run("UPDATE document_folder_properties SET formula_update_mode = 'hourly' WHERE id = 1")
+            .is_err()
+    );
+    run("UPDATE document_folder_properties SET formula_update_mode = 'continuously' WHERE id = 1")
+        .unwrap();
+    // A former row's document is soft-deleted like any, and removing it
+    // for good takes its values.
+    run("UPDATE documents SET deleted = TRUE WHERE id = 2").unwrap();
+    run("DELETE FROM documents WHERE id = 2").unwrap();
+    assert_eq!(
+        rows("SELECT count(*) FROM document_values WHERE document_id = 2"),
+        [["0"]]
+    );
+
+    // Only a choice property has options, named uniquely ignoring case, and
+    // a choice is never a formula.
+    run("UPDATE document_folder_properties SET data_type = 'choice' WHERE id = 4").unwrap();
+    assert!(
+        run("UPDATE document_folder_properties SET data_type = 'choice' WHERE id = 1").is_err()
+    );
+    run("INSERT INTO document_property_options (id, property_id, name) VALUES (1, 4, 'Read')")
+        .unwrap();
+    run(
+        "INSERT INTO document_property_options (id, property_id, name, color)
+         VALUES (2, 4, 'Unread', 'blue')",
+    )
+    .unwrap();
+    assert!(
+        run("INSERT INTO document_property_options (property_id, name) VALUES (4, 'READ')")
+            .is_err()
+    );
+    assert!(
+        run("INSERT INTO document_property_options (property_id, name) VALUES (3, 'Read')")
+            .is_err()
+    );
+    assert!(
+        run(
+            "INSERT INTO document_property_options (property_id, name, color)
+             VALUES (4, 'Later', 'mauve')"
+        )
+        .is_err()
+    );
+    // A property with options stays a choice until they go.
+    assert!(run("UPDATE document_folder_properties SET data_type = 'text' WHERE id = 4").is_err());
+    // A value names an option of its own property: deleting the option
+    // takes the value.
+    run(
+        "INSERT INTO document_values (folder_id, document_id, property_id, text_value, option_id)
+         VALUES (2, 4, 4, '', 1)",
+    )
+    .unwrap();
+    run(
+        "INSERT INTO document_folder_properties (id, folder_id, name, data_type)
+         VALUES (5, 2, 'Shelf', 'choice')",
+    )
+    .unwrap();
+    assert!(
+        run("UPDATE document_values SET property_id = 5 WHERE document_id = 4 AND property_id = 4")
+            .is_err()
+    );
+    assert!(
+        run("INSERT INTO document_values (folder_id, document_id, property_id, text_value, option_id)
+             VALUES (2, 4, 5, '', 1)")
+        .is_err()
+    );
+    run("DELETE FROM document_property_options WHERE id = 1").unwrap();
+    assert_eq!(
+        rows("SELECT count(*) FROM document_values WHERE property_id = 4"),
+        [["0"]]
+    );
+    // Deleting the property takes its options.
+    run("DELETE FROM document_folder_properties WHERE id = 4").unwrap();
+    assert_eq!(
+        rows("SELECT count(*) FROM document_property_options"),
+        [["0"]]
+    );
 }

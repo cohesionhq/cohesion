@@ -24,10 +24,10 @@
 			]
 		},
 		{
-			title: 'Documents and databases',
+			title: 'Documents',
 			rows: [
-				{ keys: [keyLabel('mod', 'n')], label: 'New document or database' },
-				{ keys: [newFolderKeys], label: 'New folder (documents)' }
+				{ keys: [keyLabel('mod', 'n')], label: 'New document' },
+				{ keys: [newFolderKeys], label: 'New folder' }
 			]
 		},
 		{

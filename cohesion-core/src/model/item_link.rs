@@ -14,56 +14,28 @@ use serde::{Deserialize, Serialize};
 ///   `cohesion://document/<id>`, without the workspace, as links were first
 ///   written, still name one, since their ids are unique across workspaces.
 /// - `cohesion://resource/<workspace>/<id>`,
-///   `cohesion://database/<workspace>/<id>` and
-///   `cohesion://contact/<workspace>/<id>`.
-/// - `cohesion://database-row/<workspace>/<database>/<id>`: a row of a
-///   database.
+///   `cohesion://contact/<workspace>/<id>` and
+///   `cohesion://document-folder/<workspace>/<id>`, a document folder, which
+///   is how a table is linked.
 /// - `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and
 ///   `cohesion://article/<id>`, which belong to no workspace.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ItemLink {
-    Task {
-        workspace_id: Option<i64>,
-        id: i64,
-    },
-    Document {
-        workspace_id: Option<i64>,
-        id: i64,
-    },
-    Resource {
-        workspace_id: i64,
-        id: i64,
-    },
-    Database {
-        workspace_id: i64,
-        id: i64,
-    },
-    Contact {
-        workspace_id: i64,
-        id: i64,
-    },
-    DatabaseRow {
-        workspace_id: i64,
-        database_id: i64,
-        id: i64,
-    },
-    Agent {
-        id: i64,
-    },
-    ActorSession {
-        id: i64,
-    },
-    Article {
-        id: i64,
-    },
+    Task { workspace_id: Option<i64>, id: i64 },
+    Document { workspace_id: Option<i64>, id: i64 },
+    Resource { workspace_id: i64, id: i64 },
+    DocumentFolder { workspace_id: i64, id: i64 },
+    Contact { workspace_id: i64, id: i64 },
+    Agent { id: i64 },
+    ActorSession { id: i64 },
+    Article { id: i64 },
 }
 
 /// What kind of item a `cohesion://` link names, one per kind of link; stored
 /// as text.
 ///
 /// - `"task"`, `"document"` (a journal entry too), `"resource"`,
-///   `"database"`, `"databaseRow"`, `"contact"`, `"agent"`, `"actorSession"`,
-///   `"article"`.
+///   `"documentFolder"`, `"contact"`, `"agent"`, `"actorSession"`, `"article"`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, TextEnum, TsWire)]
 #[serde(rename_all = "camelCase")]
 #[text_enum(rename_all = "camelCase")]
@@ -71,8 +43,7 @@ pub enum LinkKind {
     Task,
     Document,
     Resource,
-    Database,
-    DatabaseRow,
+    DocumentFolder,
     Contact,
     Agent,
     ActorSession,
@@ -95,8 +66,7 @@ impl ItemLink {
             ItemLink::Task { id, .. } => (LinkKind::Task, id),
             ItemLink::Document { id, .. } => (LinkKind::Document, id),
             ItemLink::Resource { id, .. } => (LinkKind::Resource, id),
-            ItemLink::Database { id, .. } => (LinkKind::Database, id),
-            ItemLink::DatabaseRow { id, .. } => (LinkKind::DatabaseRow, id),
+            ItemLink::DocumentFolder { id, .. } => (LinkKind::DocumentFolder, id),
             ItemLink::Contact { id, .. } => (LinkKind::Contact, id),
             ItemLink::Agent { id } => (LinkKind::Agent, id),
             ItemLink::ActorSession { id } => (LinkKind::ActorSession, id),
@@ -142,13 +112,10 @@ impl FromStr for ItemLink {
                 id,
             },
             ("resource", &[workspace_id, id]) => ItemLink::Resource { workspace_id, id },
-            ("database", &[workspace_id, id]) => ItemLink::Database { workspace_id, id },
+            ("document-folder", &[workspace_id, id]) => {
+                ItemLink::DocumentFolder { workspace_id, id }
+            }
             ("contact", &[workspace_id, id]) => ItemLink::Contact { workspace_id, id },
-            ("database-row", &[workspace_id, database_id, id]) => ItemLink::DatabaseRow {
-                workspace_id,
-                database_id,
-                id,
-            },
             ("agent", &[id]) => ItemLink::Agent { id },
             ("actor-session", &[id]) => ItemLink::ActorSession { id },
             ("article", &[id]) => ItemLink::Article { id },
@@ -188,20 +155,12 @@ impl fmt::Display for ItemLink {
             ItemLink::Resource { workspace_id, id } => {
                 write!(f, "cohesion://resource/{workspace_id}/{id}")
             }
-            ItemLink::Database { workspace_id, id } => {
-                write!(f, "cohesion://database/{workspace_id}/{id}")
+            ItemLink::DocumentFolder { workspace_id, id } => {
+                write!(f, "cohesion://document-folder/{workspace_id}/{id}")
             }
             ItemLink::Contact { workspace_id, id } => {
                 write!(f, "cohesion://contact/{workspace_id}/{id}")
             }
-            ItemLink::DatabaseRow {
-                workspace_id,
-                database_id,
-                id,
-            } => write!(
-                f,
-                "cohesion://database-row/{workspace_id}/{database_id}/{id}"
-            ),
             ItemLink::Agent { id } => write!(f, "cohesion://agent/{id}"),
             ItemLink::ActorSession { id } => write!(f, "cohesion://actor-session/{id}"),
             ItemLink::Article { id } => write!(f, "cohesion://article/{id}"),

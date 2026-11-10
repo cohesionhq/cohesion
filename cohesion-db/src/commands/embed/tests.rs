@@ -1,21 +1,20 @@
 use cohesion_core::LocalIdentity;
 use cohesion_core::model::{
-    ActorDefinition, ActorMessageContent, ActorSessionMessageContent, ActorUserContent,
-    DatabaseDataType, DatabaseValue, Embed, EmbedItem, EmbedKind, FeedFullPagePolicy,
-    FeedItemCapture, IntelligenceAgentColor, TextSection,
+    ActorDefinition, ActorMessageContent, ActorSessionMessageContent, ActorUserContent, Embed,
+    EmbedItem, EmbedKind, FeedFullPagePolicy, FeedItemCapture, IntelligenceAgentColor,
+    PropertyDataType, PropertyValue, TextSection,
 };
 use cohesion_core::protocol::ClientCapabilities;
 
 use super::*;
-use crate::commands::database::tests::Fixture;
+use crate::commands::document_folder_property::tests::Fixture;
 use crate::test_support::context;
 use crate::{
-    AddActorSessionMessageCommand, CommandError, CreateActorSessionCommand, CreateDatabaseCommand,
-    CreateDatabaseRowDocumentCommand, CreateDocumentCommand, CreateFeedCommand,
-    CreateIntelligenceAgentCommand, CreateTaskCommand, CreateWorkspaceCommand, DatabaseContext,
-    DeleteDatabaseCommand, DeleteDatabaseRowCommand, DeleteDocumentCommand, DeleteTaskCommand,
-    DeleteWorkspaceCommand, EditDocumentCommand, EnsureJournalCommand, IdentifyLocalClientCommand,
-    ListActorsCommand, ListArticlesCommand, SyncCapabilitiesCommand,
+    AddActorSessionMessageCommand, CommandError, CreateActorSessionCommand, CreateDocumentCommand,
+    CreateFeedCommand, CreateIntelligenceAgentCommand, CreateTaskCommand, CreateWorkspaceCommand,
+    DatabaseContext, DeleteDocumentCommand, DeleteDocumentFolderCommand, DeleteTaskCommand,
+    DeleteWorkspaceCommand, EnsureJournalCommand, IdentifyLocalClientCommand, ListActorsCommand,
+    ListArticlesCommand, SyncCapabilitiesCommand,
 };
 
 fn resolve(db: &DatabaseContext, link: &str) -> Result<Embed, CommandError> {
@@ -393,147 +392,121 @@ fn markdown_splits_into_its_text_and_resolved_embeds() {
     );
 }
 
-/// A database of books with a title and a page count, and `rows` rows, the
-/// first titled "Dune" with 412 pages; the others hold nothing.
+/// A table of books with an author and a page count, and `rows` documents
+/// as rows, the first titled "Dune" by Herbert with 412 pages; the others,
+/// "Untitled", hold nothing.
 fn books(rows: usize) -> (Fixture, Vec<i64>) {
     let f = Fixture::new();
-    let title = f.property("Title", DatabaseDataType::Text);
-    let pages = f.property("Pages", DatabaseDataType::Integer);
-    let ids: Vec<i64> = (0..rows).map(|_| f.row()).collect();
-    f.set(ids[0], &title, Some(DatabaseValue::Text("Dune".into())))
+    let author = f.property("Author", PropertyDataType::Text);
+    let pages = f.property("Pages", PropertyDataType::Integer);
+    let ids: Vec<i64> = (0..rows)
+        .map(|n| f.document_in(Some(f.folder.id), if n == 0 { "Dune" } else { "Untitled" }))
+        .collect();
+    f.set(ids[0], &author, Some(PropertyValue::Text("Herbert".into())))
         .unwrap();
-    f.set(ids[0], &pages, Some(DatabaseValue::Integer(412)))
+    f.set(ids[0], &pages, Some(PropertyValue::Integer(412)))
         .unwrap();
     (f, ids)
 }
 
-fn row_link(f: &Fixture, row: i64) -> String {
-    format!("cohesion://database-row/{}/{}/{row}", f.ws, f.database.id)
+fn folder_link(f: &Fixture) -> String {
+    format!("cohesion://document-folder/{}/{}", f.ws, f.folder.id)
 }
 
 #[test]
-fn a_database_resolves_with_its_properties_and_only_its_first_rows() {
-    let (f, rows) = books(DATABASE_PREVIEW_ROWS as usize + 2);
-    let link = format!("cohesion://database/{}/{}", f.ws, f.database.id);
+fn a_folder_resolves_with_its_properties_and_only_its_first_rows() {
+    let (f, rows) = books(TABLE_PREVIEW_ROWS as usize + 2);
+    let link = folder_link(&f);
     let embed = resolve(&f.db, &link).unwrap();
     assert_eq!(embed.link, link);
-    assert_eq!(embed.kind, EmbedKind::Database);
+    assert_eq!(embed.kind, EmbedKind::DocumentFolder);
     assert_eq!(embed.workspace_id, Some(f.ws));
     assert_eq!(embed.title, "Books");
-    let EmbedItem::Database {
+    let EmbedItem::DocumentFolder {
+        folder,
         properties,
         rows: preview,
         row_count,
-        ..
     } = embed.item
     else {
-        panic!("not a database");
+        panic!("not a folder");
     };
+    assert!(folder.is_table);
     let names: Vec<&str> = properties.iter().map(|p| p.name.as_str()).collect();
-    assert_eq!(names, ["Title", "Pages"]);
+    assert_eq!(names, ["Author", "Pages"]);
     assert_eq!(row_count, rows.len() as i64);
-    let shown: Vec<i64> = preview.iter().map(|row| row.id).collect();
-    assert_eq!(shown, rows[..DATABASE_PREVIEW_ROWS as usize]);
+    let shown: Vec<i64> = preview.iter().map(|row| row.document_id).collect();
+    assert_eq!(shown, rows[..TABLE_PREVIEW_ROWS as usize]);
+    assert_eq!(preview[0].title, "Dune");
     assert_eq!(preview[0].cells.len(), 2);
 }
 
 #[test]
-fn a_row_resolves_as_its_label_and_cells_and_so_does_a_link_to_its_document() {
-    let (f, rows) = books(2);
-    let document =
-        f.db.send_blocking(CreateDatabaseRowDocumentCommand {
-            workspace_id: f.ws,
-            database_id: f.database.id,
-            row_id: rows[0],
-        })
-        .unwrap();
-    f.db.send_blocking(EditDocumentCommand {
-        workspace_id: f.ws,
-        document_id: document.id,
-        contents: "A desert planet.\n\nMore later.".to_string(),
-    })
-    .unwrap();
-
-    for link in [
-        row_link(&f, rows[0]),
-        format!("cohesion://document/{}/{}", f.ws, document.id),
-    ] {
-        let embed = resolve(&f.db, &link).unwrap();
-        assert_eq!(embed.link, row_link(&f, rows[0]), "{link}");
-        assert_eq!(embed.kind, EmbedKind::DatabaseRow);
-        assert_eq!(embed.workspace_id, Some(f.ws));
-        assert_eq!(embed.title, "Dune");
-        assert_eq!(embed.excerpt, "A desert planet.");
-        let EmbedItem::DatabaseRow {
-            row,
-            database_title,
-            properties,
-        } = embed.item
-        else {
-            panic!("not a row");
-        };
-        assert_eq!(database_title, "Books");
-        assert_eq!(properties.len(), 2);
-        assert_eq!(row.cells.len(), 2);
-        assert_eq!(row.document_id, Some(document.id));
-    }
-
-    // A row with nothing in its first text property has a plain label.
-    let empty = resolve(&f.db, &row_link(&f, rows[1])).unwrap();
-    assert_eq!(empty.title, "Untitled");
-    assert_eq!(empty.excerpt, "");
+fn a_plain_folder_resolves_with_its_documents_titles() {
+    let f = Fixture::new();
+    f.document_in(Some(f.folder.id), "Plan");
+    let embed = resolve(&f.db, &folder_link(&f)).unwrap();
+    let EmbedItem::DocumentFolder {
+        folder,
+        properties,
+        rows,
+        row_count,
+    } = embed.item
+    else {
+        panic!("not a folder");
+    };
+    assert!(!folder.is_table);
+    assert!(properties.is_empty());
+    assert_eq!(row_count, 1);
+    assert_eq!(rows[0].title, "Plan");
+    assert!(rows[0].cells.is_empty());
 }
 
 #[test]
-fn a_database_or_row_is_found_only_in_its_own_workspace_and_database_while_it_lasts() {
+fn a_row_resolves_as_the_document_it_is() {
+    let (f, rows) = books(1);
+    let embed = resolve(&f.db, &format!("cohesion://document/{}/{}", f.ws, rows[0])).unwrap();
+    assert_eq!(embed.kind, EmbedKind::Document);
+    assert_eq!(embed.title, "Dune");
+}
+
+#[test]
+fn a_folder_is_found_only_in_its_own_workspace_while_it_lasts() {
     let (f, rows) = books(1);
     let elsewhere = Fixture::on(f.db.clone());
-    let other_database =
-        f.db.send_blocking(CreateDatabaseCommand {
-            workspace_id: f.ws,
-            title: "Films".to_string(),
-        })
-        .unwrap();
     let not_found = |link: String| {
         assert!(
             matches!(resolve(&f.db, &link), Err(CommandError::NotFound(_))),
             "{link}"
         );
     };
-    let (ws, db, row) = (f.ws, f.database.id, rows[0]);
-    not_found(format!("cohesion://database/{}/{db}", elsewhere.ws));
     not_found(format!(
-        "cohesion://database-row/{}/{db}/{row}",
-        elsewhere.ws
-    ));
-    not_found(format!(
-        "cohesion://database-row/{}/{}/{row}",
-        elsewhere.ws, elsewhere.database.id
-    ));
-    not_found(format!(
-        "cohesion://database-row/{ws}/{}/{row}",
-        other_database.id
+        "cohesion://document-folder/{}/{}",
+        elsewhere.ws, f.folder.id
     ));
 
-    // Once the row is gone its card has nothing to show, and then the
-    // database's neither.
-    let text = format!("[Dune]({})", row_link(&f, row));
-    f.db.send_blocking(DeleteDatabaseRowCommand {
-        workspace_id: ws,
-        database_id: db,
-        row_id: row,
+    // A deleted row leaves the preview; a deleted folder has nothing to show.
+    f.db.send_blocking(DeleteDocumentCommand {
+        workspace_id: f.ws,
+        document_id: rows[0],
     })
     .unwrap();
-    not_found(row_link(&f, row));
+    let EmbedItem::DocumentFolder { row_count, .. } =
+        resolve(&f.db, &folder_link(&f)).unwrap().item
+    else {
+        panic!("not a folder");
+    };
+    assert_eq!(row_count, 0);
+    let text = format!("[Books]({})", folder_link(&f));
+    f.db.send_blocking(DeleteDocumentFolderCommand {
+        workspace_id: f.ws,
+        folder_id: f.folder.id,
+    })
+    .unwrap();
+    not_found(folder_link(&f));
     let sections = f.db.send_blocking(ResolveEmbedsCommand { text }).unwrap();
     assert!(matches!(
         sections.as_slice(),
         [TextSection::Embed { embed: None, .. }]
     ));
-    f.db.send_blocking(DeleteDatabaseCommand {
-        workspace_id: ws,
-        database_id: db,
-    })
-    .unwrap();
-    not_found(format!("cohesion://database/{ws}/{db}"));
 }

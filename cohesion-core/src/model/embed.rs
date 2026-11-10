@@ -5,20 +5,21 @@ use cohesion_macros::{TextEnum, TsWire};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    ActorSession, Article, ArticleSummary, Contact, Database, DatabaseProperty, DatabaseRowEntry,
-    Document, DocumentType, IntelligenceAgent, ItemLink, Resource, ResourceContentKind, Task,
+    ActorSession, Article, ArticleSummary, Contact, Document, DocumentFolder,
+    DocumentFolderProperty, DocumentType, IntelligenceAgent, ItemLink, Resource,
+    ResourceContentKind, TableRow, Task,
 };
 
-/// How many of a database's rows its embed holds, the first in the order
-/// they were added: enough for a card to preview it as a table, never the
+/// How many of a document folder's documents its embed holds as rows, the
+/// first created: enough for a card to preview it as a table, never the
 /// whole of a large one.
-pub const DATABASE_PREVIEW_ROWS: u64 = 5;
+pub const TABLE_PREVIEW_ROWS: u64 = 5;
 
 /// What kind of item an embed shows; `vocabulary.embed_kinds` words each.
 ///
 /// - `"task"`, `"document"`, `"journalEntry"` (a document of type
-///   `journal`), `"resource"`, `"database"`, `"databaseRow"`, `"contact"`,
-///   `"agent"`, `"actorSession"`, `"article"`.
+///   `journal`), `"resource"`, `"documentFolder"` (a table, or a plain
+///   folder), `"contact"`, `"agent"`, `"actorSession"`, `"article"`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TextEnum, TsWire)]
 #[serde(rename_all = "camelCase")]
 #[text_enum(rename_all = "camelCase")]
@@ -27,8 +28,7 @@ pub enum EmbedKind {
     Document,
     JournalEntry,
     Resource,
-    Database,
-    DatabaseRow,
+    DocumentFolder,
     Contact,
     Agent,
     ActorSession,
@@ -48,15 +48,13 @@ pub struct Embed {
     /// article, which belong to none.
     pub workspace_id: Option<i64>,
     /// The item's title; an agent's name; a contact's full name
-    /// (`Contact::full_name`); a database row's label
-    /// (`DatabaseRowEntry::label`).
+    /// (`Contact::full_name`).
     pub title: String,
     /// The start of the item's text as plain text, at most about 200
     /// characters: a task's description, a document's or text resource's
-    /// contents, a database row's document's contents, a contact's notes,
-    /// an agent's role, an
-    /// actor session's last message from its actor, an article's text. `""`
-    /// when it has none, as for a database.
+    /// contents, a contact's notes, an agent's role, an actor session's last
+    /// message from its actor, an article's text. `""` when it has none, as
+    /// for a folder.
     pub excerpt: String,
     pub item: EmbedItem,
 }
@@ -76,24 +74,18 @@ pub enum EmbedItem {
     Resource {
         resource: Resource,
     },
-    /// A database, with enough to preview it as a table.
-    Database {
-        database: Database,
-        /// Its properties in their order.
-        properties: Vec<DatabaseProperty>,
-        /// Its first rows in the order they were added, at most
-        /// `DATABASE_PREVIEW_ROWS` (5).
-        rows: Vec<DatabaseRowEntry>,
-        /// How many rows it has in all.
+    /// A document folder, with enough to preview it as a table: a plain
+    /// folder has no properties, so its rows are its documents' titles.
+    DocumentFolder {
+        folder: DocumentFolder,
+        /// Its properties in their order; empty for a folder that isn't a
+        /// table.
+        properties: Vec<DocumentFolderProperty>,
+        /// Its first live documents as rows, oldest first, at most
+        /// `TABLE_PREVIEW_ROWS` (5).
+        rows: Vec<TableRow>,
+        /// How many live documents it holds in all.
         row_count: i64,
-    },
-    /// A row of a database, with its database's properties, so its cells
-    /// read as name and value; `row.document_id` is its document's.
-    DatabaseRow {
-        row: DatabaseRowEntry,
-        database_title: String,
-        /// Its database's properties in their order.
-        properties: Vec<DatabaseProperty>,
     },
     Contact {
         contact: Contact,
@@ -137,7 +129,7 @@ impl Embed {
             }
             .to_string(),
             kind: match document.document_type {
-                DocumentType::Normal | DocumentType::DatabaseRow => EmbedKind::Document,
+                DocumentType::Normal => EmbedKind::Document,
                 DocumentType::Journal => EmbedKind::JournalEntry,
             },
             workspace_id: Some(document.workspace_id),
@@ -167,58 +159,29 @@ impl Embed {
         }
     }
 
-    /// Database `database` with its `properties`, its first `rows` and how
-    /// many it has, `row_count`.
-    pub fn database(
-        database: Database,
-        properties: Vec<DatabaseProperty>,
-        rows: Vec<DatabaseRowEntry>,
+    /// Document folder `folder` with its `properties`, its first `rows` and
+    /// how many it holds, `row_count`.
+    pub fn document_folder(
+        folder: DocumentFolder,
+        properties: Vec<DocumentFolderProperty>,
+        rows: Vec<TableRow>,
         row_count: i64,
     ) -> Self {
         Self {
-            link: ItemLink::Database {
-                workspace_id: database.workspace_id,
-                id: database.id,
+            link: ItemLink::DocumentFolder {
+                workspace_id: folder.workspace_id,
+                id: folder.id,
             }
             .to_string(),
-            kind: EmbedKind::Database,
-            workspace_id: Some(database.workspace_id),
-            title: database.title.clone(),
+            kind: EmbedKind::DocumentFolder,
+            workspace_id: Some(folder.workspace_id),
+            title: folder.title.clone(),
             excerpt: String::new(),
-            item: EmbedItem::Database {
-                database,
+            item: EmbedItem::DocumentFolder {
+                folder,
                 properties,
                 rows,
                 row_count,
-            },
-        }
-    }
-
-    /// Row `row` of `database`, whose properties are `properties`, and the
-    /// row's `document` if it has one.
-    pub fn database_row(
-        database: Database,
-        properties: Vec<DatabaseProperty>,
-        row: DatabaseRowEntry,
-        document: Option<&Document>,
-    ) -> Self {
-        Self {
-            link: ItemLink::DatabaseRow {
-                workspace_id: database.workspace_id,
-                database_id: database.id,
-                id: row.id,
-            }
-            .to_string(),
-            kind: EmbedKind::DatabaseRow,
-            workspace_id: Some(database.workspace_id),
-            title: row.label(&properties),
-            excerpt: document
-                .map(|document| excerpt(&document.contents))
-                .unwrap_or_default(),
-            item: EmbedItem::DatabaseRow {
-                row,
-                database_title: database.title,
-                properties,
             },
         }
     }

@@ -167,4 +167,11 @@ pub trait ColumnGroup: Sized {
     /// A value for every one of [`COLUMNS`](Self::COLUMNS), in order:
     /// `NULL` for the columns this variant doesn't have.
     fn into_values(self) -> Vec<Value>;
+    /// What the group reads besides its columns, as `(name, sql)`: SQL over
+    /// the model's row, such as the rows of another table that belong to it,
+    /// selected `AS` the name [`from_row`](Self::from_row) reads it by, and
+    /// never written. Empty for a group of columns alone. The field of a
+    /// group that reads any is marked `#[model(group, reads)]`, which keeps
+    /// its model from being [`SingleTable`]: `RETURNING *` can't read them.
+    const READS: &'static [(&'static str, &'static str)] = &[];
 }

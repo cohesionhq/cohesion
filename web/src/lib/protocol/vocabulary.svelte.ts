@@ -7,7 +7,7 @@
 
 import type {
 	ActorSessionStatus,
-	DatabaseDataType,
+	PropertyDataType,
 	ActorSessionStop,
 	EmbedKind,
 	ExtensionPermissionKind,
@@ -42,7 +42,8 @@ const EMPTY: Words = {
 	pairing_openers: [],
 	security_events: [],
 	embed_kinds: [],
-	database_data_types: []
+	property_data_types: [],
+	formula_update_modes: []
 };
 
 class Vocabulary {
@@ -57,7 +58,7 @@ class Vocabulary {
 	#actorSessionStops = $derived(byKind(this.value.actor_session_stops));
 	#securityEvents = $derived(byKind(this.value.security_events));
 	#embedKinds = $derived(byKind(this.value.embed_kinds));
-	#databaseDataTypes = $derived(byKind(this.value.database_data_types));
+	#propertyDataTypes = $derived(byKind(this.value.property_data_types));
 
 	permission(kind: ExtensionPermissionKind): Described<ExtensionPermissionKind> {
 		return this.#permissions.get(kind)!;
@@ -93,9 +94,9 @@ class Vocabulary {
 		return this.#embedKinds.get(kind)!.label;
 	}
 
-	/** What a database property's type of value is called: `Whole number`, `Currency`. */
-	databaseDataType(kind: DatabaseDataType): string {
-		return this.#databaseDataTypes.get(kind)!.label;
+	/** What a table column's type of value is called: `Whole number`, `Currency`. */
+	propertyDataType(kind: PropertyDataType): string {
+		return this.#propertyDataTypes.get(kind)!.label;
 	}
 
 	/** What to call the provider whose catalog id is `identifier`, if it has a preset. */

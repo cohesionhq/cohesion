@@ -75,7 +75,7 @@ describe('documents store', () => {
 	it('lists normal documents and the journal archive separately', async () => {
 		const store = createDocumentsStore(createMock().send);
 		await Promise.all([store.list.load(1), store.archive.load(1)]);
-		expect(store.list.value.map((d) => d.title)).toEqual([
+		expect(store.list.value.map((d) => d.title).slice(0, 6)).toEqual([
 			'Full-text search syntax and errors',
 			'Extensions Registry',
 			'JS script engine pool sizes',
@@ -83,6 +83,8 @@ describe('documents store', () => {
 			'Launch plan',
 			'Winter reading'
 		]);
+		// The rows of the two tables are documents too, listed like any other.
+		expect(store.list.value).toHaveLength(17);
 		expect(store.archive.value.map((d) => d.id)).toEqual([1, 2, 3, 4]);
 	});
 
@@ -115,7 +117,13 @@ describe('documents store', () => {
 	it('files documents into folders, nests folders and deletes them into the Inbox', async () => {
 		const store = createDocumentsStore(createMock().send);
 		await Promise.all([store.list.load(1), store.folders.load(1)]);
-		expect(store.folders.value.map((f) => f.title)).toEqual(['Design', 'Search', 'Research']);
+		expect(store.folders.value.map((f) => f.title)).toEqual([
+			'Design',
+			'Search',
+			'Research',
+			'Reading list',
+			'Kitchen renovation'
+		]);
 
 		const drafts = await store.createFolder(1, 'Drafts');
 		const inner = await store.createFolder(1, 'Inner', drafts.id);
@@ -132,13 +140,25 @@ describe('documents store', () => {
 		const top = store.folders.value
 			.filter((f) => f.parent_id === null)
 			.sort((a, b) => a.sort_order - b.sort_order);
-		expect(top.map((f) => f.title)).toEqual(['Notes', 'Design', 'Research']);
+		expect(top.map((f) => f.title)).toEqual([
+			'Notes',
+			'Design',
+			'Research',
+			'Reading list',
+			'Kitchen renovation'
+		]);
 		await expect(store.moveFolder(1, drafts.id, inner.id)).rejects.toMatchObject({
 			code: 'validationFailed'
 		});
 
 		await store.deleteFolder(1, drafts.id);
-		expect(store.folders.value.map((f) => f.title)).toEqual(['Design', 'Search', 'Research']);
+		expect(store.folders.value.map((f) => f.title)).toEqual([
+			'Design',
+			'Search',
+			'Research',
+			'Reading list',
+			'Kitchen renovation'
+		]);
 		for (const id of [created.id, registry.id])
 			expect(store.list.value.find((d) => d.id === id)?.folder_id).toBeNull();
 	});
@@ -185,5 +205,53 @@ describe('documents store', () => {
 		const store = createDocumentsStore(createMock().send);
 		await store.open(1, 999);
 		expect(store.current.error?.code).toBe('notFound');
+	});
+
+	it('asks before a move out of a table only when the document holds values set by hand', async () => {
+		const mock = createMock();
+		const store = createDocumentsStore(mock.send);
+		await Promise.all([store.list.load(1), store.folders.load(1)]);
+		// Folder 4, the reading list, is a table; 1, Design, isn't. Stars (7) is a formula.
+		const rows = await mock.send('listTableRows', { workspace_id: 1, folder_id: 4, filters: [] });
+		const withValues = store.list.value.find((d) => d.id === rows[0].document_id)!;
+		expect(await store.moveLosesValues(withValues, 1)).toBe(true);
+		expect(await store.moveLosesValues(withValues, null)).toBe(true);
+		expect(await store.moveLosesValues(withValues, 5)).toBe(true);
+		expect(await store.moveLosesValues(withValues, 4)).toBe(false);
+
+		// A plain document moving into a table asks nothing and arrives with no values.
+		const plain = store.list.value.find((d) => d.folder_id === null)!;
+		expect(await store.moveLosesValues(plain, 4)).toBe(false);
+		const moved = await store.move(plain, 4);
+		const row = await mock.send('getTableRow', {
+			workspace_id: 1,
+			folder_id: 4,
+			document_id: moved.id
+		});
+		// No values; the formula on Rating fails on an empty one.
+		expect(row.cells).toEqual([]);
+		expect(await store.moveLosesValues(moved, null)).toBe(false);
+
+		// Leaving the table deletes the values; coming back brings none.
+		await store.move(withValues, null);
+		await store.move(withValues, 4);
+		const back = await mock.send('getTableRow', {
+			workspace_id: 1,
+			folder_id: 4,
+			document_id: withValues.id
+		});
+		expect(back.cells.filter((c) => c.property_id !== 7)).toEqual([]);
+	});
+
+	it('deleting a table folder sends its documents to the Inbox without their values', async () => {
+		const mock = createMock();
+		const store = createDocumentsStore(mock.send);
+		await Promise.all([store.list.load(1), store.folders.load(1)]);
+		await store.deleteFolder(1, 4);
+		expect(store.list.value.filter((d) => d.folder_id === 4)).toEqual([]);
+		expect(mock.state.folderProperties.some((p) => p.folder_id === 4)).toBe(false);
+		const dune = store.list.value.find((d) => d.title === 'Dune')!;
+		expect(dune.folder_id).toBeNull();
+		expect(mock.state.documentValues.some((v) => v.document_id === dune.id)).toBe(false);
 	});
 });
