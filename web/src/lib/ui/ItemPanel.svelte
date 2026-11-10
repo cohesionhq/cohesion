@@ -3,10 +3,13 @@
 	titled with the item followed by its kind's icon on a tile and what it
 	is, `Task #42`, as its chip says it; then its details as rows of an
 	icon, a label and a value, and `children`, its text, under a rule when it
-	has details. An item with a page of its own takes `href`, which puts Open beside the panel's other actions. The item's main action (`leading`), then the actions and Open, sit in a toolbar along the panel's foot; Close alone stays at the top.
+	has details. An item with a page of its own takes `href`, which puts Open beside the panel's other actions; `link` puts a button before Open that copies a Markdown link to the item (`copyItemLink`). The item's main action (`leading`), then the actions and Open, sit in a toolbar along the panel's foot; Close alone stays at the top.
 -->
 <script lang="ts">
+	import Link from '@lucide/svelte/icons/link';
 	import type { Component, Snippet } from 'svelte';
+	import type { ItemLink } from '$lib/format/itemLinks';
+	import { copyItemLink } from './copyLink';
 	import SidePanel from './SidePanel.svelte';
 
 	interface Props {
@@ -17,6 +20,10 @@
 		kind: string;
 		/** The item's own page, which Open goes to. */
 		href?: string;
+		/** What the item is linked as: puts a "Copy link" button in the toolbar. */
+		link?: ItemLink;
+		/** The link's title when it isn't `title`, as a journal entry's day is. */
+		linkTitle?: string;
 		/** The toolbar's leading end, at the panel's foot: the item's main action. */
 		leading?: Snippet;
 		/** Beside Open, at the toolbar's trailing end. */
@@ -34,6 +41,8 @@
 		icon: Icon,
 		kind,
 		href,
+		link,
+		linkTitle,
 		leading,
 		actions: extra,
 		details,
@@ -46,6 +55,16 @@
 	<div class="flex items-center gap-1.5">{@render leading?.()}</div>
 	<div class="flex items-center gap-1.5">
 		{@render extra?.()}
+		{#if link}
+			<button
+				class="inline-flex size-7.5 flex-none cursor-pointer items-center justify-center rounded-sm text-fg-muted transition-colors hover:bg-bg-hover hover:text-fg"
+				type="button"
+				aria-label="Copy link"
+				onclick={() => copyItemLink(link, linkTitle ?? title)}
+			>
+				<Link size={16} strokeWidth={1.75} aria-hidden="true" />
+			</button>
+		{/if}
 		{#if href}
 			<a
 				class="inline-flex h-7.5 items-center rounded-sm px-3 font-medium text-fg no-underline transition-colors hover:bg-bg-hover hover:no-underline"
@@ -60,7 +79,7 @@
 	bind:open
 	{title}
 	{onOpenAutoFocus}
-	footer={leading || extra || href ? toolbar : undefined}
+	footer={leading || extra || href || link ? toolbar : undefined}
 >
 	{#snippet aside()}
 		<span class="flex items-center gap-2 text-sm whitespace-nowrap text-fg-muted">

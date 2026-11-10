@@ -29,6 +29,8 @@
 	icon={journal ? NotebookPen : FileText}
 	kind={journal ? 'Journal entry' : 'Document'}
 	href={documentRoute(shown)}
+	link={{ kind: 'document', ws: shown.workspace_id, id: shown.id }}
+	linkTitle={shown.title}
 >
 	{#snippet actions()}
 		<RewindButton

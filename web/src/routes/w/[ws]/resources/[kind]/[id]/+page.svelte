@@ -7,8 +7,10 @@
 	import Button from '$lib/ui/Button.svelte';
 	import CohesionUI from '$lib/ui/CohesionUI.svelte';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
+	import { copyLinkItems } from '$lib/ui/copyLink';
 	import IconTile from '$lib/ui/IconTile.svelte';
 	import Markdown from '$lib/ui/Markdown.svelte';
+	import MoreActions from '$lib/ui/MoreActions.svelte';
 	import PageHeader from '$lib/ui/PageHeader.svelte';
 	import ResourceState from '$lib/ui/ResourceState.svelte';
 	import { pane } from '$lib/shell/pane.svelte';
@@ -85,6 +87,12 @@
 					</span>
 				{/snippet}
 				{#snippet actions()}
+					<MoreActions
+						items={copyLinkItems(() => ({
+							link: { kind: 'resource', ws: resource.workspace_id, id: resource.id },
+							title: resource.title
+						}))}
+					/>
 					<Button variant="danger-quiet" onclick={() => (removing = true)}>Remove…</Button>
 				{/snippet}
 			</PageHeader>

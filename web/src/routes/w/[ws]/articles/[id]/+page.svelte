@@ -10,6 +10,7 @@
 	import { viewParam } from '$lib/stores/articles.svelte';
 	import { feeds } from '$lib/stores/feeds.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import { copyLinkItems } from '$lib/ui/copyLink';
 	import Dialog from '$lib/ui/Dialog.svelte';
 	import Field from '$lib/ui/Field.svelte';
 	import Markdown from '$lib/ui/Markdown.svelte';
@@ -156,6 +157,10 @@
 									onSelect: () => window.open(article.url, '_blank', 'noopener,noreferrer')
 								},
 								{ label: 'Rename…', onSelect: openRename },
+								...copyLinkItems(() => ({
+									link: { kind: 'article', ws: null, id: article.id },
+									title: article.title
+								})),
 								{
 									label: article.read ? 'Mark as unread' : 'Mark as read',
 									onSelect: () =>

@@ -29,7 +29,14 @@
 	});
 </script>
 
-<ItemPanel bind:open title={article.title} icon={Newspaper} kind="Article" {href}>
+<ItemPanel
+	bind:open
+	title={article.title}
+	icon={Newspaper}
+	kind="Article"
+	{href}
+	link={{ kind: 'article', ws: null, id: article.id }}
+>
 	{#snippet details()}
 		<ItemDetail label="Feed" icon={Rss}>{feedTitle}</ItemDetail>
 		{#if article.author}

@@ -3,13 +3,18 @@
      saved. -->
 <script lang="ts">
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
-	import { type ForwardedItem, forwarding } from '$lib/features/agents/forward.svelte';
+	import {
+		type ForwardedItem,
+		forwardedLink,
+		forwarding
+	} from '$lib/features/agents/forward.svelte';
 	import RewindButton from '$lib/features/rewind/RewindButton.svelte';
 	import type { Restored, RewindItem } from '$lib/stores/rewind.svelte';
 	import { shortTime } from '$lib/format/dates';
 	import type { Draft } from '$lib/stores/draft.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import Dialog from '$lib/ui/Dialog.svelte';
+	import { copyLinkItems } from '$lib/ui/copyLink';
 	import Menu from '$lib/ui/Menu.svelte';
 	import { copyToClipboard } from '$lib/ui/toasts.svelte';
 	import SavedMark from './SavedMark.svelte';
@@ -76,6 +81,7 @@
 				label: 'Copy as Markdown',
 				onSelect: () => copyToClipboard(draft.draft, 'Copied as Markdown.')
 			},
+			...copyLinkItems(() => ({ link: forwardedLink(forward), title: forward.title })),
 			...(destinations && onmove
 				? [
 						{

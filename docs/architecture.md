@@ -1789,6 +1789,19 @@ with its actor and messages; an article with its feed. Full-page content has
 an Open link (an article's opens in the current workspace). A modified click
 falls through to the `/open/…` page.
 
+**Copy link.** Every kind an item panel shows can be copied as a link to paste
+into a document. "Copy link" puts `[Title](cohesion://…)` on the clipboard, the
+title read when it is chosen and escaped as the `@` picker writes it
+(`itemLinkMarkdown`, `lib/format/itemLinks.ts`), so on a line of its own it
+becomes a card; "Copy plain link" puts the bare `cohesion://` address. Both are
+items in the menus that already hold an item's actions (`copyLinkItems`,
+`lib/ui/copyLink.ts`): a task row's (`l` chooses Copy link), the document and
+journal pages' (`DocumentMenu`), an agent's, an article's in a list and on its
+page, and the ⋯ menus a resource's and an actor session's page have for them
+(`ui/MoreActions.svelte`). An item panel has one "Copy link" button before Open
+(`ItemPanel`'s `link`), which copies the Markdown link; the `/open/…` pages
+only redirect, so they have none.
+
 **Embeds.** In a document, a journal entry, Today and a task's description, a
 link alone on its line shows as a card of its item (`shell/EmbedCard.svelte`):
 its icon (a task's box, an agent's avatar, a session's status), title, kind

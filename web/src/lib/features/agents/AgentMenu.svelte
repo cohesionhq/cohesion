@@ -1,14 +1,16 @@
 <!--
-	The conversation's overflow menu: pin, edit, the team it's on, the cues,
+	The conversation's overflow menu: pin, edit, copy its link, the team it's on, the cues,
 	memories, runs, and a confirmed delete.
 -->
 <script lang="ts">
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import type { IntelligenceAgentTeam } from '$lib/protocol/types';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
+	import { copyLinkItems } from '$lib/ui/copyLink';
 	import Menu from '$lib/ui/Menu.svelte';
 
 	interface Props {
+		id: number;
 		name: string;
 		/** Whether the agent is pinned to the top of the sidebar. */
 		pinned: boolean;
@@ -30,6 +32,7 @@
 	}
 
 	let {
+		id,
 		name,
 		pinned,
 		onpin,
@@ -51,6 +54,7 @@
 	items={[
 		{ label: pinned ? 'Unpin' : 'Pin', onSelect: onpin },
 		{ label: 'Edit…', onSelect: onedit },
+		...copyLinkItems(() => ({ link: { kind: 'agent', ws: null, id }, title: name })),
 		{
 			label: 'Move to',
 			items: [

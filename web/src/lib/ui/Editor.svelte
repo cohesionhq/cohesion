@@ -48,7 +48,7 @@
 	} from '@codemirror/view';
 	import { tags } from '@lezer/highlight';
 	import { onDestroy, onMount } from 'svelte';
-	import { embedLine } from '$lib/format/itemLinks';
+	import { embedLine, markdownLink } from '$lib/format/itemLinks';
 	import { mentionTrigger } from '$lib/format/mentionTrigger';
 	import { SEARCH_DEBOUNCE_MS } from '$lib/format/search';
 
@@ -402,10 +402,6 @@
 
 	/** Waits `ms`, so a search starts only once typing pauses. */
 	const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-	/** `[label](href)`, with the brackets in `label` kept as text. */
-	const markdownLink = (label: string, href: string) =>
-		`[${label.replace(/[[\]\\]/g, (c) => `\\${c}`)}](${href})`;
 
 	/**
 	 * Items to link after an `@` or a `[[` that starts a word, once a character follows

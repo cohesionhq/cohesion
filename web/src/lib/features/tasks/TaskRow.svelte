@@ -28,6 +28,7 @@
 	import { tagsOn, tagsSubmenu } from '$lib/features/tags/tags';
 	import type { Contact, Tag, Task, TaskAssignee } from '$lib/protocol/types';
 	import Avatar from '$lib/ui/Avatar.svelte';
+	import { copyLinkItems } from '$lib/ui/copyLink';
 	import Checkbox from '$lib/ui/Checkbox.svelte';
 	import Menu, { type MenuAction, type MenuItem } from '$lib/ui/Menu.svelte';
 	import TextInput from '$lib/ui/TextInput.svelte';
@@ -140,6 +141,10 @@
 	const items = $derived<MenuItem[]>([
 		{ label: 'Details…', key: 'o', onSelect: ondetails },
 		{ label: 'Copy ID', onSelect: copyId },
+		...copyLinkItems(() => ({
+			link: { kind: 'task', ws: task.workspace_id, id: task.id },
+			title: task.title
+		})).map((item, i) => (i === 0 ? { ...item, key: 'l' } : item)),
 		forwarding.submenu(() => ({
 			kind: 'task',
 			id: task.id,

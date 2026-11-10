@@ -43,6 +43,7 @@
 	icon={SquareTerminal}
 	kind="Actor session"
 	href={routes.actorSession(session.id)}
+	link={{ kind: 'actor-session', ws: null, id: session.id }}
 >
 	{#snippet details()}
 		<ItemDetail label="Status" icon={CircleDot}>

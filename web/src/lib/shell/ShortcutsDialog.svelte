@@ -67,7 +67,7 @@
 				{ keys: ['1–4', '0'], label: 'Priority: choose, or clear' },
 				{ keys: ['1–5', '0'], label: 'Size: choose, or clear' },
 				{ keys: ['o', 'd', 'c'], label: 'Status: open, done, cancelled' },
-				{ keys: ['o', keyLabel('backspace')], label: 'Task: details, delete' }
+				{ keys: ['o', 'l', keyLabel('backspace')], label: 'Task: details, copy link, delete' }
 			]
 		},
 		{

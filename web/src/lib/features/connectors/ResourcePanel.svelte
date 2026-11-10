@@ -31,6 +31,7 @@
 	icon={Package}
 	kind={connectors.kindTitle(resource)}
 	href={routes.resource(resource.workspace_id, resource.kind_id, resource.id)}
+	link={{ kind: 'resource', ws: resource.workspace_id, id: resource.id }}
 >
 	{#snippet details()}
 		<ItemDetail label="Kind" icon={Layers}>{connectors.kindTitle(resource)}</ItemDetail>

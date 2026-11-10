@@ -45,6 +45,23 @@ export function itemLinkHref(link: ItemLink): string {
 		: `cohesion://${link.kind}/${link.ws}/${link.id}`;
 }
 
+/**
+ * `[label](href)`, with the brackets and backslashes in `label` kept as text:
+ * the escape `embedLine` reads back, so the link stands alone on a line as one.
+ */
+export function markdownLink(label: string, href: string): string {
+	return `[${label.replace(/[[\]\\]/g, (c) => `\\${c}`)}](${href})`;
+}
+
+/**
+ * `link` as a Markdown link titled `title`, as picking the item after `@`
+ * writes it. A title spans one line, so its line breaks and runs of spaces
+ * become one space.
+ */
+export function itemLinkMarkdown(link: ItemLink, title: string): string {
+	return markdownLink(title.replace(/\s+/g, ' ').trim(), itemLinkHref(link));
+}
+
 /** A piece of Markdown text, split as `text_pieces` in cohesion-core splits it. */
 export type TextPiece =
 	| { kind: 'markdown'; text: string }
