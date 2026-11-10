@@ -7,6 +7,10 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- A task's description links as a document does: a task whose description
+  links to an item, as a card or in a sentence, shows under that item's
+  Backlinks, and moves off it when the link goes or the task is deleted.
+  When the daemon is upgraded, it fills the list from existing tasks.
 - An item's panel shows Backlinks: the documents and journal entries that
   link to the item, wherever the link is in their text. Click one to open it
   over the page. When nothing links to the item, the section doesn't show.

@@ -2909,3 +2909,71 @@ fn backlinks_are_filled_from_every_live_documents_links() {
         .unwrap();
     assert!(db.select::<Backlink>().all().unwrap().is_empty());
 }
+
+#[test]
+fn task_backlinks_are_filled_from_every_live_tasks_description() {
+    let mut db = Container::in_memory().unwrap();
+    let at = MIGRATIONS
+        .iter()
+        .position(|migration| migration.name == "task_backlinks")
+        .unwrap();
+    db.connection()
+        .pragma_update(None, "foreign_keys", false)
+        .unwrap();
+    db.register_migration_functions().unwrap();
+    for migration in &MIGRATIONS[..at] {
+        db.connection().execute_batch(migration.sql).unwrap();
+    }
+    db.connection()
+        .execute_batch(
+            "INSERT INTO workspaces (id, title) VALUES (3, 'Work');
+             INSERT INTO documents (id, workspace_id, title, contents) VALUES (8, 3, 'Plan', '');
+             INSERT INTO tasks (id, workspace_id, title, description) VALUES
+                 (42, 3, 'Fix login', '[The plan](cohesion://document/3/8)
+
+See [me](cohesion://task/42) and `[code](cohesion://task/3/43)`.'),
+                 (43, 3, 'Ship it', 'No links.');
+             INSERT INTO tasks (id, workspace_id, deleted, title, description) VALUES
+                 (44, 3, TRUE, 'Gone', '[The plan](cohesion://document/8)');",
+        )
+        .unwrap();
+    db.connection()
+        .pragma_update(None, "user_version", at as i64)
+        .unwrap();
+    db.migrate().unwrap();
+
+    let db = WriteContainer::new(&db);
+    let rows: Vec<(LinkKind, i64, LinkKind, i64, String)> = db
+        .select::<Backlink>()
+        .order("id")
+        .all()
+        .unwrap()
+        .into_iter()
+        .map(|b| {
+            (
+                b.source_kind,
+                b.source_id,
+                b.target_kind,
+                b.target_id,
+                b.link,
+            )
+        })
+        .collect();
+    assert_eq!(
+        rows,
+        [(
+            LinkKind::Task,
+            42,
+            LinkKind::Document,
+            8,
+            "cohesion://document/3/8".to_string()
+        )]
+    );
+
+    // A task removed for good takes its backlinks with it.
+    db.delete::<Task>()
+        .filter_eq(Task::ID, 42)
+        .execute()
+        .unwrap();
+    assert!(db.select::<Backlink>().all().unwrap().is_empty());
+}
