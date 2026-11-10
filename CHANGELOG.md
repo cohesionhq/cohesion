@@ -7,6 +7,10 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- `cohesion mcp` is a local MCP server, over stdin and stdout, for an MCP
+  client such as Claude Code. Its one tool, `code`, runs a script in
+  cohesiond and returns its result, and the script API's declarations are
+  the resource `cohesion://cohesion.d.ts`.
 - An agent's Monitoring list, in the column beside its conversation, has
   Stop following on hover or focus beside Resolve. The agent then no longer
   wakes when that actor session stops, until it tells the session something
