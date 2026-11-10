@@ -1,4 +1,4 @@
-<!-- Where a `cohesion://` link without a workspace lands (`cohesion://task/42`, `cohesion://agent/3`). -->
+<!-- Where a `cohesion://` link without a workspace lands (`cohesion://task/42`, `cohesion://agent/3`, `cohesion://article/88`). -->
 <script lang="ts">
 	import { itemRoute } from '$lib/shell/links';
 	import OpenItem from '$lib/shell/OpenItem.svelte';
@@ -11,4 +11,4 @@
 	const id = $derived(Number(page.params.id));
 </script>
 
-<OpenItem {kind} find={() => itemRoute(kind, id)} />
+<OpenItem {kind} find={() => itemRoute({ kind, ws: null, id })} />

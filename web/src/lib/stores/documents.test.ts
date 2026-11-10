@@ -79,7 +79,8 @@ describe('documents store', () => {
 			'Full-text search syntax and errors',
 			'Extensions Registry',
 			'JS script engine pool sizes',
-			'Rewind: storage and lifecycle'
+			'Rewind: storage and lifecycle',
+			'Launch plan'
 		]);
 		expect(store.archive.value.map((d) => d.id)).toEqual([1, 2, 3, 4]);
 	});

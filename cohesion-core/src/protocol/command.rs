@@ -27,6 +27,7 @@ use super::client_requests::*;
 use super::connector_requests::*;
 use super::contact_requests::*;
 use super::document_requests::*;
+use super::embed_requests::*;
 use super::extension_requests::*;
 use super::feed_requests::*;
 use super::intelligence_requests::*;
@@ -44,11 +45,11 @@ use super::workspace_requests::*;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, Article, Attachment,
     CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
-    EndpointModel, ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent,
+    Embed, EndpointModel, ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent,
     IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
     IntelligenceCostEvent, IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit,
     Profile, Resource, RestoredItem, SavedTaskView, SearchResult, SecuritySettings,
-    StorageSettings, Tag, Task, TaskFolder, Version, VersionSummary, Workspace,
+    StorageSettings, Tag, Task, TaskFolder, TextSection, Version, VersionSummary, Workspace,
     WorkspaceResourceKind,
 };
 
@@ -674,4 +675,11 @@ pub enum Command {
     /// Retitles live article `article_id`.
     #[reply(Article)]
     RenameArticle(RenameArticleRequest),
+    /// Resolves a `cohesion://` link to the item it names, in one shape for
+    /// every kind.
+    #[reply(Embed)]
+    ResolveLink(ResolveLinkRequest),
+    /// Splits Markdown into its text and its embeds, each resolved.
+    #[reply(Vec<TextSection>)]
+    ResolveEmbeds(ResolveEmbedsRequest),
 }

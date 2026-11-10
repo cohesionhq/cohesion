@@ -29,6 +29,8 @@
 	icon={journal ? NotebookPen : FileText}
 	kind={journal ? 'Journal entry' : 'Document'}
 	href={documentRoute(shown)}
+	link={{ kind: 'document', ws: shown.workspace_id, id: shown.id }}
+	linkTitle={shown.title}
 >
 	{#snippet actions()}
 		<RewindButton
@@ -45,7 +47,7 @@
 		</ItemDetail>
 	{/snippet}
 	{#if shown.contents.trim()}
-		<div class="text-md"><Markdown source={shown.contents} diagrams /></div>
+		<div class="text-md"><Markdown source={shown.contents} diagrams embeds /></div>
 	{:else}
 		<p class="text-fg-subtle">Nothing written yet.</p>
 	{/if}

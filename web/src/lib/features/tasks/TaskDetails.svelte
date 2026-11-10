@@ -249,6 +249,7 @@
 	title={task?.title ?? ''}
 	icon={CheckSquare}
 	kind="Task #{task?.id ?? ''}"
+	link={task ? { kind: 'task', ws: task.workspace_id, id: task.id } : undefined}
 	onOpenAutoFocus={(event) => {
 		// An empty description opens in the editor, which takes the focus itself.
 		if (task?.description === '') event.preventDefault();
@@ -389,6 +390,7 @@
 		<DocumentBody
 			bind:this={body}
 			{draft}
+			workspace={task?.workspace_id ?? 0}
 			{preview}
 			label="Description"
 			placeholder="Notes, links, steps…"

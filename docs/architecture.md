@@ -400,7 +400,7 @@ A session reads up to 64 requests ahead (`QUEUED_REQUESTS`) and runs them side
 by side, so replies come back in the order they finish; match them by `id`.
 
 **Requests, replies and routes.** `Command` (`cohesion-core/src/protocol/command.rs`)
-is one enum with a variant per request, 198 of them, each tagged
+is one enum with a variant per request, 202 of them, each tagged
 `#[reply(ReplyType, via = Kind)]`. `#[derive(Commands)]` generates the
 dispatch; the request structs live in the `*_requests.rs` modules beside it,
 and `ReplyData` (`reply_data.rs`) is the enum of reply payloads. Each
@@ -458,6 +458,36 @@ response; they go out on a 256-slot broadcast only if it commits.
 online, actor usage). A session gets invalidations only after `subscribe`;
 the web UI subscribes first on every connection, the CLI only to follow an
 agent's turn.
+
+**Links and embeds.** Text names an item with a `cohesion://` link
+(`ItemLink`, `cohesion-core/src/model/item_link.rs`):
+`cohesion://task/<ws>/<id>`, `cohesion://document/<ws>/<id>` (journal entries
+too), `cohesion://resource/<ws>/<id>`, `cohesion://agent/<id>`,
+`cohesion://actor-session/<id>` and `cohesion://article/<id>`. A task or
+document link without its workspace, as links were first written, still names
+one, since those ids are unique across workspaces. `ResolveLink{link}`
+(`cohesion-db/src/commands/embed.rs`) turns a link into an `Embed`
+(`model/embed.rs`), one shape for every kind: the link written in full,
+`kind` (`EmbedKind`, worded by `hello.vocabulary.embed_kinds`),
+`workspace_id`, `title`, `excerpt` (the first paragraph of the item's text as
+plain text, about 200 characters) and `item`, the item's model tagged by kind
+(an actor session with its actor's title, an article as an `ArticleSummary`
+with its feed's title). A client that doesn't know a kind shows the title, the
+excerpt and the kind's word. An item deleted, in a deleted workspace or never
+made is `notFound`; text that isn't such a link fails validation on `link`.
+Nothing pushes an embed: a client asks again on the item's invalidation,
+`taskList` of the task's workspace, `documents(ws)`, `resources(ws)`,
+`agent(id)`, `actorSession(id)` or `feedArticles`. A link shows as a card
+where it is alone on its line, outside a fenced or indented code block
+(`text_pieces`, `model/text_section.rs`): the line is exactly one link, whose
+label ends at its first unescaped `]` (`\]` is a bracket in it) and whose
+`)` ends the line. A link in a sentence or a list item, and two links on one
+line, stay links. `ResolveEmbeds{text}` splits any Markdown by that rule and
+resolves each card, answering `TextSection`s in order: `markdown` (`text`, to
+render as it is) or `embed` (`link`, `label`, and `embed`, `null` once its item
+is gone), so a client shows cards without reading links itself. The web UI
+splits the same way as you type (`textPieces`, `web/src/lib/format/itemLinks.ts`,
+tested on the same texts) and resolves each card with `ResolveLink`.
 
 **Versioning.** `PROTOCOL_VERSION` is `1` and stays 1 while Cohesion is in
 active development. There is no negotiation: the web UI compares the number in
@@ -1238,7 +1268,7 @@ Requests connect within 30 s and finish within 10 minutes
 prefix lasts:
 
 1. `FOREGROUND_AGENT_PROMPT`: what an agent in Cohesion is, its context, memories and storage, working with the user's data, cues, other agents, and replying.
-2. `LINKS`: how to write and read `cohesion://task/<ws>/<id>`, `cohesion://document/<ws>/<id>`, `cohesion://agent/<id>` and `cohesion://actor-session/<id>`.
+2. `LINKS`: how to write and read `cohesion://task/<ws>/<id>`, `cohesion://document/<ws>/<id>`, `cohesion://resource/<ws>/<id>`, `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and `cohesion://article/<id>`, and that in a document a link alone on its line shows as a card.
 3. "Your voice": its personality and verbosity.
 4. "Your role" and "Your directive", when set.
 5. "Your team" and "Other agents", sorted by id.
@@ -1724,7 +1754,7 @@ and `src/routes/+layout.ts` turns off server rendering and prerendering.
 | `/connectors`, `/connectors/accounts` | Connected services |
 | `/extensions` | `browse`, `installed`, `installed/[id]`, `find` |
 | `/settings`, `/settings/[section]` | Settings |
-| `/open/[kind=item]/[id]`, `/open/[kind=workspaceitem]/[ws]/[id]` | The page a `cohesion://` link opens when followed from outside the web UI |
+| `/open/[kind=item]/[id]`, `/open/[kind=workspaceitem]/[ws]/[id]` | The page a `cohesion://` link opens when followed from outside the web UI: `item` is a task, document, agent, actor session or article, `workspaceitem` a task, document or resource |
 
 Route builders are in `web/src/lib/shell/routes.ts`. The window can split in
 two (`lib/shell/pane.svelte.ts`, `SplitView.svelte`), each half with its own
@@ -1785,16 +1815,59 @@ started, where they are answered. The store holds them in `subagents`,
 `waiting`, `above` and `family` (`stores/actors.svelte.ts`).
 
 **Links.** Items link as `cohesion://task/<ws>/<id>`,
-`cohesion://document/<ws>/<id>`, `cohesion://agent/<id>` and
-`cohesion://actor-session/<id>` (`parseItemLink`, `shell/routes.ts`; a task or
-document link without a workspace still opens, looking in the current
-workspace first). Following one in the web UI (`ui/Markdown.svelte`,
+`cohesion://document/<ws>/<id>`, `cohesion://resource/<ws>/<id>`,
+`cohesion://agent/<id>`, `cohesion://actor-session/<id>` and
+`cohesion://article/<id>` (`parseItemLink`, `lib/format/itemLinks.ts`, which
+`shell/routes.ts` re-exports; a task or document link without a workspace
+still opens). The daemon finds what a link names (`resolveLink`, through
+`shell/links.ts`), so neither the panel nor the Open pages search workspaces
+themselves. Following one in the web UI (`ui/Markdown.svelte`,
 `linkedItem.follow`) opens the item over the current page in one side panel,
 `ItemPanel`, the same for every kind but its content
 (`shell/linkedItem.svelte.ts`, `shell/LinkedItem.svelte`): a task with its
-folder, tags and contacts; a document; an agent; an actor session with its
-actor and messages. Full-page content has an Open link. A modified click falls
-through to the `/open/…` page.
+folder, tags and contacts; a document; a resource; an agent; an actor session
+with its actor and messages; an article with its feed. Full-page content has
+an Open link (an article's opens in the current workspace). A modified click
+falls through to the `/open/…` page.
+
+**Copy link.** Every kind an item panel shows can be copied as a link to paste
+into a document. "Copy link" puts `[Title](cohesion://…)` on the clipboard, the
+title read when it is chosen and escaped as the `@` picker writes it
+(`itemLinkMarkdown`, `lib/format/itemLinks.ts`), so on a line of its own it
+becomes a card; "Copy plain link" puts the bare `cohesion://` address. Both are
+items in the menus that already hold an item's actions (`copyLinkItems`,
+`lib/ui/copyLink.ts`): a task row's (`l` chooses Copy link), the document and
+journal pages' (`DocumentMenu`), an agent's, an article's in a list and on its
+page, and the ⋯ menus a resource's and an actor session's page have for them
+(`ui/MoreActions.svelte`). An item panel has one "Copy link" button before Open
+(`ItemPanel`'s `link`), which copies the Markdown link; the `/open/…` pages
+only redirect, so they have none.
+
+**Embeds.** In a document, a journal entry, Today and a task's description, a
+link alone on its line shows as a card of its item (`shell/EmbedCard.svelte`):
+its icon (a task's box, an agent's avatar, a session's status), title, kind
+and a detail, and the start of its text. The editor (`ui/Editor.svelte`, given
+`embed` by `shell/embedCards.ts`) draws the card in place of the line while the
+caret is elsewhere, and the line as typed while the caret is on it; the
+read-only preview and the document panel draw it too (`Markdown`'s `embeds`).
+Which lines are cards is `textPieces` (`lib/format/itemLinks.ts`), the same rule
+as the daemon's `resolveEmbeds` ([5](#5-the-wire-protocol), "Links and
+embeds"). Each card resolves its link through `stores/embeds.svelte.ts`, once
+for every card showing it, and asks again on its item's invalidation. While it
+resolves, the link's text shimmers; an item gone shows its text quietly with
+"Task not found"; a link that can't be resolved stays a plain link. A click
+opens the panel, as the link does.
+
+**`@`.** In the same editors, `@` at a word's start looks items up to link
+(`shell/mentions.ts`, on `@codemirror/autocomplete`). `[[` at a word's start
+opens the same picker, with the same rows and keys, and writes the same
+`[title](cohesion://…)`; both are read by `lib/format/mentionTrigger.ts`. It
+offers agents by name, then the
+workspace's documents, journal entries, tasks and resources
+(`searchWorkspace`), then actor sessions (`searchActorSessions`), at most 8
+rows; articles (`searchFeedCorpus`) only fill the rows left. ↑ and ↓ choose,
+↩ or ⇥ inserts `[title](cohesion://…)` in place of the `@` or `[[` and what was typed, and
+Esc closes, leaving the text. On a line of its own the link becomes a card.
 
 **Building and serving.** `npm run build` writes `web/build/`, which
 `cohesionkit/build.rs` compresses into `cohesiond` ([2](#2-building-running-and-testing)).
@@ -1840,7 +1913,7 @@ with it: a client is either native, speaking the wire protocol itself, or a
 WebUI harness, a native shell around the web UI.
 
 - **Reaching the daemon**: pairing with a setup code at `/register`, then `POST /command` for one-off requests or `/connect` for a session; or the Unix socket on the same computer ([4](#4-starting-the-daemon), [6](#6-pairing-and-trust)).
-- **What they share with the web UI**: the protocol and its types (generated from Rust for the web; other clients copy `generated.ts` or model them by hand), `hello.vocabulary`, the subscribe-and-invalidate model, and the `cohesion://` links, which every client opens over the current screen.
+- **What they share with the web UI**: the protocol and its types (generated from Rust for the web; other clients copy `generated.ts` or model them by hand), `hello.vocabulary`, the subscribe-and-invalidate model, and the `cohesion://` links, which every client opens over the current screen and shows as a card where it stands alone on its line, by `resolveEmbeds` for a whole text or `resolveLink` for one link ([5](#5-the-wire-protocol), "Links and embeds").
 - **A WebUI harness** pairs natively, fetches the bundle with `WebBundle`, serves it, and stands in for the page's session API ([16](#16-the-web-ui)). There are two, both in `cohesionhq/webshell`: the Mac and iPad app in `mac/`, built on the `CohesionWebKit` Swift package, and the Linux app in `gtk/`, a Rust copy of the same flow that takes `SetupCode`, the self-signed certificate and the protocol's envelope from `cohesion-rs` and runs `CohesionWebKit`'s bridge script unchanged (`gtk/src/bridge.js`). The web UI keeps a few things a web view needs: `--titlebar-inset`, and keyboard and mouse-button history steps a web view doesn't do itself (`web/src/lib/shell/shortcuts.svelte.ts`).
 - **Push notifications** are not the daemon's: it raises hooks (`notification:send`, `agent:message`, `client:revoke`…) and an installed extension with `network` sends pushes. The iOS companion extension (`com.cohesion.cloud.ios-companion`) appears here only in doc comments.
 

@@ -18,6 +18,7 @@
 		"generate": "cargo run -q -p cohesion-core --example ts_client > src/lib/protocol/generated.ts && cargo run -q -p cohesion-core --example vocabulary > src/lib/protocol/vocabulary.json && prettier --write --log-level warn src/lib/protocol/generated.ts src/lib/protocol/vocabulary.json"
 	},
 	"dependencies": {
+		"@codemirror/autocomplete": "6.20.3",
 		"@codemirror/commands": "6.11.1",
 		"@codemirror/lang-javascript": "6.2.5",
 		"@codemirror/lang-markdown": "6.5.2",

@@ -3,20 +3,19 @@ import type {
 	Actor,
 	ActorSession,
 	ActorSessionMessage,
+	Article,
 	Contact,
 	Document,
 	IntelligenceAgent,
+	Resource,
 	Tag,
 	Task,
 	TaskFolder
 } from '$lib/protocol/types';
 
 import { toasts } from '$lib/ui/toasts.svelte';
-import { findDocument, findTask, found } from './links';
+import { resolve } from './links';
 import type { ItemLink } from './routes';
-import { mainStores } from '$lib/stores/pageStores.svelte';
-
-const { agents } = mainStores;
 
 /** What a link opened, with what its panel shows besides the item itself. */
 export type LinkedItem =
@@ -29,6 +28,7 @@ export type LinkedItem =
 			contacts: Contact[];
 	  }
 	| { kind: 'document'; document: Document }
+	| { kind: 'resource'; resource: Resource }
 	| { kind: 'agent'; agent: IntelligenceAgent }
 	| {
 			kind: 'actor-session';
@@ -36,7 +36,8 @@ export type LinkedItem =
 			/** Its actor, unless no client offers it any longer. */
 			actor: Actor | null;
 			messages: ActorSessionMessage[];
-	  };
+	  }
+	| { kind: 'article'; article: Article; feedTitle: string };
 
 /**
  * The item a `cohesion://` link or a forward opens: one panel, mounted once
@@ -77,15 +78,20 @@ class LinkedItems {
 const NAMES: Record<ItemLink['kind'], string> = {
 	task: 'Task',
 	document: 'Document',
+	resource: 'Resource',
 	agent: 'Agent',
-	'actor-session': 'Actor session'
+	'actor-session': 'Actor session',
+	article: 'Article'
 };
 
+/** What `link` names, as the daemon resolves it, with what its panel needs besides. */
 async function find(link: ItemLink): Promise<LinkedItem | null> {
-	switch (link.kind) {
+	const embed = await resolve(link);
+	if (embed === null) return null;
+	const { item } = embed;
+	switch (item.kind) {
 		case 'task': {
-			const task = await findTask(link.ws, link.id);
-			if (task === null) return null;
+			const { task } = item;
 			const [folders, tags, contacts] = await Promise.all([
 				send('listTaskFolders', { workspace_id: task.workspace_id }),
 				send('listTags', { workspace_id: task.workspace_id }),
@@ -93,24 +99,24 @@ async function find(link: ItemLink): Promise<LinkedItem | null> {
 			]);
 			return { kind: 'task', task, folders, tags, contacts };
 		}
-		case 'document': {
-			const document = await findDocument(link.ws, link.id);
-			return document && { kind: 'document', document };
-		}
-		case 'agent': {
-			await agents.loadList();
-			const agent = agents.list.value.find((a) => a.id === link.id);
-			return agent ? { kind: 'agent', agent } : null;
-		}
-		case 'actor-session': {
-			const session = await found(send('getActorSession', { id: link.id }));
-			if (session === null) return null;
+		case 'document':
+			return { kind: 'document', document: item.document };
+		case 'resource':
+			return { kind: 'resource', resource: item.resource };
+		case 'agent':
+			return { kind: 'agent', agent: item.agent };
+		case 'actorSession': {
+			const { session } = item;
 			const [actors, messages] = await Promise.all([
 				send('listActors'),
 				send('listActorSessionMessages', { session_id: session.id })
 			]);
 			const actor = actors.find((a) => a.id === session.actor_id) ?? null;
 			return { kind: 'actor-session', session, actor, messages };
+		}
+		case 'article': {
+			const article = await send('getArticle', { article_id: item.article.id });
+			return { kind: 'article', article, feedTitle: item.feed_title };
 		}
 	}
 }

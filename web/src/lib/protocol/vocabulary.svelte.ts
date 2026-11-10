@@ -1,6 +1,6 @@
 // How the daemon words and orders its kinds: what each permission, hook,
-// priority, size, actor session status, agent setting, pairing opener
-// and security event is called, in the order the UI lists them.
+// priority, size, actor session status, agent setting, pairing opener,
+// security event and linked item is called, in the order the UI lists them.
 // Every `hello` carries it, so the page keeps no copy of its own; mock mode
 // and tests read the same words from `vocabulary.json`, which
 // `npm run generate` writes from the daemon.
@@ -8,6 +8,7 @@
 import type {
 	ActorSessionStatus,
 	ActorSessionStop,
+	EmbedKind,
 	ExtensionPermissionKind,
 	HookKind,
 	HookWording,
@@ -38,7 +39,8 @@ const EMPTY: Words = {
 	dialects: [],
 	agent_reactions: [],
 	pairing_openers: [],
-	security_events: []
+	security_events: [],
+	embed_kinds: []
 };
 
 class Vocabulary {
@@ -52,6 +54,7 @@ class Vocabulary {
 	#actorSessionStatuses = $derived(byKind(this.value.actor_session_statuses));
 	#actorSessionStops = $derived(byKind(this.value.actor_session_stops));
 	#securityEvents = $derived(byKind(this.value.security_events));
+	#embedKinds = $derived(byKind(this.value.embed_kinds));
 
 	permission(kind: ExtensionPermissionKind): Described<ExtensionPermissionKind> {
 		return this.#permissions.get(kind)!;
@@ -80,6 +83,11 @@ class Vocabulary {
 
 	securityEvent(kind: SecurityEventKind): string {
 		return this.#securityEvents.get(kind)!.label;
+	}
+
+	/** What an item a `cohesion://` link names is called: `Task`, `Journal entry`. */
+	embedKind(kind: EmbedKind): string {
+		return this.#embedKinds.get(kind)!.label;
 	}
 
 	/** What to call the provider whose catalog id is `identifier`, if it has a preset. */

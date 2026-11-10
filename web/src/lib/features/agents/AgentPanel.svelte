@@ -27,7 +27,14 @@
 	);
 </script>
 
-<ItemPanel bind:open title={agent.agent_name} icon={Bot} kind="Agent" href={routes.agent(agent.id)}>
+<ItemPanel
+	bind:open
+	title={agent.agent_name}
+	icon={Bot}
+	kind="Agent"
+	href={routes.agent(agent.id)}
+	link={{ kind: 'agent', ws: null, id: agent.id }}
+>
 	{#snippet details()}
 		<ItemDetail label="Role" icon={BriefcaseBusiness}>{agent.agent_role || 'None'}</ItemDetail>
 		<ItemDetail label="Personality" icon={Drama}>{personality}</ItemDetail>

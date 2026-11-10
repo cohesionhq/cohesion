@@ -41,8 +41,10 @@
 	import { clients } from '$lib/stores/settings/clients.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
+	import { copyLinkItems } from '$lib/ui/copyLink';
 	import EmptyState from '$lib/ui/EmptyState.svelte';
 	import Markdown from '$lib/ui/Markdown.svelte';
+	import MoreActions from '$lib/ui/MoreActions.svelte';
 	import PageHeader from '$lib/ui/PageHeader.svelte';
 	import SentImages from '$lib/ui/SentImages.svelte';
 	import { toasts } from '$lib/ui/toasts.svelte';
@@ -344,6 +346,12 @@
 					<div class="sticky top-0 z-10">
 						<SessionHeader {session} {actor} {above}>
 							{#snippet actions()}
+								<MoreActions
+									items={copyLinkItems(() => ({
+										link: { kind: 'actor-session', ws: null, id: session.id },
+										title: session.title
+									}))}
+								/>
 								{#if session.status !== 'resolved' && !subagent}
 									<!-- Quiet while the session waits on the user, so what it asks is the screen's action. -->
 									<Button

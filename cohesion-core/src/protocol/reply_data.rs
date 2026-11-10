@@ -28,11 +28,11 @@ use super::task_requests::TaskPage;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, Article, Attachment,
     CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
-    EndpointModel, ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent,
+    Embed, EndpointModel, ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent,
     IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
     IntelligenceCostEvent, IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit,
     Profile, Resource, RestoredItem, SavedTaskView, SearchResult, SecuritySettings,
-    StorageSettings, Tag, Task, TaskFolder, Version, VersionSummary, Workspace,
+    StorageSettings, Tag, Task, TaskFolder, TextSection, Version, VersionSummary, Workspace,
     WorkspaceResourceKind,
 };
 
@@ -133,6 +133,8 @@ pub enum ReplyData {
     // other replies.
     EndpointModel(Box<EndpointModel>),
     Article(Box<Article>),
+    Embed(Box<Embed>),
+    TextSections(Vec<TextSection>),
     Feed(Feed),
     Feeds(Vec<Feed>),
     FeedSummaries(Vec<FeedSummary>),

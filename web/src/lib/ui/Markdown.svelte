@@ -2,6 +2,8 @@
 	import DOMPurify from 'dompurify';
 	import { marked, type Token } from 'marked';
 	import { connection } from '$lib/protocol/api';
+	import { textPieces } from '$lib/format/itemLinks';
+	import EmbedCard from '$lib/shell/EmbedCard.svelte';
 	import { linkedItem } from '$lib/shell/linkedItem.svelte';
 	import { itemLinkRoute, parseItemLink, type ItemLink } from '$lib/shell/routes';
 	import { diagrams as drawings, fenceClosed } from './diagram';
@@ -11,13 +13,27 @@
 		source: string;
 		/** Draws ```mermaid blocks as diagrams; a block that won't draw stays code. */
 		diagrams?: boolean;
+		/** Shows a `cohesion://` link alone on its line as a card of its item (`textPieces`). */
+		embeds?: boolean;
 	}
 
-	let { source, diagrams = false }: Props = $props();
+	let { source, diagrams = false, embeds = false }: Props = $props();
 
 	let root = $state<HTMLElement>();
 
-	const rendered = $derived(render(source));
+	/** The text and its cards in order; all text without `embeds`. */
+	const pieces = $derived(
+		(embeds ? textPieces(source) : [{ kind: 'markdown' as const, text: source }]).map((piece) =>
+			piece.kind === 'markdown' ? { ...piece, ...render(piece.text) } : piece
+		)
+	);
+	/** The item each in-app href in the text opens. */
+	const links = $derived(
+		Object.assign(
+			{},
+			...pieces.map((piece) => (piece.kind === 'markdown' ? piece.links : {}))
+		) as Record<string, ItemLink>
+	);
 
 	/**
 	 * The sanitized HTML, and the item each in-app href in it opens. A link to
@@ -43,7 +59,7 @@
 	$effect(() => {
 		// A reconnect runs this again: a reply the old socket lost is asked for anew.
 		void connection.status;
-		if (!diagrams || !root || !rendered.html) return;
+		if (!diagrams || !root || pieces.length === 0) return;
 		for (const code of root.querySelectorAll('code[class="language-mermaid" i]')) {
 			const block = code.closest('pre');
 			if (block) void draw(block, code.textContent ?? '');
@@ -92,15 +108,21 @@
 		if (target instanceof HTMLImageElement && !anchor)
 			viewing = { src: target.src, alt: target.alt };
 		const href = anchor?.getAttribute('href');
-		if (href && Object.hasOwn(rendered.links, href)) linkedItem.follow(event, rendered.links[href]);
+		if (href && Object.hasOwn(links, href)) linkedItem.follow(event, links[href]);
 	}
 </script>
 
 <!-- Links are reached by keyboard themselves, and Enter clicks them; an image has no keyboard way in. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div bind:this={root} class="markdown leading-(--leading) wrap-anywhere" {onclick}>
-	<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitized by DOMPurify above -->
-	{@html rendered.html}
+	{#each pieces as piece, index (index)}
+		{#if piece.kind === 'markdown'}
+			<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitized by DOMPurify above -->
+			{@html piece.html}
+		{:else}
+			<div class="embed"><EmbedCard href={piece.href} label={piece.label} /></div>
+		{/if}
+	{/each}
 </div>
 
 <ImageViewer bind:image={viewing} />
@@ -133,7 +155,8 @@
 	.markdown :global(pre),
 	.markdown :global(blockquote),
 	.markdown :global(table),
-	.markdown :global(hr) {
+	.markdown :global(hr),
+	.markdown .embed {
 		margin: 0 0 0.75em;
 	}
 

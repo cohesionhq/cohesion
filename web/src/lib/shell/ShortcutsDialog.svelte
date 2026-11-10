@@ -67,7 +67,7 @@
 				{ keys: ['1–4', '0'], label: 'Priority: choose, or clear' },
 				{ keys: ['1–5', '0'], label: 'Size: choose, or clear' },
 				{ keys: ['o', 'd', 'c'], label: 'Status: open, done, cancelled' },
-				{ keys: ['o', keyLabel('backspace')], label: 'Task: details, delete' }
+				{ keys: ['o', 'l', keyLabel('backspace')], label: 'Task: details, copy link, delete' }
 			]
 		},
 		{
@@ -76,6 +76,13 @@
 				{ keys: [keyLabel('enter')], label: 'Send' },
 				{ keys: [keyLabel('shift', 'enter')], label: 'New line' },
 				{ keys: [keyLabel('alt', 'up'), keyLabel('alt', 'down')], label: 'Move an agent up / down' }
+			]
+		},
+		{
+			title: 'Documents, journal and task descriptions',
+			rows: [
+				{ keys: ['@', '[['], label: 'Look up an item to link' },
+				{ keys: [keyLabel('enter'), keyLabel('tab')], label: 'Link the item chosen' }
 			]
 		},
 		{

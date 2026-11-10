@@ -79,6 +79,25 @@ pub struct ArticleSummary {
     pub modified: i64,
 }
 
+impl From<Article> for ArticleSummary {
+    fn from(article: Article) -> Self {
+        Self {
+            id: article.id,
+            deleted: article.deleted,
+            feed_id: article.feed_id,
+            read: article.read,
+            url: article.url,
+            title: article.title,
+            author: article.author,
+            published_at: article.published_at,
+            published_precision: article.published_precision,
+            snapshot: article.snapshot,
+            created_at: article.created_at,
+            modified: article.modified,
+        }
+    }
+}
+
 /// How precisely an article's publication is known.
 ///
 /// - `"time"`: the moment it was published, or brought in when neither its

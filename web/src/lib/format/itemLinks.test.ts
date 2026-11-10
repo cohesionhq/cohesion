@@ -1,0 +1,108 @@
+import { describe, expect, it } from 'vitest';
+import { itemLinkHref, parseItemLink, textPieces, type TextPiece } from './itemLinks';
+
+const markdown = (text: string): TextPiece => ({ kind: 'markdown', text });
+const task = (label: string, ws: number, id: number): TextPiece => ({
+	kind: 'embed',
+	link: { kind: 'task', ws, id },
+	href: `cohesion://task/${ws}/${id}`,
+	label
+});
+
+describe('item links', () => {
+	it('reads and writes back every kind', () => {
+		for (const href of [
+			'cohesion://task/3/42',
+			'cohesion://task/42',
+			'cohesion://document/3/7',
+			'cohesion://resource/3/9',
+			'cohesion://agent/3',
+			'cohesion://actor-session/143',
+			'cohesion://article/88'
+		])
+			expect(itemLinkHref(parseItemLink(href)!)).toBe(href);
+	});
+
+	it('reads nothing else', () => {
+		for (const href of [
+			'cohesion://resource/9',
+			'cohesion://article/1/2',
+			'cohesion://contact/3',
+			'https://example.com'
+		])
+			expect(parseItemLink(href)).toBeNull();
+	});
+});
+
+// The daemon's `text_pieces` (cohesion-core/src/model/text_section/tests.rs)
+// splits these same texts the same way.
+describe('text pieces', () => {
+	it('makes a link alone on its line an embed between Markdown', () => {
+		expect(
+			textPieces('# Plan\n\nFirst:\n\n[Fix login](cohesion://task/3/42)\n\nThen the rest.')
+		).toEqual([markdown('# Plan\n\nFirst:'), task('Fix login', 3, 42), markdown('Then the rest.')]);
+	});
+
+	it('leaves a link in a sentence or a list as Markdown', () => {
+		const text =
+			'See [Fix login](cohesion://task/3/42) today.\n- [Fix login](cohesion://task/3/42)';
+		expect(textPieces(text)).toEqual([markdown(text)]);
+	});
+
+	it('leaves a link in code as Markdown', () => {
+		for (const text of [
+			'```\n[Fix login](cohesion://task/3/42)\n```',
+			'    [Fix login](cohesion://task/3/42)',
+			'\t[Fix login](cohesion://task/3/42)'
+		])
+			expect(textPieces(text)).toEqual([markdown(text)]);
+	});
+
+	it('leaves a link to anything but an item as Markdown', () => {
+		for (const text of [
+			'[Example](https://example.com)',
+			'[Contact](cohesion://contact/3)',
+			'![Chart](cohesion://task/3/42)'
+		])
+			expect(textPieces(text)).toEqual([markdown(text)]);
+	});
+
+	it('leaves a sentence whose last link ends the line as Markdown', () => {
+		const text = '[Spec](https://example.com) blocks [Fix login](cohesion://task/5/42)';
+		expect(textPieces(text)).toEqual([markdown(text)]);
+	});
+
+	it('leaves two links on one line as Markdown', () => {
+		for (const text of [
+			'[A](cohesion://task/3/1) [B](cohesion://task/3/2)',
+			'[A](cohesion://task/3/1)[B](cohesion://task/3/2)'
+		])
+			expect(textPieces(text)).toEqual([markdown(text)]);
+	});
+
+	it('keeps an escaped bracket in the label', () => {
+		expect(textPieces('[Fix \\] login \\[2\\]](cohesion://task/3/42)')).toEqual([
+			task('Fix ] login [2]', 3, 42)
+		]);
+		// The same label unescaped ends at its first `]`, and what follows is text.
+		const text = '[Fix ] login](cohesion://task/3/42)';
+		expect(textPieces(text)).toEqual([markdown(text)]);
+	});
+
+	it('leaves a bare link as Markdown', () => {
+		for (const text of ['cohesion://task/3/42', '<cohesion://task/3/42>', '(cohesion://task/3/42)'])
+			expect(textPieces(text)).toEqual([markdown(text)]);
+	});
+
+	it('needs no Markdown between embeds side by side', () => {
+		expect(textPieces('  [A](cohesion://task/3/1)  \n[B](cohesion://task/3/2)\n\n')).toEqual([
+			task('A', 3, 1),
+			task('B', 3, 2)
+		]);
+	});
+
+	it('splits nothing into nothing', () => {
+		expect(textPieces('')).toEqual([]);
+		expect(textPieces('\n \n')).toEqual([]);
+	});
+});

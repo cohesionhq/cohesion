@@ -6,4 +6,5 @@ export const match = ((param: string): param is ItemKind =>
 	param === 'task' ||
 	param === 'document' ||
 	param === 'agent' ||
-	param === 'actor-session') satisfies ParamMatcher;
+	param === 'actor-session' ||
+	param === 'article') satisfies ParamMatcher;

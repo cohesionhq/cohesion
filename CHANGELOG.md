@@ -7,6 +7,22 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- In a document, a journal entry, Today or a task's description, a link to
+  an item alone on its line shows as a card of it: a task with its status and
+  due day, a document, a resource, an agent, an actor session with where it
+  stands, an article with its feed, each with the start of its text. Click it
+  to open the item over the page. Type `@` to look up a task, document,
+  resource, agent, session or article and link it; on an empty line it
+  becomes a card. Articles come last in the list.
+- Any `cohesion://` link resolves to the item it names in one shape,
+  `Embed`: `resolveLink` returns its title, the start of its text, what kind
+  it is (worded in `hello.vocabulary.embed_kinds`) and the item itself, or
+  `notFound` once it is deleted. Links gain two kinds,
+  `cohesion://resource/<ws>/<id>` and `cohesion://article/<id>`, which agents
+  now write too. `resolveEmbeds` splits any Markdown into its text and the
+  links that stand alone on their lines, each resolved, so a client can show
+  them as cards without reading links itself. The iPhone app can show cards
+  from it; until it does, it shows the new kinds as plain links.
 - An actor session shows its subagents. In its transcript, the tool use that
   launched one is its line, with where it stands, which opens it as a thread
   of its own, read-only, with a way back up to the session; the column beside
@@ -19,7 +35,6 @@ under "Unreleased" with any change users would notice.
   `listActorSubagents`, `listActorSessionFamily`,
   `listUnansweredSubagentRequests` and `subagent` on `ActorSession`. The actor clients and the iPhone app need the same to show
   them; a client that doesn't report subagents works as before.
-
 - `cohesion setup` without `--name` names the client after the computer and
   the client, such as `apollo (CLI)`, instead of the hostname alone, so
   clients on one computer can be told apart in Settings › Clients and in actor

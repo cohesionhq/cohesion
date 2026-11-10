@@ -391,5 +391,14 @@
 		{ "kind": "inactiveClientRevoked", "label": "Revoked for not connecting" },
 		{ "kind": "settingsChanged", "label": "Changed security settings" },
 		{ "kind": "pairingRefused", "label": "Refused pairing" }
+	],
+	"embed_kinds": [
+		{ "kind": "task", "label": "Task" },
+		{ "kind": "document", "label": "Document" },
+		{ "kind": "journalEntry", "label": "Journal entry" },
+		{ "kind": "resource", "label": "Resource" },
+		{ "kind": "agent", "label": "Agent" },
+		{ "kind": "actorSession", "label": "Actor session" },
+		{ "kind": "article", "label": "Article" }
 	]
 }

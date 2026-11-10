@@ -179,6 +179,7 @@
 
 				<DocumentBody
 					draft={documents.text}
+					workspace={ws}
 					{preview}
 					label="Document"
 					{title}

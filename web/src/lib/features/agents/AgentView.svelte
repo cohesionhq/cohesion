@@ -293,6 +293,7 @@
 						<AgentHeader {agent}>
 							{#snippet actions()}
 								<AgentMenu
+									id={agent.id}
 									name={agent.agent_name}
 									pinned={agent.pinned}
 									onpin={() =>

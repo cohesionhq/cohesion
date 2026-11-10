@@ -1,84 +1,60 @@
-// Links between items: `cohesion://task/3/42`, `cohesion://document/3/7`
-// (workspace, then item), `cohesion://agent/3` and `cohesion://actor-session/143`,
-// which agents and the user write as Markdown links, and the first form's
-// `cohesion://task/42` and `cohesion://document/7`, which name no workspace.
-// Markdown points each at an Open page (`routes.workspaceItem`, `routes.item`),
-// which finds the item and goes to it. A click on a link opens the item in a
-// panel over the page instead (`linkedItem`), with all its details; one that
-// has a page of its own (a document, an agent, an actor session) has a way there.
+// Links between items: `cohesion://task/3/42`, `cohesion://document/3/7` and
+// `cohesion://resource/3/9` (workspace, then item), `cohesion://agent/3`,
+// `cohesion://actor-session/143` and `cohesion://article/88`, which agents and
+// the user write as Markdown links, and the first form's `cohesion://task/42`
+// and `cohesion://document/7`, which name no workspace. The daemon finds what a
+// link names (`resolveLink`), the same for every client. Markdown points each
+// at an Open page (`routes.workspaceItem`, `routes.item`), which goes to the
+// item. A click on a link opens the item in a panel over the page instead
+// (`linkedItem`), with all its details; one that has a page of its own has a
+// way there. A link alone on its line shows the item as a card (`embeds`).
 
 import { send } from '$lib/protocol/api';
 import { ProtocolError } from '$lib/protocol/errors';
-import { routes, type ItemKind, type WorkspaceItemKind } from '$lib/shell/routes';
-import type { Document, Task } from '$lib/protocol/types';
+import type { Document, Embed } from '$lib/protocol/types';
+import { itemLinkHref, routes, type ItemLink } from '$lib/shell/routes';
 
 import { workspaces } from '$lib/stores/workspaces.svelte';
-import { mainStores } from '$lib/stores/pageStores.svelte';
 
-const { agents, tasks } = mainStores;
+/** What `link` names, or null once it is deleted or never was. */
+export function resolve(link: ItemLink): Promise<Embed | null> {
+	return found(send('resolveLink', { link: itemLinkHref(link) }));
+}
 
-/**
- * Where an item opens, or null once it is deleted or never was. The link
- * names no workspace, so a task or document is looked for in the current
- * workspace first, then the others.
- */
-export async function itemRoute(kind: ItemKind, id: number): Promise<string | null> {
-	if (kind === 'agent') {
-		await agents.loadList();
-		return agents.list.value.some((a) => a.id === id) ? routes.agent(id) : null;
-	}
-	if (kind === 'actor-session')
-		return (await found(send('getActorSession', { id }))) !== null ? routes.actorSession(id) : null;
-	if (kind === 'task') {
-		const task = await findTask(null, id);
-		return task === null ? null : routes.task(task.workspace_id, id);
-	}
-	await workspaces.load();
-	for (const ws of searchOrder()) {
-		const href = await workspaceItemRoute(kind, ws, id);
-		if (href !== null) return href;
-	}
-	return null;
+/** Where the item `link` names opens, or null once it is deleted or never was. */
+export async function itemRoute(link: ItemLink): Promise<string | null> {
+	const embed = await resolve(link);
+	return embed && embedRoute(embed);
 }
 
 /**
- * Task `id` in workspace `ws`, or null when it has none by `id`. A link naming
- * no workspace (`ws` null) is looked for in the current workspace first, then
- * the others.
+ * Where the item `embed` shows opens: its page, or the Tasks page at it. An
+ * article belongs to no workspace, so it opens in the current one; with no
+ * workspace at all it has nowhere to open (null).
  */
-export async function findTask(ws: number | null, id: number): Promise<Task | null> {
-	if (ws !== null) return tasks.find(ws, id);
-	await workspaces.load();
-	for (const w of searchOrder()) {
-		const task = await tasks.find(w, id);
-		if (task !== null) return task;
+export async function embedRoute(embed: Embed): Promise<string | null> {
+	const { item } = embed;
+	switch (item.kind) {
+		case 'task':
+			return routes.task(item.task.workspace_id, item.task.id);
+		case 'document':
+			return documentRoute(item.document);
+		case 'resource':
+			return routes.resource(item.resource.workspace_id, item.resource.kind_id, item.resource.id);
+		case 'agent':
+			return routes.agent(item.agent.id);
+		case 'actorSession':
+			return routes.actorSession(item.session.id);
+		case 'article':
+			return articleRoute(item.article.id);
 	}
-	return null;
 }
 
-/** Where a task or document in workspace `ws` opens, or null when that workspace has none by `id`. */
-export async function workspaceItemRoute(
-	kind: WorkspaceItemKind,
-	ws: number,
-	id: number
-): Promise<string | null> {
-	if (kind === 'task') return (await findTask(ws, id)) !== null ? routes.task(ws, id) : null;
-	const document = await findDocument(ws, id);
-	return document === null ? null : documentRoute(document);
-}
-
-/**
- * Document `id` in workspace `ws`, or null when it has none by `id`; with
- * `ws` null, looked for as `findTask` looks for a task.
- */
-export async function findDocument(ws: number | null, id: number): Promise<Document | null> {
-	if (ws !== null) return found(send('getDocument', { workspace_id: ws, document_id: id }));
+/** Article `id`'s page, in the current workspace (else the first), or null with none. */
+export async function articleRoute(id: number): Promise<string | null> {
 	await workspaces.load();
-	for (const w of searchOrder()) {
-		const document = await findDocument(w, id);
-		if (document !== null) return document;
-	}
-	return null;
+	const ws = workspaces.currentId ?? workspaces.list.value[0]?.id;
+	return ws === undefined ? null : routes.article(ws, id);
 }
 
 /** A document's page, or a journal entry's. */
@@ -86,13 +62,6 @@ export function documentRoute(document: Document): string {
 	return document.document_type === 'journal'
 		? routes.journalEntry(document.workspace_id, document.id)
 		: routes.document(document.workspace_id, document.id);
-}
-
-/** Every workspace's id, the current one first. */
-function searchOrder(): number[] {
-	const current = workspaces.currentId;
-	const others = workspaces.list.value.map((w) => w.id).filter((id) => id !== current);
-	return current === null ? others : [current, ...others];
 }
 
 /** What `request` returns, or null when it is not found. */

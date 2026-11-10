@@ -17,6 +17,7 @@ mod contact;
 mod day_filter;
 mod document;
 mod document_folder;
+mod embed;
 mod endpoint_model;
 mod extension;
 mod feed;
@@ -33,6 +34,7 @@ mod intelligence_provider;
 mod intelligence_spend_limit;
 mod intelligence_thread;
 mod intelligence_usage;
+mod item_link;
 mod memory;
 mod metadata;
 mod photo;
@@ -47,6 +49,7 @@ mod storage_settings;
 mod tag;
 mod task;
 mod task_folder;
+mod text_section;
 mod workspace;
 
 pub use activity::{Activity, ActivityKind, ActivityOutcome, ActivityStanding, ActivityStatus};
@@ -77,6 +80,7 @@ pub use contact::{Contact, ContactMethod, ContactMethodKind, NewContactMethod};
 pub use day_filter::{DayFilter, DayRange};
 pub use document::{Document, DocumentType};
 pub use document_folder::DocumentFolder;
+pub use embed::{Embed, EmbedItem, EmbedKind, excerpt};
 pub use endpoint_model::EndpointModel;
 pub use extension::{
     Extension, ExtensionHook, ExtensionManifest, ExtensionPermission, ExtensionPermissionKind,
@@ -99,6 +103,7 @@ pub use intelligence_provider::*;
 pub use intelligence_spend_limit::{IntelligenceSpend, IntelligenceSpendLimit, SpendPeriod};
 pub use intelligence_thread::*;
 pub use intelligence_usage::{IntelligenceUsage, ModelUsage};
+pub use item_link::{ItemLink, NotAnItemLink};
 pub use memory::{Memory, MemoryScope};
 pub use metadata::{HasMetadata, Metadata, MetadataOwner};
 pub use photo::Photo;
@@ -123,4 +128,5 @@ pub use task::{
     Task, TaskAssignee, TaskFolderFilter, TaskPriority, TaskSize, TaskSort, TaskStatus,
 };
 pub use task_folder::TaskFolder;
+pub use text_section::{TextPiece, TextSection, text_pieces};
 pub use workspace::Workspace;

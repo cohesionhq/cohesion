@@ -3,6 +3,7 @@
 <script lang="ts">
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import type { ArticleSummary } from '$lib/protocol/types';
+	import { copyLinkItems } from '$lib/ui/copyLink';
 	import Menu, { type MenuItem } from '$lib/ui/Menu.svelte';
 	import { hostOf } from './failure';
 	import { publishedAge } from './published';
@@ -10,7 +11,7 @@
 	interface Props {
 		article: Pick<
 			ArticleSummary,
-			'title' | 'url' | 'author' | 'published_at' | 'published_precision' | 'read'
+			'id' | 'title' | 'url' | 'author' | 'published_at' | 'published_precision' | 'read'
 		> & { snapshot?: ArticleSummary['snapshot'] };
 		href: string;
 		now: number;
@@ -33,7 +34,11 @@
 		{
 			label: article.read ? 'Mark as unread' : 'Mark as read',
 			onSelect: () => onread(!article.read)
-		}
+		},
+		...copyLinkItems(() => ({
+			link: { kind: 'article', ws: null, id: article.id },
+			title: article.title
+		}))
 	]);
 
 	const tool =

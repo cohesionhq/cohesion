@@ -2,40 +2,17 @@
 // through `resolve()` so a configured base path is honoured.
 
 import { resolve } from '$app/paths';
+import type { ItemKind, ItemLink, WorkspaceItemKind } from '$lib/format/itemLinks';
 
-/** What a `cohesion://` link can point at. */
-export type ItemKind = WorkspaceItemKind | 'agent' | 'actor-session';
-
-/** What a `cohesion://` link names with its workspace. */
-export type WorkspaceItemKind = 'task' | 'document';
-
-// `cohesion://task/3/42` and `cohesion://document/3/7` (workspace, then item),
-// `cohesion://agent/3` and `cohesion://actor-session/143`.
-const WORKSPACE_ITEM_LINK = /^cohesion:\/\/(task|document)\/(\d+)\/(\d+)$/;
-// `cohesion://task/42` and `cohesion://document/7` without their workspace,
-// as links were first written, as well as agents and actor sessions.
-const ITEM_LINK = /^cohesion:\/\/(task|document|agent|actor-session)\/(\d+)$/;
-
-/**
- * What a `cohesion://` link names: a task or document with its workspace
- * (`cohesion://task/3/42`), or an item without one (`cohesion://task/42`,
- * `cohesion://agent/3`), as links to tasks and documents were first written.
- */
-export type ItemLink =
-	{ kind: WorkspaceItemKind; ws: number; id: number } | { kind: ItemKind; ws: null; id: number };
-
-/** What a link to an item (`cohesion://task/3/42`) names, or null for any other href. */
-export function parseItemLink(href: string): ItemLink | null {
-	const scoped = WORKSPACE_ITEM_LINK.exec(href);
-	if (scoped)
-		return {
-			kind: scoped[1] as WorkspaceItemKind,
-			ws: Number(scoped[2]),
-			id: Number(scoped[3])
-		};
-	const match = ITEM_LINK.exec(href);
-	return match ? { kind: match[1] as ItemKind, ws: null, id: Number(match[2]) } : null;
-}
+// Links to items are read and written in `$lib/format/itemLinks.ts`, which
+// the mock and the stores share.
+export {
+	itemLinkHref,
+	parseItemLink,
+	type ItemKind,
+	type ItemLink,
+	type WorkspaceItemKind
+} from '$lib/format/itemLinks';
 
 /** Where an item a link names goes in the app: its Open page. */
 export function itemLinkRoute(link: ItemLink): string {
