@@ -1,7 +1,9 @@
 //! What a run writes: `cases.csv` (a row per run of a case), `summary.csv`
 //! (a row per model) and `report.html`, which shows both at a glance:
-//! the models ranked by overall score, how they compare, how each did by
-//! category and case, and why each run that missed missed.
+//! the models ranked by overall score, accuracy against cost and time,
+//! how they compare, accuracy by difficulty, run times, how each did by
+//! category and case, and why each run that missed missed. The charts
+//! (`charts.rs`) are inline SVG, with no script.
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -10,6 +12,8 @@ use std::path::Path;
 use crate::case::{Case, Difficulty};
 use crate::metrics::{CODE_TOOL, CaseResult, DOCUMENTATION_TOOL, Outcome, Summary, accuracy};
 use crate::score;
+
+mod charts;
 
 /// What the report says about the run as a whole.
 pub struct RunInfo<'a> {
@@ -218,6 +222,31 @@ fn percent(value: Option<f64>) -> String {
     value.map_or("–".to_string(), |value| format!("{:.0}%", value * 100.0))
 }
 
+/// A model's name for a column heading: its own name, past the last
+/// `/`, and under it the provider's path in smaller type.
+fn model_heading(model: &str) -> String {
+    let name = charts::short(model);
+    let provider = model[..model.len() - name.len()].trim_end_matches('/');
+    match provider.is_empty() {
+        true => escape(name),
+        false => format!(
+            "{}<span class=\"provider\">{}</span>",
+            escape(name),
+            escape(provider)
+        ),
+    }
+}
+
+/// A leaderboard cell for a score from 0 to 100: a bar in the score's
+/// colour (`class`), then the value.
+fn score_cell(value: Option<f64>, class: &str) -> String {
+    format!(
+        "<td class=\"score\"><span class=\"sbar {class}\"><i style=\"width:{:.1}%\"></i></span>{}</td>",
+        value.unwrap_or(0.0).clamp(0.0, 100.0),
+        points(value)
+    )
+}
+
 /// A score from 0 to 100, to one place.
 fn points(value: Option<f64>) -> String {
     value.map_or("–".to_string(), |value| format!("{value:.1}"))
@@ -267,6 +296,9 @@ const STYLE: &str = r#"
   --pass: #1f8a5b; --pass-bg: #e3f3ea; --fail: #c2412d; --fail-bg: #fbe7e3;
   --part: #b7791f; --error: #8a8580; --error-bg: #eeece8; --bar: #e4e0d8;
   --eff: #3b6fd8; --align: #8a5cd0; --heat-l: 92%; --heat-s: 60%;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+  --grid: #e1e0d9; --axis: #c3c2b7;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -274,6 +306,9 @@ const STYLE: &str = r#"
     --pass: #5cc492; --pass-bg: #1b3328; --fail: #f08070; --fail-bg: #3a201b;
     --part: #e0b44c; --error: #8d8981; --error-bg: #2a2927; --bar: #34332f;
     --eff: #86a8ff; --align: #b99af0; --heat-l: 24%; --heat-s: 45%;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+    --grid: #2c2c2a; --axis: #383835;
   }
 }
 * { box-sizing: border-box; }
@@ -285,23 +320,6 @@ h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: 
   margin: 48px 0 14px; font-weight: 600; }
 .sub { color: var(--muted); margin: 0; }
 .num { font-variant-numeric: tabular-nums; }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
-.card .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.card .model { font-weight: 600; font-size: 15px; word-break: break-all; }
-.card .rank { color: var(--muted); font-size: 13px; }
-.card .overall { font-size: 46px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; margin: 8px 0 0; }
-.card .overall small { font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: 0; margin-left: 6px; }
-.gauge { display: grid; grid-template-columns: 78px 1fr 36px; align-items: center; gap: 8px;
-  font-size: 12px; color: var(--muted); margin-top: 8px; }
-.gauge b { color: var(--ink); text-align: right; }
-.meter { height: 6px; border-radius: 3px; background: var(--bar); overflow: hidden; }
-.meter i { display: block; height: 100%; background: var(--pass); }
-.meter.eff i { background: var(--eff); }
-.meter.align i { background: var(--align); }
-.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin: 14px 0 0; }
-.stats dt { color: var(--muted); font-size: 12px; }
-.stats dd { margin: 0; font-weight: 600; }
 .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 8px 11px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -342,6 +360,52 @@ pre { white-space: pre-wrap; word-break: break-word; background: var(--bg); bord
   max-height: 240px; overflow: auto; }
 .prompt { color: var(--muted); font-style: italic; margin: 2px 0 8px; }
 .empty { color: var(--muted); }
+.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 14px; }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px 10px; min-width: 0; }
+.panel h3 { margin: 0; font-size: 15px; }
+.panel p.note { margin: 2px 0 10px; color: var(--muted); font-size: 12px; }
+.chart { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font: 11px system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--muted); }
+.chart .label, .chart .row-label { fill: var(--ink); font-size: 12px; }
+.chart .axis-title { fill: var(--muted); font-size: 11px; }
+.chart .grid { stroke: var(--grid); stroke-width: 1; }
+.chart .axis { stroke: var(--axis); stroke-width: 1; }
+.chart .leader { stroke: var(--axis); stroke-width: 1; }
+.chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.chart .ring { stroke: var(--card); stroke-width: 2; }
+.chart .hit { fill: transparent; }
+.chart .mark:hover .ring { stroke: var(--ink); }
+.chart .range { stroke: var(--axis); stroke-width: 6; stroke-linecap: round; opacity: 0.6; }
+.chart .run { stroke-width: 1.5; opacity: 0.45; }
+.chart .median { fill: var(--ink); }
+th.score, td.score { white-space: nowrap; }
+td.score { font-weight: 600; }
+.leaderboard td, .leaderboard th { vertical-align: middle; }
+.leaderboard thead th.model { color: var(--ink); font-size: 13px; text-align: right; }
+th .provider { display: block; font-size: 11px; font-weight: 400; color: var(--muted); }
+.leaderboard .rank { color: var(--muted); font-weight: 500; margin-right: 6px; }
+.leaderboard th.measure { color: var(--ink); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.leaderboard tr.group-row th { background: var(--bg); font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.06em; padding-top: 10px; }
+.leaderboard td.score { text-align: right; }
+.sbar { display: inline-block; width: 84px; height: 10px; border-radius: 4px; background: var(--bar);
+  vertical-align: middle; margin-right: 8px; overflow: hidden; }
+.sbar i { display: block; height: 100%; border-radius: 4px; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.sbar.overall i, .swatch.overall { background: var(--ink); }
+.sbar.accuracy i, .swatch.accuracy { background: var(--pass); }
+.sbar.efficiency i, .swatch.efficiency { background: var(--eff); }
+.sbar.alignment i, .swatch.alignment { background: var(--align); }
+.chart.matrix { width: auto; max-width: none; }
+.chart .c-pass { fill: var(--pass); } .chart .c-fail { fill: var(--fail); }
+.chart .c-mixed { fill: var(--part); } .chart .c-error { fill: var(--error); }
+.chart rect:hover { stroke: var(--ink); stroke-width: 1.5; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 8px; font-size: 12px; color: var(--ink); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.legend i.c-pass { background: var(--pass); } .legend i.c-fail { background: var(--fail); }
+.legend i.c-mixed { background: var(--part); } .legend i.c-error { background: var(--error); }
+.matrix-wrap { overflow-x: auto; }
 footer { color: var(--muted); font-size: 12px; margin-top: 40px; line-height: 1.6; }
 footer p { margin: 0 0 6px; }
 "#;
@@ -380,98 +444,265 @@ pub fn html(info: &RunInfo<'_>, results: &[CaseResult], summaries: &[Summary]) -
             .total_cmp(&a.overall.unwrap_or(-1.0))
     });
 
-    page.push_str("<h2>Leaderboard</h2><div class=\"cards\">");
+    let slot = |model: &str| {
+        info.models
+            .iter()
+            .position(|m| m == model)
+            .unwrap_or(usize::MAX)
+    };
+    // The leaderboard: a column per model, best first, and a row per
+    // measure, grouped, so one model's numbers read down its column and
+    // one measure reads across.
+    type Row<'a> = (&'a str, Box<dyn Fn(&Summary) -> String + 'a>);
+    let plain = |text: String| format!("<td class=\"r\">{text}</td>");
+    let score_row = |name: &'static str,
+                     class: &'static str,
+                     value: fn(&Summary) -> Option<f64>|
+     -> Row<'static> {
+        (
+            name,
+            Box::new(move |s: &Summary| score_cell(value(s), class)),
+        )
+    };
+    let heat_row = |name: &'static str, index: usize| -> Row<'static> {
+        (
+            name,
+            Box::new(move |s: &Summary| {
+                let value = s.accuracy_by_difficulty[index];
+                format!("<td class=\"heat\"{}>{}</td>", heat(value), points(value))
+            }),
+        )
+    };
+    let groups: Vec<(&str, Vec<Row>)> = vec![
+        (
+            "Scores",
+            vec![
+                score_row("<i class=\"swatch overall\"></i>Overall", "overall", |s| {
+                    s.overall
+                }),
+                score_row(
+                    "<i class=\"swatch accuracy\"></i>Accuracy",
+                    "accuracy",
+                    |s| s.accuracy,
+                ),
+                score_row(
+                    "<i class=\"swatch efficiency\"></i>Efficiency",
+                    "efficiency",
+                    |s| s.efficiency,
+                ),
+                score_row(
+                    "<i class=\"swatch alignment\"></i>Alignment",
+                    "alignment",
+                    |s| s.alignment,
+                ),
+            ],
+        ),
+        (
+            "Accuracy by difficulty",
+            vec![
+                heat_row("Easy", 0),
+                heat_row("Medium", 1),
+                heat_row("Hard", 2),
+            ],
+        ),
+        (
+            "Runs",
+            vec![
+                (
+                    "Passed",
+                    Box::new(move |s: &Summary| plain(format!("{}/{}", s.passed, s.runs))),
+                ),
+                (
+                    "Errors",
+                    Box::new(move |s: &Summary| plain(s.errors.to_string())),
+                ),
+                (
+                    "Asked the user",
+                    Box::new(move |s: &Summary| plain(s.asked_user.to_string())),
+                ),
+                (
+                    "Tool accuracy",
+                    Box::new(move |s: &Summary| plain(percent(s.tool_accuracy()))),
+                ),
+                (
+                    "Model calls",
+                    Box::new(move |s: &Summary| {
+                        plain(format!(
+                            "{:.1} (max {})",
+                            s.mean_model_calls, s.max_model_calls
+                        ))
+                    }),
+                ),
+                (
+                    "Docs read",
+                    Box::new(move |s: &Summary| plain(s.documentation_calls.to_string())),
+                ),
+            ],
+        ),
+        (
+            "Cost",
+            vec![
+                (
+                    "Total",
+                    Box::new(move |s: &Summary| plain(dollars(Some(s.cost), s.priced))),
+                ),
+                (
+                    "Per pass",
+                    Box::new(move |s: &Summary| plain(dollars(s.cost_per_pass(), s.priced))),
+                ),
+            ],
+        ),
+        (
+            "Time",
+            vec![
+                (
+                    "Median",
+                    Box::new(move |s: &Summary| plain(seconds(s.median_seconds))),
+                ),
+                (
+                    "Mean",
+                    Box::new(move |s: &Summary| plain(seconds(s.mean_seconds))),
+                ),
+                (
+                    "p90",
+                    Box::new(move |s: &Summary| plain(seconds(s.p90_seconds))),
+                ),
+                (
+                    "Output tokens a second",
+                    Box::new(move |s: &Summary| {
+                        plain(format!("{:.0}", s.output_tokens_per_second))
+                    }),
+                ),
+            ],
+        ),
+        (
+            "Tokens",
+            vec![
+                (
+                    "Per run",
+                    Box::new(move |s: &Summary| plain(tokens(Some(s.mean_total_tokens)))),
+                ),
+                (
+                    "Per pass",
+                    Box::new(move |s: &Summary| plain(tokens(s.tokens_per_pass))),
+                ),
+                (
+                    "Cache hits",
+                    Box::new(move |s: &Summary| plain(percent(s.cache_hit_rate))),
+                ),
+            ],
+        ),
+    ];
+    page.push_str(
+        "<h2>Leaderboard</h2><div class=\"scroll\"><table class=\"num leaderboard\"><thead><tr><th></th>",
+    );
     for (rank, s) in ranked.iter().enumerate() {
-        let gauge = |label: &str, value: Option<f64>, class: &str| {
-            format!(
-                "<div class=\"gauge num\"><span>{label}</span><div class=\"meter {class}\">\
-                 <i style=\"width:{:.1}%\"></i></div><b>{}</b></div>",
-                value.unwrap_or(0.0),
-                points(value)
-            )
-        };
         _ = write!(
             page,
-            "<section class=\"card\"><div class=\"top\"><span class=\"model\">{model}</span>\
-             <span class=\"rank\">#{rank}</span></div>\
-             <div class=\"overall num\">{overall}<small>overall</small></div>\
-             {accuracy}{efficiency}{alignment}<dl class=\"stats num\">\
-             <div><dt>Passed</dt><dd>{passed}/{runs}</dd></div>\
-             <div><dt>Cost per run</dt><dd>{cost}</dd></div>\
-             <div><dt>Median time</dt><dd>{median}</dd></div>\
-             <div><dt>Tokens per pass</dt><dd>{per_pass}</dd></div>\
-             <div><dt>Tool accuracy</dt><dd>{tool_accuracy}</dd></div>\
-             <div><dt>Model calls per run</dt><dd>{calls:.1}</dd></div>\
-             </dl></section>",
-            model = escape(&s.model),
-            rank = rank + 1,
-            overall = points(s.overall),
-            accuracy = gauge("Accuracy", s.accuracy, ""),
-            efficiency = gauge("Efficiency", s.efficiency, "eff"),
-            alignment = gauge("Alignment", s.alignment, "align"),
-            passed = s.passed,
-            runs = s.runs,
-            cost = dollars(s.cost_per_run(), s.priced),
-            median = seconds(s.median_seconds),
-            per_pass = tokens(s.tokens_per_pass),
-            tool_accuracy = percent(s.tool_accuracy()),
-            calls = s.mean_model_calls,
+            "<th class=\"model\" title=\"{}\"><span class=\"rank\">#{}</span>{}</th>",
+            escape(&s.model),
+            rank + 1,
+            model_heading(&s.model)
         );
     }
-    page.push_str("</div>");
-
-    page.push_str(
-        "<h2>Comparison</h2><div class=\"scroll\"><table class=\"num\"><thead><tr><th>Model</th>\
-         <th class=\"r\">Overall</th><th class=\"r\">Accuracy</th><th class=\"r\">Efficiency</th>\
-         <th class=\"r\">Alignment</th><th class=\"r\">Easy</th><th class=\"r\">Medium</th><th class=\"r\">Hard</th>\
-         <th class=\"r\">Passed</th><th class=\"r\">Tool accuracy</th><th class=\"r\">Total cost</th>\
-         <th class=\"r\">Cost / pass</th><th class=\"r\">Mean time</th><th class=\"r\">p90 time</th>\
-         <th class=\"r\">Output tok/s</th><th class=\"r\">Tokens / run</th><th class=\"r\">Cache hits</th>\
-         <th class=\"r\">Model calls</th><th class=\"r\">Docs read</th><th class=\"r\">Asked</th>\
-         <th class=\"r\">Errors</th></tr></thead><tbody>",
-    );
-    for s in &ranked {
-        let [easy, medium, hard] = s.accuracy_by_difficulty;
+    page.push_str("</tr></thead><tbody>");
+    for (group, rows) in &groups {
         _ = write!(
             page,
-            "<tr><td>{model}</td><td class=\"r\"><b>{overall}</b></td><td class=\"r\">{accuracy}</td>\
-             <td class=\"r\">{efficiency}</td><td class=\"r\">{alignment}</td>\
-             <td class=\"heat\"{he}>{easy}</td>\
-             <td class=\"heat\"{hm}>{medium}</td><td class=\"heat\"{hh}>{hard}</td>\
-             <td class=\"r\">{passed}/{runs}</td><td class=\"r\">{tool_accuracy}</td>\
-             <td class=\"r\">{cost}</td><td class=\"r\">{per_pass}</td><td class=\"r\">{mean}</td>\
-             <td class=\"r\">{p90}</td><td class=\"r\">{speed:.0}</td><td class=\"r\">{per_run}</td>\
-             <td class=\"r\">{cache}</td><td class=\"r\">{calls:.1} (max {max})</td>\
-             <td class=\"r\">{docs}</td><td class=\"r\">{asked}</td><td class=\"r\">{errors}</td></tr>",
-            model = escape(&s.model),
-            overall = points(s.overall),
-            accuracy = points(s.accuracy),
-            efficiency = points(s.efficiency),
-            alignment = points(s.alignment),
-            he = heat(easy),
-            hm = heat(medium),
-            hh = heat(hard),
-            easy = points(easy),
-            medium = points(medium),
-            hard = points(hard),
-            passed = s.passed,
-            runs = s.runs,
-            tool_accuracy = percent(s.tool_accuracy()),
-            cost = dollars(Some(s.cost), s.priced),
-            per_pass = dollars(s.cost_per_pass(), s.priced),
-            mean = seconds(s.mean_seconds),
-            p90 = seconds(s.p90_seconds),
-            speed = s.output_tokens_per_second,
-            per_run = tokens(Some(s.mean_total_tokens)),
-            cache = percent(s.cache_hit_rate),
-            calls = s.mean_model_calls,
-            max = s.max_model_calls,
-            docs = s.documentation_calls,
-            asked = s.asked_user,
-            errors = s.errors,
+            "<tr class=\"group-row\"><th colspan=\"{}\">{group}</th></tr>",
+            ranked.len() + 1
         );
+        for (name, cell) in rows {
+            _ = write!(page, "<tr><th class=\"measure\">{name}</th>");
+            for s in &ranked {
+                page.push_str(&cell(s));
+            }
+            page.push_str("</tr>");
+        }
     }
     page.push_str("</tbody></table></div>");
+
+    let named: Vec<(String, usize)> = info.models.iter().cloned().zip(0..).collect();
+    let trade_off = |x: fn(&Summary) -> Option<f64>, tip: fn(&Summary) -> String| {
+        let points: Vec<charts::Point> = ranked
+            .iter()
+            .filter_map(|s| {
+                Some(charts::Point {
+                    label: s.model.clone(),
+                    slot: slot(&s.model),
+                    x: x(s)?,
+                    y: s.accuracy?,
+                    tip: tip(s),
+                })
+            })
+            .collect();
+        points
+    };
+    let costs = trade_off(
+        |s| s.priced.then(|| s.cost_per_pass()).flatten(),
+        |s| {
+            format!(
+                "{} · accuracy {} · {} per pass",
+                s.model,
+                points(s.accuracy),
+                dollars(s.cost_per_pass(), s.priced)
+            )
+        },
+    );
+    let times = trade_off(
+        |s| (s.median_seconds > 0.0).then_some(s.median_seconds),
+        |s| {
+            format!(
+                "{} · accuracy {} · median {}",
+                s.model,
+                points(s.accuracy),
+                seconds(s.median_seconds)
+            )
+        },
+    );
+
+    let slopes: Vec<charts::Slope> = ranked
+        .iter()
+        .map(|s| charts::Slope {
+            label: s.model.clone(),
+            slot: slot(&s.model),
+            values: s.accuracy_by_difficulty,
+        })
+        .collect();
+    let strips: Vec<charts::Times> = ranked
+        .iter()
+        .map(|s| charts::Times {
+            label: s.model.clone(),
+            slot: slot(&s.model),
+            seconds: results
+                .iter()
+                .filter(|r| r.model == s.model)
+                .map(|r| r.seconds)
+                .collect(),
+        })
+        .collect();
+    _ = write!(
+        page,
+        "<h2>Trade-offs</h2><div class=\"panels\">\
+         <section class=\"panel\"><h3>Accuracy by difficulty</h3>\
+         <p class=\"note\">A flat line holds up as cases get harder; a steep one falls away.</p>{}{}</section>\
+         <section class=\"panel\"><h3>Run times</h3>\
+         <p class=\"note\">Every run as a tick, the median as a bar: a long tail sits to the right.</p>{}</section></div>",
+        charts::legend(&named),
+        charts::slopes(&slopes),
+        charts::time_strips(&strips, seconds),
+    );
+
+    _ = write!(
+        page,
+        "<div class=\"panels\" style=\"margin-top:14px\">\
+         <section class=\"panel\"><h3>Accuracy against cost</h3>\
+         <p class=\"note\">Up and to the left is better: more right for less. Unpriced models are left out.</p>{}</section>\
+         <section class=\"panel\"><h3>Accuracy against time</h3>\
+         <p class=\"note\">Up and to the left is better: more right, sooner. Time is each model's median run.</p>{}</section></div>",
+        charts::scatter(&costs, "cost per passed run", |v| dollars(Some(v), true)),
+        charts::scatter(&times, "median seconds per run", seconds),
+    );
 
     let categories: BTreeSet<&str> = info.cases.iter().map(|c| c.category.as_str()).collect();
     let runs_of = |model: &str, filter: &dyn Fn(&CaseResult) -> bool| -> Vec<&CaseResult> {
@@ -485,7 +716,12 @@ pub fn html(info: &RunInfo<'_>, results: &[CaseResult], summaries: &[Summary]) -
          <th>Category</th><th class=\"r\">Cases</th>",
     );
     for s in &ranked {
-        _ = write!(page, "<th class=\"r\">{}</th>", escape(&s.model));
+        _ = write!(
+            page,
+            "<th class=\"r\" title=\"{}\">{}</th>",
+            escape(&s.model),
+            model_heading(&s.model)
+        );
     }
     page.push_str("</tr></thead><tbody>");
     for category in &categories {
@@ -513,6 +749,74 @@ pub fn html(info: &RunInfo<'_>, results: &[CaseResult], summaries: &[Summary]) -
     }
     page.push_str("</tbody></table></div>");
 
+    let mut rows: Vec<charts::CategoryRow> = categories
+        .iter()
+        .map(|category| charts::CategoryRow {
+            category: category.to_string(),
+            cases: info
+                .cases
+                .iter()
+                .filter(|c| c.category == *category)
+                .count(),
+            scores: ranked
+                .iter()
+                .map(|s| {
+                    let runs = runs_of(&s.model, &|r| r.category == *category);
+                    (s.model.clone(), slot(&s.model), accuracy(&runs))
+                })
+                .collect(),
+        })
+        .collect();
+    let mean = |row: &charts::CategoryRow| {
+        let values: Vec<f64> = row.scores.iter().filter_map(|(_, _, v)| *v).collect();
+        values.iter().sum::<f64>() / values.len().max(1) as f64
+    };
+    rows.sort_by(|a, b| mean(a).total_cmp(&mean(b)));
+    _ = write!(
+        page,
+        "<section class=\"panel\" style=\"margin-top:14px\"><h3>Where models part ways</h3>\
+         <p class=\"note\">Hardest categories first. Each dot is a model; the band runs from the worst to the best.</p>\
+         {}{}</section>",
+        charts::legend(&named),
+        charts::category_dots(&rows),
+    );
+
+    let mut ordered: Vec<&Case> = info.cases.iter().collect();
+    ordered.sort_by(|a, b| a.category.cmp(&b.category));
+    let columns: Vec<charts::Column> = ordered
+        .iter()
+        .map(|case| charts::Column {
+            category: case.category.clone(),
+            tip: case.title.clone(),
+            cells: ranked
+                .iter()
+                .map(|s| {
+                    let runs = runs_of(&s.model, &|r| r.case == case.name);
+                    let passed = runs.iter().filter(|r| r.outcome == Outcome::Passed).count();
+                    let errors = runs.iter().filter(|r| r.outcome == Outcome::Error).count();
+                    match (runs.len(), passed, errors) {
+                        (0, _, _) => charts::Cell::Missing,
+                        (all, _, errors) if errors == all => charts::Cell::Error,
+                        (all, passed, _) if passed == all => charts::Cell::Passed,
+                        (_, 0, _) => charts::Cell::Failed,
+                        _ => charts::Cell::Mixed,
+                    }
+                })
+                .collect(),
+        })
+        .collect();
+    let models: Vec<String> = ranked.iter().map(|s| s.model.clone()).collect();
+    _ = write!(
+        page,
+        "<h2>Every case</h2><section class=\"panel\"><p class=\"note\">A column per case, a row per model. \
+         A column red all the way down is a case every model missed: worth checking the case itself.</p>\
+         <div class=\"legend\"><span><i class=\"c-pass\"></i>Passed</span>\
+         <span><i class=\"c-mixed\"></i>Passed some repeats</span><span><i class=\"c-fail\"></i>Failed</span>\
+         <span><i class=\"c-error\"></i>Couldn't run</span></div>\
+         <div class=\"matrix-wrap\">{}</div></section>",
+        charts::case_matrix(&models, &columns),
+    );
+
     page.push_str("<h2>Cases</h2>");
     for category in &categories {
         let cases: Vec<&Case> = info
@@ -528,7 +832,12 @@ pub fn html(info: &RunInfo<'_>, results: &[CaseResult], summaries: &[Summary]) -
             cases.len()
         );
         for s in &ranked {
-            _ = write!(page, "<th>{}</th>", escape(&s.model));
+            _ = write!(
+                page,
+                "<th title=\"{}\">{}</th>",
+                escape(&s.model),
+                model_heading(&s.model)
+            );
         }
         page.push_str("</tr></thead><tbody>");
         for case in cases {
@@ -583,14 +892,15 @@ pub fn html(info: &RunInfo<'_>, results: &[CaseResult], summaries: &[Summary]) -
             _ = write!(
                 page,
                 "<details class=\"miss\"><summary><span class=\"pill {outcome}\">{label}</span>\
-                 <span class=\"grow\"><b>{title}</b> · {model}{repeat}</span>\
+                 <span class=\"grow\"><b>{title}</b> · <span title=\"{full}\">{model}</span>{repeat}</span>\
                  <span class=\"cell-meta num\">{secs} · {calls} model calls · {tools} tool calls</span>\
                  </summary><div class=\"detail\"><p class=\"prompt\">“{prompt}”</p><p>{reason}</p>\
                  <div class=\"chips num\">",
                 outcome = r.outcome.as_str(),
                 label = r.outcome.as_str(),
                 title = escape(&case.title),
-                model = escape(&r.model),
+                model = escape(charts::short(&r.model)),
+                full = escape(&r.model),
                 repeat = match info.repeats > 1 {
                     true => format!(" #{}", r.repeat),
                     false => String::new(),
