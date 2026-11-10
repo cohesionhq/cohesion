@@ -74,11 +74,11 @@
 						{@const Icon = icon(item)}
 						<li class="border-b border-border">
 							<button
-								class="flex min-h-11 w-full cursor-pointer flex-wrap items-baseline gap-x-2 py-2 text-left transition-colors hover:bg-bg-hover"
+								class="flex min-h-11 w-full cursor-pointer flex-wrap items-center gap-x-2 py-2 text-left transition-colors hover:bg-bg-hover"
 								type="button"
 								onclick={() => show(item)}
 							>
-								<span class="self-center text-fg-subtle">
+								<span class="text-fg-subtle">
 									<Icon size={15} strokeWidth={1.75} aria-label={kindLabel(item)} />
 								</span>
 								<span class="min-w-0 wrap-anywhere">{name(item)}</span>
