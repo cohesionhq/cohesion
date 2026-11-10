@@ -173,8 +173,23 @@
 		list-style: decimal;
 	}
 
+	/* A table wider than the text scrolls sideways on its own rather than
+	   squeezing its cells: a cell keeps room for a few words and breaks only
+	   between words, and the rules under its rows run on past the edge it's
+	   cut at. */
+	.markdown :global(table) {
+		display: block;
+		width: max-content;
+		max-width: 100%;
+		overflow-x: auto;
+	}
+
 	.markdown :global(:is(th, td)) {
+		min-width: 8em;
 		padding: var(--s1) var(--s2);
+		border-bottom: 1px solid var(--border);
+		vertical-align: top;
+		overflow-wrap: normal;
 	}
 
 	.markdown :global(pre) {

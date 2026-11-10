@@ -889,7 +889,7 @@ function seed(): MockState {
 				7,
 				2,
 				'Production team rotation',
-				'Each Sunday needs a producer, a run-through lead, sound, lighting, Pro-Presenter and camera. Planning Center sends the rota; tasks follow it.\n'
+				'Each Sunday needs a producer, a run-through lead, sound, lighting, Pro-Presenter and camera. Planning Center sends the rota; tasks follow it.\n\n| Sunday | Producer | Run-through lead | Sound | Lighting | Pro-Presenter | Camera | Notes |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n| 16 November | Maria Lopez | Daniel Reyes | Sam Whitaker | Priya Nair | Ethan Brooks | Hannah Cole | Baptism after the second service; camera covers the font |\n| 23 November | Daniel Reyes | Maria Lopez | Hannah Cole | Sam Whitaker | Priya Nair | Ethan Brooks | Guest band, so sound check moves to 7:30 |\n| 30 November | Priya Nair | Ethan Brooks | Sam Whitaker | Hannah Cole | Maria Lopez | Daniel Reyes | First Sunday of Advent |\n'
 			),
 			doc(
 				8,
