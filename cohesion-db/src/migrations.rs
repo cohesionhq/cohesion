@@ -4382,7 +4382,8 @@ pub const MIGRATIONS: &[Migration] = &[
     // formula, whose values the daemon computes and stores like any other;
     // a row whose outputs are out of date has a nonzero `formula_stale`,
     // raised by each change to what they read, so they are computed again
-    // even after a restart.
+    // even after a restart. A link can name a database or a row of one, so
+    // `backlinks` is rebuilt to admit those kinds.
     Migration {
         name: "databases",
         sql: "
@@ -4466,6 +4467,29 @@ pub const MIGRATIONS: &[Migration] = &[
             INSERT INTO search_fts (rowid, title, contents)
                 SELECT last_insert_rowid(), new.title, new.contents
                 WHERE new.deleted = 0 AND new.document_type IS NOT 'databaseRow';
+        END;
+
+        DROP TRIGGER documents_backlinks_ad;
+        CREATE TABLE backlinks_new (
+            id INTEGER PRIMARY KEY,
+            source_kind TEXT NOT NULL CHECK (source_kind IN ('task', 'document', 'resource',
+                'database', 'databaseRow', 'agent', 'actorSession', 'article')),
+            source_id INTEGER NOT NULL,
+            target_kind TEXT NOT NULL CHECK (target_kind IN ('task', 'document', 'resource',
+                'database', 'databaseRow', 'agent', 'actorSession', 'article')),
+            target_id INTEGER NOT NULL,
+            link TEXT NOT NULL,
+            UNIQUE (source_kind, source_id, target_kind, target_id),
+            CHECK (source_kind IS NOT target_kind OR source_id IS NOT target_id)
+        );
+        INSERT INTO backlinks_new (id, source_kind, source_id, target_kind, target_id, link)
+            SELECT id, source_kind, source_id, target_kind, target_id, link FROM backlinks;
+        DROP TABLE backlinks;
+        ALTER TABLE backlinks_new RENAME TO backlinks;
+        CREATE INDEX backlinks_target ON backlinks(target_kind, target_id);
+        CREATE TRIGGER documents_backlinks_ad AFTER DELETE ON documents
+        BEGIN
+            DELETE FROM backlinks WHERE source_kind = 'document' AND source_id = old.id;
         END;",
     },
 ];

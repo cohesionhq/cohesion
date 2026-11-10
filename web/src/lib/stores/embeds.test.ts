@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createMock } from '$lib/protocol/mock';
+import type { Embed } from '$lib/protocol/types';
 import { createEmbedsStore, touches } from './embeds.svelte';
 import { refreshInvalidated } from './resource.svelte';
 
@@ -32,6 +33,26 @@ describe('embeds store', () => {
 		expect(embed.value).toBeNull();
 		expect(embed.error).toBeNull();
 		release();
+	});
+
+	it('asks again about a database row when its database changes', () => {
+		const row: Embed = {
+			link: 'cohesion://database-row/1/5/21',
+			kind: 'databaseRow',
+			workspace_id: 1,
+			title: 'Dune',
+			excerpt: '',
+			item: {
+				kind: 'databaseRow',
+				row: { id: 21, database_id: 5, document_id: null, cells: [] },
+				database_title: 'Books',
+				properties: []
+			}
+		};
+		const link = 'cohesion://document/1/9';
+		expect(touches({ kind: 'database', id: 5 }, link, row)).toBe(true);
+		expect(touches({ kind: 'database', id: 6 }, link, row)).toBe(false);
+		expect(touches({ kind: 'documents', id: 1 }, link, row)).toBe(false);
 	});
 
 	it('lets a missing item come back on any change of its kind', () => {

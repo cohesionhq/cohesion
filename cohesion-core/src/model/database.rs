@@ -296,5 +296,24 @@ pub struct DatabaseRowEntry {
     pub cells: Vec<DatabaseCell>,
 }
 
+impl DatabaseRowEntry {
+    /// What names the row where it shows on its own, as in an embed, since a
+    /// row has no title: its value for the first text property of
+    /// `properties`, its database's in their order, or `"Untitled"` when that
+    /// is empty or the database has no text property.
+    pub fn label(&self, properties: &[DatabaseProperty]) -> String {
+        properties
+            .iter()
+            .find(|property| property.data_type == DatabaseDataType::Text)
+            .and_then(|property| {
+                self.cells
+                    .iter()
+                    .find(|cell| cell.property_id == property.id)
+            })
+            .map(|cell| cell.value.text())
+            .unwrap_or_else(|| "Untitled".to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests;

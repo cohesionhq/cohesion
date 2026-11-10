@@ -47,6 +47,10 @@ export async function embedRoute(embed: Embed): Promise<string | null> {
 			return routes.actorSession(item.session.id);
 		case 'article':
 			return articleRoute(item.article.id);
+		// Databases have no page to open yet.
+		case 'database':
+		case 'databaseRow':
+			return null;
 	}
 }
 

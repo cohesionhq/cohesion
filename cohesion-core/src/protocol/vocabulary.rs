@@ -340,6 +340,8 @@ fn embed_kind_label(kind: EmbedKind) -> &'static str {
         EmbedKind::Document => "Document",
         EmbedKind::JournalEntry => "Journal entry",
         EmbedKind::Resource => "Resource",
+        EmbedKind::Database => "Database",
+        EmbedKind::DatabaseRow => "Database row",
         EmbedKind::Agent => "Agent",
         EmbedKind::ActorSession => "Actor session",
         EmbedKind::Article => "Article",

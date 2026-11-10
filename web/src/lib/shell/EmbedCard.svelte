@@ -93,6 +93,10 @@
 					.join(' · ');
 			case 'article':
 				return `${item.feed_title} · ${publishedDate(item.article)}`;
+			case 'database':
+				return kind;
+			case 'databaseRow':
+				return `${kind} · ${item.database_title}`;
 		}
 	}
 

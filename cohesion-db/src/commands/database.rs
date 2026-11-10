@@ -5,7 +5,7 @@
 use cohesion_core::FromRequest;
 use cohesion_core::invalidation::Invalidation;
 use cohesion_core::model::{
-    Database, DatabaseDataType, DatabaseProperty, DatabaseRowValue, DatabaseValue,
+    Database, DatabaseDataType, DatabaseProperty, DatabaseRow, DatabaseRowValue, DatabaseValue,
 };
 use cohesion_core::protocol::{
     CreateDatabasePropertyRequest, CreateDatabaseRequest, DeleteDatabasePropertyRequest,
@@ -16,7 +16,7 @@ use cohesion_core::protocol::{
 
 use crate::changed::{Changed, Invalidates};
 use crate::commands::database_formula::{ensure_formula, formulas_stale, new_formula};
-use crate::commands::database_row::store_value;
+use crate::commands::database_row::{forget_document_links, store_value};
 use crate::commands::title::ensure_title;
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::{
@@ -132,7 +132,8 @@ impl DatabaseCommand for RenameDatabaseCommand {
 
 /// Deletes a database for good. Its properties, rows and values go with it
 /// by the schema's cascades, and each row's document by the trigger that
-/// removes a row's document with the row.
+/// removes a row's document with the row, after the documents' links are
+/// let go.
 #[derive(FromRequest)]
 #[request(DeleteDatabaseRequest)]
 pub struct DeleteDatabaseCommand {
@@ -148,6 +149,11 @@ impl DatabaseCommand for DeleteDatabaseCommand {
             database_id: self.database_id,
         }
         .handle(&mut ctx.as_read())?;
+        let rows = ctx
+            .db
+            .select::<DatabaseRow>()
+            .filter_eq(DatabaseRow::DATABASE_ID, database.id);
+        forget_document_links(ctx, rows)?;
         ctx.db
             .delete::<Database>()
             .filter_eq(Database::ID, database.id)

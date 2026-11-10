@@ -1,4 +1,6 @@
-use super::{DatabaseDataType, DatabaseValue, is_day};
+use super::{
+    DatabaseCell, DatabaseDataType, DatabaseProperty, DatabaseRowEntry, DatabaseValue, is_day,
+};
 
 #[test]
 fn each_type_gives_its_text_and_the_numbers_it_honestly_is() {
@@ -78,4 +80,40 @@ fn a_day_is_a_real_one() {
     ] {
         assert!(!is_day(day), "{day}");
     }
+}
+
+#[test]
+fn a_rows_label_is_its_first_text_propertys_value_or_untitled() {
+    let property = |id, data_type| DatabaseProperty {
+        id,
+        database_id: 1,
+        name: format!("P{id}"),
+        data_type,
+        sort_order: id,
+        formula: None,
+    };
+    let properties = [
+        property(1, DatabaseDataType::Integer),
+        property(2, DatabaseDataType::Text),
+        property(3, DatabaseDataType::Text),
+    ];
+    let row = |cells: Vec<(i64, DatabaseValue)>| DatabaseRowEntry {
+        id: 1,
+        database_id: 1,
+        document_id: None,
+        cells: cells
+            .into_iter()
+            .map(|(property_id, value)| DatabaseCell { property_id, value })
+            .collect(),
+    };
+    let full = row(vec![
+        (1, DatabaseValue::Integer(7)),
+        (2, DatabaseValue::Text("Dune".into())),
+        (3, DatabaseValue::Text("Herbert".into())),
+    ]);
+    assert_eq!(full.label(&properties), "Dune");
+    // The first text property, even when empty, names it: a later one doesn't.
+    let unnamed = row(vec![(3, DatabaseValue::Text("Herbert".into()))]);
+    assert_eq!(unnamed.label(&properties), "Untitled");
+    assert_eq!(full.label(&properties[..1]), "Untitled");
 }

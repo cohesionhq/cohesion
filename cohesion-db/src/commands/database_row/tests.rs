@@ -409,7 +409,7 @@ fn row_document(books: &Books, row: usize) -> Document {
 }
 
 #[test]
-fn a_rows_document_stays_out_of_the_document_list_search_and_backlinks() {
+fn a_rows_document_stays_out_of_the_document_list_and_search_and_links_as_its_row() {
     let books = Books::new();
     let (db, ws) = (&books.f.db, books.f.ws);
     let plan = db
@@ -450,7 +450,7 @@ fn a_rows_document_stays_out_of_the_document_list_search_and_backlinks() {
         ),
     })
     .unwrap();
-    // …but no list, search or backlink shows it.
+    // …but no list or search shows it, and a backlink shows its row.
     assert_eq!(listed(&books), ["Plan"]);
     let found = db
         .send_blocking(SearchWorkspaceCommand {
@@ -469,12 +469,18 @@ fn a_rows_document_stays_out_of_the_document_list_search_and_backlinks() {
         .iter()
         .all(|d| d.id != document.id)
     );
-    assert!(
-        db.send_blocking(BacklinksOfCommand {
+    let linking = db
+        .send_blocking(BacklinksOfCommand {
             link: format!("cohesion://document/{ws}/{}", plan.id),
         })
-        .unwrap()
-        .is_empty()
+        .unwrap();
+    let linking: Vec<&str> = linking.iter().map(|embed| embed.link.as_str()).collect();
+    assert_eq!(
+        linking,
+        [format!(
+            "cohesion://database-row/{ws}/{}/{}",
+            books.f.database.id, books.rows[0]
+        )]
     );
 }
 

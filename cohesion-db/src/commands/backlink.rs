@@ -7,13 +7,12 @@
 
 use std::collections::HashSet;
 
+use cohesion_core::FromRequest;
 use cohesion_core::invalidation::Invalidation;
 use cohesion_core::model::{
-    Backlink, Embed, EmbedItem, ItemLink, LinkKind, LinkSource, LinkTarget, OutgoingLink,
-    outgoing_links,
+    Backlink, Embed, ItemLink, LinkKind, LinkSource, LinkTarget, OutgoingLink, outgoing_links,
 };
 use cohesion_core::protocol::BacklinksOfRequest;
-use cohesion_core::{DocumentType, FromRequest};
 
 use crate::changed::{Changed, Invalidates};
 use crate::commands::embed::item_link;
@@ -88,8 +87,8 @@ impl DatabaseCommand for FollowLinksCommand {
 }
 
 /// The live items whose text links to the item `link` names, each as
-/// `ResolveLinkCommand` resolves it, by title. One in a deleted workspace is
-/// left out, as it is gone.
+/// `ResolveLinkCommand` resolves it, by title: a database row's document
+/// as its row. One in a deleted workspace is left out, as it is gone.
 #[derive(FromRequest)]
 #[request(BacklinksOfRequest)]
 pub struct BacklinksOfCommand {
@@ -117,12 +116,6 @@ impl DatabaseCommand for BacklinksOfCommand {
             })
             .handle(ctx)
             {
-                // A database row's document is part of its row, not an item
-                // of its own to list.
-                Ok(Embed {
-                    item: EmbedItem::Document { document },
-                    ..
-                }) if matches!(document.document_type, DocumentType::DatabaseRow) => {}
                 Ok(embed) => embeds.push(embed),
                 Err(CommandError::NotFound(_)) => {}
                 Err(error) => return Err(error),
@@ -144,6 +137,8 @@ fn source_link(source: LinkTarget) -> Option<ItemLink> {
         // Only documents' links are followed so far.
         LinkKind::Task
         | LinkKind::Resource
+        | LinkKind::Database
+        | LinkKind::DatabaseRow
         | LinkKind::Agent
         | LinkKind::ActorSession
         | LinkKind::Article => None,

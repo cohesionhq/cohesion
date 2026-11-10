@@ -87,7 +87,7 @@ pub use database::{
 pub use day_filter::{DayFilter, DayRange};
 pub use document::{Document, DocumentType};
 pub use document_folder::DocumentFolder;
-pub use embed::{Embed, EmbedItem, EmbedKind, excerpt};
+pub use embed::{DATABASE_PREVIEW_ROWS, Embed, EmbedItem, EmbedKind, excerpt};
 pub use endpoint_model::EndpointModel;
 pub use extension::{
     Extension, ExtensionHook, ExtensionManifest, ExtensionPermission, ExtensionPermissionKind,

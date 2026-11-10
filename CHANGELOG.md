@@ -31,6 +31,20 @@ under "Unreleased" with any change users would notice.
   `setDatabasePropertyFormula`, a `formula` on `createDatabaseProperty`
   and on `DatabaseProperty` (`{source, error}` or `null`), and
   `setDatabaseValue` refuses a formula's column.
+- A database and a row of one can be linked to, as
+  `cohesion://database/<ws>/<id>` and
+  `cohesion://database-row/<ws>/<database>/<id>`, and `resolveLink`,
+  `resolveEmbeds` and `backlinksOf` answer for them: `EmbedKind` and
+  `LinkKind` gain `database` and `databaseRow`, and `EmbedItem` gains
+  `database` (its properties, its first 5 rows and its `row_count`) and
+  `databaseRow` (the row's cells, its database's title and properties). A
+  row's title is its first text column's value, or "Untitled". A link to a
+  row's document resolves as the row, and what a row's document links to
+  lists the row among its backlinks. `hello.vocabulary.embed_kinds` gains
+  their words. Clients that switch on an embed's `kind` or `item.kind`
+  need the two new cases; the iPhone app can show them by title, excerpt
+  and kind word until it draws them. The web UI doesn't show them as cards
+  yet.
 - An item's panel shows Backlinks: the documents and journal entries that
   link to the item, wherever the link is in their text. Click one to open it
   over the page. When nothing links to the item, the section doesn't show.

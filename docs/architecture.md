@@ -464,7 +464,8 @@ agent's turn.
 **Links and embeds.** Text names an item with a `cohesion://` link
 (`ItemLink`, `cohesion-core/src/model/item_link.rs`):
 `cohesion://task/<ws>/<id>`, `cohesion://document/<ws>/<id>` (journal entries
-too), `cohesion://resource/<ws>/<id>`, `cohesion://agent/<id>`,
+too), `cohesion://resource/<ws>/<id>`, `cohesion://database/<ws>/<id>`,
+`cohesion://database-row/<ws>/<database>/<id>`, `cohesion://agent/<id>`,
 `cohesion://actor-session/<id>` and `cohesion://article/<id>`. A task or
 document link without its workspace, as links were first written, still names
 one, since those ids are unique across workspaces. `ResolveLink{link}`
@@ -474,12 +475,21 @@ one, since those ids are unique across workspaces. `ResolveLink{link}`
 `workspace_id`, `title`, `excerpt` (the first paragraph of the item's text as
 plain text, about 200 characters) and `item`, the item's model tagged by kind
 (an actor session with its actor's title, an article as an `ArticleSummary`
-with its feed's title). A client that doesn't know a kind shows the title, the
-excerpt and the kind's word. An item deleted, in a deleted workspace or never
-made is `notFound`; text that isn't such a link fails validation on `link`.
-Nothing pushes an embed: a client asks again on the item's invalidation,
-`taskList` of the task's workspace, `documents(ws)`, `resources(ws)`,
-`agent(id)`, `actorSession(id)` or `feedArticles`. A link shows as a card
+with its feed's title). A database comes with its properties, its first
+`DATABASE_PREVIEW_ROWS` (5) rows in the order they were added and its
+`row_count`, enough to preview it as a table, and an empty excerpt. A row
+comes as its `DatabaseRowEntry` (cells and `document_id`) with its database's
+title and properties, so its cells read as name and value; its title is its
+label (`DatabaseRowEntry::label`: its value for the database's first text
+property, or "Untitled") and its excerpt its document's. A database row's
+document is part of its row, so a link to it resolves as the row. A client
+that doesn't know a kind shows the title, the excerpt and the kind's word. An
+item deleted, in a deleted workspace or never made is `notFound`, as is a row
+asked for in another database or workspace than its own; text that isn't
+such a link fails validation on `link`. Nothing pushes an embed: a client
+asks again on the item's invalidation, `taskList` of the task's workspace,
+`documents(ws)`, `resources(ws)`, `database(id)` for a database or a row of
+it, `agent(id)`, `actorSession(id)` or `feedArticles`. A link shows as a card
 where it is alone on its line, outside a fenced or indented code block
 (`text_pieces`, `model/text_section.rs`): the line is exactly one link, whose
 label ends at its first unescaped `]` (`\]` is a bracket in it) and whose
@@ -501,15 +511,17 @@ alone on its line or in a sentence: an inline link's target, an autolink
 span (`item_links`, `model/backlink.rs`); an item's links to itself don't
 count. The `backlinks` table keeps them: one row per item a source links to,
 the source and the target each a `LinkKind` (`task`, `document`, `resource`,
-`agent`, `actorSession`, `article`) and an id, with the link as first written.
+`database`, `databaseRow`, `agent`, `actorSession`, `article`) and an id,
+with the link as first written.
 An item says what it is and what its text is (`LinkSource`), and every
 command that writes a document ends in `FollowLinksCommand`, which rewrites
 its rows from its text, or removes them once it is deleted, and invalidates
 `backlinks` of each item it linked to before or links to now, so a rename
 reaches every list showing it. Documents themselves never touch the table.
-A database row's document keeps its rows like any document, but
-`BacklinksOf` leaves it out, as it is part of its row and not an item of its
-own.
+A database row's document keeps its rows like any document, and
+`BacklinksOf` lists it as its row, as `ResolveLink` resolves it; deleting a
+row or a database lets go of its documents' links first, so the items they
+linked to hear of it. A row's label changing doesn't invalidate `backlinks`.
 
 **Databases** (`cohesion-db/src/commands/database.rs` and
 `database_row.rs`, models in `cohesion-core/src/model/database.rs`). A
@@ -959,7 +971,7 @@ deleting sets `deleted`, and client reads use `select_live`.
 | `database_rows` | `database_id`, `document_id`, the row's own document (unique; set null if the document goes, which removes it when the row goes), and `formula_stale`, how many changes its formula outputs are behind (0 when current; a partial index finds the nonzero ones). |
 | `database_row_values` | One per row and property at most, composite keys keeping both in one database: `text_value` (always), `integer_value` (an integer, a checkbox as 1 or 0) and `real_value` (a decimal, an amount, an integer). A missing row is an empty value. |
 | `metadata` | Key-value pairs on exactly one workspace, document, task, folder or resource. Scripts only: a request can't carry metadata filters. |
-| `backlinks` | What links to what: `source_kind` and `source_id` (only documents so far), `target_kind` and `target_id` (a `LinkKind` and an id), and `link` as first written; one row per source and target, never a source to itself. Rewritten by `FollowLinksCommand` on every document write; a document removed for good takes its rows (trigger `documents_backlinks_ad`). The `backlinks` migration filled it from every live document through the SQL function `outgoing_links`, which runs the same Rust rule. |
+| `backlinks` | What links to what: `source_kind` and `source_id` (only documents so far, a database row's too), `target_kind` and `target_id` (a `LinkKind` and an id), and `link` as first written; one row per source and target, never a source to itself. Rewritten by `FollowLinksCommand` on every document write; a document removed for good takes its rows (trigger `documents_backlinks_ad`). The `backlinks` migration filled it from every live document through the SQL function `outgoing_links`, which runs the same Rust rule; the `databases` migration rebuilt it to admit `database` and `databaseRow`. |
 | `versions` | Rewind: past versions of tasks and documents, with `change` (`created`, `edited`, `deleted`, `restored`, `earlier`), `author` and `author_name`. Written by triggers through the `version_writes` view, which folds edits within 120 s into one version. |
 | `rewind_writer` | One row: who is writing now (see above). |
 
@@ -2024,7 +2036,10 @@ embeds"). Each card resolves its link through `stores/embeds.svelte.ts`, once
 for every card showing it, and asks again on its item's invalidation. While it
 resolves, the link's text shimmers; an item gone shows its text quietly with
 "Task not found"; a link that can't be resolved stays a plain link. A click
-opens the panel, as the link does.
+opens the panel, as the link does. A link to a database or a row isn't read
+as an item yet (`parseItemLink`), so it stays a plain link and Backlinks
+leaves out a row linking; a link to a row's document resolves as its row and
+opens its document's panel.
 
 **`@`.** In the same editors, `@` at a word's start looks items up to link
 (`shell/mentions.ts`, on `@codemirror/autocomplete`). `[[` at a word's start

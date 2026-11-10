@@ -83,6 +83,10 @@ export function touches(key: Invalidation, link: string, embed: Embed | null): b
 				return key.kind === 'actorSession' && key.id === item.session.id;
 			case 'article':
 				return key.kind === 'feedArticles';
+			case 'database':
+				return workspaceGone || (key.kind === 'database' && key.id === item.database.id);
+			case 'databaseRow':
+				return workspaceGone || (key.kind === 'database' && key.id === item.row.database_id);
 		}
 	}
 	const kind = parseItemLink(link)?.kind;

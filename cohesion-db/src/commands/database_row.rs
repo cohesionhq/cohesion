@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use cohesion_core::invalidation::Invalidation;
 use cohesion_core::model::{
     DatabaseCell, DatabaseDataType, DatabaseProperty, DatabaseRow, DatabaseRowEntry,
-    DatabaseRowValue, DatabaseValue,
+    DatabaseRowValue, DatabaseValue, LinkKind, LinkTarget,
 };
 use cohesion_core::protocol::{
     CreateDatabaseRowDocumentRequest, CreateDatabaseRowRequest, DatabaseCondition, DatabaseFilter,
@@ -17,6 +17,7 @@ use cohesion_core::protocol::{
 use cohesion_core::{Document, DocumentType, FromRequest, Named, Value};
 
 use crate::changed::{Changed, Invalidates};
+use crate::commands::backlink::FollowLinksCommand;
 use crate::commands::database::{
     GetDatabaseCommand, GetDatabasePropertyCommand, ListDatabasePropertiesCommand,
 };
@@ -348,7 +349,8 @@ impl DatabaseCommand for CreateDatabaseRowCommand {
 }
 
 /// Deletes a row for good. Its values go with it by the schema's cascade,
-/// and its document by the trigger that removes a row's document with it.
+/// and its document by the trigger that removes a row's document with it,
+/// after the document's links are let go ([`forget_document_links`]).
 #[derive(FromRequest)]
 #[request(DeleteDatabaseRowRequest)]
 pub struct DeleteDatabaseRowCommand {
@@ -365,6 +367,12 @@ impl DatabaseCommand for DeleteDatabaseRowCommand {
             database_id: self.database_id,
         }
         .handle(&mut ctx.as_read())?;
+        let rows = ctx
+            .db
+            .select::<DatabaseRow>()
+            .filter_eq(DatabaseRow::DATABASE_ID, self.database_id)
+            .filter_eq(DatabaseRow::ID, self.row_id);
+        forget_document_links(ctx, rows)?;
         let row: DatabaseRow = ctx
             .db
             .delete()
@@ -486,6 +494,54 @@ impl DatabaseCommand for CreateDatabaseRowDocumentCommand {
             .execute()?;
         Ok(changed(ctx, document)?.and([Invalidation::Database(self.database_id)]))
     }
+}
+
+/// Lets go of what the documents of `rows`, about to be removed with their
+/// rows by the schema's trigger, link to ([`FollowLinksCommand`]), so the
+/// backlinks of each item they linked to are invalidated.
+pub(crate) fn forget_document_links(
+    ctx: &mut CommandContext<'_>,
+    rows: Select<'_, DatabaseRow>,
+) -> DatabaseCommandResult<()> {
+    for row in rows.all()? {
+        if let Some(id) = row.document_id {
+            ctx.run(FollowLinksCommand {
+                source: LinkTarget {
+                    kind: LinkKind::Document,
+                    id,
+                },
+                text: None,
+            })?;
+        }
+    }
+    Ok(())
+}
+
+/// The first `limit` rows of database `database_id`, whose properties are
+/// `properties`, in the order they were added, with their values, and how
+/// many rows it has in all: what its embed previews.
+pub(crate) fn first_rows<'c>(
+    db: impl ReadableDatabase<'c>,
+    database_id: i64,
+    properties: &[DatabaseProperty],
+    limit: u64,
+) -> Result<(Vec<DatabaseRowEntry>, i64), DatabaseError> {
+    let rows: Vec<DatabaseRow> = db
+        .select()
+        .filter_eq(DatabaseRow::DATABASE_ID, database_id)
+        .order("id")
+        .limit(limit)
+        .all()?;
+    let values = db
+        .select::<DatabaseRowValue>()
+        .filter_eq(DatabaseRowValue::DATABASE_ID, database_id)
+        .filter_in_values("row_id", rows.iter().map(|row| row.id))
+        .all()?;
+    let count = db
+        .select::<DatabaseRow>()
+        .filter_eq(DatabaseRow::DATABASE_ID, database_id)
+        .count()?;
+    Ok((entries(rows, values, properties), count))
 }
 
 /// The row whose document is `document_id`, if it is a row's.

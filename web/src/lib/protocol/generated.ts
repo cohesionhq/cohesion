@@ -1951,13 +1951,17 @@ export interface Embed {
 	 * article, which belong to none.
 	 */
 	workspace_id: number | null;
-	/** The item's title; an agent's name. */
+	/**
+	 * The item's title; an agent's name; a database row's label
+	 * (`DatabaseRowEntry::label`).
+	 */
 	title: string;
 	/**
 	 * The start of the item's text as plain text, at most about 200
 	 * characters: a task's description, a document's or text resource's
-	 * contents, an agent's role, an actor session's last message from its
-	 * actor, an article's text. `""` when it has none.
+	 * contents, a database row's document's contents, an agent's role, an
+	 * actor session's last message from its actor, an article's text. `""`
+	 * when it has none, as for a database.
 	 */
 	excerpt: string;
 	item: EmbedItem;
@@ -1981,6 +1985,26 @@ export type EmbedItem =
 			resource: Resource;
 	  }
 	| {
+			kind: 'database';
+			database: Database;
+			/** Its properties in their order. */
+			properties: DatabaseProperty[];
+			/**
+			 * Its first rows in the order they were added, at most
+			 * `DATABASE_PREVIEW_ROWS` (5).
+			 */
+			rows: DatabaseRowEntry[];
+			/** How many rows it has in all. */
+			row_count: number;
+	  }
+	| {
+			kind: 'databaseRow';
+			row: DatabaseRowEntry;
+			database_title: string;
+			/** Its database's properties in their order. */
+			properties: DatabaseProperty[];
+	  }
+	| {
 			kind: 'agent';
 			agent: IntelligenceAgent;
 	  }
@@ -2001,10 +2025,19 @@ export type EmbedItem =
  * What kind of item an embed shows; `vocabulary.embed_kinds` words each.
  *
  * - `"task"`, `"document"`, `"journalEntry"` (a document of type
- *   `journal`), `"resource"`, `"agent"`, `"actorSession"`, `"article"`.
+ *   `journal`), `"resource"`, `"database"`, `"databaseRow"`, `"agent"`,
+ *   `"actorSession"`, `"article"`.
  */
 export type EmbedKind =
-	'task' | 'document' | 'journalEntry' | 'resource' | 'agent' | 'actorSession' | 'article';
+	| 'task'
+	| 'document'
+	| 'journalEntry'
+	| 'resource'
+	| 'database'
+	| 'databaseRow'
+	| 'agent'
+	| 'actorSession'
+	| 'article';
 
 /**
  * A model an intelligence endpoint offers, one of the models every picker
@@ -3023,10 +3056,18 @@ export interface LinkBlock {
  * What kind of item a `cohesion://` link names, one per kind of link; stored
  * as text.
  *
- * - `"task"`, `"document"` (a journal entry too), `"resource"`, `"agent"`,
- *   `"actorSession"`, `"article"`.
+ * - `"task"`, `"document"` (a journal entry too), `"resource"`,
+ *   `"database"`, `"databaseRow"`, `"agent"`, `"actorSession"`, `"article"`.
  */
-export type LinkKind = 'task' | 'document' | 'resource' | 'agent' | 'actorSession' | 'article';
+export type LinkKind =
+	| 'task'
+	| 'document'
+	| 'resource'
+	| 'database'
+	| 'databaseRow'
+	| 'agent'
+	| 'actorSession'
+	| 'article';
 
 /**
  * An item as a link names it, by kind and id alone: ids are unique within
@@ -3993,9 +4034,10 @@ export interface ResolveEmbedsRequest {
 
 /**
  * Resolves `link`, a `cohesion://` link to a task, document or journal
- * entry, resource, agent, actor session or article, to the item it names
- * as an `Embed`. A link to an item deleted or never made is `notFound`;
- * text that isn't such a link fails validation on `link`.
+ * entry, resource, database, database row, agent, actor session or
+ * article, to the item it names as an `Embed`. A link to an item deleted
+ * or never made is `notFound`; text that isn't such a link fails
+ * validation on `link`.
  */
 export interface ResolveLinkRequest {
 	/** As written in Markdown: `cohesion://task/3/42`. */

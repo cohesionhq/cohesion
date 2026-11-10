@@ -118,6 +118,19 @@ async function find(link: ItemLink): Promise<LinkedItem | null> {
 			const article = await send('getArticle', { article_id: item.article.id });
 			return { kind: 'article', article, feedTitle: item.feed_title };
 		}
+		// A link to a row's document resolves as its row, which opens as its
+		// document until rows have a panel of their own; a database has none yet.
+		case 'databaseRow': {
+			const { row } = item;
+			if (row.document_id === null || embed.workspace_id === null) return null;
+			const document = await send('getDocument', {
+				workspace_id: embed.workspace_id,
+				document_id: row.document_id
+			});
+			return { kind: 'document', document };
+		}
+		case 'database':
+			return null;
 	}
 }
 
