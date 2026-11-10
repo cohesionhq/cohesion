@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { shortDate, shortTime } from '$lib/format/dates';
+	import { localDay, shortDate, shortTime } from '$lib/format/dates';
 	import { usd } from '$lib/format/money';
 	import {
 		costParts,
@@ -11,9 +11,11 @@
 	} from '$lib/format/usage';
 	import { routes } from '$lib/shell/routes';
 	import { USAGE_LIMIT, usage } from '$lib/stores/settings/usage.svelte';
+	import Button from '$lib/ui/Button.svelte';
 	import { list } from '$lib/ui/list';
 	import Popover from '$lib/ui/Popover.svelte';
 	import ResourceState from '$lib/ui/ResourceState.svelte';
+	import { toasts } from '$lib/ui/toasts.svelte';
 	import Section from './Section.svelte';
 
 	$effect(() => {
@@ -23,12 +25,35 @@
 
 	const totals = $derived(usageTotals(usage.events.value));
 
+	async function exportCsv() {
+		let csv: string;
+		try {
+			csv = await usage.exportCsv();
+		} catch (error) {
+			toasts.error(error);
+			return;
+		}
+		const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = `cohesion-usage-${localDay()}.csv`;
+		link.click();
+		URL.revokeObjectURL(url);
+	}
+
 	// Every header and body cell; the first and last sit flush with the table's edges.
 	const cell = 'border-b border-border px-2 py-1 align-baseline first:pl-0 last:pr-0';
 	const numeric = 'text-right whitespace-nowrap';
 </script>
 
 <Section title="Usage" description="This lists every model call and what it cost.">
+	{#snippet actions()}
+		{#if usage.events.loaded && usage.events.value.length > 0}
+			<Button onclick={exportCsv} disabled={usage.exporting}>
+				{usage.exporting ? 'Exporting…' : 'Export CSV'}
+			</Button>
+		{/if}
+	{/snippet}
 	<ResourceState resource={usage.events}>
 		{#snippet loaded(events)}
 			<div class="overflow-x-auto overscroll-y-auto border-t border-border">
