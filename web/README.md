@@ -359,7 +359,10 @@ doing, not by how it looks.
   the workspace picker, or ⌘K.
 - **SidePanel** (`ui/SidePanel.svelte`) is for reading or writing
   something longer without leaving the page; `ItemPanel` on top of it opens
-  every linked item (`cohesion://…`).
+  every linked item (`cohesion://…`). An Expand button beside Close floats it
+  wider and nearly full height at the middle of the window (Minimize returns it),
+  with an item's details in a column beside its text, each scrolling on its own;
+  it is gone below 900px and forgotten when the panel closes.
 - **Popover** holds a small panel beside its trigger (the emoji picker, a
   usage breakdown);
   **HoverCard** only adds detail that is also reachable without hovering.
