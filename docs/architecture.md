@@ -717,7 +717,8 @@ was stopped doesn't fire. After `day:start` it queues `task:start` then
 
 The timed passes started by `CohesionContext::start` (cleanup, resource and
 feed refresh, update checks) raise no hooks of their own; what they change
-does.
+does. A pass that panics is logged and the timer goes on to the next
+(`WorkTracker::every`).
 
 ---
 
