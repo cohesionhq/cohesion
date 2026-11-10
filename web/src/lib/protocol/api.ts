@@ -65,6 +65,7 @@ export function start(): void {
 	if (mock) {
 		vocabulary.value = MOCK_VOCABULARY;
 		connection.status = 'connected';
+		mock.onInvalidate((keys) => connection.invalidated(keys));
 		return;
 	}
 	connection.connect();

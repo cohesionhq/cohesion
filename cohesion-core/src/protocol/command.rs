@@ -26,8 +26,8 @@ use super::article_requests::*;
 use super::client_requests::*;
 use super::connector_requests::*;
 use super::contact_requests::*;
-use super::database_requests::*;
 use super::document_requests::*;
+use super::document_table_requests::*;
 use super::embed_requests::*;
 use super::extension_requests::*;
 use super::feed_requests::*;
@@ -45,13 +45,13 @@ use super::task_requests::*;
 use super::workspace_requests::*;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, Article, Attachment,
-    CatalogModel, Client, Component, Contact, ContactMethod, Database, DatabaseProperty,
-    DatabaseRow, DatabaseRowEntry, DeletedItem, Document, DocumentFolder, Embed, EndpointModel,
-    ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
-    IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
-    IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
-    RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings, Tag, Task,
-    TaskFolder, TextSection, Version, VersionSummary, Workspace, WorkspaceResourceKind,
+    CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
+    DocumentFolderProperty, Embed, EndpointModel, ExtensionHook, ExtensionPermission, Feed,
+    FeedSummary, IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage,
+    IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault,
+    IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource, RestoredItem, SavedTaskView,
+    SearchResult, SecuritySettings, StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection,
+    Version, VersionSummary, Workspace, WorkspaceResourceKind,
 };
 
 /// Every request a client can send; the `args` of a [`Request`](super::Request).
@@ -145,61 +145,62 @@ pub enum Command {
     /// Deletes a document folder and the folders inside it.
     #[reply(DocumentFolder)]
     DeleteDocumentFolder(DeleteDocumentFolderRequest),
-    /// Lists a workspace's databases.
-    #[reply(Vec<Database>)]
-    ListDatabases(ListDatabasesRequest),
-    /// Fetches a database.
-    #[reply(Database)]
-    GetDatabase(GetDatabaseRequest),
-    /// Creates an empty database in a workspace.
-    #[reply(Database)]
-    CreateDatabase(CreateDatabaseRequest),
-    /// Retitles a database.
-    #[reply(Database)]
-    RenameDatabase(RenameDatabaseRequest),
-    /// Deletes a database for good, with everything in it.
-    #[reply(Database)]
-    DeleteDatabase(DeleteDatabaseRequest),
-    /// Lists a database's properties in their order.
-    #[reply(Vec<DatabaseProperty>)]
-    ListDatabaseProperties(ListDatabasePropertiesRequest),
-    /// Adds a property to a database, last, set by hand or a formula.
-    #[reply(DatabaseProperty)]
-    CreateDatabaseProperty(CreateDatabasePropertyRequest),
-    /// Renames a database property.
-    #[reply(DatabaseProperty)]
-    RenameDatabaseProperty(RenameDatabasePropertyRequest),
-    /// Changes a database property's type, keeping the values that fit it.
-    #[reply(DatabaseProperty)]
-    SetDatabasePropertyType(SetDatabasePropertyTypeRequest),
-    /// Makes a database property a formula, changes its source, or makes it
-    /// a property set by hand again.
-    #[reply(DatabaseProperty)]
-    SetDatabasePropertyFormula(SetDatabasePropertyFormulaRequest),
-    /// Moves a database property among the others; replies with them all.
-    #[reply(Vec<DatabaseProperty>)]
-    MoveDatabaseProperty(MoveDatabasePropertyRequest),
-    /// Deletes a database property with its values.
-    #[reply(DatabaseProperty)]
-    DeleteDatabaseProperty(DeleteDatabasePropertyRequest),
-    /// Lists a database's rows with their values, filtered and sorted.
-    #[reply(Vec<DatabaseRowEntry>)]
-    ListDatabaseRows(ListDatabaseRowsRequest),
-    /// Fetches a database row with its values.
-    #[reply(DatabaseRowEntry)]
-    GetDatabaseRow(GetDatabaseRowRequest),
-    /// Adds an empty row to a database.
-    #[reply(DatabaseRowEntry)]
-    CreateDatabaseRow(CreateDatabaseRowRequest),
-    /// Deletes a database row for good, with its values and document.
-    #[reply(DatabaseRow)]
-    DeleteDatabaseRow(DeleteDatabaseRowRequest),
-    /// Sets or empties one value of a database row.
-    #[reply(DatabaseRowEntry)]
-    SetDatabaseValue(SetDatabaseValueRequest),
-    /// Gives a database row a document of its own.
-    #[reply(Document)]
-    CreateDatabaseRowDocument(CreateDatabaseRowDocumentRequest),
+    /// Lists a document folder's properties in their order; a folder with
+    /// any is a table.
+    #[reply(Vec<DocumentFolderProperty>)]
+    ListDocumentFolderProperties(ListDocumentFolderPropertiesRequest),
+    /// Adds a property to a document folder, last, set by hand or a
+    /// formula; a folder's first makes it a table.
+    #[reply(DocumentFolderProperty)]
+    CreateDocumentFolderProperty(CreateDocumentFolderPropertyRequest),
+    /// Renames a document folder's property.
+    #[reply(DocumentFolderProperty)]
+    RenameDocumentFolderProperty(RenameDocumentFolderPropertyRequest),
+    /// Changes a document folder property's type, keeping the values that
+    /// fit it.
+    #[reply(DocumentFolderProperty)]
+    SetDocumentFolderPropertyType(SetDocumentFolderPropertyTypeRequest),
+    /// Makes a document folder's property a formula, changes its source, or
+    /// makes it a property set by hand again.
+    #[reply(DocumentFolderProperty)]
+    SetDocumentFolderPropertyFormula(SetDocumentFolderPropertyFormulaRequest),
+    /// Moves a document folder's property among the others; replies with
+    /// them all.
+    #[reply(Vec<DocumentFolderProperty>)]
+    MoveDocumentFolderProperty(MoveDocumentFolderPropertyRequest),
+    /// Deletes a document folder's property with its values; deleting the
+    /// last makes the folder a plain one again.
+    #[reply(DocumentFolderProperty)]
+    DeleteDocumentFolderProperty(DeleteDocumentFolderPropertyRequest),
+    /// Adds an option to a choice property; replies with the property.
+    #[reply(DocumentFolderProperty)]
+    CreatePropertyOption(CreatePropertyOptionRequest),
+    /// Renames a choice property's option; replies with the property.
+    #[reply(DocumentFolderProperty)]
+    RenamePropertyOption(RenamePropertyOptionRequest),
+    /// Changes or takes away a choice property option's color; replies with
+    /// the property.
+    #[reply(DocumentFolderProperty)]
+    SetPropertyOptionColor(SetPropertyOptionColorRequest),
+    /// Moves a choice property's option among the others; replies with the
+    /// property.
+    #[reply(DocumentFolderProperty)]
+    MovePropertyOption(MovePropertyOptionRequest),
+    /// Deletes a choice property's option, emptying the values that held
+    /// it; replies with the property.
+    #[reply(DocumentFolderProperty)]
+    DeletePropertyOption(DeletePropertyOptionRequest),
+    /// Lists a document folder's documents as rows with their values,
+    /// filtered and sorted.
+    #[reply(Vec<TableRow>)]
+    ListTableRows(ListTableRowsRequest),
+    /// Fetches a document of a folder as a row with its values.
+    #[reply(TableRow)]
+    GetTableRow(GetTableRowRequest),
+    /// Sets or empties a document's value for one of its folder's
+    /// properties.
+    #[reply(TableRow)]
+    SetDocumentValue(SetDocumentValueRequest),
     /// Lists an item's kept versions, newest first, without their text.
     #[reply(Vec<VersionSummary>)]
     ListVersions(ListVersionsRequest),

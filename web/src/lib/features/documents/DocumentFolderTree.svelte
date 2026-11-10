@@ -1,5 +1,5 @@
-<!-- The Documents page's folders as a tree, under Inbox and All. Drag a document onto a folder (or the Inbox) to
-     file it there; drag a folder onto another to nest it, or onto a folder's top or bottom edge to put it
+<!-- The Documents page's folders as a tree, under Inbox and All; a folder that is a table wears a table's icon.
+     Drag a document (or a table's row) onto a folder or the Inbox to file it there; drag a folder onto another to nest it, or onto a folder's top or bottom edge to put it
      beside that one. Alt+↑/↓ moves a folder among its siblings, as task folders reorder. (Alt+←/→ are the app's
      back and forward.) -->
 <script lang="ts" module>
@@ -7,14 +7,17 @@
 	export const DOCUMENT_DRAG = 'application/x-cohesion-document';
 	const FOLDER_DRAG = 'application/x-cohesion-document-folder';
 
+	import type { DocumentView as View } from './folderTree';
+
 	/** What the list shows: the Inbox, every document, or one folder by id. */
-	export type DocumentView = 'inbox' | 'all' | number;
+	export type DocumentView = View;
 </script>
 
 <script lang="ts">
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import FolderPlus from '@lucide/svelte/icons/folder-plus';
 	import Pencil from '@lucide/svelte/icons/pencil';
+	import Table2 from '@lucide/svelte/icons/table-2';
 	import Trash from '@lucide/svelte/icons/trash';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { navAction, navHeading, navItem, navLink, navTool } from '$lib/features/folders/nav';
@@ -198,13 +201,22 @@
 					{:else}
 						<span class="size-5 flex-none" aria-hidden="true"></span>
 					{/if}
+					{#if folder.is_table}
+						<Table2
+							class="ml-1 flex-none text-fg-subtle"
+							size={13}
+							strokeWidth={1.75}
+							aria-hidden="true"
+						/>
+					{/if}
 					<a
 						class={[navLink, 'pl-1']}
 						href={href(folder.id)}
 						draggable="false"
 						aria-current={current === folder.id ? 'page' : undefined}
 						aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-						onkeydown={(e) => key(e, folder)}>{folder.title}</a
+						onkeydown={(e) => key(e, folder)}
+						>{folder.title}{#if folder.is_table}<span class="sr-only">, table</span>{/if}</a
 					>
 					<span
 						class={[

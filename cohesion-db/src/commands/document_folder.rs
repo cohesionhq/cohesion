@@ -2,6 +2,7 @@
 //! into one. A document in no folder is in the Inbox.
 
 use cohesion_core::invalidation::Invalidation;
+use cohesion_core::model::DocumentFolderProperty;
 use cohesion_core::protocol::{
     CreateDocumentFolderRequest, DeleteDocumentFolderRequest, ListDocumentFoldersRequest,
     MoveDocumentFolderRequest, MoveDocumentRequest, RenameDocumentFolderRequest,
@@ -9,7 +10,9 @@ use cohesion_core::protocol::{
 use cohesion_core::{Document, DocumentFolder, DocumentType, FromRequest};
 
 use crate::changed::{Changed, Invalidates};
-use crate::commands::document::{GetDocumentCommand, changed};
+use crate::commands::document::{GetDocumentCommand, changed, table_of};
+use crate::commands::document_formula::formulas_stale;
+use crate::commands::document_value::forget_values;
 use crate::commands::title::ensure_title;
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::{
@@ -260,7 +263,8 @@ impl DatabaseCommand for MoveDocumentFolderCommand {
 
 /// Soft-deletes a live document folder and every folder inside it, and
 /// moves the documents they held, deleted ones too, to the Inbox, so none
-/// is lost with its folder.
+/// is lost with its folder. A table among them loses its properties and
+/// its documents their values, which belong to it; the documents stay.
 #[derive(FromRequest)]
 #[request(DeleteDocumentFolderRequest)]
 pub struct DeleteDocumentFolderCommand {
@@ -284,6 +288,17 @@ impl DatabaseCommand for DeleteDocumentFolderCommand {
         }
         .handle(&mut ctx.as_read())?;
         let doomed = subtree(&folders, self.folder_id);
+        forget_values(ctx.db, &doomed, None)?;
+        _ = ctx
+            .db
+            .delete::<DocumentFolderProperty>()
+            .filter_in_values("folder_id", doomed.clone())
+            .execute()?;
+        let tables: Vec<Invalidation> = doomed
+            .iter()
+            .copied()
+            .map(Invalidation::DocumentTable)
+            .collect();
         _ = ctx
             .db
             .update::<Document>()
@@ -299,15 +314,23 @@ impl DatabaseCommand for DeleteDocumentFolderCommand {
             .filter_in_values("id", doomed)
             .execute()?;
         folder.deleted = true;
-        Ok(folder.invalidating([
-            Invalidation::DocumentFolders(self.workspace_id),
-            Invalidation::Documents(self.workspace_id),
-        ]))
+        Ok(folder
+            .invalidating([
+                Invalidation::DocumentFolders(self.workspace_id),
+                Invalidation::Documents(self.workspace_id),
+            ])
+            .and(tables))
     }
 }
 
 /// Files a live ordinary document into a live folder of its workspace, or
 /// the Inbox when `folder_id` is `None`. A journal is never filed.
+///
+/// A document's values belong to its folder's table, so one that leaves a
+/// folder lets go of them in the same write: moving out of a table, or from
+/// one table into another, deletes them; moving into a table gives it no
+/// values until its formulas are computed. Moving into the folder it is
+/// already in changes nothing.
 #[derive(FromRequest)]
 #[request(MoveDocumentRequest)]
 pub struct MoveDocumentCommand {
@@ -328,6 +351,13 @@ impl DatabaseCommand for MoveDocumentCommand {
             return Err(ValidationError::new("A journal can’t go in a folder.").into());
         }
         ensure_parent(ctx, self.workspace_id, self.folder_id)?;
+        if document.folder_id == self.folder_id {
+            return Ok(document.invalidating_nothing());
+        }
+        let left = table_of(&document);
+        if let Some(from) = document.folder_id {
+            forget_values(ctx.db, &[from], Some(document.id))?;
+        }
         let document = ctx
             .db
             .update_live()
@@ -336,7 +366,11 @@ impl DatabaseCommand for MoveDocumentCommand {
             .filter_eq(Document::ID, self.document_id)
             .returning_one()
             .found()?;
-        changed(ctx, document)
+        if let Some(to) = document.folder_id {
+            formulas_stale(ctx, to, Some(document.id))?;
+        }
+        let joined = table_of(&document);
+        Ok(changed(ctx, document)?.and(left).and(joined))
     }
 }
 

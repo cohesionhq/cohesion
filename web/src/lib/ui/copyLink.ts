@@ -17,8 +17,7 @@ const embedKinds: Record<ItemKind, EmbedKind> = {
 	task: 'task',
 	document: 'document',
 	resource: 'resource',
-	database: 'database',
-	'database-row': 'databaseRow',
+	'document-folder': 'documentFolder',
 	agent: 'agent',
 	'actor-session': 'actorSession',
 	article: 'article'

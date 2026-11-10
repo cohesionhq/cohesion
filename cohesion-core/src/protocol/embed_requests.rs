@@ -4,8 +4,8 @@ use cohesion_macros::TsWire;
 use serde::{Deserialize, Serialize};
 
 /// Resolves `link`, a `cohesion://` link to a task, document or journal
-/// entry, resource, database, database row, agent, actor session or
-/// article, to the item it names as an `Embed`. A link to an item deleted
+/// entry, resource, document folder, agent, actor session or article, to
+/// the item it names as an `Embed`. A link to an item deleted
 /// or never made is `notFound`; text that isn't such a link fails
 /// validation on `link`.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]

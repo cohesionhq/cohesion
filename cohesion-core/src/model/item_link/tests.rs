@@ -12,8 +12,7 @@ fn every_kind_reads_and_writes_back_as_it_was() {
         "cohesion://document/3/7",
         "cohesion://document/7",
         "cohesion://resource/3/9",
-        "cohesion://database/3/5",
-        "cohesion://database-row/3/5/21",
+        "cohesion://document-folder/3/5",
         "cohesion://agent/3",
         "cohesion://actor-session/143",
         "cohesion://article/88",
@@ -45,10 +44,11 @@ fn anything_else_is_not_an_item_link() {
         "cohesion://task/+3",
         "cohesion://task/3x",
         "cohesion://resource/9",
-        "cohesion://database/5",
-        "cohesion://database/3/5/21",
-        "cohesion://database-row/3/21",
-        "cohesion://database-row/3/5/21/1",
+        "cohesion://document-folder/5",
+        "cohesion://document-folder/3/5/21",
+        // Databases became document folders; their links name nothing now.
+        "cohesion://database/3/5",
+        "cohesion://database-row/3/5/21",
         "cohesion://agent/3/4",
         "cohesion://article/1/2",
         "cohesion://contact/3",
@@ -60,13 +60,12 @@ fn anything_else_is_not_an_item_link() {
 }
 
 #[test]
-fn a_database_row_link_names_its_workspace_then_its_database_then_its_id() {
+fn a_document_folder_link_names_its_workspace_then_its_id() {
     assert_eq!(
-        parsed("cohesion://database-row/3/5/21"),
-        Ok(ItemLink::DatabaseRow {
+        parsed("cohesion://document-folder/3/5"),
+        Ok(ItemLink::DocumentFolder {
             workspace_id: 3,
-            database_id: 5,
-            id: 21
+            id: 5
         })
     );
 }

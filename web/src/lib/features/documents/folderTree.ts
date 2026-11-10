@@ -1,6 +1,6 @@
 // The document folders as a tree: the daemon lists them flat, each naming its parent.
 
-import type { DocumentFolder } from '$lib/protocol/types';
+import type { Document, DocumentFolder } from '$lib/protocol/types';
 
 export interface FolderNode {
 	folder: DocumentFolder;
@@ -60,4 +60,27 @@ export function folderPath(folders: DocumentFolder[], id: number): DocumentFolde
 /** The folders with the same parent as `folder`, in their order, `folder` included. */
 export function siblings(folders: DocumentFolder[], folder: DocumentFolder): DocumentFolder[] {
 	return folders.filter((f) => f.parent_id === folder.parent_id).sort(bySortOrder);
+}
+
+/** What the Documents page lists: the Inbox, every document, or one folder by id. */
+export type DocumentView = 'inbox' | 'all' | number;
+
+/**
+ * Whether the Documents page lists `doc` in `view`. All leaves out the
+ * documents of the folders in `tables`, the rows of tables, so a large table
+ * doesn't bury the rest, unless they are being looked for (`searching`).
+ */
+export function listedIn(
+	doc: Pick<Document, 'folder_id'>,
+	view: DocumentView,
+	tables: ReadonlySet<number>,
+	searching = false
+): boolean {
+	if (view === 'all') return searching || doc.folder_id === null || !tables.has(doc.folder_id);
+	return doc.folder_id === (view === 'inbox' ? null : view);
+}
+
+/** The ids of the folders that are tables. */
+export function tableIds(folders: DocumentFolder[]): Set<number> {
+	return new Set(folders.filter((f) => f.is_table).map((f) => f.id));
 }

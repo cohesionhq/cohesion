@@ -1,5 +1,5 @@
-//! Database formulas: a property's JavaScript function computing its value
-//! from each row ([`DatabaseFormula`](cohesion_core::model::DatabaseFormula)).
+//! Table formulas: a folder property's JavaScript function computing its
+//! value from each row (a document of the folder) ([`PropertyFormula`](cohesion_core::model::PropertyFormula)).
 //! A formula runs in a QuickJS runtime of its own with nothing mounted, like
 //! a Mermaid diagram: only the language's built-ins, no `cohesion`, network,
 //! storage, agent or connector, and no database handle at all. The row goes
@@ -12,7 +12,7 @@
 
 use std::time::Instant;
 
-use cohesion_core::model::{DatabaseDataType, DatabaseValue};
+use cohesion_core::model::{PropertyDataType, PropertyValue};
 use rquickjs::{
     CatchResultExt, CaughtError, Context, Ctx, Function, IntoJs, Object, Persistent, Runtime, Value,
 };
@@ -35,16 +35,17 @@ const ERROR_LENGTH: usize = 300;
 pub struct Formula {
     pub property_id: i64,
     pub source: String,
-    pub data_type: DatabaseDataType,
+    pub data_type: PropertyDataType,
 }
 
 /// One row as a formula reads it: each property's name with the row's value
-/// for it, or `None` when empty.
-pub type FormulaRow = Vec<(String, Option<DatabaseValue>)>;
+/// for it, or `None` when empty. A choice comes as its option's name, as
+/// text; an option's id alone means nothing to a formula.
+pub type FormulaRow = Vec<(String, Option<PropertyValue>)>;
 
 /// What a formula gave for one row: a value of its type, `None` for an empty
 /// cell, or why it failed, in words for the user.
-pub type FormulaOutput = Result<Option<DatabaseValue>, String>;
+pub type FormulaOutput = Result<Option<PropertyValue>, String>;
 
 pub(crate) const NOT_A_FUNCTION: &str =
     "A formula must be a function of the row, such as `(row) => row.Price * row.Quantity`.";
@@ -219,14 +220,16 @@ fn row_object<'js>(ctx: &Ctx<'js>, row: &FormulaRow) -> rquickjs::Result<Object<
     for (name, value) in row {
         let value = match value {
             None => Value::new_null(ctx.clone()),
-            Some(DatabaseValue::Text(text) | DatabaseValue::Date(text)) => {
+            Some(PropertyValue::Text(text) | PropertyValue::Date(text)) => {
                 text.as_str().into_js(ctx)?
             }
-            Some(DatabaseValue::Integer(number)) => (*number as f64).into_js(ctx)?,
-            Some(DatabaseValue::Decimal(number) | DatabaseValue::Currency(number)) => {
+            Some(PropertyValue::Integer(number)) => (*number as f64).into_js(ctx)?,
+            Some(PropertyValue::Decimal(number) | PropertyValue::Currency(number)) => {
                 number.into_js(ctx)?
             }
-            Some(DatabaseValue::Checkbox(checked)) => checked.into_js(ctx)?,
+            Some(PropertyValue::Checkbox(checked)) => checked.into_js(ctx)?,
+            // Rows carry a choice as its name; an id alone reads as empty.
+            Some(PropertyValue::Choice(_)) => Value::new_null(ctx.clone()),
         };
         object.set(name.as_str(), value)?;
     }
@@ -238,22 +241,24 @@ const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
 
 /// What a formula's function returned, read as a value of `data_type`:
 /// `null` and `undefined` are empty, and anything else must be of the type
-/// and [checked](DatabaseValue::checked).
-fn output(value: &Value<'_>, data_type: DatabaseDataType) -> FormulaOutput {
+/// and [checked](PropertyValue::checked).
+fn output(value: &Value<'_>, data_type: PropertyDataType) -> FormulaOutput {
     if value.is_null() || value.is_undefined() {
         return Ok(None);
     }
     let text = || value.as_string().and_then(|text| text.to_string().ok());
     let read = match data_type {
-        DatabaseDataType::Text => text().map(DatabaseValue::Text),
-        DatabaseDataType::Date => text().map(DatabaseValue::Date),
-        DatabaseDataType::Integer => value
+        PropertyDataType::Text => text().map(PropertyValue::Text),
+        PropertyDataType::Date => text().map(PropertyValue::Date),
+        PropertyDataType::Integer => value
             .as_number()
             .filter(|number| number.fract() == 0.0 && number.abs() <= MAX_SAFE_INTEGER)
-            .map(|number| DatabaseValue::Integer(number as i64)),
-        DatabaseDataType::Decimal => value.as_number().map(DatabaseValue::Decimal),
-        DatabaseDataType::Currency => value.as_number().map(DatabaseValue::Currency),
-        DatabaseDataType::Checkbox => value.as_bool().map(DatabaseValue::Checkbox),
+            .map(|number| PropertyValue::Integer(number as i64)),
+        PropertyDataType::Decimal => value.as_number().map(PropertyValue::Decimal),
+        PropertyDataType::Currency => value.as_number().map(PropertyValue::Currency),
+        PropertyDataType::Checkbox => value.as_bool().map(PropertyValue::Checkbox),
+        // A formula is never a choice; the daemon refuses one.
+        PropertyDataType::Choice => None,
     };
     let read = read.ok_or_else(|| expected(data_type).to_string())?;
     read.checked().map_err(str::to_string)
@@ -261,14 +266,15 @@ fn output(value: &Value<'_>, data_type: DatabaseDataType) -> FormulaOutput {
 
 /// What a formula of `data_type` must return, for a formula that returned
 /// something else.
-fn expected(data_type: DatabaseDataType) -> &'static str {
+fn expected(data_type: PropertyDataType) -> &'static str {
     match data_type {
-        DatabaseDataType::Text => "This formula must return text.",
-        DatabaseDataType::Integer => "This formula must return a whole number.",
-        DatabaseDataType::Decimal => "This formula must return a number.",
-        DatabaseDataType::Currency => "This formula must return an amount, as a number.",
-        DatabaseDataType::Checkbox => "This formula must return true or false.",
-        DatabaseDataType::Date => "This formula must return a date, as YYYY-MM-DD.",
+        PropertyDataType::Text => "This formula must return text.",
+        PropertyDataType::Integer => "This formula must return a whole number.",
+        PropertyDataType::Decimal => "This formula must return a number.",
+        PropertyDataType::Currency => "This formula must return an amount, as a number.",
+        PropertyDataType::Checkbox => "This formula must return true or false.",
+        PropertyDataType::Date => "This formula must return a date, as YYYY-MM-DD.",
+        PropertyDataType::Choice => "A formula can’t be a choice.",
     }
 }
 

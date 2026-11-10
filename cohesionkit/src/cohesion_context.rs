@@ -15,7 +15,6 @@ use cohesion_js::ScriptEngine;
 use crate::actor_sessions::ActorSessions;
 use crate::capability_clients::CapabilityClients;
 use crate::connectors::{AgentConnectors, PendingSignIns};
-use crate::database_formulas::FormulaQueue;
 use crate::endpoint_relay::EndpointRelay;
 use crate::extension_manager::{ExtensionManager, ScriptServices};
 use crate::hooks::{HookManager, LaunchHook};
@@ -24,6 +23,7 @@ use crate::pending_import::PendingImport;
 use crate::presence::Presence;
 use crate::script_actors::ScriptActors;
 use crate::security::Security;
+use crate::table_formulas::FormulaQueue;
 
 /// Everything a request handler needs: the database, the script engine,
 /// the agents, the extensions, the clients and who is connected.
@@ -41,7 +41,7 @@ pub struct CohesionContext {
     pub(crate) server: ServerAddress,
     pub(crate) catalog: ModelCatalog,
     pub(crate) hooks: HookManager,
-    /// Brings database formulas' outputs up to date.
+    /// Brings table formulas' outputs up to date.
     pub(crate) formulas: FormulaQueue,
     /// Runs agents: their conversations and the background runs hooks start.
     pub(crate) agents: AgentCoordinator,
@@ -128,8 +128,8 @@ impl CohesionContext {
     /// the shutdown cleanup, for a daemon that stopped without closing its
     /// database (first, so nothing has started any work yet), then refreshes the model catalog in the background, queues
     /// the launch hooks and the formulas a stopped daemon left outdated, and
-    /// starts the clock hooks and the periodic cleanup, resource, feed and
-    /// extension-update passes.
+    /// starts the clock hooks and the periodic cleanup, continuous formula,
+    /// resource, feed and extension-update passes.
     pub async fn start(&self) {
         if let Err(e) = self.database.send(ShutdownCleanupCommand).await {
             log_error!(Module::Database, "Startup cleanup failed: {e:?}");
@@ -140,6 +140,7 @@ impl CohesionContext {
         self.formulas.queue_stale(&self.database).await;
         self.hooks.start_day_clock(self.database.clone());
         self.start_periodic_cleanup();
+        self.start_continuous_formulas();
         self.start_resource_refresh();
         self.start_feed_refresh();
         self.start_update_checks();

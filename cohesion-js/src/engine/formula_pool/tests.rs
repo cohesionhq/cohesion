@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use cohesion_core::model::{DatabaseDataType, DatabaseValue};
+use cohesion_core::model::{PropertyDataType, PropertyValue};
 
 use super::{FormulaPool, ROWS_PER_JOB};
 use crate::formula::{Formula, FormulaOutput, FormulaRow, TOO_SLOW};
@@ -24,7 +24,7 @@ fn compute(pool: &FormulaPool, source: &str, rows: Vec<FormulaRow>) -> Vec<Formu
             Formula {
                 property_id: 1,
                 source: source.to_string(),
-                data_type: DatabaseDataType::Integer,
+                data_type: PropertyDataType::Integer,
             },
             rows,
         ))
@@ -32,7 +32,7 @@ fn compute(pool: &FormulaPool, source: &str, rows: Vec<FormulaRow>) -> Vec<Formu
 
 fn numbered(count: usize) -> Vec<FormulaRow> {
     (0..count)
-        .map(|n| vec![("N".to_string(), Some(DatabaseValue::Integer(n as i64)))])
+        .map(|n| vec![("N".to_string(), Some(PropertyValue::Integer(n as i64)))])
         .collect()
 }
 
@@ -42,7 +42,7 @@ fn every_row_gets_its_output_across_jobs() {
     let count = ROWS_PER_JOB * 2 + 3;
     let outputs = compute(&pool, "(row) => row.N + 1", numbered(count));
     let expected: Vec<FormulaOutput> = (0..count)
-        .map(|n| Ok(Some(DatabaseValue::Integer(n as i64 + 1))))
+        .map(|n| Ok(Some(PropertyValue::Integer(n as i64 + 1))))
         .collect();
     assert_eq!(outputs, expected);
 }
@@ -57,7 +57,7 @@ fn a_formula_that_never_returns_fails_the_rest_of_the_pass_and_the_pool_goes_on(
         numbered(count),
     );
     assert_eq!(outputs.len(), count);
-    assert_eq!(outputs[2], Ok(Some(DatabaseValue::Integer(2))));
+    assert_eq!(outputs[2], Ok(Some(PropertyValue::Integer(2))));
     assert!(
         outputs[3..]
             .iter()
@@ -65,6 +65,6 @@ fn a_formula_that_never_returns_fails_the_rest_of_the_pass_and_the_pool_goes_on(
     );
     assert_eq!(
         compute(&pool, "(row) => row.N", numbered(1)),
-        vec![Ok(Some(DatabaseValue::Integer(0)))]
+        vec![Ok(Some(PropertyValue::Integer(0)))]
     );
 }

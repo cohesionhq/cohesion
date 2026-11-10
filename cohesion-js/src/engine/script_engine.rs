@@ -50,7 +50,7 @@ pub struct ScriptEngine {
     isolated: Pool,
     /// Draws Mermaid diagrams, which reach neither the database nor a mount.
     mermaid: MermaidPool,
-    /// Computes database formulas, which reach neither the database nor a
+    /// Computes table formulas, which reach neither the database nor a
     /// mount either.
     formulas: FormulaPool,
     /// Keyed by their sandbox, such as `extension:com.example.mailer`.
@@ -230,7 +230,7 @@ impl ScriptEngine {
         self.mermaid.render(source, width).await
     }
 
-    /// Computes database formula `formula` for each of `rows`, one output
+    /// Computes table formula `formula` for each of `rows`, one output
     /// per row in order, in a runtime with nothing mounted: the row in, a
     /// value of the formula's type out, under [`SandboxOptions::FORMULA`]'s
     /// limits. A row whose call throws, runs too long or returns another

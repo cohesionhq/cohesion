@@ -21,8 +21,7 @@
 		document: 'Document not found.',
 		agent: 'Agent not found.',
 		resource: 'Resource not found.',
-		database: 'Database not found.',
-		'database-row': 'Row not found.',
+		'document-folder': 'Folder not found.',
 		'actor-session': 'Session not found.',
 		article: 'Article not found.'
 	};

@@ -7,11 +7,11 @@ use cohesion_macros::TsWire;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    AGENT_REACTIONS, ActivityStatus, ActorSessionStatus, ActorSessionStop, DatabaseDataType,
-    Dialect, EmbedKind, ExtensionPermissionKind, HookKind, IntelligenceAgentColor,
+    AGENT_REACTIONS, ActivityStatus, ActorSessionStatus, ActorSessionStop, Dialect, EmbedKind,
+    ExtensionPermissionKind, FormulaUpdateMode, HookKind, IntelligenceAgentColor,
     IntelligenceAgentPersonality, IntelligenceAgentVerbosity, IntelligenceProvider,
-    IntelligenceTier, PairingOpener, SecurityEventKind, SpendPeriod, TaskPriority, TaskSize,
-    VersionChange,
+    IntelligenceTier, PairingOpener, PropertyDataType, SecurityEventKind, SpendPeriod,
+    TaskPriority, TaskSize, VersionChange,
 };
 use crate::ts_documentation::TsDocumentation;
 use crate::ts_wire::{Declarations, TsWire};
@@ -51,8 +51,10 @@ pub struct Vocabulary {
     pub security_events: Vec<Labeled<SecurityEventKind>>,
     /// What each kind of item a `cohesion://` link names is called.
     pub embed_kinds: Vec<Labeled<EmbedKind>>,
-    /// What each type of value a database property holds is called.
-    pub database_data_types: Vec<Labeled<DatabaseDataType>>,
+    /// What each type of value a table's property holds is called.
+    pub property_data_types: Vec<Labeled<PropertyDataType>>,
+    /// When a table's formula is computed again.
+    pub formula_update_modes: Vec<Labeled<FormulaUpdateMode>>,
 }
 
 impl Vocabulary {
@@ -137,8 +139,11 @@ impl Vocabulary {
             embed_kinds: words(EmbedKind::ALL, |kind| {
                 labeled(*kind, embed_kind_label(*kind))
             }),
-            database_data_types: words(DatabaseDataType::ALL, |kind| {
-                labeled(*kind, database_data_type_label(*kind))
+            property_data_types: words(PropertyDataType::ALL, |kind| {
+                labeled(*kind, property_data_type_label(*kind))
+            }),
+            formula_update_modes: words(FormulaUpdateMode::ALL, |kind| {
+                labeled(*kind, formula_update_mode_label(*kind))
             }),
         }
     }
@@ -195,11 +200,13 @@ interface Vocabulary {
   security_events: { kind: string; label: string }[];
   /** What each kind of item a `cohesion://` link names is called. */
   embed_kinds: { kind: EmbedKind; label: string }[];
-  /** What each type of value a database property holds is called. */
-  database_data_types: {
+  /** What each type of value a table's property holds is called. */
+  property_data_types: {
     kind: "text" | "integer" | "decimal" | "currency" | "checkbox" | "date";
     label: string;
   }[];
+  /** When a table's formula is computed again. */
+  formula_update_modes: { kind: "whenChanged" | "continuously"; label: string }[];
 }"#;
     const TS_BRIEF: &'static str = Self::TS;
 }
@@ -340,22 +347,29 @@ fn embed_kind_label(kind: EmbedKind) -> &'static str {
         EmbedKind::Document => "Document",
         EmbedKind::JournalEntry => "Journal entry",
         EmbedKind::Resource => "Resource",
-        EmbedKind::Database => "Database",
-        EmbedKind::DatabaseRow => "Database row",
+        EmbedKind::DocumentFolder => "Folder",
         EmbedKind::Agent => "Agent",
         EmbedKind::ActorSession => "Actor session",
         EmbedKind::Article => "Article",
     }
 }
 
-fn database_data_type_label(kind: DatabaseDataType) -> &'static str {
+fn property_data_type_label(kind: PropertyDataType) -> &'static str {
     match kind {
-        DatabaseDataType::Text => "Text",
-        DatabaseDataType::Integer => "Whole number",
-        DatabaseDataType::Decimal => "Decimal",
-        DatabaseDataType::Currency => "Currency",
-        DatabaseDataType::Checkbox => "Checkbox",
-        DatabaseDataType::Date => "Date",
+        PropertyDataType::Text => "Text",
+        PropertyDataType::Integer => "Whole number",
+        PropertyDataType::Decimal => "Decimal",
+        PropertyDataType::Currency => "Currency",
+        PropertyDataType::Checkbox => "Checkbox",
+        PropertyDataType::Date => "Date",
+        PropertyDataType::Choice => "Choice",
+    }
+}
+
+fn formula_update_mode_label(kind: FormulaUpdateMode) -> &'static str {
+    match kind {
+        FormulaUpdateMode::WhenChanged => "When changed",
+        FormulaUpdateMode::Continuously => "Continuously",
     }
 }
 

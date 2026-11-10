@@ -13,8 +13,8 @@ mod client_requests;
 mod command;
 mod connector_requests;
 mod contact_requests;
-mod database_requests;
 mod document_requests;
+mod document_table_requests;
 mod embed_requests;
 mod envelope;
 mod extension_requests;
@@ -50,8 +50,8 @@ pub use client_requests::*;
 pub use command::Command;
 pub use connector_requests::*;
 pub use contact_requests::*;
-pub use database_requests::*;
 pub use document_requests::*;
+pub use document_table_requests::*;
 pub use embed_requests::*;
 pub use envelope::{
     CallResult, ClientFrame, ClientHello, Frame, Hello, Outcome, PROTOCOL_VERSION, RegisterRequest,

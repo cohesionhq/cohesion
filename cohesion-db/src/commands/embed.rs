@@ -4,13 +4,14 @@
 use cohesion_core::FromRequest;
 use cohesion_core::model::{
     Actor, ActorMessageContent, ActorMessageKind, ActorMessageSender, ActorSessionMessage,
-    ActorSessionMessageContent, DATABASE_PREVIEW_ROWS, Document, DocumentType, Embed, Feed,
-    ItemLink, Task, TextPiece, TextSection, text_pieces,
+    ActorSessionMessageContent, Document, Embed, Feed, ItemLink, TABLE_PREVIEW_ROWS, Task,
+    TextPiece, TextSection, text_pieces,
 };
 use cohesion_core::protocol::{ResolveEmbedsRequest, ResolveLinkRequest};
 
-use crate::commands::database::{GetDatabaseCommand, ListDatabasePropertiesCommand};
-use crate::commands::database_row::{GetDatabaseRowCommand, first_rows, row_of_document};
+use crate::commands::document_folder::GetDocumentFolderCommand;
+use crate::commands::document_folder_property::ListDocumentFolderPropertiesCommand;
+use crate::commands::document_value::first_rows;
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::{
     CommandContext, CommandError, DatabaseCommand, DatabaseCommandResult, Filtered, Found,
@@ -29,8 +30,7 @@ pub(crate) fn item_link(link: &str) -> Result<ItemLink, CommandError> {
 }
 
 /// The live item `link` names. A task or document in a deleted workspace is
-/// as gone as a deleted one. A database row's document is part of its row,
-/// so a link to it resolves as the row.
+/// as gone as a deleted one.
 #[derive(FromRequest)]
 #[request(ResolveLinkRequest)]
 pub struct ResolveLinkCommand {
@@ -59,13 +59,7 @@ impl DatabaseCommand for ResolveLinkCommand {
                 };
                 let document = select.one().found()?;
                 ensure_workspace(ctx.db, document.workspace_id)?;
-                match document.document_type {
-                    DocumentType::Normal | DocumentType::Journal => Embed::document(document),
-                    DocumentType::DatabaseRow => {
-                        let row = row_of_document(ctx.db, document.id).found()?;
-                        database_row(ctx, document.workspace_id, row.database_id, row.id)?
-                    }
-                }
+                Embed::document(document)
             }
             ItemLink::Resource { workspace_id, id } => Embed::resource(
                 GetResourceCommand {
@@ -74,25 +68,21 @@ impl DatabaseCommand for ResolveLinkCommand {
                 }
                 .handle(ctx)?,
             ),
-            ItemLink::Database { workspace_id, id } => {
-                let database = GetDatabaseCommand {
+            ItemLink::DocumentFolder { workspace_id, id } => {
+                let folder = GetDocumentFolderCommand {
                     workspace_id,
-                    database_id: id,
+                    folder_id: id,
                 }
                 .handle(ctx)?;
-                let properties = ListDatabasePropertiesCommand {
+                let properties = ListDocumentFolderPropertiesCommand {
                     workspace_id,
-                    database_id: id,
+                    folder_id: id,
                 }
                 .handle(ctx)?;
-                let (rows, row_count) = first_rows(ctx.db, id, &properties, DATABASE_PREVIEW_ROWS)?;
-                Embed::database(database, properties, rows, row_count)
+                let (rows, row_count) =
+                    first_rows(ctx.db, workspace_id, id, &properties, TABLE_PREVIEW_ROWS)?;
+                Embed::document_folder(folder, properties, rows, row_count)
             }
-            ItemLink::DatabaseRow {
-                workspace_id,
-                database_id,
-                id,
-            } => database_row(ctx, workspace_id, database_id, id)?,
             ItemLink::Agent { id } => {
                 Embed::agent(GetIntelligenceAgentCommand { agent_id: id }.handle(ctx)?)
             }
@@ -133,47 +123,6 @@ impl DatabaseCommand for ResolveLinkCommand {
             }
         })
     }
-}
-
-/// Row `row_id` of database `database_id` in workspace `workspace_id`, with
-/// its database's properties and its document's excerpt; one of another
-/// database or workspace is not found.
-fn database_row(
-    ctx: &mut CommandContext<'_, Read>,
-    workspace_id: i64,
-    database_id: i64,
-    row_id: i64,
-) -> DatabaseCommandResult<Embed> {
-    let database = GetDatabaseCommand {
-        workspace_id,
-        database_id,
-    }
-    .handle(ctx)?;
-    let properties = ListDatabasePropertiesCommand {
-        workspace_id,
-        database_id,
-    }
-    .handle(ctx)?;
-    let row = GetDatabaseRowCommand {
-        workspace_id,
-        database_id,
-        row_id,
-    }
-    .handle(ctx)?;
-    let document = match row.document_id {
-        Some(id) => ctx
-            .db
-            .select_live::<Document>()
-            .filter_eq(Document::ID, id)
-            .one()?,
-        None => None,
-    };
-    Ok(Embed::database_row(
-        database,
-        properties,
-        row,
-        document.as_ref(),
-    ))
 }
 
 /// Markdown `text` split into its text and its embeds (`text_pieces`), each
