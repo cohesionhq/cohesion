@@ -1,4 +1,5 @@
 use super::*;
+use crate::case::Difficulty;
 
 fn run(outcome: Outcome, seconds: f64, tools: &[(&str, u32, u32)]) -> CaseResult {
     CaseResult {
@@ -6,6 +7,7 @@ fn run(outcome: Outcome, seconds: f64, tools: &[(&str, u32, u32)]) -> CaseResult
         case: "c".to_string(),
         title: String::new(),
         category: String::new(),
+        difficulty: Difficulty::Easy,
         repeat: 1,
         outcome,
         reason: String::new(),
@@ -70,4 +72,30 @@ fn a_model_with_no_runs_has_no_rates() {
     assert_eq!(summary.tool_accuracy(), None);
     assert_eq!(summary.tokens_per_pass, None);
     assert_eq!(summary.median_seconds, 0.0);
+}
+
+// Accuracy weighs a case by its difficulty; efficiency is the mean over
+// passed runs; a bench error counts for neither.
+#[test]
+fn the_scores_weigh_difficulty() {
+    let mut hard_pass = run(Outcome::Passed, 10.0, &[]);
+    hard_pass.difficulty = Difficulty::Hard;
+    let mut medium_fail = run(Outcome::Failed, 10.0, &[]);
+    medium_fail.difficulty = Difficulty::Medium;
+    let easy_fail = run(Outcome::Failed, 10.0, &[]);
+    let error = run(Outcome::Error, 0.0, &[]);
+    let results = [&hard_pass, &medium_fail, &easy_fail, &error];
+    let summary = Summary::of("m", &results);
+    // 3 of (3 + 2 + 1).
+    assert_eq!(summary.accuracy, Some(50.0));
+    assert_eq!(summary.efficiency, hard_pass.efficiency());
+    assert_eq!(
+        summary.overall,
+        Some(crate::score::overall(50.0, hard_pass.efficiency().unwrap()))
+    );
+    assert_eq!(
+        summary.accuracy_by_difficulty,
+        [Some(0.0), Some(0.0), Some(100.0)]
+    );
+    assert_eq!(easy_fail.efficiency(), None);
 }

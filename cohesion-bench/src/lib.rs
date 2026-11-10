@@ -17,12 +17,16 @@
 //! doesn't link it.
 
 pub mod case;
+pub mod config;
 pub mod metrics;
 pub mod model_spec;
 pub mod prices;
 pub mod report;
 pub mod run;
+pub mod score;
 pub mod scratch;
+pub mod starting_state;
+pub mod types;
 pub mod validate;
 
 #[cfg(test)]

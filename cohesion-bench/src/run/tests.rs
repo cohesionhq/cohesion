@@ -2,13 +2,16 @@ use super::judge;
 use serde_json::json;
 
 #[test]
-fn a_check_passes_only_on_a_clear_yes() {
-    assert_eq!(judge(&json!(true)), (true, String::new()));
+fn nothing_or_false_passes_and_a_string_fails() {
+    assert_eq!(judge(&json!(null)), Ok(()));
+    assert_eq!(judge(&json!(false)), Ok(()));
     assert_eq!(
-        judge(&json!({ "pass": false, "reason": "no task" })),
-        (false, "no task".to_string())
+        judge(&json!("no task about stamps")),
+        Err("no task about stamps".to_string())
     );
-    assert!(!judge(&json!({ "reason": "?" })).0);
-    assert!(!judge(&json!("true")).0);
-    assert!(!judge(&json!(null)).0);
+    assert!(judge(&json!("  ")).is_err());
+    // A check that answers otherwise doesn't follow the rule.
+    for other in [json!(true), json!(1), json!({ "pass": true })] {
+        assert!(judge(&other).is_err(), "{other}");
+    }
 }
