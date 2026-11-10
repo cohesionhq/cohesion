@@ -514,6 +514,25 @@ fn panicking_job_fails_alone() {
     assert_eq!(text, "1");
 }
 
+// Shutting the engine down ends its worker threads: a script after it is
+// cancelled rather than run, and the threads don't outlive the engine.
+#[test]
+fn a_shut_down_engine_runs_nothing() {
+    let db = database();
+    create_workspace(&db, "W");
+    let engine = ScriptEngine::new(db.read_write());
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap();
+    let ScriptOutput(text) = runtime
+        .block_on(engine.general_purpose_run("1 + 1".to_string()))
+        .unwrap();
+    assert_eq!(text, "2");
+    runtime.block_on(engine.shutdown());
+    let after = runtime.block_on(engine.general_purpose_run("1 + 1".to_string()));
+    assert!(matches!(after, Err(ScriptError::Cancelled)), "{after:?}");
+}
+
 #[test]
 fn scripts_do_not_share_prototypes() {
     let db = database();

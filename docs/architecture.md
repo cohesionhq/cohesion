@@ -346,7 +346,8 @@ certificate and setup key. `Security` remembers refused pairings for at most
 1. `work.close()`: `WorkTracker` refuses new work. Every request on every transport is answered "Cohesion is shutting down. Try again once it has restarted.", and so are `/register`, offers, day-clock ticks and timed passes; running work may still start follow-on work (hooks, cue runs, scripts, model calls). Running activities are cancelled. The listeners keep answering.
 2. `hooks.settle_all()`: every `journal:settled` and `document:settled` hook still waiting is queued now ([7](#7-hooks-and-events)).
 3. `work.idle()`: wait for all work.
-4. `database.close()`: run what is queued, then `ShutdownCleanupCommand` as the last write, then drop the connection. In one transaction it runs `SettleAgentThreadMarksCommand`, `SettleAgentActivityCommand`, `SettleActivitiesCommand`, `SettleActorSessionsCommand` and `SettleAgentAsksCommand` (`cohesion-db/src/commands/shutdown_cleanup.rs`). Startup runs it again, for a daemon that crashed. State a stopped daemon must not leave behind is one more `ctx.run` there.
+4. `script_engine.shutdown()`: every script worker thread, scoped ones included, ends once its queue has drained; a script submitted after is cancelled. Without it the threads would outlive the context, since the engine's clones hold one another.
+5. `database.close()`: run what is queued, then `ShutdownCleanupCommand` as the last write, then drop the connection. In one transaction it runs `SettleAgentThreadMarksCommand`, `SettleAgentActivityCommand`, `SettleActivitiesCommand`, `SettleActorSessionsCommand` and `SettleAgentAsksCommand` (`cohesion-db/src/commands/shutdown_cleanup.rs`). Startup runs it again, for a daemon that crashed. State a stopped daemon must not leave behind is one more `ctx.run` there.
 
 Every 5 seconds the daemon logs what it is still waiting for. After 5 minutes,
 or a second signal, it stops waiting, still closes the database, and exits 1.
