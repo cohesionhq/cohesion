@@ -89,7 +89,7 @@ impl Embed {
             kind: EmbedKind::Task,
             workspace_id: Some(task.workspace_id),
             title: task.title.clone(),
-            excerpt: excerpt(&task.description),
+            excerpt: excerpt_after_title(&task.description, &task.title),
             item: EmbedItem::Task { task },
         }
     }
@@ -107,7 +107,7 @@ impl Embed {
             },
             workspace_id: Some(document.workspace_id),
             title: document.title.clone(),
-            excerpt: excerpt(&document.contents),
+            excerpt: excerpt_after_title(&document.contents, &document.title),
             item: EmbedItem::Document { document },
         }
     }
@@ -125,7 +125,7 @@ impl Embed {
             excerpt: match resource.content_kind {
                 ResourceContentKind::Json => String::new(),
                 ResourceContentKind::Markdown | ResourceContentKind::Text => {
-                    excerpt(&resource.contents)
+                    excerpt_after_title(&resource.contents, &resource.title)
                 }
             },
             item: EmbedItem::Resource { resource },
@@ -170,7 +170,7 @@ impl Embed {
             kind: EmbedKind::Article,
             workspace_id: None,
             title: article.title.clone(),
-            excerpt: excerpt(&article.contents),
+            excerpt: excerpt_after_title(&article.contents, &article.title),
             item: EmbedItem::Article {
                 article: article.into(),
                 feed_title,
@@ -186,6 +186,14 @@ const EXCERPT_CHARS: usize = 200;
 /// table or code, as plain text: block and inline marks dropped, a link
 /// as its text, cut at a word near `EXCERPT_CHARS` with an ellipsis.
 pub fn excerpt(text: &str) -> String {
+    excerpt_after_title(text, "")
+}
+
+/// As [`excerpt`], passing over a paragraph that only says `title` again,
+/// as an article's text often starts.
+fn excerpt_after_title(text: &str, title: &str) -> String {
+    let title = word_key(title);
+    let repeats = |words: &str| !title.is_empty() && word_key(words) == title;
     let mut words = String::new();
     let mut fenced = false;
     for line in text.lines() {
@@ -199,6 +207,10 @@ pub fn excerpt(text: &str) -> String {
         }
         if line.is_empty() {
             if words.is_empty() {
+                continue;
+            }
+            if repeats(&words) {
+                words.clear();
                 continue;
             }
             break;
@@ -218,6 +230,9 @@ pub fn excerpt(text: &str) -> String {
             break;
         }
     }
+    if repeats(&words) {
+        words.clear();
+    }
     shortened(&words)
 }
 
@@ -229,6 +244,16 @@ fn is_rule(line: &str) -> bool {
     };
     let rest: Vec<char> = marks.collect();
     rest.len() >= 2 && rest.iter().all(|&c| c == mark)
+}
+
+/// `text`'s words, lowercased, without the punctuation and symbols between
+/// them: what a title and a paragraph repeating it share.
+fn word_key(text: &str) -> String {
+    text.split(|c: char| !c.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .map(str::to_lowercase)
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// `line` without its block marks: quotes, list marks and task boxes.

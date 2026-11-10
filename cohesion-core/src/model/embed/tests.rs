@@ -39,3 +39,16 @@ fn a_long_excerpt_is_cut_at_a_word_with_an_ellipsis() {
 fn a_numbered_list_item_loses_its_number() {
     assert_eq!(excerpt("1. First\n2) Second"), "First Second");
 }
+
+#[test]
+fn an_excerpt_passes_over_a_paragraph_repeating_the_title() {
+    assert_eq!(
+        excerpt_after_title("**Touch and Glow**\n\nA week with it.", "Touch and Glow"),
+        "A week with it."
+    );
+    assert_eq!(
+        excerpt_after_title("Touch and Glow", "★ Touch and glow"),
+        ""
+    );
+    assert_eq!(excerpt_after_title("Touch and Glow", ""), "Touch and Glow");
+}
