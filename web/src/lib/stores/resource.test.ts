@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Resource, refreshAll, refreshInvalidated } from './resource.svelte';
+import { Resource, firstFetchesSettled, refreshAll, refreshInvalidated } from './resource.svelte';
 
 /** A resource over a counter, so a test can see each fetch. */
 function counted() {
@@ -88,5 +88,51 @@ describe('Resource', () => {
 
 		await resource.load(1);
 		expect(fetches()).toBe(2);
+	});
+
+	it('a first fetch that outlasts a page fade’s wait goes on through its reveal', async () => {
+		let answer: (value: string) => void = () => undefined;
+		const late = new Resource<string, number>({
+			fetch: () => new Promise((resolve) => (answer = resolve)),
+			initial: ''
+		});
+		const quick = new Resource<string, number>({ fetch: async () => 'quick', initial: '' });
+		const shows: (() => void)[] = [];
+		const reveal = (show: () => void) => {
+			shows.push(show);
+			return Promise.resolve();
+		};
+
+		const loading = late.load(1);
+		await quick.load(1);
+		await firstFetchesSettled(5, reveal);
+		expect(quick.value).toBe('quick');
+
+		answer('late');
+		await loading;
+		expect(shows).toHaveLength(1);
+		expect(late.loaded).toBe(false);
+		shows[0]();
+		expect(late.value).toBe('late');
+		expect(late.loaded).toBe(true);
+	});
+
+	it('a first fetch that lands within the wait goes on at once', async () => {
+		let answer: (value: string) => void = () => undefined;
+		const resource = new Resource<string, number>({
+			fetch: () => new Promise((resolve) => (answer = resolve)),
+			initial: ''
+		});
+		let revealed = false;
+		const loading = resource.load(1);
+		const waiting = firstFetchesSettled(1000, async (show) => {
+			revealed = true;
+			show();
+		});
+		answer('soon');
+		await waiting;
+		await loading;
+		expect(resource.value).toBe('soon');
+		expect(revealed).toBe(false);
 	});
 });
