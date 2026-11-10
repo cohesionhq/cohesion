@@ -3,14 +3,19 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use cohesionkit::db::{
-    Container, DeleteClientCommand, IdentifyLocalClientCommand, RegisterClientCommand, Secrets,
+    Container, DeleteClientCommand, GetActorSessionCommand, IdentifyLocalClientCommand,
+    RegisterClientCommand, Secrets,
 };
-use cohesionkit::model::ActorDefinition;
+use cohesionkit::model::{
+    ActorAnswer, ActorDefinition, ActorMessageContent, ActorQuestion, ActorQuestionOption,
+    ActorSessionStatus, ActorToolKind, ActorUserContent, ReportedActorSessionStatus,
+};
 use cohesionkit::protocol::{
-    ActorCall, CallResult, ClientCall, ClientCapabilities, ClientFrame, ClientHello, ClientOutcome,
-    ClientResult, Command, CreateWorkspaceRequest, DeleteClientRequest, ErrorCode, EvictionReason,
-    Frame, ListActorsRequest, ListClientsRequest, ListWorkspacesRequest, Outcome, Reply, ReplyData,
-    Request, RevokeOtherClientsRequest, ServerMessage, Subscribe,
+    ActorCall, ActorSessionReport, ActorSessionUpdate, CallResult, ClientCall, ClientCapabilities,
+    ClientFrame, ClientHello, ClientOutcome, ClientResult, Command, CreateWorkspaceRequest,
+    DeleteClientRequest, ErrorCode, EvictionReason, Frame, ListActorsRequest, ListClientsRequest,
+    ListWorkspacesRequest, Outcome, Reply, ReplyData, Request, RevokeOtherClientsRequest,
+    ServerMessage, StartActorSessionRequest, SubagentLaunch, Subscribe,
 };
 use cohesionkit::{
     Caller, CallerClient, Client, ClientCallError, ClientKeyKind, ClientRequest, CohesionContext,
@@ -684,4 +689,240 @@ fn test_server() -> cohesionkit::ServerAddress {
         port: 3000,
         fingerprint: String::new(),
     }
+}
+
+/// Starts a session on the client's actor `cohesion`, accepting the call as
+/// its client, and answers its id.
+async fn started_session(context: &CohesionContext, peer: &mut Peer) -> i64 {
+    let Outcome::Ok(ReplyData::Actors(actors)) = peer.round_trip(ListActorsRequest).await else {
+        panic!("expected the actors");
+    };
+    let actor_sessions = context.actor_sessions.clone();
+    let actor_id = actors[0].id;
+    let starting = tokio::spawn(async move {
+        actor_sessions
+            .start(StartActorSessionRequest {
+                actor_id,
+                prompt: "Fix the build".to_string(),
+                title: None,
+                mode: None,
+                model: None,
+                effort: None,
+                attachments: None,
+            })
+            .await
+    });
+    let ServerMessage::Call { call_id, .. } = peer.next().await else {
+        panic!("expected the start call");
+    };
+    peer.send(&accept(call_id));
+    starting.await.unwrap().unwrap().id
+}
+
+/// Reports `report` on session `session_id`, about subagent `subagent` when
+/// given, and waits for the answer.
+async fn report(
+    peer: &mut Peer,
+    session_id: i64,
+    subagent: Option<&str>,
+    report: ActorSessionReport,
+) -> Outcome {
+    let id = peer.id();
+    peer.send(&ClientFrame::ActorSessionUpdate(ActorSessionUpdate {
+        id,
+        session_id,
+        subagent: subagent.map(str::to_string),
+        report,
+    }));
+    peer.outcome(id).await
+}
+
+fn says(content: ActorMessageContent) -> ActorSessionReport {
+    ActorSessionReport::Message {
+        content,
+        images: Vec::new(),
+    }
+}
+
+async fn status_of(context: &CohesionContext, id: i64) -> ActorSessionStatus {
+    context
+        .database
+        .send(GetActorSessionCommand { id })
+        .await
+        .unwrap()
+        .status
+}
+
+#[tokio::test]
+async fn a_client_reports_into_a_subagent_under_its_session_and_hears_its_responses() {
+    let context = context();
+    let (_, mut peer) = client_session(&context).await;
+    let top = started_session(&context, &mut peer).await;
+
+    let tool = ActorMessageContent::ToolUse {
+        tool: "Task".to_string(),
+        category: ActorToolKind::Agent,
+        summary: "Map the db layer".to_string(),
+        ended_at: None,
+    };
+    let Outcome::Ok(ReplyData::ActorSessionMessage(tool)) =
+        report(&mut peer, top, None, says(tool)).await
+    else {
+        panic!("expected the tool use");
+    };
+    let launch = ActorSessionReport::Launch(SubagentLaunch {
+        title: "Map the db layer".to_string(),
+        parent: None,
+        message_id: Some(tool.id),
+        agent_type: Some("Explore".to_string()),
+        model: None,
+        background: true,
+    });
+    let Outcome::Ok(ReplyData::ActorSession(subagent)) =
+        report(&mut peer, top, Some("a1"), launch).await
+    else {
+        panic!("expected the subagent");
+    };
+    assert_eq!(subagent.subagent.as_ref().unwrap().parent_session_id, top);
+
+    // A launch names its subagent, and a report names a subagent by its key
+    // under the session, never by its own id.
+    let unnamed = ActorSessionReport::Launch(SubagentLaunch {
+        title: "Nameless".to_string(),
+        parent: None,
+        message_id: None,
+        agent_type: None,
+        model: None,
+        background: false,
+    });
+    assert!(matches!(
+        report(&mut peer, top, None, unnamed).await,
+        Outcome::Error(_)
+    ));
+    let progress = || ActorSessionReport::Progress {
+        progress: Some("Reading".to_string()),
+    };
+    assert!(matches!(
+        report(&mut peer, subagent.id, None, progress()).await,
+        Outcome::Error(_)
+    ));
+    assert!(matches!(
+        report(&mut peer, top, Some("zz"), progress()).await,
+        Outcome::Error(_)
+    ));
+
+    let question = ActorMessageContent::Question {
+        questions: vec![ActorQuestion {
+            header: None,
+            question: "Which table?".to_string(),
+            options: vec![ActorQuestionOption {
+                label: "tasks".to_string(),
+                description: None,
+            }],
+            multi_select: false,
+            allows_other: false,
+        }],
+    };
+    let Outcome::Ok(ReplyData::ActorSessionMessage(asked)) =
+        report(&mut peer, top, Some("a1"), says(question)).await
+    else {
+        panic!("expected the question");
+    };
+    assert_eq!(asked.session_id, subagent.id);
+    let needs_you = ActorSessionReport::Status {
+        status: ReportedActorSessionStatus::NeedsAttention,
+    };
+    report(&mut peer, top, Some("a1"), needs_you).await;
+    assert_eq!(
+        status_of(&context, subagent.id).await,
+        ActorSessionStatus::NeedsAttention
+    );
+
+    // The user's answer reaches the client under the session, naming the
+    // subagent.
+    let actor_sessions = context.actor_sessions.clone();
+    let subagent_id = subagent.id;
+    let answering = tokio::spawn(async move {
+        let answers = ActorUserContent::Answers {
+            request_id: asked.id,
+            answers: vec![ActorAnswer {
+                selected: vec!["tasks".to_string()],
+                other: None,
+            }],
+        };
+        actor_sessions.send(subagent_id, answers, Vec::new()).await
+    });
+    let ServerMessage::Call {
+        call_id,
+        call:
+            ClientCall::SendActorSessionMessage {
+                session_id,
+                subagent,
+                ..
+            },
+    } = peer.next().await
+    else {
+        panic!("expected the answer");
+    };
+    assert_eq!((session_id, subagent.as_deref()), (top, Some("a1")));
+    peer.send(&accept(call_id));
+    answering.await.unwrap().unwrap();
+    assert_eq!(
+        status_of(&context, subagent_id).await,
+        ActorSessionStatus::Working
+    );
+
+    // The client going away leaves its subagent idle.
+    drop(peer);
+    for _ in 0..100 {
+        if status_of(&context, subagent_id).await == ActorSessionStatus::Idle {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    panic!("the subagent was left going");
+}
+
+#[tokio::test]
+async fn stopping_a_session_settles_its_subagents_and_a_subagent_is_not_stopped_alone() {
+    let context = context();
+    let (_, mut peer) = client_session(&context).await;
+    let top = started_session(&context, &mut peer).await;
+    let launch = ActorSessionReport::Launch(SubagentLaunch {
+        title: "Look around".to_string(),
+        parent: None,
+        message_id: None,
+        agent_type: None,
+        model: None,
+        background: false,
+    });
+    let Outcome::Ok(ReplyData::ActorSession(subagent)) =
+        report(&mut peer, top, Some("a1"), launch).await
+    else {
+        panic!("expected the subagent");
+    };
+
+    assert!(context.actor_sessions.stop(subagent.id).await.is_err());
+    assert!(context.actor_sessions.resolve(subagent.id).await.is_err());
+    let text = ActorUserContent::Text {
+        text: "Hurry".to_string(),
+    };
+    assert!(
+        context
+            .actor_sessions
+            .send(subagent.id, text, Vec::new())
+            .await
+            .is_err()
+    );
+
+    let actor_sessions = context.actor_sessions.clone();
+    let stopping = tokio::spawn(async move { actor_sessions.stop(top).await });
+    let call_id = peer.call_id().await;
+    peer.send(&accept(call_id));
+    stopping.await.unwrap().unwrap();
+    assert_eq!(status_of(&context, top).await, ActorSessionStatus::Idle);
+    assert_eq!(
+        status_of(&context, subagent.id).await,
+        ActorSessionStatus::Idle
+    );
 }

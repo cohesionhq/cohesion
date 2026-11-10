@@ -1882,7 +1882,9 @@ function reactionExcerpt(
  * a task paused on a question, after reading and a tool use, one that
  * ended and one working; the second has none. Their activities are the
  * stretches of that work: the working task's running, the paused one's
- * paused, and three that ended.
+ * paused, and three that ended. The working one launched three subagents:
+ * one done, with one of its own, and one in the background waiting on a
+ * permission.
  */
 function seedActors(
 	now: number
@@ -1954,7 +1956,8 @@ function seedActors(
 				unread: false,
 				read_at: null,
 				context: { used_tokens: 41_800, total_tokens: 200_000 },
-				follower: { agent_id: 1, initiative: 'user' }
+				follower: { agent_id: 1, initiative: 'user' },
+				subagent: null
 			},
 			{
 				id: 2,
@@ -1969,7 +1972,8 @@ function seedActors(
 				unread: true,
 				read_at: null,
 				context: { used_tokens: 118_400, total_tokens: 200_000 },
-				follower: { agent_id: 1, initiative: 'user' }
+				follower: { agent_id: 1, initiative: 'user' },
+				subagent: null
 			},
 			{
 				id: 3,
@@ -1984,7 +1988,8 @@ function seedActors(
 				unread: false,
 				read_at: null,
 				context: null,
-				follower: { agent_id: 1, initiative: 'user' }
+				follower: { agent_id: 1, initiative: 'user' },
+				subagent: null
 			},
 			{
 				id: 4,
@@ -1999,7 +2004,8 @@ function seedActors(
 				unread: false,
 				read_at: null,
 				context: null,
-				follower: { agent_id: 1, initiative: 'user' }
+				follower: { agent_id: 1, initiative: 'user' },
+				subagent: null
 			},
 			{
 				id: 5,
@@ -2014,7 +2020,76 @@ function seedActors(
 				unread: false,
 				read_at: null,
 				context: null,
-				follower: { agent_id: 1, initiative: 'user' }
+				follower: { agent_id: 1, initiative: 'user' },
+				subagent: null
+			},
+			// Three subagents of “Web UI design hill-climb”: one done, with one
+			// of its own, and one in the background waiting on a permission.
+			{
+				id: 6,
+				actor_id: 1,
+				title: 'Survey the sidebar’s spacing',
+				mode: null,
+				model: 'haiku',
+				effort: null,
+				started_at: now - 3 * 60 - 40,
+				status_changed_at: now - 3 * 60,
+				status: 'idle',
+				unread: false,
+				read_at: null,
+				context: null,
+				follower: null,
+				subagent: {
+					parent_session_id: 3,
+					key: 'agent-survey',
+					agent_type: 'Explore',
+					message_id: 11,
+					background: false
+				}
+			},
+			{
+				id: 7,
+				actor_id: 1,
+				title: 'Run the visual checks',
+				mode: null,
+				model: null,
+				effort: null,
+				started_at: now - 2 * 60 - 50,
+				status_changed_at: now - 30,
+				status: 'needsAttention',
+				unread: false,
+				read_at: null,
+				context: null,
+				follower: null,
+				subagent: {
+					parent_session_id: 3,
+					key: 'agent-checks',
+					agent_type: 'general-purpose',
+					message_id: 12,
+					background: true
+				}
+			},
+			{
+				id: 8,
+				actor_id: 1,
+				title: 'Read the spacing tokens',
+				mode: null,
+				model: 'haiku',
+				effort: null,
+				started_at: now - 3 * 60 - 30,
+				status_changed_at: now - 3 * 60 - 10,
+				status: 'idle',
+				unread: false,
+				read_at: null,
+				context: null,
+				follower: null,
+				subagent: {
+					parent_session_id: 6,
+					key: 'agent-tokens',
+					agent_type: 'Explore',
+					message_id: 16,
+					background: false
+				}
 			}
 		],
 		activities: [
@@ -2145,6 +2220,144 @@ function seedActors(
 				said({
 					kind: 'text',
 					text: 'Done. CI is green in every repo. The crates it builds:\n\n```mermaid\ngraph TD\n  cohesiond --> cohesionkit\n  cohesionkit --> rusqlite\n  cohesionkit --> rquickjs\n```'
+				})
+			),
+			message(9, 3, now - 4 * 60, {
+				sender: 'user',
+				kind: 'text',
+				text: 'Web UI design hill-climb'
+			}),
+			message(
+				10,
+				3,
+				now - 4 * 60 + 5,
+				said({
+					kind: 'text',
+					text: 'I’ll survey the sidebar first, and run the visual checks alongside.'
+				})
+			),
+			message(
+				11,
+				3,
+				now - 3 * 60 - 40,
+				said({
+					kind: 'toolUse',
+					tool: 'Task',
+					category: 'agent',
+					summary: 'Survey the sidebar’s spacing',
+					ended_at: now - 3 * 60
+				})
+			),
+			message(
+				12,
+				3,
+				now - 2 * 60 - 50,
+				said({
+					kind: 'toolUse',
+					tool: 'Task',
+					category: 'agent',
+					summary: 'Run the visual checks',
+					ended_at: now - 2 * 60 - 49
+				})
+			),
+			message(
+				13,
+				3,
+				now - 2 * 60,
+				said({
+					kind: 'toolUse',
+					tool: 'Edit',
+					category: 'edit',
+					summary: 'web/src/lib/shell/Sidebar.svelte',
+					ended_at: null
+				})
+			),
+			message(
+				14,
+				6,
+				now - 3 * 60 - 39,
+				said({
+					kind: 'thinking',
+					text: 'Start with the sidebar’s rows, then the tokens they use.',
+					ended_at: now - 3 * 60 - 36
+				})
+			),
+			message(
+				15,
+				6,
+				now - 3 * 60 - 35,
+				said({
+					kind: 'toolUse',
+					tool: 'Read',
+					category: 'read',
+					summary: 'web/src/lib/shell/Sidebar.svelte',
+					ended_at: now - 3 * 60 - 33
+				})
+			),
+			message(
+				16,
+				6,
+				now - 3 * 60 - 31,
+				said({
+					kind: 'toolUse',
+					tool: 'Task',
+					category: 'agent',
+					summary: 'Read the spacing tokens',
+					ended_at: now - 3 * 60 - 10
+				})
+			),
+			message(
+				17,
+				6,
+				now - 3 * 60 - 2,
+				said({
+					kind: 'text',
+					text: 'Rows sit 2px apart while groups sit 12px apart, so the gap between groups reads as a break. `--s3` would even it out.'
+				})
+			),
+			message(
+				18,
+				8,
+				now - 3 * 60 - 29,
+				said({
+					kind: 'toolUse',
+					tool: 'Read',
+					category: 'read',
+					summary: 'web/src/lib/tokens.css',
+					ended_at: now - 3 * 60 - 27
+				})
+			),
+			message(
+				19,
+				8,
+				now - 3 * 60 - 12,
+				said({ kind: 'text', text: 'The spacing scale runs `--s1` (2px) to `--s8` (48px).' })
+			),
+			message(
+				20,
+				7,
+				now - 2 * 60 - 48,
+				said({
+					kind: 'toolUse',
+					tool: 'Bash',
+					category: 'command',
+					summary: 'npm run build',
+					ended_at: now - 60
+				})
+			),
+			message(
+				21,
+				7,
+				now - 30,
+				said({
+					kind: 'permission',
+					subject: {
+						kind: 'command',
+						command: 'npx playwright test --update-snapshots',
+						cwd: '/Users/me/Developer/cohesion/web'
+					},
+					reason: 'To refresh the screenshots the sidebar change moved.',
+					decisions: ['allow', 'allowForSession', 'deny']
 				})
 			)
 		]
@@ -3517,6 +3730,18 @@ export function createMock(): Mock {
 	const clientServes = (client_id: number) => state.onlineClients.includes(client_id);
 	const actorSession = (id: number) =>
 		state.actorSessions.find((t) => t.id === id) ?? notFound('actor session');
+	/** The sessions below session `id`, at any depth. */
+	const subagentsBelow = (id: number): ActorSession[] =>
+		state.actorSessions
+			.filter((t) => t.subagent?.parent_session_id === id)
+			.flatMap((t) => [t, ...subagentsBelow(t.id)]);
+	/** Session `id`, which must be one Cohesion started: a subagent goes with its session. */
+	const startedSession = (id: number) => {
+		const session = actorSession(id);
+		if (session.subagent)
+			throw new ProtocolError('badRequest', 'A subagent goes with its session.');
+		return session;
+	};
 	/** Keeps the images sent with actor session message `message_id`. */
 	const attachActorImages = (message_id: number, images: ImageUpload[] | null | undefined) => {
 		for (const { media_type, data } of images ?? [])
@@ -5415,10 +5640,38 @@ export function createMock(): Mock {
 		],
 		listActorSessions: ({ actor_id }) =>
 			state.actorSessions
-				.filter((t) => t.status !== 'resolved' && (actor_id == null || t.actor_id === actor_id))
+				.filter(
+					(t) =>
+						t.status !== 'resolved' &&
+						t.subagent === null &&
+						(actor_id == null || t.actor_id === actor_id)
+				)
 				.sort((a, b) => b.status_changed_at - a.status_changed_at || b.id - a.id)
 				.map((t) => ({ ...t })),
-		getActorSession: ({ id }) => ({ ...actorSession(id) }),
+		getActorSession: ({ id }) => structuredClone(actorSession(id)),
+		listActorSubagents: ({ session_id }) => {
+			actorSession(session_id);
+			return state.actorSessions
+				.filter((t) => t.subagent?.parent_session_id === session_id)
+				.sort((a, b) => a.started_at - b.started_at || a.id - b.id)
+				.map((t) => structuredClone(t));
+		},
+		listUnansweredSubagentRequests: ({ session_id }) => {
+			actorSession(session_id);
+			const going = subagentsBelow(session_id)
+				.filter((t) => t.status === 'working' || t.status === 'needsAttention')
+				.map((t) => t.id);
+			return state.actorSessionMessages
+				.filter(
+					(m) =>
+						going.includes(m.session_id) &&
+						m.content.sender === 'actor' &&
+						['question', 'permission', 'plan'].includes(m.content.kind) &&
+						!m.answered
+				)
+				.sort((a, b) => a.id - b.id)
+				.map((m) => structuredClone(m));
+		},
 		// Every word in the title, or in one text message; a title match first.
 		searchActorSessions: ({ query }) => {
 			const words = searchWords(query);
@@ -5426,6 +5679,7 @@ export function createMock(): Mock {
 			const matches = (text: string) => words.every(starts(text));
 			const hits: ActorSessionSearchHit[] = [];
 			for (const t of state.actorSessions) {
+				if (t.subagent) continue;
 				const hit = {
 					id: t.id,
 					actor_id: t.actor_id,
@@ -5482,7 +5736,8 @@ export function createMock(): Mock {
 				unread: false,
 				read_at: null,
 				context: null,
-				follower: null
+				follower: null,
+				subagent: null
 			};
 			state.actorSessions.push(session);
 			const message: ActorSessionMessage = {
@@ -5501,6 +5756,11 @@ export function createMock(): Mock {
 			// A message to a session that is done or failed picks it back up.
 			const session = actorSession(session_id);
 			const now = nowSeconds();
+			if (session.subagent && !('request_id' in content))
+				throw new ProtocolError(
+					'validationFailed',
+					'A subagent takes only responses to what it asked.'
+				);
 			if ('request_id' in content) {
 				const request = state.actorSessionMessages.find((m) => m.id === content.request_id);
 				if (request) request.answered = true;
@@ -5533,7 +5793,7 @@ export function createMock(): Mock {
 			return structuredClone(message);
 		},
 		stopActorSession: ({ session_id }) => {
-			const session = actorSession(session_id);
+			const session = startedSession(session_id);
 			if (session.status !== 'idle' && session.status !== 'resolved') {
 				session.status = 'idle';
 				session.status_changed_at = nowSeconds();
@@ -5541,7 +5801,7 @@ export function createMock(): Mock {
 			return { ...session };
 		},
 		resolveActorSession: ({ session_id }) => {
-			const session = actorSession(session_id);
+			const session = startedSession(session_id);
 			if (session.status !== 'resolved') {
 				session.status = 'resolved';
 				session.status_changed_at = nowSeconds();
@@ -5549,7 +5809,7 @@ export function createMock(): Mock {
 			return { ...session };
 		},
 		setActorSessionMode: ({ session_id, mode }) => {
-			const session = actorSession(session_id);
+			const session = startedSession(session_id);
 			session.mode = mode;
 			return { ...session };
 		},

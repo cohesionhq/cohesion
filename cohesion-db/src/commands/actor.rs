@@ -136,7 +136,8 @@ impl DatabaseCommand for GetActorIncludingDeletedCommand {
 }
 
 /// Actor sessions, latest status change first: actor `actor_id`'s, or every
-/// actor's. A resolved session is left out; it is still there by id.
+/// actor's. A resolved session, and a subagent, is left out; each is still
+/// there by id.
 #[derive(FromRequest)]
 #[request(ListActorSessionsRequest)]
 pub struct ListActorSessionsCommand {
@@ -149,7 +150,7 @@ impl DatabaseCommand for ListActorSessionsCommand {
         let select = ctx
             .db
             .select::<ActorSession>()
-            .filter("status <> ?")
+            .filter("status <> ? AND parent_session_id IS NULL")
             .bind(ActorSessionStatus::Resolved);
         let select = match self.actor_id {
             Some(actor_id) => select.filter_eq(ActorSession::ACTOR_ID, actor_id),
@@ -179,7 +180,8 @@ impl DatabaseCommand for GetActorSessionCommand {
 
 /// Actor sessions whose title, or something the user or the actor said in
 /// them, matches FTS5 `query`, best first: a title match outweighs one in
-/// the transcript, and a session is as good as its best match.
+/// the transcript, and a session is as good as its best match. Subagents are
+/// left out.
 #[derive(FromRequest)]
 #[request(SearchActorSessionsRequest)]
 pub struct SearchActorSessionsCommand {
@@ -206,6 +208,7 @@ impl DatabaseCommand for SearchActorSessionsCommand {
                     WHERE actor_session_messages_fts MATCH ?
                 ) GROUP BY session_id
             ) AS hit ON hit.session_id = actor_sessions.id
+            WHERE actor_sessions.parent_session_id IS NULL
             ORDER BY hit.score, actor_sessions.status_changed_at DESC",
             ActorSessionSearchHit::columns()
         );
@@ -239,10 +242,7 @@ impl DatabaseCommand for MarkActorSessionReadCommand {
             .filter_eq(ActorSession::ID, self.session_id)
             .returning_one()
             .found()?;
-        let keys = [
-            Invalidation::ActorSessions,
-            Invalidation::ActorSession(session.id),
-        ];
+        let keys = session_keys(&mut ctx.as_read(), &session)?;
         Ok(session.invalidating(keys))
     }
 }
@@ -373,7 +373,7 @@ fn title(text: &str) -> String {
 
 /// The title a session was given, as [`title`] cuts it; a blank one is
 /// refused.
-fn given_title(text: &str) -> Result<String, ValidationError> {
+pub(super) fn given_title(text: &str) -> Result<String, ValidationError> {
     let title = title(text);
     ensure_title(&title)?;
     Ok(title)
@@ -400,10 +400,7 @@ impl DatabaseCommand for SetActorSessionTitleCommand {
             .filter_eq(ActorSession::ID, self.session_id)
             .returning_one()
             .found()?;
-        let keys = [
-            Invalidation::ActorSessions,
-            Invalidation::ActorSession(session.id),
-        ];
+        let keys = session_keys(&mut ctx.as_read(), &session)?;
         Ok(session.invalidating(keys))
     }
 }
@@ -451,12 +448,102 @@ impl DatabaseCommand for AddActorSessionMessageCommand {
             check_response(&request, content)?;
         }
         validate_images(&self.attachments)?;
+        if session.subagent.is_some()
+            && let ActorSessionMessageContent::User(said) = &self.content
+            && said.responds_to().is_none()
+        {
+            return Err(
+                ValidationError::new("A subagent takes only responses to what it asked.").into(),
+            );
+        }
+        if session.subagent.is_some() {
+            let said = ctx
+                .db
+                .select::<ActorSessionMessage>()
+                .filter_eq(ActorSessionMessage::SESSION_ID, session.id)
+                .count()?;
+            if said >= SUBAGENT_MESSAGE_LIMIT {
+                return Err(ValidationError::new("This subagent's transcript is full.").into());
+            }
+        }
+        let asks = match &self.content {
+            ActorSessionMessageContent::Actor(said) => said.request().is_some(),
+            ActorSessionMessageContent::User(said) => said.responds_to().is_some(),
+        };
         let message = insert_message(ctx, session.id, self.content, self.attachments)?;
-        Ok(message.invalidating([
+        let keys = message_keys(&mut ctx.as_read(), &session, asks)?;
+        Ok(message.invalidating(keys))
+    }
+}
+
+/// The most messages a subagent's transcript holds; past it, its actor's
+/// reports are refused.
+pub const SUBAGENT_MESSAGE_LIMIT: i64 = 2_000;
+
+/// What a message added to, or taken from, `session`'s transcript touches:
+/// the lists and the session, for one Cohesion started; for a subagent, only
+/// its own view, and the session Cohesion started too when the message is a
+/// request or a response, which that session shows.
+fn message_keys(
+    ctx: &mut CommandContext<'_, Read>,
+    session: &ActorSession,
+    asks: bool,
+) -> DatabaseCommandResult<Vec<Invalidation>> {
+    if session.subagent.is_none() {
+        return Ok(vec![
             Invalidation::ActorSessions,
             Invalidation::ActorSession(session.id),
-        ]))
+        ]);
     }
+    let mut keys = vec![Invalidation::ActorSession(session.id)];
+    if asks {
+        keys.push(Invalidation::ActorSession(top_session_id(ctx, session)?));
+    }
+    Ok(keys)
+}
+
+/// What a change to `session` itself (its status, title or what it is)
+/// touches: the lists and the session, for one Cohesion started; for a
+/// subagent, which no list holds, its own view, the session one level up,
+/// which lists it, and the session Cohesion started, which shows its
+/// requests.
+pub(super) fn session_keys(
+    ctx: &mut CommandContext<'_, Read>,
+    session: &ActorSession,
+) -> DatabaseCommandResult<Vec<Invalidation>> {
+    let Some(subagent) = &session.subagent else {
+        return Ok(vec![
+            Invalidation::ActorSessions,
+            Invalidation::ActorSession(session.id),
+        ]);
+    };
+    let mut keys = vec![
+        Invalidation::ActorSession(session.id),
+        Invalidation::ActorSession(subagent.parent_session_id),
+    ];
+    let top = top_session_id(ctx, session)?;
+    if top != subagent.parent_session_id {
+        keys.push(Invalidation::ActorSession(top));
+    }
+    Ok(keys)
+}
+
+/// The session Cohesion started that `session` is, or is a subagent of at
+/// any depth.
+pub(super) fn top_session_id(
+    ctx: &mut CommandContext<'_, Read>,
+    session: &ActorSession,
+) -> DatabaseCommandResult<i64> {
+    let mut id = session.id;
+    let mut parent = session.subagent.as_ref().map(|s| s.parent_session_id);
+    while let Some(up) = parent {
+        id = up;
+        parent = GetActorSessionCommand { id: up }
+            .handle(ctx)?
+            .subagent
+            .map(|s| s.parent_session_id);
+    }
+    Ok(id)
 }
 
 /// Whether `response` is shaped as `request`, of its kind, asks.
@@ -608,10 +695,16 @@ impl DatabaseCommand for DeleteActorSessionMessageCommand {
             .delete::<ActorSessionMessage>()
             .filter_eq(ActorSessionMessage::ID, self.id)
             .execute()?;
-        Ok(().invalidating([
-            Invalidation::ActorSessions,
-            Invalidation::ActorSession(message.session_id),
-        ]))
+        let session = GetActorSessionCommand {
+            id: message.session_id,
+        }
+        .handle(&mut ctx.as_read())?;
+        let asks = match &message.content {
+            ActorSessionMessageContent::Actor(said) => said.request().is_some(),
+            ActorSessionMessageContent::User(said) => said.responds_to().is_some(),
+        };
+        let keys = message_keys(&mut ctx.as_read(), &session, asks)?;
+        Ok(().invalidating(keys))
     }
 }
 
@@ -657,7 +750,8 @@ impl DatabaseCommand for DeleteActorSessionCommand {
 
 /// Moves actor session `session_id` as `moved` says, into its status, answering
 /// the session as it stands, and raises `ActorSessionMoved` with why when that
-/// changed its status. A resolved session stays resolved through a move that
+/// changed the status of a session Cohesion started (a subagent's raises
+/// nothing). A resolved session stays resolved through a move that
 /// [keeps it](ActorSessionMove::keeps_resolved).
 pub struct SetActorSessionStatusCommand {
     pub session_id: i64,
@@ -697,18 +791,19 @@ impl DatabaseCommand for SetActorSessionStatusCommand {
         if changed == 0 {
             return Ok(session.invalidating_nothing());
         }
-        let event = DatabaseEventKind::ActorSessionMoved {
-            actor_session: session.clone(),
-            moved: self.moved,
-        };
-        ctx.events.send(ctx.trace.event(event));
-        let keys = [
-            Invalidation::ActorSessions,
-            Invalidation::ActorSession(session.id),
-        ]
-        .into_iter()
-        .chain(recounted_agents(&before, &session))
-        .collect::<Vec<_>>();
+        // A subagent's moves are its session's business: no hook hears them
+        // and it has no follower to wake.
+        if session.subagent.is_none() {
+            let event = DatabaseEventKind::ActorSessionMoved {
+                actor_session: session.clone(),
+                moved: self.moved,
+            };
+            ctx.events.send(ctx.trace.event(event));
+        }
+        let keys = session_keys(&mut ctx.as_read(), &session)?
+            .into_iter()
+            .chain(recounted_agents(&before, &session))
+            .collect::<Vec<_>>();
         Ok(session.invalidating(keys))
     }
 }
@@ -771,10 +866,7 @@ impl DatabaseCommand for SetActorSessionModeCommand {
             .filter_eq(ActorSession::ID, self.session_id)
             .returning_one()
             .found()?;
-        let keys = [
-            Invalidation::ActorSessions,
-            Invalidation::ActorSession(session.id),
-        ];
+        let keys = session_keys(&mut ctx.as_read(), &session)?;
         Ok(session.invalidating(keys))
     }
 }

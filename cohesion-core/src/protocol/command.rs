@@ -530,6 +530,14 @@ pub enum Command {
     ListActorSessions(ListActorSessionsRequest),
     #[reply(ActorSession)]
     GetActorSession(GetActorSessionRequest),
+    /// Lists an actor session's subagents, one level down, first launched
+    /// first.
+    #[reply(Vec<ActorSession>)]
+    ListActorSubagents(ListActorSubagentsRequest),
+    /// Lists the requests waiting on the user in an actor session's
+    /// subagents, oldest first.
+    #[reply(Vec<ActorSessionMessage>)]
+    ListUnansweredSubagentRequests(ListUnansweredSubagentRequestsRequest),
     /// Full-text matches among actor sessions' titles and transcripts, best
     /// first.
     #[reply(Vec<ActorSessionSearchHit>)]

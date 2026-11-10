@@ -16,6 +16,13 @@
 	is doing. Resolve, in the header, says the user is done with it: it
 	leaves the lists (one going on stops first, after asking), and a
 	message picks it back up.
+
+	A tool use that launched a subagent shows as the subagent's line, opening
+	its thread; subagents launched from no tool use shown follow the
+	transcript, and what they ask waits at its foot, answerable here. A
+	subagent's own thread is read-only: its header leads back up to the
+	session it runs under, it has no composer or Resolve, and what it asks
+	is answered in the session Cohesion started, which it links to.
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
@@ -23,6 +30,7 @@
 	import { elapsed, nowSeconds } from '$lib/format/dates';
 	import type {
 		ActorAnswer,
+		ActorSession,
 		ActorSessionMessage,
 		ActorUserContent,
 		ImageUpload
@@ -46,6 +54,7 @@
 	import QuestionCard from './QuestionCard.svelte';
 	import SessionComposer from './SessionComposer.svelte';
 	import SessionHeader from './SessionHeader.svelte';
+	import SubagentRow from './SubagentRow.svelte';
 	import { planOf } from './plan';
 	import { paneChrome } from '$lib/ui/paneChrome';
 	import UsageRing from './UsageRing.svelte';
@@ -80,6 +89,8 @@
 			images = [];
 			void actors.session.load(id);
 			void actors.messages.load(id);
+			void actors.subagents.load(id);
+			void actors.waiting.load(id);
 			void actors.list.load();
 			void actors.usage.load();
 			void clients.load();
@@ -87,6 +98,8 @@
 		return () => {
 			actors.session.release();
 			actors.messages.release();
+			actors.subagents.release();
+			actors.waiting.release();
 			actors.usage.release();
 			clients.release();
 		};
@@ -115,6 +128,55 @@
 	const actor = $derived(
 		(session && actors.list.value.find((a) => a.id === session.actor_id)) ?? null
 	);
+	/** The subagents launched from it, one level down, first launched first. */
+	const subagents = $derived(actors.subagents.key === sessionId ? actors.subagents.value : []);
+	/** Each subagent by the tool use that launched it, which its line stands in for. */
+	const launchedBy = $derived(
+		new Map(
+			subagents.flatMap((s): [number, ActorSession][] =>
+				s.subagent?.message_id != null ? [[s.subagent.message_id, s]] : []
+			)
+		)
+	);
+	/** The subagents no tool use in the transcript launched, which follow it. */
+	const unplaced = $derived(
+		subagents.filter(
+			(s) => !messages.some((m) => m.id === s.subagent?.message_id && m.content.kind === 'toolUse')
+		)
+	);
+	/** What its subagents ask, at any depth, waiting at the transcript's foot. */
+	const waiting = $derived(actors.waiting.key === sessionId ? actors.waiting.value : []);
+	/** What makes it a subagent, when it is one: its thread is then read-only. */
+	const subagent = $derived(session?.subagent ?? null);
+	const aboveId = $derived(subagent?.parent_session_id ?? null);
+	/** The session one level up, which its header leads back to. */
+	const above = $derived(
+		aboveId !== null && actors.above.key === aboveId ? actors.above.value : null
+	);
+	/** The session Cohesion started that it runs under, where what it asks is answered. */
+	let top = $state<ActorSession | null>(null);
+
+	$effect(() => {
+		const id = aboveId;
+		if (id === null) return;
+		untrack(() => void actors.above.load(id));
+		return () => actors.above.release();
+	});
+
+	$effect(() => {
+		const current = session;
+		top = null;
+		if (!current?.subagent) return;
+		let cancelled = false;
+		untrack(() => actors.topOf(current))
+			.then((found) => {
+				if (!cancelled) top = found;
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	});
 	const online = $derived(actor ? clients.isOnline(actor.client_id) : false);
 	const plan = $derived(session ? planOf(actors.usage.value, session.actor_id) : []);
 	/** From 1100px this half's usage shows in the column right of the sheet, not behind the ring. */
@@ -243,6 +305,15 @@
 	/** Whether request `message` is settled: the user responded, or the session is no longer going on. */
 	const answered = (message: ActorSessionMessage) =>
 		message.answered || (session !== null && !isGoing(session));
+
+	/** Responds to `request`, which one of its subagents made, in that subagent. */
+	function respond(request: ActorSessionMessage, said: ActorUserContent) {
+		return actors.say(request.session_id, said);
+	}
+
+	/** The subagent that made `request`, when it is one level down. */
+	const askedBy = (request: ActorSessionMessage) =>
+		subagents.find((s) => s.id === request.session_id) ?? null;
 </script>
 
 <PageTitle title={`${session?.title ?? 'Session'} · Actors`} />
@@ -269,9 +340,9 @@
 					/>
 				{:else if session}
 					<div class="sticky top-0 z-10">
-						<SessionHeader {session} {actor}>
+						<SessionHeader {session} {actor} {above}>
 							{#snippet actions()}
-								{#if session.status !== 'resolved'}
+								{#if session.status !== 'resolved' && !subagent}
 									<!-- Quiet while the session waits on the user, so what it asks is the screen's action. -->
 									<Button
 										variant={session.status === 'needsAttention' ? 'quiet' : 'secondary'}
@@ -338,6 +409,8 @@
 												<Markdown source={said.text} />
 											</div>
 										</details>
+									{:else if said.kind === 'toolUse' && launchedBy.has(message.id)}
+										<SubagentRow session={launchedBy.get(message.id)!} />
 									{:else if said.kind === 'toolUse'}
 										{@const ToolIcon = toolIcon(said.category)}
 										<p class="flex h-6 min-w-0 items-center gap-1.5 text-xs text-fg-subtle">
@@ -356,7 +429,7 @@
 										<QuestionCard
 											draftKey="actorSession.{sessionId}.question.{message.id}"
 											questions={said.questions}
-											answered={answered(message)}
+											answered={answered(message) || subagent !== null}
 											answers={responses.get(message.id) ?? null}
 											onanswer={(answers) =>
 												say({ kind: 'answers', request_id: message.id, answers })}
@@ -364,7 +437,7 @@
 									{:else if said.kind === 'permission'}
 										<PermissionCard
 											request={said}
-											answered={answered(message)}
+											answered={answered(message) || subagent !== null}
 											ondecide={(decision, note) =>
 												say({
 													kind: 'permission',
@@ -376,10 +449,16 @@
 									{:else}
 										<PlanCard
 											plan={said.plan}
-											answered={answered(message)}
+											answered={answered(message) || subagent !== null}
 											ondecide={(approved, feedback) =>
 												say({ kind: 'plan', request_id: message.id, approved, feedback })}
 										/>
+									{/if}
+									{#if subagent && said.kind !== 'text' && said.kind !== 'thinking' && said.kind !== 'toolUse' && !answered(message) && top}
+										<a
+											class="mt-1.5 text-xs text-fg-subtle hover:text-fg-muted"
+											href={routes.actorSession(top.id)}>Answer it in “{top.title}”</a
+										>
 									{/if}
 									{#if message.attachment_count > 0}
 										<SentImages
@@ -393,6 +472,65 @@
 						{/each}
 					</ol>
 
+					{#if unplaced.length > 0}
+						<ul class="mx-auto mt-3 flex w-full max-w-190 flex-col">
+							{#each unplaced as launched (launched.id)}
+								<li><SubagentRow session={launched} /></li>
+							{/each}
+						</ul>
+					{/if}
+
+					{#if waiting.length > 0 && !subagent}
+						<!-- What its subagents ask waits here, at the foot, as the session's own requests do. -->
+						<ul class="mx-auto mt-6 flex w-full max-w-190 flex-col gap-3">
+							{#each waiting as request (request.id)}
+								{@const said = request.content}
+								{@const by = askedBy(request)}
+								<li class="flex min-w-0 flex-col gap-1.5">
+									<a
+										class="w-fit text-xs text-fg-subtle hover:text-fg-muted"
+										href={routes.actorSession(request.session_id)}
+										>{by ? `${by.subagent?.agent_type ?? 'Subagent'} · ${by.title}` : 'Subagent'}</a
+									>
+									{#if said.sender === 'actor' && said.kind === 'question'}
+										<QuestionCard
+											draftKey="actorSession.{request.session_id}.question.{request.id}"
+											questions={said.questions}
+											answered={false}
+											answers={null}
+											onanswer={(answers) =>
+												respond(request, { kind: 'answers', request_id: request.id, answers })}
+										/>
+									{:else if said.sender === 'actor' && said.kind === 'permission'}
+										<PermissionCard
+											request={said}
+											answered={false}
+											ondecide={(decision, note) =>
+												respond(request, {
+													kind: 'permission',
+													request_id: request.id,
+													decision,
+													message: note
+												})}
+										/>
+									{:else if said.sender === 'actor' && said.kind === 'plan'}
+										<PlanCard
+											plan={said.plan}
+											answered={false}
+											ondecide={(approved, feedback) =>
+												respond(request, {
+													kind: 'plan',
+													request_id: request.id,
+													approved,
+													feedback
+												})}
+										/>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+					{/if}
+
 					{#if session.status === 'working'}
 						<WorkingLine />
 					{/if}
@@ -400,7 +538,7 @@
 			</div>
 		</div>
 
-		{#if session}
+		{#if session && !subagent}
 			<!-- Floats over the feed's foot, which scrolls under it. -->
 			<div
 				class="pointer-events-none absolute inset-x-0 bottom-0 pb-4"

@@ -283,6 +283,7 @@
 					session={gutterSession}
 					actor={actors.list.value.find((a) => a.id === gutterSession.actor_id) ?? null}
 					plan={planOf(actors.usage.value, gutterSession.actor_id)}
+					subagents={actors.subagents.key === gutterSession.id ? actors.subagents.value : []}
 				/>
 			{/if}
 		</ConversationGutter>

@@ -30,7 +30,7 @@ use cohesionkit::protocol::{
 };
 use cohesionkit::{
     Caller, Client, ClientRequest, ClientSessionHandle, CohesionContext, InvalidationBatch,
-    OfferError, PresenceHandle, log_debug, log_info, log_warn, web_bundle_hash,
+    OfferError, PresenceHandle, Reported, log_debug, log_info, log_warn, web_bundle_hash,
 };
 use futures_util::StreamExt;
 use futures_util::stream::FuturesUnordered;
@@ -471,6 +471,7 @@ async fn report(
     while let Some(ActorSessionUpdate {
         id,
         session_id: actor_session_id,
+        subagent,
         report,
     }) = updates.recv().await
     {
@@ -481,12 +482,17 @@ async fn report(
                 label,
                 context
                     .actor_sessions
-                    .report(client_id, actor_session_id, report),
+                    .report(client_id, actor_session_id, subagent, report),
             )
             .await;
         let outcome = match reported {
-            Ok(Ok(Some(message))) => Outcome::Ok(ReplyData::ActorSessionMessage(message)),
-            Ok(Ok(None)) => Outcome::Ok(ReplyData::Accepted(AcceptedResponse {})),
+            Ok(Ok(Reported::Message(message))) => {
+                Outcome::Ok(ReplyData::ActorSessionMessage(message))
+            }
+            Ok(Ok(Reported::Subagent(subagent))) => {
+                Outcome::Ok(ReplyData::ActorSession(Box::new(subagent)))
+            }
+            Ok(Ok(Reported::Accepted)) => Outcome::Ok(ReplyData::Accepted(AcceptedResponse {})),
             Ok(Err(error)) => {
                 log_warn!(
                     module,

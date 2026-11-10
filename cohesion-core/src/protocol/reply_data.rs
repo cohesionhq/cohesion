@@ -113,7 +113,7 @@ pub enum ReplyData {
     Actors(Vec<Actor>),
     ActorUsage(Vec<ListedActorUsage>),
     ActorSessions(Vec<ActorSession>),
-    ActorSession(ActorSession),
+    ActorSession(Box<ActorSession>),
     ActorSessionMessages(Vec<ActorSessionMessage>),
     ActorSessionMessage(ActorSessionMessage),
     ActorSessionSearchHits(Vec<ActorSessionSearchHit>),

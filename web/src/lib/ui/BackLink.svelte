@@ -3,7 +3,8 @@
 	header before its title, or as "‹ {label}" where the header has no title. It
 	steps back to the page the user came from, named by that page's title;
 	reached any other way, it leads to the page given, the one this one sits
-	under.
+	under. `up` makes it lead there always, as a subagent's thread leads up to
+	the session it runs under however it was reached.
 -->
 <script lang="ts">
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
@@ -13,12 +14,14 @@
 	interface Props extends Back {
 		/** Draws the chevron alone; the label is then its accessible name, "Back to {label}". */
 		iconOnly?: boolean;
+		/** Leads to `href` always, never back through history. */
+		up?: boolean;
 	}
 
-	let { href, label, iconOnly = false }: Props = $props();
+	let { href, label, iconOnly = false, up = false }: Props = $props();
 
 	const chrome = paneChrome();
-	const previous = $derived(chrome?.back);
+	const previous = $derived(up ? undefined : chrome?.back);
 	const name = $derived(previous?.label ?? label);
 
 	// A plain click steps back through history, so the page comes back as it was left.

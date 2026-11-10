@@ -6,6 +6,11 @@
 //! or failed, and reopened when it works again. A daemon that
 //! stops cancels the activity and leaves the session idle until its client
 //! says otherwise; so does a client that goes away.
+//!
+//! A session's actor may launch subagents, sessions of their own below it
+//! that its client reports into under the session. A subagent has no
+//! activity and is told only responses to its requests; it settles idle when
+//! its session is stopped or resolved, or its client goes away.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -24,8 +29,10 @@ use cohesion_db::{
     ActivityHandle, ActivityTracker, AddActorSessionMessageCommand, CreateActorSessionCommand,
     DatabaseContext, DeleteActorSessionCommand, DeleteActorSessionMessageCommand,
     EndActorSessionMessageCommand, GetActorCommand, GetActorIncludingDeletedCommand,
-    GetActorSessionCommand, SetActorSessionContextCommand, SetActorSessionModeCommand,
-    SetActorSessionStatusCommand, SetActorSessionTitleCommand,
+    GetActorSessionCommand, GetActorSubagentCommand, GetTopActorSessionCommand,
+    LaunchActorSubagentCommand, SetActorSessionContextCommand, SetActorSessionModeCommand,
+    SetActorSessionStatusCommand, SetActorSessionTitleCommand, SettleActorSubagentsCommand,
+    SubagentsOf,
 };
 use tokio::sync::{Mutex, oneshot};
 use tokio::task::JoinHandle;
@@ -160,6 +167,16 @@ impl ActorSessions {
             })
             .await?;
         self.reachable(&actor)?;
+        // A subagent is told what it asked about under its session.
+        let (addressed, subagent) = match &session.subagent {
+            None => (session_id, None),
+            Some(subagent) => {
+                let top = database
+                    .send(GetTopActorSessionCommand { id: session_id })
+                    .await?;
+                (top.id, Some(subagent.key.clone()))
+            }
+        };
         let message = database
             .send(AddActorSessionMessageCommand {
                 session_id,
@@ -171,7 +188,8 @@ impl ActorSessions {
             .await?;
         let call = ClientCall::SendActorSessionMessage {
             actor: actor.identifier.clone(),
-            session_id,
+            session_id: addressed,
+            subagent,
             message_id: message.id,
             content,
             images,
@@ -203,41 +221,68 @@ impl ActorSessions {
     /// activity cancelled. A stop wakes no follower: whoever stopped it
     /// knows.
     pub async fn stop(&self, session_id: i64) -> Result<ActorSession, ServerError> {
+        let session = self.started(session_id).await?;
+        self.halt(&session).await?;
+        let stopped = self
+            .rest(
+                session_id,
+                ActorSessionMove::Stopped,
+                ActivityOutcome::Cancelled,
+            )
+            .await?;
+        self.settle_subagents(session_id).await?;
+        Ok(stopped)
+    }
+
+    /// Session `session_id`, which must be one Cohesion started: a subagent
+    /// goes with its session, so only that is stopped, resolved or switched.
+    async fn started(&self, session_id: i64) -> Result<ActorSession, ServerError> {
         let session = self
             .inner
             .database
             .send(GetActorSessionCommand { id: session_id })
             .await?;
-        self.halt(&session).await?;
-        self.rest(
-            session_id,
-            ActorSessionMove::Stopped,
-            ActivityOutcome::Cancelled,
-        )
-        .await
+        if session.subagent.is_some() {
+            return Err(ServerError::bad_request(
+                "A subagent goes with its session.",
+            ));
+        }
+        Ok(session)
+    }
+
+    /// Leaves session `session_id`'s subagents that are still going idle, as
+    /// stopped: its actor stopped them with it.
+    async fn settle_subagents(&self, session_id: i64) -> Result<(), ServerError> {
+        self.inner
+            .database
+            .send(SettleActorSubagentsCommand {
+                of: SubagentsOf::Session(session_id),
+                moved: ActorSessionMove::Stopped,
+            })
+            .await?;
+        Ok(())
     }
 
     /// Resolves session `session_id` for the user, who is done with it: one going
     /// on is stopped first, as [`stop`](Self::stop) does, and its activity
     /// cancelled. Like a stop, it wakes no follower.
     pub async fn resolve(&self, session_id: i64) -> Result<ActorSession, ServerError> {
-        let session = self
-            .inner
-            .database
-            .send(GetActorSessionCommand { id: session_id })
-            .await?;
+        let session = self.started(session_id).await?;
         if matches!(
             session.status,
             ActorSessionStatus::Working | ActorSessionStatus::NeedsAttention
         ) {
             self.halt(&session).await?;
         }
-        self.rest(
-            session_id,
-            ActorSessionMove::Resolved,
-            ActivityOutcome::Cancelled,
-        )
-        .await
+        let resolved = self
+            .rest(
+                session_id,
+                ActorSessionMove::Resolved,
+                ActivityOutcome::Cancelled,
+            )
+            .await?;
+        self.settle_subagents(session_id).await?;
+        Ok(resolved)
     }
 
     /// Tells session `session`'s actor to stop it, when its client can be
@@ -275,9 +320,7 @@ impl ActorSessions {
         mode: String,
     ) -> Result<ActorSession, ServerError> {
         let database = &self.inner.database;
-        let session = database
-            .send(GetActorSessionCommand { id: session_id })
-            .await?;
+        let session = self.started(session_id).await?;
         let actor = database
             .send(GetActorIncludingDeletedCommand {
                 id: session.actor_id,
@@ -308,14 +351,15 @@ impl ActorSessions {
     }
 
     /// Takes what client `client_id` reports about one of its actors'
-    /// sessions, answering the message stored for a `message`. Refused for a
-    /// session of another client's.
+    /// sessions, `session_id`, or about its subagent `subagent`, answering what
+    /// it stored. Refused for a session of another client's.
     pub async fn report(
         &self,
         client_id: i64,
         session_id: i64,
+        subagent: Option<String>,
         report: ActorSessionReport,
-    ) -> Result<Option<ActorSessionMessage>, ServerError> {
+    ) -> Result<Reported, ServerError> {
         let database = &self.inner.database;
         let session = database
             .send(GetActorSessionCommand { id: session_id })
@@ -330,7 +374,48 @@ impl ActorSessions {
                 "No actor of this client has this session.",
             ));
         }
+        match (subagent, report) {
+            (Some(key), ActorSessionReport::Launch(launch)) => {
+                let subagent = database
+                    .send(LaunchActorSubagentCommand {
+                        session_id,
+                        key,
+                        launch,
+                    })
+                    .await?;
+                Ok(Reported::Subagent(subagent))
+            }
+            (None, ActorSessionReport::Launch(_)) => Err(ServerError::validation(
+                Some("subagent".to_string()),
+                "Name the subagent launched.".to_string(),
+            )),
+            (Some(key), report) => {
+                let subagent = database
+                    .send(GetActorSubagentCommand { session_id, key })
+                    .await?;
+                self.take(subagent, client_id, report).await
+            }
+            (None, _) if session.subagent.is_some() => Err(ServerError::validation(
+                Some("session_id".to_string()),
+                "Report on a subagent under the session Cohesion started.".to_string(),
+            )),
+            (None, report) => self.take(session, client_id, report).await,
+        }
+    }
+
+    /// Takes `report` about `session`, a session Cohesion started or a
+    /// subagent, whose actor is client `client_id`'s.
+    async fn take(
+        &self,
+        session: ActorSession,
+        client_id: i64,
+        report: ActorSessionReport,
+    ) -> Result<Reported, ServerError> {
+        let database = &self.inner.database;
+        let session_id = session.id;
+        let subagent = session.subagent.is_some();
         match report {
+            ActorSessionReport::Launch(_) => unreachable!("a launch is taken by `report`"),
             ActorSessionReport::Message { content, images } => {
                 let message = database
                     .send(AddActorSessionMessageCommand {
@@ -339,7 +424,7 @@ impl ActorSessions {
                         attachments: uploads(images),
                     })
                     .await?;
-                return Ok(Some(message));
+                return Ok(Reported::Message(message));
             }
             ActorSessionReport::Status { status } => {
                 let moved = ActorSessionMove::reported(status);
@@ -350,8 +435,16 @@ impl ActorSessions {
                     ActorSessionStatus::NeedsAttention => ActorSessionMove::NeedsYou,
                     _ => ActorSessionMove::Working,
                 };
-                let activity = self.work(&session, client_id, moved).await?;
-                activity.progress(progress).await?;
+                // A subagent shows no activity, so its progress only marks
+                // it working.
+                if subagent {
+                    database
+                        .send(SetActorSessionStatusCommand { session_id, moved })
+                        .await?;
+                } else {
+                    let activity = self.work(&session, client_id, moved).await?;
+                    activity.progress(progress).await?;
+                }
             }
             ActorSessionReport::End { message_id } => {
                 database
@@ -376,12 +469,12 @@ impl ActorSessions {
                 self.retitle(&session).await?;
             }
         }
-        Ok(None)
+        Ok(Reported::Accepted)
     }
 
     /// Leaves client `client_id`'s working sessions, and those that need
-    /// attention, idle, their stretches cancelled: it went away, so none of
-    /// them is going on any longer.
+    /// attention, idle, their stretches cancelled, and their subagents with
+    /// them: it went away, so none of them is going on any longer.
     pub async fn client_left(&self, client_id: i64) {
         let mut stretches = self.inner.stretches.lock().await;
         let left: Vec<i64> = stretches
@@ -401,17 +494,38 @@ impl ActorSessions {
                 end(stretch, ActivityOutcome::Cancelled).await;
             }
         }
+        let interrupted = SettleActorSubagentsCommand {
+            of: SubagentsOf::Client(client_id),
+            moved: ActorSessionMove::Interrupted,
+        };
+        if let Err(e) = self.inner.database.send(interrupted).await {
+            log_error!(
+                Module::Actors,
+                "Client {client_id}: subagents not left idle: {e:?}"
+            );
+        }
     }
 
     /// Moves session `session` as `moved` says, keeping its activity to match:
     /// open while it works or needs attention, ended succeeded as it goes
-    /// idle and failed as it fails.
+    /// idle and failed as it fails. A subagent, which has no activity, only
+    /// moves.
     async fn set_status(
         &self,
         session: &ActorSession,
         client_id: i64,
         moved: ActorSessionMove,
     ) -> Result<(), ServerError> {
+        if session.subagent.is_some() {
+            self.inner
+                .database
+                .send(SetActorSessionStatusCommand {
+                    session_id: session.id,
+                    moved,
+                })
+                .await?;
+            return Ok(());
+        }
         match moved.status() {
             ActorSessionStatus::Working | ActorSessionStatus::NeedsAttention => {
                 self.work(session, client_id, moved).await?;
@@ -563,6 +677,17 @@ impl ActorSessions {
             .await
             .map_err(|error| error.naming(&actor.title))
     }
+}
+
+/// What a report from a client stored, which its reply carries.
+#[derive(Debug)]
+pub enum Reported {
+    /// Nothing to answer but that it was taken.
+    Accepted,
+    /// The message a `message` report added.
+    Message(ActorSessionMessage),
+    /// The subagent a `launch` report added or updated.
+    Subagent(ActorSession),
 }
 
 /// `attachments` as the client takes them.

@@ -42,7 +42,7 @@ pub use call::{Call, ReplyPayload};
 pub use capabilities::{
     ActorCall, ActorSessionReport, ActorSessionUpdate, ActorUsage, ActorUsageUpdate, ClientCall,
     ClientCapabilities, ClientImage, ClientOutcome, ClientResult, EvictionReason, PlanUsage,
-    UsagePool,
+    SubagentLaunch, UsagePool,
 };
 pub use client_requests::*;
 pub use command::Command;

@@ -7,6 +7,17 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- An actor session shows its subagents. In its transcript, the tool use that
+  launched one is its line, with where it stands, which opens it as a thread
+  of its own, read-only, with a way back up to the session; the column beside
+  lists them, and what a subagent asks can be answered in the session. Actor
+  clients announce a subagent with a new `launch` report and report into it
+  with `subagent` on `actorSessionUpdate`, and answers reach it with
+  `subagent` on `sendActorSessionMessage`; the wire gains
+  `listActorSubagents`, `listUnansweredSubagentRequests` and `subagent` on
+  `ActorSession`. The actor clients and the iPhone app need the same to show
+  them; a client that doesn't report subagents works as before.
+
 - `cohesion setup` without `--name` names the client after the computer and
   the client, such as `apollo (CLI)`, instead of the hostname alone, so
   clients on one computer can be told apart in Settings › Clients and in actor

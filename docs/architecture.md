@@ -381,7 +381,7 @@ From client to daemon, a `ClientFrame`:
 | `subscribe` | `{"type": "subscribe", "id": 1}` | Start receiving `invalidate` and `reset` frames. Answered `accepted`. |
 | `hello` | `{"type": "hello", "id": 1, "actors": [ActorDefinition…]}` | Offer actors; this session now serves its client's actors ([14](#14-actor-clients-and-actor-sessions)). |
 | `callResult` | `{"type": "callResult", "call_id": 3, "ok": {"kind": "accepted"}}` or `"error": "…"` | The answer to a daemon `call`. |
-| `actorSessionUpdate` | `{"type": "actorSessionUpdate", "id": 9, "session_id": 12, "kind": …}` | Progress on an actor session. |
+| `actorSessionUpdate` | `{"type": "actorSessionUpdate", "id": 9, "session_id": 12, "subagent"?: "a1b2", "kind": …}` | Progress on an actor session, or on one of its subagents by the client's key. |
 | `actorUsage` | `{"type": "actorUsage", "id": 10, "actor": "…", "plan": […], "pool": …}` | An actor's plan usage. |
 
 From daemon to client, a `Frame`: `{"seq": n, "type": …}`, where `seq` counts
@@ -400,7 +400,7 @@ A session reads up to 64 requests ahead (`QUEUED_REQUESTS`) and runs them side
 by side, so replies come back in the order they finish; match them by `id`.
 
 **Requests, replies and routes.** `Command` (`cohesion-core/src/protocol/command.rs`)
-is one enum with a variant per request, 190 of them, each tagged
+is one enum with a variant per request, 197 of them, each tagged
 `#[reply(ReplyType, via = Kind)]`. `#[derive(Commands)]` generates the
 dispatch; the request structs live in the `*_requests.rs` modules beside it,
 and `ReplyData` (`reply_data.rs`) is the enum of reply payloads. Each
@@ -478,6 +478,8 @@ variant of one of those enums doesn't compile until it has its words.
 | `/register` body, local handshake line | 4 KiB | `REGISTER_BODY_LIMIT` |
 | Requests read ahead per session | 64 | `QUEUED_REQUESTS` |
 | Actor updates queued per session | 64 | `QUEUED_ACTOR_UPDATES` |
+| Subagents per actor session, at every depth; how deep | 256; 4 | `SUBAGENT_LIMIT`, `SUBAGENT_DEPTH_LIMIT`, `cohesion-db/src/commands/actor_subagent.rs` |
+| Messages in a subagent's transcript | 2,000 | `SUBAGENT_MESSAGE_LIMIT`, `commands/actor.rs` |
 | First byte after TLS, local handshake | 10 s | `FIRST_BYTE` |
 | PROXY header | 5 s, 216 address bytes | `proxy_protocol.rs` |
 | Export and import parts | 8 MiB | `PART`, `cohesion-db/src/transfer.rs` |
@@ -829,7 +831,7 @@ deleting sets `deleted`, and client reads use `select_live`.
 | Table | Holds |
 |---|---|
 | `actors` (soft) | What a client offers: `client_id`, `identifier`, `product`, `scope`, `modes`, `models` (JSON). |
-| `actor_sessions` | `actor_id`, `title`, `mode`, `model`, `effort`, `started_at`, `status_changed_at`, `status`, `unread`, `read_at`, context usage, `follower_agent_id`, `follower_initiative`. |
+| `actor_sessions` | `actor_id`, `title`, `mode`, `model`, `effort`, `started_at`, `status_changed_at`, `status`, `unread`, `read_at`, context usage, `follower_agent_id`, `follower_initiative`; for a subagent, `parent_session_id` (cascading), `subagent_key` (unique per actor), `subagent_type`, `subagent_message_id` and `subagent_background`. |
 | `actor_session_messages` | The transcript: `sender`, `kind`, and the columns for each kind ([14](#14-actor-clients-and-actor-sessions)); one response per request (unique `request_id`). |
 
 **Intelligence settings and spending**
@@ -898,6 +900,7 @@ erDiagram
   clients ||--o{ actors : C
   actors ||--o{ actor_sessions : C
   actor_sessions ||--o{ actor_session_messages : C
+  actor_sessions ||--o{ actor_sessions : C
   actor_session_messages ||--o{ attachments : C
   actor_sessions ||--o{ activities : C
   intelligence_agents |o--o{ actor_sessions : N
@@ -1451,7 +1454,8 @@ and `envelope.rs`. Models: `cohesion-core/src/model/actor.rs`. The serving
 clients: `cohesionkit/src/capability_clients.rs`. The session state machine:
 `cohesionkit/src/actor_sessions.rs` (`ActorSessions`). Routes:
 `cohesionkit/src/routes/actor_routes.rs`. Commands:
-`cohesion-db/src/commands/actor.rs`. A minimal client:
+`cohesion-db/src/commands/actor.rs` and, for subagents,
+`actor_subagent.rs`. A minimal client:
 `cohesiond/examples/fake_actor.rs`.
 
 **Offering actors.** An actor client is an ordinary paired client on an
@@ -1491,7 +1495,7 @@ taken it, not finished it) or `error: "<message>"` within 60 s
 | Call | Fields |
 |---|---|
 | `startActorSession` | `actor`, `session_id`, `prompt`, `title` (only if the starter gave one), `images`, `mode`, `model`, `effort` (null: the actor's default) |
-| `sendActorSessionMessage` | `actor`, `session_id`, `message_id`, `content` (user content, below), `images` |
+| `sendActorSessionMessage` | `actor`, `session_id`, `subagent` (the client's key, for a response to a subagent's request; left out otherwise), `message_id`, `content` (user content, below), `images` |
 | `stopActorSession` | `actor`, `session_id` |
 | `setActorSessionMode` | `actor`, `session_id`, `mode` |
 
@@ -1576,10 +1580,12 @@ marks the session unread only when its activity ends `succeeded` or `failed`.
 
 **Reports from the device** (`actorSessionUpdate`, `ActorSessionReport`
 tagged `kind`), queued per session (64) and handled in order; the session must
-belong to an actor of this client:
+belong to an actor of this client, and be one Cohesion started. With
+`subagent` set, the report is about that subagent (below):
 
 | `kind` | Fields | Reply |
 |---|---|---|
+| `launch` | Only with `subagent`: `title`, `parent`, `message_id`, `agent_type`, `model`, `background` | The subagent's `actorSession` |
 | `message` | `content` (actor content, below), `images` | The stored `actorSessionMessage` |
 | `status` | `status`: `working`, `needsAttention`, `idle`, `failed` | `accepted` |
 | `progress` | `progress` (null clears it) | `accepted` |
@@ -1629,8 +1635,9 @@ session, and an empty `plan` clears it. Actors reporting the same `pool.id`
 share one entry, the latest report standing for all. `ListActorUsage` lists
 them; scripts read `actor.usageLimits()`.
 
-**Reads.** `ListActorSessions` leaves out resolved sessions, newest change
-first; `GetActorSession` and search include them. Scripts use the `actors`
+**Reads.** `ListActorSessions` leaves out resolved sessions and subagents,
+newest change first; `GetActorSession` includes both, and search includes
+resolved sessions but not subagents. Scripts use the `actors`
 global: `list`, `actor`, `sessions`, `session`, `messages`, `dispatch`, `send`,
 `stop`, and `session.markRead()` and `session.resolve()`.
 
@@ -1645,6 +1652,21 @@ followers and read state are kept. On reconnecting a client sends `hello`
 again and reports usage again; there is no resume frame. A late report can
 set a session back to `working`, even a resolved one. `evicted` (`replaced` or
 `revoked`) means the client must not reconnect on its own.
+
+**Subagents.** An actor may launch subagents from a session, such as
+Claude Code's Task tool, Codex's agent threads or OpenCode's child sessions.
+Each is an `actor_sessions` row of its own one level below another, with
+`subagent` set (`ActorSubagent`: `parent_session_id`, `key`, `agent_type`,
+`message_id`, `background`; `null` for a session Cohesion started), so it
+has a transcript, a status, a title and context like any session.
+
+- **Addressing.** The client reports on a subagent under the session Cohesion started, `session_id`, naming it by its own `subagent` key, the id its SDK gives it, so it needs no Cohesion id and can catch up after a restart. A key is unique among its actor's subagents. A report naming a subagent's own id as `session_id`, or a key never launched, is refused ("Launch subagent "a1" first.").
+- **Launching** (`LaunchActorSubagentCommand`). The first `launch` adds the subagent, `working`, under the session or under the subagent whose key `parent` gives, at most 4 deep and 256 in all below one session; `message_id` must be a `toolUse` in the transcript one level up, the call that launched it. A `launch` again makes it what the new one says, its status as it stands; it can't move it under another parent. The title follows the session title's rule; `agent_type` is at most 64 bytes and `model` 128, stored as given.
+- **Reports into it.** `message`, `status`, `end`, `context` and `title` work as for a session; `progress` only marks it working. A subagent's transcript holds at most 2,000 messages.
+- **What it doesn't do.** It has no activity, so it is never unread; its moves raise no `actor:moved` and wake no follower; it is not in `ListActorSessions`, search, the sidebar or `@`; it can't be stopped, resolved or switched on its own ("A subagent goes with its session."), and the user tells it nothing but responses to its requests ("A subagent takes only responses to what it asked."). A response goes out as `sendActorSessionMessage` with the session Cohesion started as `session_id` and the subagent's `subagent` key.
+- **Settling.** Stopping or resolving a session leaves its subagents still going `idle` as stopped; its client going away (not replaced) leaves its working subagents `idle` as interrupted; the daemon stopping settles them with every session. A session's turn ending leaves its subagents be, since a background one goes on.
+- **Reads.** `ListActorSubagents{session_id}` lists one session's subagents one level down, first launched first; `ListUnansweredSubagentRequests{session_id}` lists the requests waiting on the user in its subagents at any depth, those of subagents still going. A subagent's launch, status, title or context invalidates `actorSession` of itself, of the session one level up and of the session Cohesion started; a message in it only its own, and the started session's too when it is a request or a response.
+- **Retention.** Subagents go with the session they run under (the rows cascade).
 
 **The follower.** An agent that dispatches or sends to a session follows it
 ([12](#12-how-a-turn-runs)). When `actor:moved` reaches
@@ -1665,14 +1687,17 @@ protocol settles:
 - **What the device is told**: Cohesion's `session_id`, the actor's `identifier`, the `prompt`, an optional `title`, images, and optional `mode`, `model` and `effort` identifiers from those it offered (null means its default); later, user messages with their `message_id`, mode changes and stops.
 - **Working directory**: none is sent. The actor's `scope` is the device's own description of where that actor works, given in its offer.
 - **Resuming**: no resume id is sent or stored. A device that is told about a session it doesn't know (after a restart, say) picks it up from Cohesion's `session_id`; `fake_actor.rs` shows this.
-- **What the device reports**: transcript messages, `status`, `progress`, `end`, `context` (the context window), `title`, and `actorUsage` for plan limits.
-- **Offline**: there is no offline status. A client is offline when it has no session (`online: false` in the clients list); calls fail at once, and its working sessions became `idle` as `interrupted` when it left.
+- **What the device reports**: transcript messages, `status`, `progress`, `end`, `context` (the context window), `title`, and `actorUsage` for plan limits; for each subagent it launches, a `launch` naming it by the SDK's own id, then the same reports with `subagent` set, in any order against the session's own (a background subagent reports on after its tool use ends). A request a subagent makes goes in its own transcript; its response comes back as a `sendActorSessionMessage` carrying the `subagent` key.
+- **Offline**: there is no offline status. A client is offline when it has no session (`online: false` in the clients list); calls fail at once, and its working sessions and subagents became `idle` as `interrupted` when it left.
 - **Plan limits**: there is no plan-limit status either. A device reports its plan usage with `actorUsage` and the web UI shows it (`web/src/lib/features/actors/plan.ts`); if a limit stops the actor, the device reports `failed` or `idle` itself.
 
 The example client, `cargo run -p cohesiond --example fake_actor -- <socket>
 [name]`, connects over the Unix socket, offers two actors, reports usage, and
-for each session walks through context, title, a tool use, a question
-(`needsAttention`), a permission request, a plan, a text reply and `idle`.
+for each session walks through context, title, a tool use, a subagent
+launched from a Task tool use (thinking, a read and a search in its own
+transcript, a text reply and `idle`), a second launched in the background that
+finishes later, a question (`needsAttention`), a permission request, a plan, a
+text reply and `idle`.
 
 ---
 
@@ -1694,7 +1719,7 @@ and `src/routes/+layout.ts` turns off server rendering and prerendering.
 | `/` | Home |
 | `/w/[ws]/` | A workspace: `dashboard` (the default), `today`, `journal` (and `[id]`), `documents` (and `[id]`), `tasks`, `contacts`, `articles` (and `[id]`, `research`), `rewind`, `resources/[kind]` (and `[id]`) |
 | `/agents`, `/agents/[agent]` | Agents and an agent's chat |
-| `/actors`, `/actors/[session]` | Actor sessions and a session's transcript |
+| `/actors`, `/actors/[session]` | Actor sessions and a session's transcript, or a subagent's thread |
 | `/threads/[thread]` | A model thread's transcript, read-only |
 | `/connectors`, `/connectors/accounts` | Connected services |
 | `/extensions` | `browse`, `installed`, `installed/[id]`, `find` |
@@ -1742,6 +1767,20 @@ search of the workspace and actor sessions.
 an in-memory daemon that implements every request with seed data, instead of a
 socket. Vitest uses the same mock. With `npm run dev`, `.env.development` sets
 `VITE_DEV_PROXY=1`, so the page doesn't ask for a token.
+
+**Subagents** (`features/actors/SessionView.svelte`, `SubagentRow.svelte`).
+In a session's transcript, the tool use that launched a subagent shows as the
+subagent's line instead (its status, kind, title and status in words, "In the
+background" while one is still going), which opens its thread at
+`/actors/<id>`; subagents launched from no tool use shown follow the
+transcript. What a session's subagents ask waits at the transcript's foot,
+answerable there, under a link to the one asking. The column beside the sheet
+lists a session's subagents. A subagent's thread is the same view, read-only:
+its header leads with a chevron up to the session it runs under (`BackLink`
+with `up`) and says what kind it is and whose, it has no composer or Resolve,
+and its requests show without their buttons, linking to the session Cohesion
+started, where they are answered. The store holds them in `subagents`,
+`waiting` and `above` (`stores/actors.svelte.ts`).
 
 **Links.** Items link as `cohesion://task/<ws>/<id>`,
 `cohesion://document/<ws>/<id>`, `cohesion://agent/<id>` and

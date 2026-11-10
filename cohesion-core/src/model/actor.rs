@@ -142,6 +142,13 @@ pub struct ActorSession {
     #[model(group)]
     #[fields(skip)]
     pub follower: Option<ActorSessionFollower>,
+    /// What makes it a subagent: the session one level up whose actor
+    /// launched it, and how; `null` for a session Cohesion started. A
+    /// subagent leaves the lists, has no activity, is never unread and wakes
+    /// no follower; it goes with the session above it.
+    #[model(group)]
+    #[fields(skip)]
+    pub subagent: Option<ActorSubagent>,
 }
 
 impl ActorSession {
@@ -183,6 +190,77 @@ impl ColumnGroup for Option<ActorSessionFollower> {
                 follower.initiative.into_value(),
             ],
             None => vec![Value::Null, Initiative::default().into_value()],
+        }
+    }
+}
+
+/// A subagent: a session an actor launched from inside another to do part
+/// of its work, such as Claude Code's Task tool. Its client reports into it
+/// under the session Cohesion started, naming it by `key`.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, TsWire)]
+pub struct ActorSubagent {
+    /// The session one level up: the one Cohesion started, or another
+    /// subagent.
+    pub parent_session_id: i64,
+    /// The client's own id for it, unique among its actor's subagents.
+    pub key: String,
+    /// What kind of subagent the actor launched, as it names them, such as
+    /// "Explore"; `null` when it didn't say.
+    pub agent_type: Option<String>,
+    /// The tool use in the transcript one level up that launched it; `null`
+    /// when the client didn't say.
+    pub message_id: Option<i64>,
+    /// Whether it runs in the background, going on after the tool use that
+    /// launched it has ended.
+    pub background: bool,
+}
+
+/// A subagent as its five columns, `parent_session_id` and `subagent_key`
+/// both `NULL` for a session Cohesion started; the table's check keeps them
+/// together.
+impl ColumnGroup for Option<ActorSubagent> {
+    const COLUMNS: &'static [&'static str] = &[
+        "parent_session_id",
+        "subagent_key",
+        "subagent_type",
+        "subagent_message_id",
+        "subagent_background",
+    ];
+
+    fn from_row(row: &dyn Row) -> Result<Self, RowError> {
+        let parent: Option<i64> = read_column(row, "parent_session_id")?;
+        let key: Option<String> = read_column(row, "subagent_key")?;
+        let agent_type: Option<String> = read_column(row, "subagent_type")?;
+        let message_id: Option<i64> = read_column(row, "subagent_message_id")?;
+        let background: bool = read_column(row, "subagent_background")?;
+        Ok(match (parent, key) {
+            (Some(parent_session_id), Some(key)) => Some(ActorSubagent {
+                parent_session_id,
+                key,
+                agent_type,
+                message_id,
+                background,
+            }),
+            _ => None,
+        })
+    }
+
+    fn into_values(self) -> Vec<Value> {
+        match self {
+            Some(subagent) => vec![
+                subagent.parent_session_id.into_value(),
+                subagent.key.into_value(),
+                subagent.agent_type.into_value(),
+                subagent.message_id.into_value(),
+                subagent.background.into_value(),
+            ],
+            None => vec![
+                Value::Null,
+                Value::Null,
+                Value::Null,
+                Value::Null,
+                false.into_value(),
+            ],
         }
     }
 }

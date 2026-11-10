@@ -1,13 +1,18 @@
 <!--
 	The column beside an actor session: its actor, then where that works and
 	the model it runs on, then how full its context is and its actor's plan
-	limits, all as bars. Where it stands and Resolve stay in the header.
+	limits, all as bars, then its subagents, first launched first, each where
+	it stands and what it is doing, opening its thread. Where it stands and
+	Resolve stay in the header.
 -->
 <script lang="ts">
 	import { nowSeconds } from '$lib/format/dates';
 	import { tokenCount } from '$lib/format/usage';
 	import type { Actor, ActorSession, PlanUsage } from '$lib/protocol/types';
+	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
+	import { routes } from '$lib/shell/routes';
 	import GutterCard from '$lib/ui/GutterCard.svelte';
+	import StatusIcon from '$lib/ui/StatusIcon.svelte';
 	import GutterGroup from '$lib/ui/GutterGroup.svelte';
 	import { resetsLabel, shortLimitLabel, usagePercent } from './plan';
 	import UsageBar from './UsageBar.svelte';
@@ -19,9 +24,11 @@
 		actor: Actor | null;
 		/** The plan limits its actor draws on. */
 		plan: PlanUsage[];
+		/** The subagents launched from it, one level down, first launched first. */
+		subagents: ActorSession[];
 	}
 
-	let { session, actor, plan }: Props = $props();
+	let { session, actor, plan, subagents }: Props = $props();
 
 	const model = $derived(modelLabel(session, actor));
 	const hasUsage = $derived(session.context !== null || plan.length > 0);
@@ -69,5 +76,25 @@
 				)}
 			{/each}
 		</div>
+	</GutterGroup>
+{/if}
+
+{#if subagents.length > 0}
+	<GutterGroup>
+		<h2 class="text-xs font-medium text-fg-subtle">Subagents</h2>
+		<ul class="-mx-1 flex flex-col">
+			{#each subagents as subagent (subagent.id)}
+				<li>
+					<a
+						class="flex h-7 items-center gap-2 rounded-sm px-1 text-sm text-fg no-underline transition-colors hover:bg-bg-hover hover:no-underline"
+						href={routes.actorSession(subagent.id)}
+					>
+						<StatusIcon status={subagent.status} size={12} />
+						<span class="min-w-0 flex-1 truncate">{subagent.title}</span>
+						<span class="sr-only">, {vocabulary.actorSessionStatus(subagent.status)}</span>
+					</a>
+				</li>
+			{/each}
+		</ul>
 	</GutterGroup>
 {/if}
