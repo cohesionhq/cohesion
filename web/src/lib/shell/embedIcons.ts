@@ -2,6 +2,7 @@
 // (`EmbedCard.svelte`) or a row of Backlinks (`Backlinks.svelte`): its
 // kind's, a task's box as it stands, a journal entry's notebook.
 
+import BookUser from '@lucide/svelte/icons/book-user';
 import Bot from '@lucide/svelte/icons/bot';
 import FileText from '@lucide/svelte/icons/file-text';
 import Newspaper from '@lucide/svelte/icons/newspaper';
@@ -24,6 +25,7 @@ export const KIND_ICONS: Record<ItemKind, Component> = {
 	resource: Package,
 	database: Table2,
 	'database-row': TableProperties,
+	contact: BookUser,
 	agent: Bot,
 	'actor-session': SquareTerminal,
 	article: Newspaper
@@ -36,6 +38,7 @@ const EMBED_KIND_ICONS: Record<Embed['kind'], Component> = {
 	resource: Package,
 	database: Table2,
 	databaseRow: TableProperties,
+	contact: BookUser,
 	agent: Bot,
 	actorSession: SquareTerminal,
 	article: Newspaper

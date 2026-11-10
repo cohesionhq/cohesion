@@ -42,6 +42,9 @@ export const routes = {
 	databaseRow: (ws: number, database: number, row: number) =>
 		`${routes.database(ws, database)}?row=${row}`,
 	contacts: (ws: number) => resolve('/w/[ws]/contacts', { ws: String(ws) }),
+	/** The Contacts page with contact `id`'s panel open. */
+	contact: (ws: number, id: number) =>
+		`${resolve('/w/[ws]/contacts', { ws: String(ws) })}?contact=${id}`,
 	rewind: (ws: number) => resolve('/w/[ws]/rewind', { ws: String(ws) }),
 	/** The Articles page, at one view (`viewParam` spells it) or the one last shown. */
 	articles: (ws: number, view?: string) =>
@@ -57,7 +60,7 @@ export const routes = {
 	/** Finds a linked item and goes to it, as a `cohesion://` link does. */
 	item: (kind: UnscopedItemKind, id: number) =>
 		resolve('/open/[kind=item]/[id]', { kind, id: String(id) }),
-	/** Finds a linked task or document in its workspace and goes to it. */
+	/** Finds a linked task, document, resource, database or contact in its workspace and goes to it. */
 	workspaceItem: (kind: WorkspaceItemKind, ws: number, id: number) =>
 		resolve('/open/[kind=workspaceitem]/[ws]/[id]', { kind, ws: String(ws), id: String(id) }),
 	/** Finds a linked database row and goes to it. */

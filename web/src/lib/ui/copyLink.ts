@@ -19,6 +19,7 @@ const embedKinds: Record<ItemKind, EmbedKind> = {
 	resource: 'resource',
 	database: 'database',
 	'database-row': 'databaseRow',
+	contact: 'contact',
 	agent: 'agent',
 	'actor-session': 'actorSession',
 	article: 'article'

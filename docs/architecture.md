@@ -465,6 +465,7 @@ agent's turn.
 (`ItemLink`, `cohesion-core/src/model/item_link.rs`):
 `cohesion://task/<ws>/<id>`, `cohesion://document/<ws>/<id>` (journal entries
 too), `cohesion://resource/<ws>/<id>`, `cohesion://database/<ws>/<id>`,
+`cohesion://contact/<ws>/<id>`,
 `cohesion://database-row/<ws>/<database>/<id>`, `cohesion://agent/<id>`,
 `cohesion://actor-session/<id>` and `cohesion://article/<id>`. A task or
 document link without its workspace, as links were first written, still names
@@ -481,15 +482,16 @@ with its feed's title). A database comes with its properties, its first
 comes as its `DatabaseRowEntry` (cells and `document_id`) with its database's
 title and properties, so its cells read as name and value; its title is its
 label (`DatabaseRowEntry::label`: its value for the database's first text
-property, or "Untitled") and its excerpt its document's. A database row's
+property, or "Untitled") and its excerpt its document's. A contact's title is
+its full name (`Contact::full_name`) and its excerpt its notes'. A database row's
 document is part of its row, so a link to it resolves as the row. A client
 that doesn't know a kind shows the title, the excerpt and the kind's word. An
 item deleted, in a deleted workspace or never made is `notFound`, as is a row
 asked for in another database or workspace than its own; text that isn't
 such a link fails validation on `link`. Nothing pushes an embed: a client
 asks again on the item's invalidation, `taskList` of the task's workspace,
-`documents(ws)`, `resources(ws)`, `database(id)` for a database or a row of
-it, `agent(id)`, `actorSession(id)` or `feedArticles`. A link shows as a card
+`documents(ws)`, `resources(ws)`, `contacts(ws)`, `database(id)` for a
+database or a row of it, `agent(id)`, `actorSession(id)` or `feedArticles`. A link shows as a card
 where it is alone on its line, outside a fenced or indented code block
 (`text_pieces`, `model/text_section.rs`): the line is exactly one link, whose
 label ends at its first unescaped `]` (`\]` is a bracket in it) and whose
@@ -511,7 +513,7 @@ alone on its line or in a sentence: an inline link's target, an autolink
 span (`item_links`, `model/backlink.rs`); an item's links to itself don't
 count. The `backlinks` table keeps them: one row per item a source links to,
 the source and the target each a `LinkKind` (`task`, `document`, `resource`,
-`database`, `databaseRow`, `agent`, `actorSession`, `article`) and an id,
+`database`, `databaseRow`, `contact`, `agent`, `actorSession`, `article`) and an id,
 with the link as first written.
 An item says what it is and what its text is (`LinkSource`), and every
 command that writes a document or a task ends in `FollowLinksCommand`
@@ -972,7 +974,7 @@ deleting sets `deleted`, and client reads use `select_live`.
 | `database_rows` | `database_id`, `document_id`, the row's own document (unique; set null if the document goes, which removes it when the row goes), and `formula_stale`, how many changes its formula outputs are behind (0 when current; a partial index finds the nonzero ones). |
 | `database_row_values` | One per row and property at most, composite keys keeping both in one database: `text_value` (always), `integer_value` (an integer, a checkbox as 1 or 0) and `real_value` (a decimal, an amount, an integer). A missing row is an empty value. |
 | `metadata` | Key-value pairs on exactly one workspace, document, task, folder or resource. Scripts only: a request can't carry metadata filters. |
-| `backlinks` | What links to what: `source_kind` and `source_id` (a document, a database row's too, or a task so far), `target_kind` and `target_id` (a `LinkKind` and an id), and `link` as first written; one row per source and target, never a source to itself. Rewritten by `FollowLinksCommand` on every document and task write; a document or task removed for good takes its rows (triggers `documents_backlinks_ad`, `tasks_backlinks_ad`). The `backlinks` migration filled it from every live document, and `task_backlinks` from every live task's description, through the SQL function `outgoing_links`, which runs the same Rust rule; the `databases` migration rebuilt it, with those two triggers, to admit `database` and `databaseRow`. |
+| `backlinks` | What links to what: `source_kind` and `source_id` (a document, a database row's too, or a task so far), `target_kind` and `target_id` (a `LinkKind` and an id), and `link` as first written; one row per source and target, never a source to itself. Rewritten by `FollowLinksCommand` on every document and task write; a document or task removed for good takes its rows (triggers `documents_backlinks_ad`, `tasks_backlinks_ad`). The `backlinks` migration filled it from every live document, and `task_backlinks` from every live task's description, through the SQL function `outgoing_links`, which runs the same Rust rule; the `databases` migration rebuilt it, with those two triggers, to admit `database` and `databaseRow`, and `contacts_search_and_links` to admit `contact`, filling in the links to contacts that live documents and tasks already held. |
 | `versions` | Rewind: past versions of tasks and documents, with `change` (`created`, `edited`, `deleted`, `restored`, `earlier`), `author` and `author_name`. Written by triggers through the `version_writes` view, which folds edits within 120 s into one version. |
 | `rewind_writer` | One row: who is writing now (see above). |
 
@@ -1156,13 +1158,13 @@ English stemming, case-insensitive, accents ignored.
 
 | Index | Columns | Covers | Kept by |
 |---|---|---|---|
-| `search_fts` (rows mapped by `search_entries`: `entity_kind`, `entity_id`, `workspace_id`) | `title`, `contents` | Live documents (journal entries included, database rows' left out), live tasks (the description as contents), resources (contents only if not JSON) | `documents_search_*`, `tasks_search_*`, `resources_search_*` |
+| `search_fts` (rows mapped by `search_entries`: `entity_kind`, `entity_id`, `workspace_id`) | `title`, `contents` | Live documents (journal entries included, database rows' left out), live tasks (the description as contents), resources (contents only if not JSON), live contacts (the full name as title, the notes as contents; not their emails or phone numbers) | `documents_search_*`, `tasks_search_*`, `resources_search_*`, `contacts_search_*` |
 | `feed_corpus_fts` | `title`, `author`, `contents` | Live articles | `articles_feed_corpus_*` |
 | `actor_sessions_fts` | `title` | Actor sessions | `actor_sessions_search_*` |
 | `actor_session_messages_fts` | `text` | Actor session messages of kind `text`, from either side | `actor_session_messages_search_*` |
 
-Agent chats, model threads, contacts, tags, metadata, databases and database
-rows' documents aren't indexed.
+Agent chats, model threads, tags, metadata, databases and database rows'
+documents aren't indexed.
 
 **Query syntax.** The user's text is bound unchanged as the `MATCH` operand,
 so FTS5's syntax applies as is: words separated by spaces must all match,
@@ -1183,7 +1185,7 @@ internal error.
 
 | Search | Request and command | Ranks by | Returns |
 |---|---|---|---|
-| Workspace | `SearchWorkspace{workspace_id, query}`, `SearchWorkspaceCommand` | `bm25(search_fts, 5.0, 1.0)`: title weighs 5, contents 1 | `Vec<SearchResult>` (`id` of the index entry, `entity_kind` (`document`, `task`, `resource`), `entity_id`, `workspace_id`, `title`, `contents`); no paging, no snippet. Scripts: `workspace.search(query)`. CLI: `cohesion search`. |
+| Workspace | `SearchWorkspace{workspace_id, query}`, `SearchWorkspaceCommand` | `bm25(search_fts, 5.0, 1.0)`: title weighs 5, contents 1 | `Vec<SearchResult>` (`id` of the index entry, `entity_kind` (`document`, `task`, `resource`, `contact`), `entity_id`, `workspace_id`, `title`, `contents`); no paging, no snippet. Scripts: `workspace.search(query)`. CLI: `cohesion search`. |
 | Corpus (articles) | `SearchFeedCorpus{query, feed_ids?, offset, limit?}`, `SearchFeedCorpusCommand` | `bm25(feed_corpus_fts, 5.0, 2.0, 1.0)` | `FeedCorpusPage{hits, total}`, each hit with a 24-token snippet of the text; 50 a page by default, 500 at most. Scripts: `cohesion.searchCorpus(query, {feedIds})`, the best 200 whole articles. |
 | Actor sessions | `SearchActorSessions{query}`, `SearchActorSessionsCommand` | Title matches at `5.0 * bm25`, message matches at `bm25`; each session's best match, then most recently changed | `Vec<ActorSessionSearchHit>` across every actor, resolved sessions included, with a snippet when a message matched |
 
@@ -2037,7 +2039,8 @@ started, where they are answered. The store holds them in `subagents`,
 
 **Links.** Items link as `cohesion://task/<ws>/<id>`,
 `cohesion://document/<ws>/<id>`, `cohesion://resource/<ws>/<id>`,
-`cohesion://database/<ws>/<id>`, `cohesion://database-row/<ws>/<database>/<id>`,
+`cohesion://database/<ws>/<id>`, `cohesion://contact/<ws>/<id>`,
+`cohesion://database-row/<ws>/<database>/<id>`,
 `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and
 `cohesion://article/<id>` (`parseItemLink`, `lib/format/itemLinks.ts`, which
 `shell/routes.ts` re-exports; a task or document link without a workspace
@@ -2048,8 +2051,8 @@ themselves. Following one in the web UI (`ui/Markdown.svelte`,
 `ItemPanel`, the same for every kind but its content
 (`shell/linkedItem.svelte.ts`, `shell/LinkedItem.svelte`): a task with its
 folder, tags and contacts; a document; a resource; a database row with its
-values and document; an agent; an actor session with its actor and messages;
-an article with its feed. A database has no panel: its link goes to its table.
+values and document; a contact, changed through its workspace's contacts; an
+agent; an actor session with its actor and messages; an article with its feed. A database has no panel: its link goes to its table.
 Full-page content has
 an Open link (an article's opens in the current workspace). A modified click
 falls through to the `/open/…` page. The panel can be expanded: a button
@@ -2085,8 +2088,8 @@ workspace's.
 
 **Embeds.** In a document, a journal entry, Today and a task's description, a
 link alone on its line shows as a card of its item (`shell/EmbedCard.svelte`):
-its icon (a task's box, an agent's avatar, a session's status), title, kind
-and a detail, and the start of its text. The editor (`ui/Editor.svelte`, given
+its icon (a task's box, an agent's avatar, a contact's photo or initials, a
+session's status), title, kind and a detail (a contact's first email or phone), and the start of its text. The editor (`ui/Editor.svelte`, given
 `embed` by `shell/embedCards.ts`) draws the card in place of the line while the
 caret is elsewhere, and the line as typed while the caret is on it; the
 read-only preview and the document panel draw it too (`Markdown`'s `embeds`).
@@ -2108,7 +2111,7 @@ since `searchWorkspace` doesn't search them: their Copy link does.
 opens the same picker, with the same rows and keys, and writes the same
 `[title](cohesion://…)`; both are read by `lib/format/mentionTrigger.ts`. It
 offers agents by name, then the
-workspace's documents, journal entries, tasks and resources
+workspace's documents, journal entries, tasks, resources and contacts
 (`searchWorkspace`), then actor sessions (`searchActorSessions`), at most 8
 rows. It offers no articles: copy an article's link ("Copy link" above) and
 paste it. ↑ and ↓ choose,

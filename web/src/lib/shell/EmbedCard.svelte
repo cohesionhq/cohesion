@@ -1,7 +1,7 @@
 <!--
 	A `cohesion://` link alone on its line, shown as a card of the item it
-	names (`embeds`): its icon (a task's box, an agent's avatar, a session's
-	status), its title, what it is, then the start of its text; a database
+	names (`embeds`): its icon (a task's box, an agent's avatar, a contact's
+	photo or initials, a session's status), its title, what it is, then the start of its text; a database
 	adds its first rows as a small table, and a database row a few of its
 	values before its document's text. A click opens
 	it over the page, as the link would (`linkedItem.follow`), or goes to a
@@ -20,6 +20,7 @@
 	import { connectors } from '$lib/stores/connectors.svelte';
 	import { embeds } from '$lib/stores/embeds.svelte';
 	import AgentAvatar from '$lib/ui/AgentAvatar.svelte';
+	import Photo from '$lib/ui/Photo.svelte';
 	import Shimmer from '$lib/ui/Shimmer.svelte';
 	import StatusIcon from '$lib/ui/StatusIcon.svelte';
 	import { embedIcon, KIND_ICONS } from './embedIcons';
@@ -54,6 +55,7 @@
 		resource: 'Resource not found',
 		database: 'Database not found',
 		'database-row': 'Row not found',
+		contact: 'Contact not found',
 		agent: 'Agent not found',
 		'actor-session': 'Session not found',
 		article: 'Article not found'
@@ -75,6 +77,8 @@
 					: kind;
 			case 'resource':
 				return connectors.kindTitle(item.resource);
+			case 'contact':
+				return [kind, item.contact.methods[0]?.value].filter(Boolean).join(' · ');
 			case 'agent':
 				return kind;
 			case 'actorSession':
@@ -136,6 +140,10 @@
 					emoji={embed.item.agent.agent_emoji}
 					size="sm"
 				/>
+			{:else if embed.item.kind === 'contact'}
+				<span class="inline-flex size-7 flex-none items-center justify-center">
+					<Photo photo={embed.item.contact.photo} name={embed.title} size="sm" />
+				</span>
 			{:else if embed.item.kind === 'actorSession'}
 				<span class="inline-flex size-7 flex-none items-center justify-center">
 					<StatusIcon status={embed.item.session.status} unread={embed.item.session.unread} />

@@ -1952,14 +1952,16 @@ export interface Embed {
 	 */
 	workspace_id: number | null;
 	/**
-	 * The item's title; an agent's name; a database row's label
+	 * The item's title; an agent's name; a contact's full name
+	 * (`Contact::full_name`); a database row's label
 	 * (`DatabaseRowEntry::label`).
 	 */
 	title: string;
 	/**
 	 * The start of the item's text as plain text, at most about 200
 	 * characters: a task's description, a document's or text resource's
-	 * contents, a database row's document's contents, an agent's role, an
+	 * contents, a database row's document's contents, a contact's notes,
+	 * an agent's role, an
 	 * actor session's last message from its actor, an article's text. `""`
 	 * when it has none, as for a database.
 	 */
@@ -2005,6 +2007,10 @@ export type EmbedItem =
 			properties: DatabaseProperty[];
 	  }
 	| {
+			kind: 'contact';
+			contact: Contact;
+	  }
+	| {
 			kind: 'agent';
 			agent: IntelligenceAgent;
 	  }
@@ -2025,8 +2031,8 @@ export type EmbedItem =
  * What kind of item an embed shows; `vocabulary.embed_kinds` words each.
  *
  * - `"task"`, `"document"`, `"journalEntry"` (a document of type
- *   `journal`), `"resource"`, `"database"`, `"databaseRow"`, `"agent"`,
- *   `"actorSession"`, `"article"`.
+ *   `journal`), `"resource"`, `"database"`, `"databaseRow"`, `"contact"`,
+ *   `"agent"`, `"actorSession"`, `"article"`.
  */
 export type EmbedKind =
 	| 'task'
@@ -2035,6 +2041,7 @@ export type EmbedKind =
 	| 'resource'
 	| 'database'
 	| 'databaseRow'
+	| 'contact'
 	| 'agent'
 	| 'actorSession'
 	| 'article';
@@ -3057,7 +3064,8 @@ export interface LinkBlock {
  * as text.
  *
  * - `"task"`, `"document"` (a journal entry too), `"resource"`,
- *   `"database"`, `"databaseRow"`, `"agent"`, `"actorSession"`, `"article"`.
+ *   `"database"`, `"databaseRow"`, `"contact"`, `"agent"`, `"actorSession"`,
+ *   `"article"`.
  */
 export type LinkKind =
 	| 'task'
@@ -3065,6 +3073,7 @@ export type LinkKind =
 	| 'resource'
 	| 'database'
 	| 'databaseRow'
+	| 'contact'
 	| 'agent'
 	| 'actorSession'
 	| 'article';
@@ -4034,8 +4043,8 @@ export interface ResolveEmbedsRequest {
 
 /**
  * Resolves `link`, a `cohesion://` link to a task, document or journal
- * entry, resource, database, database row, agent, actor session or
- * article, to the item it names as an `Embed`. A link to an item deleted
+ * entry, resource, database, database row, contact, agent, actor session
+ * or article, to the item it names as an `Embed`. A link to an item deleted
  * or never made is `notFound`; text that isn't such a link fails
  * validation on `link`.
  */
@@ -4248,10 +4257,10 @@ export interface SearchDocumentRequest {
 }
 
 /**
- * What kind of item a search result points at: `"document"`, `"task"` or
- * `"resource"`.
+ * What kind of item a search result points at: `"document"`, `"task"`,
+ * `"resource"` or `"contact"`.
  */
-export type SearchEntityKind = 'document' | 'task' | 'resource';
+export type SearchEntityKind = 'document' | 'task' | 'resource' | 'contact';
 
 /**
  * Asks every extension with the `registry` permission granted for the
@@ -4276,8 +4285,8 @@ export interface SearchFeedCorpusRequest {
 }
 
 /**
- * One full-text search hit: a snapshot of the matched document's, task's or
- * resource's indexed text, plus a pointer back to it.
+ * One full-text search hit: a snapshot of the matched document's, task's,
+ * resource's or contact's indexed text, plus a pointer back to it.
  */
 export interface SearchResult {
 	/**
@@ -4286,20 +4295,20 @@ export interface SearchResult {
 	 * This is **not** the matched item's id; that is the entity id.
 	 */
 	id: number;
-	/** Whether the hit is a document, a task or a resource. */
+	/** Whether the hit is a document, a task, a resource or a contact. */
 	entity_kind: SearchEntityKind;
 	/**
-	 * Id of the matched document, task or resource (which one depends on the
-	 * entity kind).
+	 * Id of the matched document, task, resource or contact (which one
+	 * depends on the entity kind).
 	 */
 	entity_id: number;
 	/** Id of the workspace the matched item belongs to. */
 	workspace_id: number;
-	/** The matched item's title. */
+	/** The matched item's title; a contact's full name. */
 	title: string | null;
 	/**
-	 * The matched document's full contents or a Markdown resource's text;
-	 * always `""` for tasks and JSON resources.
+	 * The matched document's full contents, a Markdown resource's text or a
+	 * contact's notes; always `""` for tasks and JSON resources.
 	 */
 	contents: string;
 }

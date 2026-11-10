@@ -18,6 +18,7 @@ describe('item links', () => {
 			'cohesion://resource/3/9',
 			'cohesion://database/3/2',
 			'cohesion://database-row/3/2/14',
+			'cohesion://contact/3/12',
 			'cohesion://agent/3',
 			'cohesion://actor-session/143',
 			'cohesion://article/88'

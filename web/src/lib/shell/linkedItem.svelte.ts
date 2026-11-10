@@ -30,6 +30,7 @@ export type LinkedItem =
 	  }
 	| { kind: 'document'; document: Document }
 	| { kind: 'resource'; resource: Resource }
+	| { kind: 'contact'; contact: Contact }
 	| { kind: 'agent'; agent: IntelligenceAgent }
 	| {
 			kind: 'actor-session';
@@ -98,6 +99,7 @@ const NAMES: Record<ItemLink['kind'], string> = {
 	resource: 'Resource',
 	database: 'Database',
 	'database-row': 'Row',
+	contact: 'Contact',
 	agent: 'Agent',
 	'actor-session': 'Actor session',
 	article: 'Article'
@@ -122,6 +124,8 @@ async function find(link: ItemLink): Promise<LinkedItem | null> {
 			return { kind: 'document', document: item.document };
 		case 'resource':
 			return { kind: 'resource', resource: item.resource };
+		case 'contact':
+			return { kind: 'contact', contact: item.contact };
 		case 'agent':
 			return { kind: 'agent', agent: item.agent };
 		case 'actorSession': {

@@ -50,6 +50,18 @@ describe('@ mentions', () => {
 		expect(found.map((m) => m.href)).toContain(`cohesion://document/1/${document.id}`);
 	});
 
+	it('finds a contact by name and links it in its workspace', async () => {
+		const mock = createMock();
+		const found = await searchMentions(mock.send, 1, 'okaf', []);
+		expect(found).toContainEqual({
+			label: 'Mira Okafor',
+			detail: 'Contact',
+			href: 'cohesion://contact/1/1'
+		});
+		const embed = await mock.send('resolveLink', { link: 'cohesion://contact/1/1' });
+		expect(embed).toMatchObject({ kind: 'contact', title: 'Mira Okafor', workspace_id: 1 });
+	});
+
 	it('matches a name by the starts of its words', () => {
 		expect(namedBy('Research Scout', 'sco res')).toBe(true);
 		expect(namedBy('Research Scout', 'out')).toBe(false);

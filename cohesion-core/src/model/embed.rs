@@ -5,8 +5,8 @@ use cohesion_macros::{TextEnum, TsWire};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    ActorSession, Article, ArticleSummary, Database, DatabaseProperty, DatabaseRowEntry, Document,
-    DocumentType, IntelligenceAgent, ItemLink, Resource, ResourceContentKind, Task,
+    ActorSession, Article, ArticleSummary, Contact, Database, DatabaseProperty, DatabaseRowEntry,
+    Document, DocumentType, IntelligenceAgent, ItemLink, Resource, ResourceContentKind, Task,
 };
 
 /// How many of a database's rows its embed holds, the first in the order
@@ -17,8 +17,8 @@ pub const DATABASE_PREVIEW_ROWS: u64 = 5;
 /// What kind of item an embed shows; `vocabulary.embed_kinds` words each.
 ///
 /// - `"task"`, `"document"`, `"journalEntry"` (a document of type
-///   `journal`), `"resource"`, `"database"`, `"databaseRow"`, `"agent"`,
-///   `"actorSession"`, `"article"`.
+///   `journal`), `"resource"`, `"database"`, `"databaseRow"`, `"contact"`,
+///   `"agent"`, `"actorSession"`, `"article"`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TextEnum, TsWire)]
 #[serde(rename_all = "camelCase")]
 #[text_enum(rename_all = "camelCase")]
@@ -29,6 +29,7 @@ pub enum EmbedKind {
     Resource,
     Database,
     DatabaseRow,
+    Contact,
     Agent,
     ActorSession,
     Article,
@@ -46,12 +47,14 @@ pub struct Embed {
     /// The item's workspace; `null` for an agent, an actor session or an
     /// article, which belong to none.
     pub workspace_id: Option<i64>,
-    /// The item's title; an agent's name; a database row's label
+    /// The item's title; an agent's name; a contact's full name
+    /// (`Contact::full_name`); a database row's label
     /// (`DatabaseRowEntry::label`).
     pub title: String,
     /// The start of the item's text as plain text, at most about 200
     /// characters: a task's description, a document's or text resource's
-    /// contents, a database row's document's contents, an agent's role, an
+    /// contents, a database row's document's contents, a contact's notes,
+    /// an agent's role, an
     /// actor session's last message from its actor, an article's text. `""`
     /// when it has none, as for a database.
     pub excerpt: String,
@@ -91,6 +94,9 @@ pub enum EmbedItem {
         database_title: String,
         /// Its database's properties in their order.
         properties: Vec<DatabaseProperty>,
+    },
+    Contact {
+        contact: Contact,
     },
     Agent {
         agent: IntelligenceAgent,
@@ -214,6 +220,21 @@ impl Embed {
                 database_title: database.title,
                 properties,
             },
+        }
+    }
+
+    pub fn contact(contact: Contact) -> Self {
+        Self {
+            link: ItemLink::Contact {
+                workspace_id: contact.workspace_id,
+                id: contact.id,
+            }
+            .to_string(),
+            kind: EmbedKind::Contact,
+            workspace_id: Some(contact.workspace_id),
+            title: contact.full_name(),
+            excerpt: excerpt(&contact.notes),
+            item: EmbedItem::Contact { contact },
         }
     }
 

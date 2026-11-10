@@ -907,7 +907,7 @@ function seed(): MockState {
 				10,
 				1,
 				'Launch plan',
-				'# Launch plan\n\nWhat has to land before the beta, as cards. A link in a sentence, such as [the search notes](cohesion://document/1/5), stays a link.\n\n[Install extension from URL](cohesion://task/1/4)\n[Cohesion-bench](cohesion://task/1/2)\n\n## Who is on it\n\n[Secretary](cohesion://agent/2)\n[the install session](cohesion://actor-session/1)\n\n## Reading\n\n[Notion page](cohesion://resource/1/1)\n[Article](cohesion://article/1)\n\n## Dropped\n\n[Old migration task](cohesion://task/1/999)\n'
+				'# Launch plan\n\nWhat has to land before the beta, as cards. A link in a sentence, such as [the search notes](cohesion://document/1/5), stays a link.\n\n[Install extension from URL](cohesion://task/1/4)\n[Cohesion-bench](cohesion://task/1/2)\n\n## Who is on it\n\n[Secretary](cohesion://agent/2)\n[the install session](cohesion://actor-session/1)\n[Mira Okafor](cohesion://contact/1/1)\n[Tomás Reyes](cohesion://contact/1/2)\n\n## Reading\n\n[Notion page](cohesion://resource/1/1)\n[Article](cohesion://article/1)\n\n## Dropped\n\n[Old migration task](cohesion://task/1/999)\n'
 			)
 		],
 		documentFolders: [
@@ -3967,6 +3967,20 @@ export function createMock(): Mock {
 				}
 			};
 		}
+		if (target?.kind === 'contact') {
+			workspace(target.ws);
+			const contact = withMethods(contactRow(target.ws, target.id));
+			return {
+				link: `cohesion://contact/${target.ws}/${target.id}`,
+				kind: 'contact',
+				workspace_id: target.ws,
+				title: [contact.first_name, contact.middle_name, contact.last_name]
+					.filter(Boolean)
+					.join(' '),
+				excerpt: excerptOf(contact.notes),
+				item: { kind: 'contact', contact }
+			};
+		}
 		const match =
 			/^cohesion:\/\/(task|document|resource|agent|actor-session|article)\/(\d+)(?:\/(\d+))?$/.exec(
 				link.trim()
@@ -5421,6 +5435,15 @@ export function createMock(): Mock {
 			for (const a of state.resources)
 				if (a.workspace_id === workspace_id)
 					consider('resource', a.id, a.title, a.content_kind === 'json' ? '' : a.contents);
+			// A contact by its full name, with its notes.
+			for (const c of state.contacts)
+				if (c.workspace_id === workspace_id && !c.deleted)
+					consider(
+						'contact',
+						c.id,
+						[c.first_name, c.middle_name, c.last_name].filter(Boolean).join(' '),
+						c.notes
+					);
 			return hits
 				.sort((a, b) => Number(b.title) - Number(a.title))
 				.map(({ result }, index) => ({ ...result, id: index + 1 }));

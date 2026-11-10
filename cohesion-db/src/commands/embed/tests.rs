@@ -279,6 +279,54 @@ fn an_article_resolves_with_its_feed() {
     ));
 }
 
+fn contact(db: &DatabaseContext, ws: i64) -> cohesion_core::model::Contact {
+    db.send_blocking(crate::CreateContactCommand {
+        workspace_id: ws,
+        first_name: "Ada".to_string(),
+        middle_name: Some("King".to_string()),
+        last_name: "Lovelace".to_string(),
+        notes: "Met at the **analytical** engine demo.".to_string(),
+        methods: Vec::new(),
+    })
+    .unwrap()
+}
+
+#[test]
+fn a_contact_resolves_to_its_full_name_and_notes() {
+    let db = context();
+    let ws = workspace(&db);
+    let contact = contact(&db, ws);
+    let link = format!("cohesion://contact/{ws}/{}", contact.id);
+    let embed = resolve(&db, &link).unwrap();
+    assert_eq!(embed.link, link);
+    assert_eq!(embed.kind, EmbedKind::Contact);
+    assert_eq!(embed.workspace_id, Some(ws));
+    assert_eq!(embed.title, "Ada King Lovelace");
+    assert_eq!(embed.excerpt, "Met at the analytical engine demo.");
+    assert!(matches!(embed.item, EmbedItem::Contact { contact: c } if c.id == contact.id));
+}
+
+#[test]
+fn a_contact_in_another_workspace_or_deleted_is_not_found() {
+    let db = context();
+    let ws = workspace(&db);
+    let other = workspace(&db);
+    let contact = contact(&db, ws);
+    assert!(matches!(
+        resolve(&db, &format!("cohesion://contact/{other}/{}", contact.id)),
+        Err(CommandError::NotFound(_))
+    ));
+    db.send_blocking(crate::DeleteContactCommand {
+        workspace_id: ws,
+        contact_id: contact.id,
+    })
+    .unwrap();
+    assert!(matches!(
+        resolve(&db, &format!("cohesion://contact/{ws}/{}", contact.id)),
+        Err(CommandError::NotFound(_))
+    ));
+}
+
 #[test]
 fn a_missing_resource_agent_or_session_is_not_found() {
     let db = context();

@@ -304,6 +304,8 @@
 		if (result.entity_kind === 'document')
 			go(routes.document(result.workspace_id, result.entity_id));
 		else if (result.entity_kind === 'resource') void openResource(result);
+		else if (result.entity_kind === 'contact')
+			go(routes.contact(result.workspace_id, result.entity_id));
 		else go(routes.task(result.workspace_id, result.entity_id));
 	}
 
@@ -461,6 +463,8 @@
 													<FileText size={15} strokeWidth={1.75} />
 												{:else if result.entity_kind === 'resource'}
 													<Layers size={15} strokeWidth={1.75} />
+												{:else if result.entity_kind === 'contact'}
+													<BookUser size={15} strokeWidth={1.75} />
 												{:else}
 													<CheckSquare size={15} strokeWidth={1.75} />
 												{/if}
