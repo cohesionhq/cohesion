@@ -20,8 +20,7 @@ under "Unreleased" with any change users would notice.
   `setDatabaseValue` and `createDatabaseRowDocument`, the `databases(ws)`
   and `database(id)` invalidations, `hello.vocabulary.database_data_types`,
   and a `databaseRow` document type, which a client meets only by opening a
-  row's document. The web UI doesn't show databases yet; the iPhone app
-  needn't.
+  row's document. The iPhone app needn't show databases.
 - A database column can be a formula: a JavaScript function of the row,
   such as `(row) => row.Price * row.Quantity`, whose result fills the
   column in every row and is computed again when the row or the columns
@@ -45,6 +44,12 @@ under "Unreleased" with any change users would notice.
   need the two new cases; the iPhone app can show them by title, excerpt
   and kind word until it draws them. The web UI doesn't show them as cards
   yet.
+- The web UI shows databases. Databases, in each workspace's sidebar and
+  ⌘K, lists them, and a database opens as a table: add a column of any type,
+  rename it, change its type, move it or delete it; add and delete rows; edit
+  a cell in place; and sort and filter on any column, which Cohesion does on
+  the server. A formula's column is read-only and shows why it failed. A row
+  opens its document over the page.
 - An item's panel shows Backlinks: the documents and journal entries that
   link to the item, wherever the link is in their text. Click one to open it
   over the page. When nothing links to the item, the section doesn't show.

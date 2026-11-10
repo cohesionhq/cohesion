@@ -33,6 +33,9 @@ export const routes = {
 	document: (ws: number, id: number) =>
 		resolve('/w/[ws]/documents/[id]', { ws: String(ws), id: String(id) }),
 	tasks: (ws: number) => resolve('/w/[ws]/tasks', { ws: String(ws) }),
+	databases: (ws: number) => resolve('/w/[ws]/databases', { ws: String(ws) }),
+	database: (ws: number, id: number) =>
+		resolve('/w/[ws]/databases/[id]', { ws: String(ws), id: String(id) }),
 	contacts: (ws: number) => resolve('/w/[ws]/contacts', { ws: String(ws) }),
 	rewind: (ws: number) => resolve('/w/[ws]/rewind', { ws: String(ws) }),
 	/** The Articles page, at one view (`viewParam` spells it) or the one last shown. */

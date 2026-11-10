@@ -28,9 +28,9 @@ export async function itemRoute(link: ItemLink): Promise<string | null> {
 }
 
 /**
- * Where the item `embed` shows opens: its page, or the Tasks page at it. An
- * article belongs to no workspace, so it opens in the current one; with no
- * workspace at all it has nowhere to open (null).
+ * Where the item `embed` shows opens: its page, the Tasks page at it, or a
+ * database row's database. An article belongs to no workspace, so it opens
+ * in the current one; with no workspace at all it has nowhere to open (null).
  */
 export async function embedRoute(embed: Embed): Promise<string | null> {
 	const { item } = embed;
@@ -47,10 +47,13 @@ export async function embedRoute(embed: Embed): Promise<string | null> {
 			return routes.actorSession(item.session.id);
 		case 'article':
 			return articleRoute(item.article.id);
-		// Databases have no page to open yet.
 		case 'database':
+			return routes.database(item.database.workspace_id, item.database.id);
+		// A row opens in its database's table.
 		case 'databaseRow':
-			return null;
+			return embed.workspace_id === null
+				? null
+				: routes.database(embed.workspace_id, item.row.database_id);
 	}
 }
 

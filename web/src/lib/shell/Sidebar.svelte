@@ -40,6 +40,7 @@
 	import Search from '@lucide/svelte/icons/search';
 	import Settings from '@lucide/svelte/icons/settings';
 	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
+	import Table2 from '@lucide/svelte/icons/table-2';
 	import type { Component, Snippet } from 'svelte';
 	import { flip } from 'svelte/animate';
 	import { backOut } from 'svelte/easing';
@@ -179,6 +180,7 @@
 			{ href: routes.journal(workspaceId), label: 'Journal', icon: NotebookPen },
 			{ href: routes.documents(workspaceId), label: 'Documents', icon: FileText },
 			{ href: routes.tasks(workspaceId), label: 'Tasks', icon: CheckSquare },
+			{ href: routes.databases(workspaceId), label: 'Databases', icon: Table2 },
 			{ href: routes.articles(workspaceId), label: 'Articles', icon: Newspaper },
 			{ href: routes.contacts(workspaceId), label: 'Contacts', icon: BookUser }
 		];

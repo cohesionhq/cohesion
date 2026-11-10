@@ -1912,7 +1912,7 @@ and `src/routes/+layout.ts` turns off server rendering and prerendering.
 | Route | Page |
 |---|---|
 | `/` | Home |
-| `/w/[ws]/` | A workspace: `dashboard` (the default), `today`, `journal` (and `[id]`), `documents` (and `[id]`), `tasks`, `contacts`, `articles` (and `[id]`, `research`), `rewind`, `resources/[kind]` (and `[id]`) |
+| `/w/[ws]/` | A workspace: `dashboard` (the default), `today`, `journal` (and `[id]`), `documents` (and `[id]`), `tasks`, `databases` (and `[id]`, one database's table), `contacts`, `articles` (and `[id]`, `research`), `rewind`, `resources/[kind]` (and `[id]`) |
 | `/agents`, `/agents/[agent]` | Agents and an agent's chat |
 | `/actors`, `/actors/[session]` | Actor sessions and a session's transcript, or a subagent's thread |
 | `/threads/[thread]` | A model thread's transcript, read-only |
@@ -1930,7 +1930,7 @@ history; Alt-click opens a link in the second half, and the split closes below
 
 - `protocol/`: the connection, the session API, generated types, the mock.
 - `stores/`: state, one `create…Store(send)` factory per area, built on `Resource<T, K>` (`resource.svelte.ts`), which loads, refetches when an invalidation touches it, and marks itself stale when no page is using it. Page stores are made once per split half (`pageStores.svelte.ts`); workspaces, feeds, connectors and extensions are app-wide.
-- `features/<area>/`: components for one area (actors, agents, articles, connectors, contacts, dashboard, documents, extensions, folders, rewind, settings, tags, tasks, threads).
+- `features/<area>/`: components for one area (actors, agents, articles, connectors, contacts, dashboard, databases, documents, extensions, folders, rewind, settings, tags, tasks, threads).
 - `ui/`: about 70 shared components (buttons, dialogs, side panels, menus, pickers, fields, `Markdown`, `Editor`, avatars, toasts, status pills) and `motion.ts`.
 - `shell/`: the app frame: sidebar, palette, shortcuts, linked items, split view, notices.
 - `format/`: bytes, dates (`shortTime`, a 12-hour clock everywhere), money, search, usage.
@@ -1962,6 +1962,33 @@ search of the workspace and actor sessions.
 an in-memory daemon that implements every request with seed data, instead of a
 socket. Vitest uses the same mock. With `npm run dev`, `.env.development` sets
 `VITE_DEV_PROXY=1`, so the page doesn't ask for a token.
+
+**Databases** (`routes/w/[ws]/databases/`, `features/databases/`,
+`stores/databases.svelte.ts`). The Databases page lists a workspace's
+databases by title, with New database and each one's Rename and Delete. A
+database opens as a table (`DatabaseTable.svelte`): a column per property in
+its order, its header a menu to sort (the type's two directions or none),
+filter, rename, change type (a dialog warning that values that don't fit are
+cleared), move left or right (`moveDatabaseProperty`) and delete; the last
+column, which stays in view as a wide table scrolls, adds a property and holds
+each row's ⋯ (Open, Delete). A cell edits in place with an editor for its type
+(text, a number, a date picker; a checkbox toggles), read by
+`features/databases/values.ts`; ↩ saves, Esc cancels, ⇥ and ⇧⇥ save and move
+along the row, and the daemon's refusal shows under the editor. A formula's
+column wears a function icon and its cells only read; a formula's `error`
+shows above the table. Filters (Add filter…, or a column's Filter…) offer the
+conditions the property's type allows and are ANDed; they and the sort show as
+pills above the table, each removable. **The daemon filters and sorts**: the
+page sends them with `listDatabaseRows` and shows what comes back. They are
+the page's own, kept in the rows resource's key, so they last while the half
+keeps that database open and are never stored. A value reads in the browser's
+locale (`formatValue`): numbers grouped, an amount to two places with no
+currency sign, since a database names no currency, a date as `shortDay`. A
+row's leading button opens its document over the page in the document panel
+(`linkedItem.show`), giving the row one first (`createDatabaseRowDocument`). A
+link's Open goes to a database's table, and a row's to its database's
+(`embedRoute`). The mock filters, sorts and runs formulas in JS, by the
+daemon's rules; it runs only the formulas it was seeded with.
 
 **Subagents** (`features/actors/SessionView.svelte`, `SubagentRow.svelte`).
 In a session's transcript, the tool use that launched a subagent shows as the

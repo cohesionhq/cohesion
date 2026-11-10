@@ -7,6 +7,7 @@
 
 import type {
 	ActorSessionStatus,
+	DatabaseDataType,
 	ActorSessionStop,
 	EmbedKind,
 	ExtensionPermissionKind,
@@ -56,6 +57,7 @@ class Vocabulary {
 	#actorSessionStops = $derived(byKind(this.value.actor_session_stops));
 	#securityEvents = $derived(byKind(this.value.security_events));
 	#embedKinds = $derived(byKind(this.value.embed_kinds));
+	#databaseDataTypes = $derived(byKind(this.value.database_data_types));
 
 	permission(kind: ExtensionPermissionKind): Described<ExtensionPermissionKind> {
 		return this.#permissions.get(kind)!;
@@ -89,6 +91,11 @@ class Vocabulary {
 	/** What an item a `cohesion://` link names is called: `Task`, `Journal entry`. */
 	embedKind(kind: EmbedKind): string {
 		return this.#embedKinds.get(kind)!.label;
+	}
+
+	/** What a database property's type of value is called: `Whole number`, `Currency`. */
+	databaseDataType(kind: DatabaseDataType): string {
+		return this.#databaseDataTypes.get(kind)!.label;
 	}
 
 	/** What to call the provider whose catalog id is `identifier`, if it has a preset. */

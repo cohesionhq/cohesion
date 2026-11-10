@@ -36,6 +36,13 @@ this page in the same pull request and say so in its description.
   day `task:due`, for cues and extensions. Connector tasks are read-only; extension tasks
   may sync both ways. An agent's conversation and its forks change tasks
   directly; a job only with `cohesion:write`, otherwise it proposes.
+- **Area: Databases.** A workspace's tables of typed values (text, whole
+  number, decimal, currency, checkbox, date), whose columns the user adds,
+  retypes and deletes at any time; a column can be a formula, a JavaScript
+  function of its row. Filtering and sorting happen on the daemon, in SQL; the
+  web UI keeps a table's filters and sort on the page, with no saved views. A
+  row may have a document of its own, which stays out of the document list.
+  Web only for now: the iPhone app has no databases.
 - **Area: Agents.** One global model tier for agent conversations; jobs run
   at low, medium or high effort, which is the cost control. An agent works
   as its conversation, forks of it, jobs and cues. The conversation and its
