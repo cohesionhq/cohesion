@@ -106,7 +106,8 @@ are in the `web-ui-change` skill.
 - `src/lib/stores/`: rune stores; see its README for the pattern.
 - `src/lib/ui/`: primitives, which import nothing from `stores/`, `shell/`
   or `features/`, but for `Markdown.svelte`, which opens links and draws
-  cards from `shell/`. Only `Editor.svelte` imports CodeMirror; it draws a
+  cards from `shell/`, and `ItemPanel.svelte`, which shows what links to its
+  item with `shell/Backlinks.svelte`. Only `Editor.svelte` imports CodeMirror; it draws a
   link alone on its line as the card its caller hands it (`embed`) and looks
   items up after `@` or `[[` with its caller's search (`mentions`). Only
   `Markdown.svelte` renders HTML (with `embeds`, a link alone on its line is

@@ -4,14 +4,14 @@ use cohesion_core::{
         AccountHost, Activity, ActivityStatus, Actor, ActorMessageContent, ActorPermissionDecision,
         ActorSession, ActorSessionMessage, ActorSessionMessageContent, ActorSessionStatus,
         ActorToolKind, ActorUserContent, AgentCodeOutcome, AgentMessageContent, AgentThreadMark,
-        Article, Attachment, CatalogModel, Connector, ConnectorAccount, Contact, ContactMethod,
-        EndpointModel, Extension, ExtensionHook, ExtensionPermission, ExtensionService,
-        ExtensionServiceFunction, Feed, FeedFullPagePolicy, FeedStatus, HookKind,
+        Article, Attachment, Backlink, CatalogModel, Connector, ConnectorAccount, Contact,
+        ContactMethod, EndpointModel, Extension, ExtensionHook, ExtensionPermission,
+        ExtensionService, ExtensionServiceFunction, Feed, FeedFullPagePolicy, FeedStatus, HookKind,
         IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun,
         IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault, IntelligenceEffort,
         IntelligenceEndpoint, IntelligenceSpendLimit, IntelligenceThread, IntelligenceThreadImage,
-        IntelligenceThreadMessage, Memory, MemoryScope, Metadata, PairingOpener, Photo, Profile,
-        PublishedPrecision, Resource, ResourceKind, RewindWriter, SavedTaskView,
+        IntelligenceThreadMessage, LinkKind, Memory, MemoryScope, Metadata, PairingOpener, Photo,
+        Profile, PublishedPrecision, Resource, ResourceKind, RewindWriter, SavedTaskView,
         SavedTaskViewPriority, SavedTaskViewSize, SavedTaskViewTag, SecurityEvent,
         SecurityEventKind, SecuritySettings, StorageEntry, StorageSettings, Tag, TaskTag,
         ThreadItem, ThreadOrigin, ThreadPrompt, Version, VersionedItem, WorkspaceResourceKind,
@@ -403,6 +403,8 @@ const WORDS: &[(&str, &str, &str)] = &[
     ("intelligence_spend_limits", "period", "day"),
     ("contact_methods", "kind", "email"),
     ("agent_thread_marks", "source", "conversation"),
+    ("backlinks", "source_kind", "document"),
+    ("backlinks", "target_kind", "task"),
 ];
 
 /// Required JSON columns of a table's own, which take `[]`.
@@ -2824,4 +2826,86 @@ fn documents_start_in_the_inbox_and_file_only_into_a_live_folder_of_their_worksp
     let nest = |sql: &str| db.connection().execute(sql, []);
     assert!(nest("UPDATE document_folders SET parent_id = 4 WHERE id = 1").is_err());
     assert!(nest("UPDATE document_folders SET parent_id = 1 WHERE id = 1").is_err());
+}
+
+#[test]
+fn backlinks_are_filled_from_every_live_documents_links() {
+    let mut db = Container::in_memory().unwrap();
+    let at = MIGRATIONS
+        .iter()
+        .position(|migration| migration.name == "backlinks")
+        .unwrap();
+    // As `migrate` runs them: the later ones rebuild tables with foreign keys off.
+    db.connection()
+        .pragma_update(None, "foreign_keys", false)
+        .unwrap();
+    db.register_migration_functions().unwrap();
+    for migration in &MIGRATIONS[..at] {
+        db.connection().execute_batch(migration.sql).unwrap();
+    }
+    db.connection()
+        .execute_batch(
+            "INSERT INTO workspaces (id, title) VALUES (3, 'Work');
+             INSERT INTO tasks (id, workspace_id, title) VALUES (42, 3, 'Fix login');
+             INSERT INTO documents (id, workspace_id, title, contents) VALUES
+                 (7, 3, 'Notes', '[Fix](cohesion://task/3/42) and [again](cohesion://task/42)
+
+[Me](cohesion://document/3/7), see [the plan](cohesion://document/8).
+
+```
+[Code](cohesion://agent/1)
+```'),
+                 (8, 3, 'Plan', 'No links.');
+             INSERT INTO documents (id, workspace_id, deleted, title, contents) VALUES
+                 (9, 3, TRUE, 'Gone', '[Fix](cohesion://task/3/42)');",
+        )
+        .unwrap();
+    db.connection()
+        .pragma_update(None, "user_version", at as i64)
+        .unwrap();
+    db.migrate().unwrap();
+
+    let db = WriteContainer::new(&db);
+    let rows: Vec<(LinkKind, i64, LinkKind, i64, String)> = db
+        .select::<Backlink>()
+        .order("id")
+        .all()
+        .unwrap()
+        .into_iter()
+        .map(|b| {
+            (
+                b.source_kind,
+                b.source_id,
+                b.target_kind,
+                b.target_id,
+                b.link,
+            )
+        })
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            (
+                LinkKind::Document,
+                7,
+                LinkKind::Task,
+                42,
+                "cohesion://task/3/42".to_string()
+            ),
+            (
+                LinkKind::Document,
+                7,
+                LinkKind::Document,
+                8,
+                "cohesion://document/8".to_string()
+            ),
+        ]
+    );
+
+    // A document removed for good takes its backlinks with it.
+    db.delete::<Document>()
+        .filter_eq(Document::ID, 7)
+        .execute()
+        .unwrap();
+    assert!(db.select::<Backlink>().all().unwrap().is_empty());
 }

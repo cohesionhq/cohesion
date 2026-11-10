@@ -9,7 +9,7 @@
 use std::path::{Path, PathBuf};
 
 use cohesion_core::log::Module;
-use cohesion_core::model::ImageBytes;
+use cohesion_core::model::{ImageBytes, LinkKind, LinkTarget, outgoing_links};
 use cohesion_core::private_files::{create_private_dir, open_private};
 use cohesion_core::protocol::DatabaseSize;
 use cohesion_core::value::{Row, RowError, read_column};
@@ -112,8 +112,35 @@ impl Container {
     }
 
     /// What SQLite lacks that a migration needs: `unbase64(text)`, the bytes
-    /// base64 text holds or `NULL`, to move an image out of it.
+    /// base64 text holds or `NULL`, to move an image out of it; and
+    /// `outgoing_links(kind, id, text)`, the links the text of item `kind`
+    /// `id` makes (`outgoing_links`) as a JSON array of `{kind, id, link}`,
+    /// to keep its backlinks by the rule the commands keep them by.
     pub(crate) fn register_migration_functions(&self) -> Result<(), DatabaseError> {
+        self.connection.create_scalar_function(
+            "outgoing_links",
+            3,
+            FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC,
+            |context| {
+                let kind = LinkKind::from_str_strict(&context.get::<String>(0)?)
+                    .map_err(|error| rusqlite::Error::UserFunctionError(error.into()))?;
+                let source = LinkTarget {
+                    kind,
+                    id: context.get(1)?,
+                };
+                let links: Vec<_> = outgoing_links(source, &context.get::<String>(2)?)
+                    .into_iter()
+                    .map(|link| {
+                        serde_json::json!({
+                            "kind": link.target.kind.as_str(),
+                            "id": link.target.id,
+                            "link": link.link,
+                        })
+                    })
+                    .collect();
+                Ok(serde_json::Value::Array(links).to_string())
+            },
+        )?;
         self.connection.create_scalar_function(
             "unbase64",
             1,

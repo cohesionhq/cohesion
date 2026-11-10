@@ -336,7 +336,7 @@ impl DatabaseCommand for MoveDocumentCommand {
             .filter_eq(Document::ID, self.document_id)
             .returning_one()
             .found()?;
-        Ok(changed(document))
+        changed(ctx, document)
     }
 }
 

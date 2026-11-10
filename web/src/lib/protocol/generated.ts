@@ -949,6 +949,22 @@ export type AttachmentMessage =
 			agent_message_id: number;
 	  };
 
+/**
+ * The items whose text links to the item `link` names, as `resolveLink`
+ * resolves each: a link anywhere in their text, alone on its line or in a
+ * sentence, outside code. Only documents and journal entries are followed
+ * so far. The item named needn't exist; text that isn't a `cohesion://`
+ * link fails validation on `link`. `backlinks` of the item's kind and id
+ * says when the list changed.
+ */
+export interface BacklinksOfRequest {
+	/**
+	 * As written in Markdown: `cohesion://task/3/42`, or without its
+	 * workspace, `cohesion://task/42`.
+	 */
+	link: string;
+}
+
 /** Asks `oauth` extension `extension_id` where the user signs in. */
 export interface BeginConnectorAuthenticationRequest {
 	extension_id: number;
@@ -2726,6 +2742,7 @@ export type Invalidation =
 	| { kind: 'actorSessions' }
 	| { kind: 'actorSession'; id: number }
 	| { kind: 'actorUsage' }
+	| { kind: 'backlinks'; id: LinkTarget }
 	| {
 			kind: 'notification';
 			id: {
@@ -2747,6 +2764,25 @@ export interface LinkBlock {
 	 * address makes the whole interface invalid.
 	 */
 	destination: string;
+}
+
+/**
+ * What kind of item a `cohesion://` link names, one per kind of link; stored
+ * as text.
+ *
+ * - `"task"`, `"document"` (a journal entry too), `"resource"`, `"agent"`,
+ *   `"actorSession"`, `"article"`.
+ */
+export type LinkKind = 'task' | 'document' | 'resource' | 'agent' | 'actorSession' | 'article';
+
+/**
+ * An item as a link names it, by kind and id alone: ids are unique within
+ * a kind, so this names the same item whether or not the link has its
+ * workspace.
+ */
+export interface LinkTarget {
+	kind: LinkKind;
+	id: number;
 }
 
 /**
@@ -5461,6 +5497,8 @@ export interface Requests {
 	resolveLink: ResolveLinkRequest;
 	/** Splits Markdown into its text and its embeds, each resolved. */
 	resolveEmbeds: ResolveEmbedsRequest;
+	/** The items that link to an item, each resolved as `resolveLink` does. */
+	backlinksOf: BacklinksOfRequest;
 }
 
 /** The `ok.data` each request type answers with. */
@@ -5960,4 +5998,6 @@ export interface Replies {
 	resolveLink: Embed;
 	/** Splits Markdown into its text and its embeds, each resolved. */
 	resolveEmbeds: TextSection[];
+	/** The items that link to an item, each resolved as `resolveLink` does. */
+	backlinksOf: Embed[];
 }

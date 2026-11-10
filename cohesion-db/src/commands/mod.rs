@@ -13,6 +13,7 @@ mod agent_ask;
 mod agent_name;
 mod agent_thread_mark;
 mod article;
+mod backlink;
 mod capabilities;
 mod catalog_model;
 mod client;
@@ -83,6 +84,7 @@ pub use agent_ask::{
 };
 pub use agent_thread_mark::*;
 pub use article::*;
+pub use backlink::{BacklinksOfCommand, FollowLinksCommand};
 pub use capabilities::*;
 pub use catalog_model::*;
 pub use client::*;

@@ -48,8 +48,7 @@ pub fn text_pieces(text: &str) -> Vec<TextPiece> {
     let mut markdown: Vec<&str> = Vec::new();
     let mut fenced = false;
     for line in text.lines() {
-        let fence = line.trim_start();
-        if fence.starts_with("```") || fence.starts_with("~~~") {
+        if is_fence(line) {
             fenced = !fenced;
         }
         match (!fenced).then(|| embed_line(line)).flatten() {
@@ -66,6 +65,12 @@ pub fn text_pieces(text: &str) -> Vec<TextPiece> {
     }
     push_markdown(&mut pieces, &mut markdown);
     pieces
+}
+
+/// Whether `line` opens or closes a fenced code block.
+pub(super) fn is_fence(line: &str) -> bool {
+    let fence = line.trim_start();
+    fence.starts_with("```") || fence.starts_with("~~~")
 }
 
 /// Ends the Markdown gathered so far, without its blank lines at either end.

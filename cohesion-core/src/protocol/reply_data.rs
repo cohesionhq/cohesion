@@ -134,6 +134,7 @@ pub enum ReplyData {
     EndpointModel(Box<EndpointModel>),
     Article(Box<Article>),
     Embed(Box<Embed>),
+    Embeds(Vec<Embed>),
     TextSections(Vec<TextSection>),
     Feed(Feed),
     Feeds(Vec<Feed>),

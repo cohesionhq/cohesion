@@ -296,11 +296,11 @@ fn restore_document(
             .found()
             .map_err(day_taken)
     })?;
-    Ok(if rewritten || before.deleted {
+    if rewritten || before.deleted {
         saved(ctx, document)
     } else {
-        changed(document)
-    })
+        changed(ctx, document)
+    }
 }
 
 /// The only unique value a restore can collide with is a journal's day, the

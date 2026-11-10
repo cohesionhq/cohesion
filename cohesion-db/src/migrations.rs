@@ -4341,6 +4341,38 @@ pub const MIGRATIONS: &[Migration] = &[
         CREATE UNIQUE INDEX actor_sessions_subagent_key ON actor_sessions(actor_id, subagent_key)
             WHERE subagent_key IS NOT NULL;",
     },
+    // What links to what: one row per item a document's text links to, kept
+    // by the commands that write documents (`commands/backlink.rs`) and
+    // filled here from every live document by the same rule
+    // (`outgoing_links`). A document's go with it.
+    Migration {
+        name: "backlinks",
+        sql: "
+        CREATE TABLE backlinks (
+            id INTEGER PRIMARY KEY,
+            source_kind TEXT NOT NULL CHECK (source_kind IN
+                ('task', 'document', 'resource', 'agent', 'actorSession', 'article')),
+            source_id INTEGER NOT NULL,
+            target_kind TEXT NOT NULL CHECK (target_kind IN
+                ('task', 'document', 'resource', 'agent', 'actorSession', 'article')),
+            target_id INTEGER NOT NULL,
+            link TEXT NOT NULL,
+            UNIQUE (source_kind, source_id, target_kind, target_id),
+            CHECK (source_kind IS NOT target_kind OR source_id IS NOT target_id)
+        );
+        CREATE INDEX backlinks_target ON backlinks(target_kind, target_id);
+
+        CREATE TRIGGER documents_backlinks_ad AFTER DELETE ON documents
+        BEGIN
+            DELETE FROM backlinks WHERE source_kind = 'document' AND source_id = old.id;
+        END;
+
+        INSERT INTO backlinks (source_kind, source_id, target_kind, target_id, link)
+        SELECT 'document', documents.id, json_extract(links.value, '$.kind'),
+               json_extract(links.value, '$.id'), json_extract(links.value, '$.link')
+        FROM documents, json_each(outgoing_links('document', documents.id, documents.contents)) links
+        WHERE documents.deleted = FALSE;",
+    },
 ];
 
 #[cfg(test)]

@@ -60,6 +60,7 @@ macro_rules! every_model {
         $check::<AgentThreadMark>($db);
         $check::<RewindWriter>($db);
         $check::<Version>($db);
+        $check::<Backlink>($db);
     };
 }
 pub(crate) use every_model;

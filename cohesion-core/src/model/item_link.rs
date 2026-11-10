@@ -4,6 +4,9 @@
 use std::fmt;
 use std::str::FromStr;
 
+use cohesion_macros::{TextEnum, TsWire};
+use serde::{Deserialize, Serialize};
+
 /// What a `cohesion://` link names.
 ///
 /// - `cohesion://task/<workspace>/<id>` and `cohesion://document/<workspace>/<id>`
@@ -21,6 +24,47 @@ pub enum ItemLink {
     Agent { id: i64 },
     ActorSession { id: i64 },
     Article { id: i64 },
+}
+
+/// What kind of item a `cohesion://` link names, one per kind of link; stored
+/// as text.
+///
+/// - `"task"`, `"document"` (a journal entry too), `"resource"`, `"agent"`,
+///   `"actorSession"`, `"article"`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, TextEnum, TsWire)]
+#[serde(rename_all = "camelCase")]
+#[text_enum(rename_all = "camelCase")]
+pub enum LinkKind {
+    Task,
+    Document,
+    Resource,
+    Agent,
+    ActorSession,
+    Article,
+}
+
+/// An item as a link names it, by kind and id alone: ids are unique within
+/// a kind, so this names the same item whether or not the link has its
+/// workspace.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, TsWire)]
+pub struct LinkTarget {
+    pub kind: LinkKind,
+    pub id: i64,
+}
+
+impl ItemLink {
+    /// The item this link names, by kind and id.
+    pub fn target(&self) -> LinkTarget {
+        let (kind, id) = match *self {
+            ItemLink::Task { id, .. } => (LinkKind::Task, id),
+            ItemLink::Document { id, .. } => (LinkKind::Document, id),
+            ItemLink::Resource { id, .. } => (LinkKind::Resource, id),
+            ItemLink::Agent { id } => (LinkKind::Agent, id),
+            ItemLink::ActorSession { id } => (LinkKind::ActorSession, id),
+            ItemLink::Article { id } => (LinkKind::Article, id),
+        };
+        LinkTarget { kind, id }
+    }
 }
 
 /// Text that isn't a `cohesion://` link to an item.

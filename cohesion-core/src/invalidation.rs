@@ -2,6 +2,8 @@ use cohesion_macros::TsWire;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
+use crate::model::LinkTarget;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TsWire)]
 #[serde(tag = "kind", content = "id", rename_all = "camelCase")]
 pub enum Invalidation {
@@ -85,6 +87,9 @@ pub enum Invalidation {
     /// How much of its limits an actor has used changed: its client
     /// reported it, or the client that did went away.
     ActorUsage,
+    /// What links to an item changed: a link to it was written or removed,
+    /// or an item linking to it was edited, renamed or deleted.
+    Backlinks(LinkTarget),
     /// A script or an agent sent the user a notification, which nothing
     /// stores, so the key carries it for clients to show.
     Notification {

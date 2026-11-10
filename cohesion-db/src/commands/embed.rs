@@ -16,6 +16,16 @@ use crate::{
     Read, ReadableDatabase, ValidationError,
 };
 
+/// `link`, a request's `link` field, as the item link it is, or a validation
+/// failure on that field.
+pub(crate) fn item_link(link: &str) -> Result<ItemLink, CommandError> {
+    link.trim()
+        .parse()
+        .map_err(|error: cohesion_core::model::NotAnItemLink| {
+            ValidationError::in_field("link", error.to_string()).into()
+        })
+}
+
 /// The live item `link` names. A task or document in a deleted workspace is
 /// as gone as a deleted one.
 #[derive(FromRequest)]
@@ -27,14 +37,7 @@ impl DatabaseCommand for ResolveLinkCommand {
     type Response = Embed;
     type Access = Read;
     fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Embed> {
-        let link: ItemLink =
-            self.link
-                .trim()
-                .parse()
-                .map_err(|error: cohesion_core::model::NotAnItemLink| {
-                    ValidationError::in_field("link", error.to_string())
-                })?;
-        Ok(match link {
+        Ok(match item_link(&self.link)? {
             ItemLink::Task { workspace_id, id } => {
                 let select = ctx.db.select_live::<Task>().filter_eq(Task::ID, id);
                 let select = match workspace_id {

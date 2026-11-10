@@ -8,6 +8,7 @@ mod agent_message_columns;
 mod agent_thread_mark;
 mod article;
 mod attachment;
+mod backlink;
 mod catalog_model;
 mod client;
 mod cohesion_ui;
@@ -64,6 +65,7 @@ pub use article::{
     Published, PublishedPrecision, fallback_article_title,
 };
 pub use attachment::{Attachment, AttachmentMessage};
+pub use backlink::{Backlink, LinkSource, OutgoingLink, item_links, outgoing_links};
 pub use catalog_model::CatalogModel;
 pub use client::{Client, ClientKeyKind};
 pub use cohesion_ui::{
@@ -103,7 +105,7 @@ pub use intelligence_provider::*;
 pub use intelligence_spend_limit::{IntelligenceSpend, IntelligenceSpendLimit, SpendPeriod};
 pub use intelligence_thread::*;
 pub use intelligence_usage::{IntelligenceUsage, ModelUsage};
-pub use item_link::{ItemLink, NotAnItemLink};
+pub use item_link::{ItemLink, LinkKind, LinkTarget, NotAnItemLink};
 pub use memory::{Memory, MemoryScope};
 pub use metadata::{HasMetadata, Metadata, MetadataOwner};
 pub use photo::Photo;

@@ -37,6 +37,7 @@ fn placement(table: &str) -> Option<Placement> {
         }
         "documents"
         | "document_folders"
+        | "backlinks"
         | "tasks"
         | "task_folders"
         | "tags"

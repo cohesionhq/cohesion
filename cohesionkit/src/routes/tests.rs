@@ -58,6 +58,39 @@ async fn dispatch_reaches_the_database() {
     assert!(matches!(missing, Outcome::Error(e) if e.code == ErrorCode::NotFound));
 }
 
+/// `backlinksOf`, as a client sends it, answers the documents linking to
+/// the item, each as an embed.
+#[tokio::test]
+async fn backlinks_of_answers_the_documents_linking_to_an_item() {
+    let context = context();
+    let send = |json: String| {
+        let request: cohesion_core::protocol::Request = serde_json::from_str(&json).unwrap();
+        let context = &context;
+        async move { request.command.dispatch(&asking(context)).await }
+    };
+    let Outcome::Ok(ReplyData::Workspace(workspace)) =
+        send(r#"{"type":"createWorkspace","args":{"title":"Work"}}"#.to_string()).await
+    else {
+        panic!("createWorkspace failed");
+    };
+    let ws = workspace.id;
+    let created = send(format!(
+        r#"{{"type":"createDocument","args":{{"workspace_id":{ws},"title":"Notes","contents":"See [Plan](cohesion://document/{ws}/99)."}}}}"#
+    ))
+    .await;
+    assert!(matches!(created, Outcome::Ok(ReplyData::Document(_))));
+    let linking =
+        send(r#"{"type":"backlinksOf","args":{"link":"cohesion://document/99"}}"#.to_string())
+            .await;
+    assert!(
+        matches!(linking, Outcome::Ok(ReplyData::Embeds(ref embeds)) if embeds.len() == 1 && embeds[0].title == "Notes")
+    );
+    let bad = send(r#"{"type":"backlinksOf","args":{"link":"Plan"}}"#.to_string()).await;
+    assert!(
+        matches!(bad, Outcome::Error(ref e) if e.code == ErrorCode::ValidationFailed && e.field.as_deref() == Some("link"))
+    );
+}
+
 /// The hash a client checks without a session is the one `Hello` sends, and
 /// the one the bundle it would fetch carries.
 #[tokio::test]

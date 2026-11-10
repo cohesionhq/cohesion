@@ -1,7 +1,7 @@
 // An in-memory daemon implementing every request kind, for `VITE_MOCK=1` and
 // as the fixture for tests. Each `createMock()` call starts from fresh seed data.
 
-import { textPieces } from '$lib/format/itemLinks';
+import { parseItemLink, textPieces } from '$lib/format/itemLinks';
 import { ProtocolError, toProtocolError } from './errors';
 import type {
 	DayFilter,
@@ -3476,6 +3476,26 @@ export function createMock(): Mock {
 			.find((l) => title === '' || words(l) !== words(title));
 		return (plain ?? '').length > 200 ? `${plain!.slice(0, 199)}…` : (plain ?? '');
 	};
+	/**
+	 * Whether Markdown `text` links to `target` anywhere, as an inline link's
+	 * target or an autolink outside fenced code, as the daemon's
+	 * `outgoing_links` finds them.
+	 */
+	const linksTo = (text: string, target: { kind: string; id: number }): boolean => {
+		let fenced = false;
+		for (const line of text.split('\n')) {
+			if (/^\s*(```|~~~)/.test(line)) {
+				fenced = !fenced;
+				continue;
+			}
+			if (fenced) continue;
+			for (const [, href] of line.matchAll(/(?:\]\(|<)(cohesion:\/\/[^\s)>"']+)/g)) {
+				const link = parseItemLink(href);
+				if (link?.kind === target.kind && link.id === target.id) return true;
+			}
+		}
+		return false;
+	};
 	/** The live item a `cohesion://` link names, as the daemon's `ResolveLinkCommand` finds it. */
 	const resolveLink = (link: string): Embed => {
 		const match =
@@ -5444,6 +5464,26 @@ export function createMock(): Mock {
 		},
 		getArticle: ({ article_id }) => structuredClone(article(article_id)),
 		resolveLink: ({ link }) => structuredClone(resolveLink(link)),
+		backlinksOf: ({ link }) => {
+			const target = parseItemLink(link.trim());
+			if (!target)
+				throw new ProtocolError(
+					'validationFailed',
+					'That isn’t a link to a Cohesion item, such as cohesion://task/3/42.',
+					'link'
+				);
+			const linking: Embed[] = [];
+			for (const d of state.documents) {
+				const self = target.kind === 'document' && d.id === target.id;
+				if (d.deleted || self || !linksTo(d.contents, target)) continue;
+				try {
+					linking.push(structuredClone(resolveLink(`cohesion://document/${d.id}`)));
+				} catch (error) {
+					if (!(error instanceof ProtocolError && error.code === 'notFound')) throw error;
+				}
+			}
+			return linking.sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase()));
+		},
 		resolveEmbeds: ({ text }) =>
 			textPieces(text).map((piece) => {
 				if (piece.kind === 'markdown') return piece;

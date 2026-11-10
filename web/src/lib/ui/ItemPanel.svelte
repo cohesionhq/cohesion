@@ -4,12 +4,13 @@
 	is, `Task #42`, as its chip says it; then its details as rows of an
 	icon, a label and a value, and `children`, its text, under a rule when it
 	has details. Expanded, an item with details puts them in a column of their own beside its text,
-	each scrolling on its own. An item with a page of its own takes `href`, which puts Open beside the panel's other actions; `link` puts a button before Open that copies a Markdown link to the item (`copyItemLink`). The item's main action (`leading`), then the actions and Open, sit in a toolbar along the panel's foot; Close alone stays at the top.
+	each scrolling on its own. An item with a page of its own takes `href`, which puts Open beside the panel's other actions; `link` puts a button before Open that copies a Markdown link to the item (`copyItemLink`), and what links to the item (`shell/Backlinks.svelte`) under its text. The item's main action (`leading`), then the actions and Open, sit in a toolbar along the panel's foot; Close alone stays at the top.
 -->
 <script lang="ts">
 	import Link from '@lucide/svelte/icons/link';
 	import type { Component, Snippet } from 'svelte';
 	import type { ItemLink } from '$lib/format/itemLinks';
+	import Backlinks from '$lib/shell/Backlinks.svelte';
 	import { copyItemLink } from './copyLink';
 	import SidePanel from './SidePanel.svelte';
 
@@ -21,7 +22,10 @@
 		kind: string;
 		/** The item's own page, which Open goes to. */
 		href?: string;
-		/** What the item is linked as: puts a "Copy link" button in the toolbar. */
+		/**
+		 * What the item is linked as: puts a "Copy link" button in the toolbar,
+		 * and what links to it (`Backlinks`) under its text.
+		 */
 		link?: ItemLink;
 		/** The link's title when it isn't `title`, as a journal entry's day is. */
 		linkTitle?: string;
@@ -115,7 +119,7 @@
 				</dl>
 			</div>
 		{/if}
-		{#if children}
+		{#if children || link}
 			<div
 				class={[
 					'flex flex-1 flex-col',
@@ -126,7 +130,8 @@
 				<div
 					class="flex flex-1 flex-col group-data-expanded/panel:w-full group-data-expanded/panel:max-w-4xl"
 				>
-					{@render children()}
+					{@render children?.()}
+					{#if link}<Backlinks {link} />{/if}
 				</div>
 			</div>
 		{/if}

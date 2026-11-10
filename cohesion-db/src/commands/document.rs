@@ -9,6 +9,7 @@ use cohesion_core::protocol::{
 use cohesion_core::{Document, DocumentType, FromRequest};
 
 use crate::changed::{Changed, Invalidates};
+use crate::commands::backlink::FollowLinksCommand;
 use crate::commands::document_folder::GetDocumentFolderCommand;
 use crate::commands::title::ensure_title;
 use crate::commands::workspace_scope::ensure_workspace;
@@ -43,7 +44,10 @@ fn find_or_create_journal(
 
 /// Invalidates `document`'s workspace and raises `JournalSaved` for a
 /// journal, else `DocumentSaved`.
-pub(crate) fn saved(ctx: &mut CommandContext<'_>, document: Document) -> Changed<Document> {
+pub(crate) fn saved(
+    ctx: &mut CommandContext<'_>,
+    document: Document,
+) -> DatabaseCommandResult<Changed<Document>> {
     let document_id = document.id;
     let workspace_id = document.workspace_id;
     let event = match document.document_type {
@@ -57,13 +61,19 @@ pub(crate) fn saved(ctx: &mut CommandContext<'_>, document: Document) -> Changed
         },
     };
     ctx.events.send(ctx.trace.event(event));
-    changed(document)
+    changed(ctx, document)
 }
 
-/// Invalidates the workspace `document`, just written, belongs to.
-pub(crate) fn changed(document: Document) -> Changed<Document> {
+/// Invalidates the workspace `document`, just written, belongs to, and
+/// keeps what it links to ([`FollowLinksCommand`]). Every write of a
+/// document ends here.
+pub(crate) fn changed(
+    ctx: &mut CommandContext<'_>,
+    document: Document,
+) -> DatabaseCommandResult<Changed<Document>> {
+    ctx.run(FollowLinksCommand::of(&document))?;
     let key = Invalidation::Documents(document.workspace_id);
-    document.invalidating([key])
+    Ok(document.invalidating([key]))
 }
 
 fn create_journal(
@@ -152,7 +162,7 @@ impl DatabaseCommand for CreateDocumentCommand {
             .set(Document::FOLDER_ID, self.folder_id)
             .returning_one()
             .found()?;
-        Ok(changed(document))
+        changed(ctx, document)
     }
 }
 
@@ -179,7 +189,7 @@ impl DatabaseCommand for RenameDocumentCommand {
             .filter_eq(Document::ID, self.document_id)
             .returning_one()
             .found()?;
-        Ok(changed(document))
+        changed(ctx, document)
     }
 }
 
@@ -203,7 +213,7 @@ impl DatabaseCommand for DeleteDocumentCommand {
             .filter_eq(Document::ID, self.document_id)
             .returning_one()
             .found()?;
-        Ok(changed(document))
+        changed(ctx, document)
     }
 }
 
@@ -274,7 +284,7 @@ impl DatabaseCommand for AppendToJournalCommand {
                 .filter_eq(Document::ID, journal.id)
                 .returning_one()
                 .found()?;
-            Ok(saved(ctx, document))
+            saved(ctx, document)
         })
     }
 }
@@ -306,7 +316,7 @@ impl DatabaseCommand for EditJournalCommand {
                 .filter_eq(Document::ID, journal.id)
                 .returning_one()
                 .found()?;
-            Ok(saved(ctx, document))
+            saved(ctx, document)
         })
     }
 }
@@ -336,7 +346,7 @@ impl DatabaseCommand for EditDocumentCommand {
             .filter_eq(Document::ID, self.document_id)
             .returning_one()
             .found()?;
-        Ok(saved(ctx, document))
+        saved(ctx, document)
     }
 }
 
@@ -363,7 +373,7 @@ impl DatabaseCommand for AppendToDocumentCommand {
             .filter_eq(Document::ID, self.document_id)
             .returning_one()
             .found()?;
-        Ok(saved(ctx, document))
+        saved(ctx, document)
     }
 }
 

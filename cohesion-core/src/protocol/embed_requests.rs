@@ -22,3 +22,16 @@ pub struct ResolveEmbedsRequest {
     /// Any Markdown: a document's contents, a task's description, a draft.
     pub text: String,
 }
+
+/// The items whose text links to the item `link` names, as `resolveLink`
+/// resolves each: a link anywhere in their text, alone on its line or in a
+/// sentence, outside code. Only documents and journal entries are followed
+/// so far. The item named needn't exist; text that isn't a `cohesion://`
+/// link fails validation on `link`. `backlinks` of the item's kind and id
+/// says when the list changed.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct BacklinksOfRequest {
+    /// As written in Markdown: `cohesion://task/3/42`, or without its
+    /// workspace, `cohesion://task/42`.
+    pub link: String,
+}

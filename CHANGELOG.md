@@ -7,6 +7,13 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- An item's panel shows Backlinks: the documents and journal entries that
+  link to the item, wherever the link is in their text. Click one to open it
+  over the page. When nothing links to the item, the section doesn't show.
+  Clients ask with `backlinksOf`, which answers with an `Embed` for each
+  linking item, and refetch on the new `backlinks` invalidation of the item's
+  kind and id. When the daemon is upgraded, it fills the list from existing
+  documents.
 - In a document, a journal entry, Today or a task's description, a link to
   an item alone on its line shows as a card of it: a task with its status and
   due day, a document, a resource, an agent, an actor session with where it

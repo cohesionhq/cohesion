@@ -682,4 +682,7 @@ pub enum Command {
     /// Splits Markdown into its text and its embeds, each resolved.
     #[reply(Vec<TextSection>)]
     ResolveEmbeds(ResolveEmbedsRequest),
+    /// The items that link to an item, each resolved as `resolveLink` does.
+    #[reply(Vec<Embed>)]
+    BacklinksOf(BacklinksOfRequest),
 }
