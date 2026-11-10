@@ -70,6 +70,7 @@ const LINK_KINDS: Record<ItemKind, LinkKind> = {
 	resource: 'resource',
 	database: 'database',
 	'database-row': 'databaseRow',
+	contact: 'contact',
 	agent: 'agent',
 	'actor-session': 'actorSession',
 	article: 'article'

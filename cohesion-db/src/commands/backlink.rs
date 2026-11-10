@@ -142,6 +142,7 @@ fn source_link(source: LinkTarget) -> Option<ItemLink> {
         LinkKind::Resource
         | LinkKind::Database
         | LinkKind::DatabaseRow
+        | LinkKind::Contact
         | LinkKind::Agent
         | LinkKind::ActorSession
         | LinkKind::Article => None,

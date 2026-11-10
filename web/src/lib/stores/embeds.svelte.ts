@@ -77,6 +77,8 @@ export function touches(key: Invalidation, link: string, embed: Embed | null): b
 				return workspaceGone || (key.kind === 'documents' && key.id === ws);
 			case 'resource':
 				return workspaceGone || (key.kind === 'resources' && key.id === ws);
+			case 'contact':
+				return workspaceGone || (key.kind === 'contacts' && key.id === ws);
 			case 'agent':
 				return key.kind === 'agent' && key.id === item.agent.id;
 			case 'actorSession':
@@ -100,6 +102,7 @@ const KEYS: Record<ItemKind, Invalidation['kind']> = {
 	resource: 'resources',
 	database: 'databases',
 	'database-row': 'database',
+	contact: 'contacts',
 	agent: 'agent',
 	'actor-session': 'actorSession',
 	article: 'feedArticles'

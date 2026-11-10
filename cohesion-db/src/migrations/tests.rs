@@ -191,6 +191,62 @@ fn search_index_follows_resources() {
 }
 
 #[test]
+fn search_index_follows_contacts() {
+    let db = migrated();
+    db.connection()
+        .execute_batch(
+            "INSERT INTO workspaces (id, title) VALUES (1, 'w');
+             INSERT INTO contacts (id, workspace_id, first_name, middle_name, last_name, notes)
+                 VALUES (1, 1, 'Ada', 'King', 'Lovelace', 'engines'),
+                        (2, 1, 'Grace', NULL, 'Hopper', 'compilers');
+             INSERT INTO contacts (id, workspace_id, first_name, last_name, deleted)
+                 VALUES (3, 1, 'Old', 'Friend', TRUE);",
+        )
+        .unwrap();
+    let contact = |id| ("contact".to_string(), id);
+    assert_eq!(search(&db, "king"), [contact(1)]);
+    assert_eq!(search(&db, "hopper"), [contact(2)]);
+    assert_eq!(search(&db, "compilers"), [contact(2)]);
+    assert!(search(&db, "friend").is_empty());
+    let title: String = db
+        .connection()
+        .query_row(
+            "SELECT search_fts.title FROM search_fts
+             JOIN search_entries e ON e.id = search_fts.rowid
+             WHERE e.entity_kind = 'contact' AND e.entity_id = 2",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(title, "Grace Hopper");
+
+    db.connection()
+        .execute_batch("UPDATE contacts SET last_name = 'Byron', notes = 'poems' WHERE id = 1")
+        .unwrap();
+    assert!(search(&db, "lovelace").is_empty());
+    assert!(search(&db, "engines").is_empty());
+    assert_eq!(search(&db, "byron poems"), [contact(1)]);
+
+    db.connection()
+        .execute_batch("UPDATE contacts SET deleted = TRUE WHERE id = 2")
+        .unwrap();
+    assert!(search(&db, "hopper").is_empty());
+
+    db.connection()
+        .execute_batch("DELETE FROM workspaces WHERE id = 1")
+        .unwrap();
+    let remaining: i64 = db
+        .connection()
+        .query_row(
+            "SELECT (SELECT count(*) FROM search_entries) + (SELECT count(*) FROM search_fts)",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(remaining, 0);
+}
+
+#[test]
 fn only_a_captured_article_has_contents() {
     let db = migrated();
     db.connection()

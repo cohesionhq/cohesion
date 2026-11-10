@@ -342,6 +342,7 @@ fn embed_kind_label(kind: EmbedKind) -> &'static str {
         EmbedKind::Resource => "Resource",
         EmbedKind::Database => "Database",
         EmbedKind::DatabaseRow => "Database row",
+        EmbedKind::Contact => "Contact",
         EmbedKind::Agent => "Agent",
         EmbedKind::ActorSession => "Actor session",
         EmbedKind::Article => "Article",

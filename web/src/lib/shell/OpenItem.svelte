@@ -23,6 +23,7 @@
 		resource: 'Resource not found.',
 		database: 'Database not found.',
 		'database-row': 'Row not found.',
+		contact: 'Contact not found.',
 		'actor-session': 'Session not found.',
 		article: 'Article not found.'
 	};

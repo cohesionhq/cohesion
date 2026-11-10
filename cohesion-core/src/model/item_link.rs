@@ -13,8 +13,9 @@ use serde::{Deserialize, Serialize};
 ///   (a journal entry is a document); `cohesion://task/<id>` and
 ///   `cohesion://document/<id>`, without the workspace, as links were first
 ///   written, still name one, since their ids are unique across workspaces.
-/// - `cohesion://resource/<workspace>/<id>` and
-///   `cohesion://database/<workspace>/<id>`.
+/// - `cohesion://resource/<workspace>/<id>`,
+///   `cohesion://database/<workspace>/<id>` and
+///   `cohesion://contact/<workspace>/<id>`.
 /// - `cohesion://database-row/<workspace>/<database>/<id>`: a row of a
 ///   database.
 /// - `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and
@@ -34,6 +35,10 @@ pub enum ItemLink {
         id: i64,
     },
     Database {
+        workspace_id: i64,
+        id: i64,
+    },
+    Contact {
         workspace_id: i64,
         id: i64,
     },
@@ -57,7 +62,8 @@ pub enum ItemLink {
 /// as text.
 ///
 /// - `"task"`, `"document"` (a journal entry too), `"resource"`,
-///   `"database"`, `"databaseRow"`, `"agent"`, `"actorSession"`, `"article"`.
+///   `"database"`, `"databaseRow"`, `"contact"`, `"agent"`, `"actorSession"`,
+///   `"article"`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, TextEnum, TsWire)]
 #[serde(rename_all = "camelCase")]
 #[text_enum(rename_all = "camelCase")]
@@ -67,6 +73,7 @@ pub enum LinkKind {
     Resource,
     Database,
     DatabaseRow,
+    Contact,
     Agent,
     ActorSession,
     Article,
@@ -90,6 +97,7 @@ impl ItemLink {
             ItemLink::Resource { id, .. } => (LinkKind::Resource, id),
             ItemLink::Database { id, .. } => (LinkKind::Database, id),
             ItemLink::DatabaseRow { id, .. } => (LinkKind::DatabaseRow, id),
+            ItemLink::Contact { id, .. } => (LinkKind::Contact, id),
             ItemLink::Agent { id } => (LinkKind::Agent, id),
             ItemLink::ActorSession { id } => (LinkKind::ActorSession, id),
             ItemLink::Article { id } => (LinkKind::Article, id),
@@ -135,6 +143,7 @@ impl FromStr for ItemLink {
             },
             ("resource", &[workspace_id, id]) => ItemLink::Resource { workspace_id, id },
             ("database", &[workspace_id, id]) => ItemLink::Database { workspace_id, id },
+            ("contact", &[workspace_id, id]) => ItemLink::Contact { workspace_id, id },
             ("database-row", &[workspace_id, database_id, id]) => ItemLink::DatabaseRow {
                 workspace_id,
                 database_id,
@@ -181,6 +190,9 @@ impl fmt::Display for ItemLink {
             }
             ItemLink::Database { workspace_id, id } => {
                 write!(f, "cohesion://database/{workspace_id}/{id}")
+            }
+            ItemLink::Contact { workspace_id, id } => {
+                write!(f, "cohesion://contact/{workspace_id}/{id}")
             }
             ItemLink::DatabaseRow {
                 workspace_id,

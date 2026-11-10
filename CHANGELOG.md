@@ -7,6 +7,15 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- Contacts can be linked and embedded like tasks and documents, as
+  `cohesion://contact/<ws>/<id>`: a link alone on its line shows the
+  contact as a card, `@` and ⌘K find contacts by name or notes, and a
+  contact's panel has Copy link and Backlinks. Contacts are in workspace
+  search (`searchWorkspace` answers `entity_kind` `contact`), `resolveLink`
+  answers an embed of kind `contact`, and `LinkKind` gains `contact`.
+  When the daemon is upgraded, it indexes existing contacts. The iPhone app
+  and other clients that switch on these kinds need the new case.
+
 - An agent's Monitoring list, in the column beside its conversation, has
   Stop following on hover or focus beside Resolve. The agent then no longer
   wakes when that actor session stops, until it tells the session something

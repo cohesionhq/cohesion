@@ -14,6 +14,7 @@ fn every_kind_reads_and_writes_back_as_it_was() {
         "cohesion://resource/3/9",
         "cohesion://database/3/5",
         "cohesion://database-row/3/5/21",
+        "cohesion://contact/3/12",
         "cohesion://agent/3",
         "cohesion://actor-session/143",
         "cohesion://article/88",
@@ -52,6 +53,7 @@ fn anything_else_is_not_an_item_link() {
         "cohesion://agent/3/4",
         "cohesion://article/1/2",
         "cohesion://contact/3",
+        "cohesion://contact/3/12/1",
         "https://example.com/task/3",
         "cohesion://task/99999999999999999999",
     ] {

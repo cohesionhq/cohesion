@@ -6,4 +6,5 @@ export const match = ((param: string): param is WorkspaceItemKind =>
 	param === 'task' ||
 	param === 'document' ||
 	param === 'resource' ||
-	param === 'database') satisfies ParamMatcher;
+	param === 'database' ||
+	param === 'contact') satisfies ParamMatcher;

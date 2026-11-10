@@ -19,6 +19,7 @@ pub async fn run(ctx: &Context, query: Vec<String>) -> Result<(), CliError> {
             SearchEntityKind::Document => "document",
             SearchEntityKind::Task => "task",
             SearchEntityKind::Resource => "resource",
+            SearchEntityKind::Contact => "contact",
         };
         let title = r.title.as_deref().unwrap_or("(untitled)");
         let line = r.contents.lines().map(str::trim).find(|line| {

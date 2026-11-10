@@ -14,8 +14,8 @@ use crate::commands::database_row::{GetDatabaseRowCommand, first_rows, row_of_do
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::{
     CommandContext, CommandError, DatabaseCommand, DatabaseCommandResult, Filtered, Found,
-    GetActorSessionCommand, GetArticleCommand, GetIntelligenceAgentCommand, GetResourceCommand,
-    Read, ReadableDatabase, ValidationError,
+    GetActorSessionCommand, GetArticleCommand, GetContactCommand, GetIntelligenceAgentCommand,
+    GetResourceCommand, Read, ReadableDatabase, ValidationError,
 };
 
 /// `link`, a request's `link` field, as the item link it is, or a validation
@@ -93,6 +93,13 @@ impl DatabaseCommand for ResolveLinkCommand {
                 database_id,
                 id,
             } => database_row(ctx, workspace_id, database_id, id)?,
+            ItemLink::Contact { workspace_id, id } => Embed::contact(
+                GetContactCommand {
+                    workspace_id,
+                    contact_id: id,
+                }
+                .handle(ctx)?,
+            ),
             ItemLink::Agent { id } => {
                 Embed::agent(GetIntelligenceAgentCommand { agent_id: id }.handle(ctx)?)
             }
