@@ -67,6 +67,13 @@ pub(super) struct FormulaPool {
 }
 
 impl FormulaPool {
+    /// Ends every worker's thread once its queue has drained.
+    pub(super) async fn stop(&self) {
+        for worker in self.workers.iter() {
+            worker.stop().await;
+        }
+    }
+
     pub(super) fn new() -> Self {
         Self::with_options(WORKERS, SandboxOptions::FORMULA)
     }

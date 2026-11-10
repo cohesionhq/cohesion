@@ -496,6 +496,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cohesion-bench"
+version = "0.1.0"
+dependencies = [
+ "cohesion-js",
+ "cohesionkit",
+ "jiff",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "cohesion-core"
 version = "0.1.0"
 dependencies = [

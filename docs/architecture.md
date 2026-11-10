@@ -68,7 +68,8 @@ package, the web UI in `web/`. No crate declares cargo `[features]`.
 | `cohesion-internet-harness` | bin, `publish = false` | A tool: `cargo run -p cohesion-internet-harness -- page <url>` or `feed <url>` prints the Markdown the daemon would store, for building Coherence's rules. Nothing depends on it. | cohesion-core, cohesion-internet |
 | `cohesion-js` | lib | The QuickJS script runtime (rquickjs): `ScriptEngine` and its worker pools, `Sandbox`, globals and `Mount`, JS entities, `script_api` (which yields the `.d.ts`), `service_declarations`, `AgentRole`, and the traits a higher crate implements: `ConnectorAccess`, `ServiceAccess`, `ActorAccess`. Strips TypeScript with `swc_ts_fast_strip`; vendors the Pele diagram renderer in `vendor/pele`. | cohesion-core, cohesion-db, cohesion-internet, cohesion-macros |
 | `cohesion-intelligence` | lib | LLM conversations: provider backends (`providers/`), the models.dev catalog (`catalog/`), `Session` and its tools, `AgentCoordinator` and the agent machinery (`agents/`), `SpendLimits`, and the `AccountCredentials` trait. | cohesion-core, cohesion-db, cohesion-js |
-| `cohesionkit` | lib (+ `build.rs`) | The facade the daemon builds on: `CohesionContext`, the `Route` impls (`routes/`), hooks (`hooks/`), database formula passes (`database_formulas.rs`), `ExtensionManager`, connectors, feeds, periodic cleanup, `Security`, `Presence`, `CapabilityClients`, `ActorSessions`, `EndpointRelay`, `PendingImport`, and `web_bundle` (the web UI compiled into the binary). | all of the above but the harness |
+| `cohesionkit` | lib (+ `build.rs`) | The facade the daemon builds on: `CohesionContext`, the `Route` impls (`routes/`), hooks (`hooks/`), database formula passes (`database_formulas.rs`), `ExtensionManager`, connectors, feeds, periodic cleanup, `Security`, `Presence`, `CapabilityClients`, `ActorSessions`, `EndpointRelay`, `PendingImport`, and `web_bundle` (the web UI compiled into the binary). | all of the above but the harness and the bench |
+| `cohesion-bench` | lib + bin, `publish = false` | A tool: scores language models on Cohesion's agent, tools and script API. Each run of a case builds the daemon's `CohesionContext` on a scratch database, sends the case's prompt to a new agent on the model under test, and checks the result with the case's `validate.ts`; it writes `report.html`, `cases.csv` and `summary.csv` ([24](#24-testing)). Nothing depends on it. | cohesionkit, cohesion-js |
 | `cohesiond` | bin | The daemon: opens the database, builds `CohesionContext`, prints the first setup code, serves HTTPS with client certificates and a Unix socket until a signal. Also `examples/fake_actor.rs`, a minimal actor client. | cohesionkit |
 | `cohesion` | bin | The CLI: `setup`, `api`, the noun commands (`cli/`), and `open`, the loopback proxy that serves the web UI (`web_proxy/`). Never links rusqlite, rquickjs or cohesion-intelligence. | cohesion-core |
 
@@ -85,6 +86,7 @@ flowchart BT
   kit --> daemon[cohesiond]
   core --> cli[cohesion CLI]
   net --> harness[cohesion-internet-harness]
+  kit --> bench[cohesion-bench]
   web[web/ build] -. build.rs compresses it in .-> kit
 ```
 
@@ -143,6 +145,7 @@ and the release profile strips symbols without LTO (set
 | Install the daemon only | `scripts/install-server.sh` (web UI, then `cargo install --path cohesiond`) |
 | Install the CLI only | `scripts/install-cli.sh` (`cargo install --path cohesion`; the CLI doesn't hold the web UI) |
 | Try an actor client | `cargo run -p cohesiond --example fake_actor -- <socket> [name]` |
+| Benchmark models | `cargo run -p cohesion-bench -- setup`, then `cargo run --release -p cohesion-bench -- run` ([24](#24-testing)) |
 
 **The web UI**, from `web/` (`web/package.json`):
 
@@ -343,7 +346,8 @@ certificate and setup key. `Security` remembers refused pairings for at most
 1. `work.close()`: `WorkTracker` refuses new work. Every request on every transport is answered "Cohesion is shutting down. Try again once it has restarted.", and so are `/register`, offers, day-clock ticks and timed passes; running work may still start follow-on work (hooks, cue runs, scripts, model calls). Running activities are cancelled. The listeners keep answering.
 2. `hooks.settle_all()`: every `journal:settled` and `document:settled` hook still waiting is queued now ([7](#7-hooks-and-events)).
 3. `work.idle()`: wait for all work.
-4. `database.close()`: run what is queued, then `ShutdownCleanupCommand` as the last write, then drop the connection. In one transaction it runs `SettleAgentThreadMarksCommand`, `SettleAgentActivityCommand`, `SettleActivitiesCommand`, `SettleActorSessionsCommand` and `SettleAgentAsksCommand` (`cohesion-db/src/commands/shutdown_cleanup.rs`). Startup runs it again, for a daemon that crashed. State a stopped daemon must not leave behind is one more `ctx.run` there.
+4. `script_engine.shutdown()`: every script worker thread, scoped ones included, ends once its queue has drained; a script submitted after is cancelled. Without it the threads would outlive the context, since the engine's clones hold one another.
+5. `database.close()`: run what is queued, then `ShutdownCleanupCommand` as the last write, then drop the connection. In one transaction it runs `SettleAgentThreadMarksCommand`, `SettleAgentActivityCommand`, `SettleActivitiesCommand`, `SettleActorSessionsCommand` and `SettleAgentAsksCommand` (`cohesion-db/src/commands/shutdown_cleanup.rs`). Startup runs it again, for a daemon that crashed. State a stopped daemon must not leave behind is one more `ctx.run` there.
 
 Every 5 seconds the daemon logs what it is still waiting for. After 5 minutes,
 or a second signal, it stops waiting, still closes the database, and exits 1.
@@ -2623,6 +2627,7 @@ Settings › Security lists the security events.
 | `cohesiond` | Sessions (`session/tests.rs`, with a `FakeExchange` in place of a socket), the first-byte timeout, PROXY headers, the unknown-peer cache, the local handshake | tokio's paused time |
 | `cohesion` | Argument definitions, `cohesion open`'s guard, launch link and token | tower's `ServiceExt` |
 | `cohesion-core` | Models (`tests/model.rs`) and core helpers | |
+| `cohesion-bench` | Every bench case fails on its starting data and passes after its `solution.ts` (`every_case_can_fail_and_pass`); a run's metrics match what Cohesion recorded; the scores | A scratch `CohesionContext`, and a local server speaking Chat Completions |
 | `web/` | Stores against the mock daemon, the connection (with an injected WebSocket), formatting and UI helpers (`src/**/*.test.ts`) | Vitest in Node, with `vocabulary.setup.ts`. There are no component or end-to-end tests: components are checked by `svelte-check`, lint and the build, and then by eye in mock mode. |
 
 Unit tests live out of line: `#[cfg(test)] mod tests;` at the end of a file,
@@ -2643,6 +2648,50 @@ scratch config directory and socket ("Running it locally" in `CLAUDE.md`), for e
 `target/debug/cohesiond -c /tmp/cohesion-smoke --socket /tmp/cs.sock --port 3100`
 then `target/debug/cohesion -c /tmp/cohesion-smoke/client setup --local /tmp/cs.sock`,
 or the web UI with `VITE_MOCK=1 npm run dev`.
+
+**Benchmarking models** (`cohesion-bench`). The bench scores how well a
+model does Cohesion's work through its real agent: the same
+`CohesionContext`, system prompt, tools, script API and provider backends
+the daemon runs, built from the same commit, so a change to a tool's
+definition or the API shows up in the next run with nothing to update.
+Its cases live in `cohesion-bench/cases/`, one directory each, written in
+TypeScript against the script API's declarations; the case format is in
+[the cases' README](../cohesion-bench/cases/README.md). A case starts from
+a starting state (`cases/states/`), plain data that `StartingState`
+(`starting_state.rs`) reads and the prelude applies through the script API.
+The bench scores outcomes: a check reads the data the agent left and what
+it told the user, never which tools it used. Every prompt starts with the
+nearest `prompt-prelude.md` (the case's directory, its category's, then
+`cases/`'s); the root one tells the agent not to ask, since no one answers
+during a run, and doing the work in fewer steps shows in efficiency.
+Whether it asks at the right times is scored apart, by the cases in
+`cases/alignment/`, whose empty prelude leaves only Cohesion's own
+instructions. A case can name an `answer`, which the bench gives once the
+first turn ends, picking the matching option of the agent's choice
+(`RespondToAgentChoice`) or sending it as a message, so the case also
+checks that the agent follows through.
+`cohesion-bench validate` and the crate's tests check that every case fails
+on its starting data and passes after its solution, so a script API change
+that breaks a case fails `cargo test`; fix the case in the same commit.
+
+`cohesion-bench setup` saves the providers, their API keys, the models and
+the options to `cohesion-bench/bench.json` (git-ignored, readable by its
+owner only), asking for each on a terminal or taking flags; `run` starts
+from it, each flag overriding it. Each run of a case gets a scratch
+database of its own under `target/cohesion-bench/<time>/runs/`. A run is
+measured from what Cohesion recorded: whether `validate.ts` passed, tool
+accuracy (the share of tool calls in its threads that succeeded), cost and
+tokens (its cost events), wall time, and turn metrics (model calls, tool
+calls, documentation lookups, messages sent, questions asked). Four
+scores summarise a model (`score.rs`), each 0 to 100 and comparable across
+runs: accuracy (passes weighted by difficulty, 1 to 3, alignment cases
+aside), efficiency (over those passed runs, tokens, model calls and time
+against fixed references by difficulty), overall (accuracy<sup>0.7</sup> ×
+efficiency<sup>0.3</sup>) and alignment (accuracy over the alignment cases
+alone).
+A run writes `report.html`, `cases.csv` (one row per run) and `summary.csv`
+(one row per model). It calls real providers and costs money; `validate`
+and the tests don't.
 
 **The rules in [conventions.md](conventions.md).** Write tests for low-level behaviour a
 regression would quietly break: the JS runtime (sandbox isolation, worker
