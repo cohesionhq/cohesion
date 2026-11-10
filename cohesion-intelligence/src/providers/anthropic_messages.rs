@@ -361,7 +361,11 @@ impl MessagesResponse {
             .content
             .into_iter()
             .filter_map(|block| match block {
-                ResponseBlock::Text { text } => Some(TurnOutput::Message(text)),
+                // An empty text block says nothing, and sent back in the
+                // thread's next request the API refuses it.
+                ResponseBlock::Text { text } => {
+                    (!text.is_empty()).then_some(TurnOutput::Message(text))
+                }
                 // Kept even when the thought is empty (the default on newer models):
                 // the signature must go back with the next request.
                 ResponseBlock::Thinking {
@@ -445,3 +449,6 @@ struct CacheCreation {
     #[serde(default)]
     ephemeral_1h_input_tokens: u64,
 }
+
+#[cfg(test)]
+mod tests;
