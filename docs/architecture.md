@@ -2333,7 +2333,7 @@ socket.
 
 **External input is bounded.** Fetched pages and feeds: 5 MiB and 20 s.
 Script fetches: 20 s and 32 MiB. Model requests: 30 s to connect, 10 minutes
-to finish. Extension downloads: 5 MiB and 20 s. Catalogs, feeds and pages are
+to finish. The models.dev catalog: 60 s. Extension downloads: 5 MiB and 20 s. Catalogs, feeds and pages are
 parsed defensively.
 
 **Logging** (`cohesion-core/src/log/`). `log_debug!`, `log_info!`,
