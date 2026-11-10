@@ -17,6 +17,7 @@
 	import EmptyState from '$lib/ui/EmptyState.svelte';
 	import PageHeader from '$lib/ui/PageHeader.svelte';
 	import RowMenu from '$lib/ui/RowMenu.svelte';
+	import { asksForNew } from '$lib/shell/shortcuts.svelte';
 
 	const { databases } = pageStores();
 
@@ -39,7 +40,17 @@
 		const database = await databases.create(ws, title);
 		void page.goto(routes.database(ws, database.id));
 	}
+
+	/** ⌘N opens the new-database dialog, unless a dialog is already open. */
+	function onWindowKey(event: KeyboardEvent) {
+		if (event.target instanceof HTMLElement && event.target.closest('[role="dialog"]')) return;
+		if (!asksForNew(event)) return;
+		event.preventDefault();
+		creating = true;
+	}
 </script>
+
+<svelte:window onkeydown={onWindowKey} />
 
 <PageTitle title="Databases" />
 

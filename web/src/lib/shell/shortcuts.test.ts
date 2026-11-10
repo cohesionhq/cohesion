@@ -3,6 +3,8 @@ import { pressesKey } from './keys';
 import {
 	historyStepFor,
 	historyStepForButton,
+	asksForNew,
+	asksForNewFolder,
 	opensSettings,
 	showsShortcuts
 } from './shortcuts.svelte';
@@ -81,5 +83,20 @@ describe('pressesKey', () => {
 		expect(pressesKey(press('Digit2', '2'), '1')).toBe(false);
 		expect(pressesKey(press('Digit1', '1', { metaKey: true }), '1')).toBe(false);
 		expect(pressesKey(press('Digit1', '1', { altKey: true }), '1')).toBe(false);
+	});
+});
+
+describe('asksForNew and asksForNewFolder', () => {
+	it('takes ⌘N or Ctrl+N for a new item', () => {
+		expect(asksForNew(press('KeyN', 'n', { metaKey: true }))).toBe(true);
+		expect(asksForNew(press('KeyN', 'n', { ctrlKey: true }))).toBe(true);
+		expect(asksForNew(press('KeyN', 'n'))).toBe(false);
+		expect(asksForNew(press('KeyN', 'N', { metaKey: true, shiftKey: true }))).toBe(false);
+		expect(asksForNew(press('KeyN', 'n', { metaKey: true, altKey: true }))).toBe(false);
+	});
+	it('takes the shifted chord for a new folder', () => {
+		expect(asksForNewFolder(press('KeyN', 'N', { metaKey: true, shiftKey: true }))).toBe(true);
+		expect(asksForNewFolder(press('KeyN', 'N', { ctrlKey: true, shiftKey: true }))).toBe(true);
+		expect(asksForNewFolder(press('KeyN', 'n', { metaKey: true }))).toBe(false);
 	});
 });
