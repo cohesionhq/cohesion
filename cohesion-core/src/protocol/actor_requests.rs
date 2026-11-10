@@ -43,6 +43,31 @@ pub struct SearchActorSessionsRequest {
     pub query: String,
 }
 
+/// Lists the subagents actor session `session_id`'s actor launched from it,
+/// one level down, first launched first. A subagent's own are listed by its
+/// id.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct ListActorSubagentsRequest {
+    pub session_id: i64,
+}
+
+/// Lists actor session `session_id`'s family: the session Cohesion started
+/// that it is, or runs under at any depth, then every subagent beneath that,
+/// each after the one it runs under, first launched first.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct ListActorSessionFamilyRequest {
+    pub session_id: i64,
+}
+
+/// Lists the requests waiting on the user in actor session `session_id`'s
+/// subagents, at any depth, oldest first: each a question, permission or
+/// plan no one has responded to, of a subagent still going. A response goes
+/// to the subagent's own session id, as for any request.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct ListUnansweredSubagentRequestsRequest {
+    pub session_id: i64,
+}
+
 /// Fetches actor session `id`.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct GetActorSessionRequest {

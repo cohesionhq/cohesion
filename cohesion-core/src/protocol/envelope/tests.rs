@@ -6,7 +6,7 @@
 
 use super::*;
 use crate::model::{ActorMessageContent, ActorToolKind};
-use crate::protocol::{ActorSessionReport, ListCatalogModelsRequest};
+use crate::protocol::{ActorSessionReport, ListCatalogModelsRequest, SubagentLaunch};
 
 fn decode(json: &str) -> Result<Request, serde_json::Error> {
     serde_json::from_str(json)
@@ -101,6 +101,44 @@ fn an_end_is_read_only_as_end() {
         })
     ));
     assert!(end("toolEnd").is_err());
+}
+
+#[test]
+fn a_report_names_a_subagent_by_key_and_a_launch_reads_its_fields() {
+    let frame: ClientFrame = serde_json::from_str(
+        r#"{"type":"actorSessionUpdate","id":5,"session_id":12,"subagent":"a1b2","kind":"launch","title":"Map the db layer","message_id":311,"agent_type":"Explore","background":true}"#,
+    )
+    .unwrap();
+    let ClientFrame::ActorSessionUpdate(ActorSessionUpdate {
+        session_id: 12,
+        subagent: Some(subagent),
+        report: ActorSessionReport::Launch(launch),
+        ..
+    }) = frame
+    else {
+        panic!("not a launch");
+    };
+    assert_eq!(subagent, "a1b2");
+    assert_eq!(
+        launch,
+        SubagentLaunch {
+            title: "Map the db layer".to_string(),
+            parent: None,
+            message_id: Some(311),
+            agent_type: Some("Explore".to_string()),
+            model: None,
+            background: true,
+        }
+    );
+    // Left out, a report is about the session itself.
+    let frame: ClientFrame = serde_json::from_str(
+        r#"{"type":"actorSessionUpdate","id":6,"session_id":12,"kind":"title","title":"Fix it"}"#,
+    )
+    .unwrap();
+    assert!(matches!(
+        frame,
+        ClientFrame::ActorSessionUpdate(ActorSessionUpdate { subagent: None, .. })
+    ));
 }
 
 #[test]

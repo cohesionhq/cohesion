@@ -4320,6 +4320,27 @@ pub const MIGRATIONS: &[Migration] = &[
             SELECT RAISE(ABORT, 'A document is filed only in a live folder of its workspace.');
         END;",
     },
+    // A session's actor can launch subagents, each a session of its own one
+    // level down, which goes with the session above it. The client names
+    // each by its own id, unique among its actor's subagents; the session
+    // above holds the tool use that launched it, while that stays.
+    Migration {
+        name: "actor_subagents",
+        sql: "
+        ALTER TABLE actor_sessions ADD COLUMN parent_session_id INTEGER
+            REFERENCES actor_sessions(id) ON DELETE CASCADE
+            CHECK (parent_session_id IS NOT id);
+        ALTER TABLE actor_sessions ADD COLUMN subagent_key TEXT
+            CHECK ((subagent_key IS NULL) = (parent_session_id IS NULL));
+        ALTER TABLE actor_sessions ADD COLUMN subagent_type TEXT;
+        ALTER TABLE actor_sessions ADD COLUMN subagent_message_id INTEGER
+            REFERENCES actor_session_messages(id) ON DELETE SET NULL;
+        ALTER TABLE actor_sessions ADD COLUMN subagent_background BOOLEAN NOT NULL DEFAULT FALSE;
+        CREATE INDEX actor_sessions_parent ON actor_sessions(parent_session_id)
+            WHERE parent_session_id IS NOT NULL;
+        CREATE UNIQUE INDEX actor_sessions_subagent_key ON actor_sessions(actor_id, subagent_key)
+            WHERE subagent_key IS NOT NULL;",
+    },
 ];
 
 #[cfg(test)]

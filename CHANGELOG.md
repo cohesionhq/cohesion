@@ -23,6 +23,18 @@ under "Unreleased" with any change users would notice.
   links that stand alone on their lines, each resolved, so a client can show
   them as cards without reading links itself. The iPhone app can show cards
   from it; until it does, it shows the new kinds as plain links.
+- An actor session shows its subagents. In its transcript, the tool use that
+  launched one is its line, with where it stands, which opens it as a thread
+  of its own, read-only, with a way back up to the session; the column beside
+  shows the session's family, the top session and every subagent nested by
+  depth with the open one marked, and what a subagent asks can be answered in
+  the session. Actor
+  clients announce a subagent with a new `launch` report and report into it
+  with `subagent` on `actorSessionUpdate`, and answers reach it with
+  `subagent` on `sendActorSessionMessage`; the wire gains
+  `listActorSubagents`, `listActorSessionFamily`,
+  `listUnansweredSubagentRequests` and `subagent` on `ActorSession`. The actor clients and the iPhone app need the same to show
+  them; a client that doesn't report subagents works as before.
 - `cohesion setup` without `--name` names the client after the computer and
   the client, such as `apollo (CLI)`, instead of the hostname alone, so
   clients on one computer can be told apart in Settings › Clients and in actor

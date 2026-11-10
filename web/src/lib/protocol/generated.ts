@@ -315,6 +315,13 @@ export interface ActorSession {
 	 * each time it stops on its own; `null` when none does.
 	 */
 	follower: ActorSessionFollower | null;
+	/**
+	 * What makes it a subagent: the session one level up whose actor
+	 * launched it, and how; `null` for a session Cohesion started. A
+	 * subagent leaves the lists, has no activity, is never unread and wakes
+	 * no follower; it goes with the session above it.
+	 */
+	subagent: ActorSubagent | null;
 }
 
 /**
@@ -401,6 +408,36 @@ export type ActorSessionStatus = 'working' | 'needsAttention' | 'idle' | 'failed
  * - `"interrupted"`: the session's device went away mid-turn.
  */
 export type ActorSessionStop = 'needsYou' | 'finished' | 'failed' | 'interrupted';
+
+/**
+ * A subagent: a session an actor launched from inside another to do part
+ * of its work, such as Claude Code's Task tool. Its client reports into it
+ * under the session Cohesion started, naming it by `key`.
+ */
+export interface ActorSubagent {
+	/**
+	 * The session one level up: the one Cohesion started, or another
+	 * subagent.
+	 */
+	parent_session_id: number;
+	/** The client's own id for it, unique among its actor's subagents. */
+	key: string;
+	/**
+	 * What kind of subagent the actor launched, as it names them, such as
+	 * "Explore"; `null` when it didn't say.
+	 */
+	agent_type: string | null;
+	/**
+	 * The tool use in the transcript one level up that launched it; `null`
+	 * when the client didn't say.
+	 */
+	message_id: number | null;
+	/**
+	 * Whether it runs in the background, going on after the tool use that
+	 * launched it has ended.
+	 */
+	background: boolean;
+}
 
 /**
  * What kind of tool an actor ran, which its client decides from the
@@ -2721,6 +2758,15 @@ export interface ListActivitiesRequest {
 }
 
 /**
+ * Lists actor session `session_id`'s family: the session Cohesion started
+ * that it is, or runs under at any depth, then every subagent beneath that,
+ * each after the one it runs under, first launched first.
+ */
+export interface ListActorSessionFamilyRequest {
+	session_id: number;
+}
+
+/**
  * Lists the images attached to actor session message `message_id`, in the
  * order sent.
  */
@@ -2739,6 +2785,15 @@ export interface ListActorSessionMessagesRequest {
  */
 export interface ListActorSessionsRequest {
 	actor_id?: number | null;
+}
+
+/**
+ * Lists the subagents actor session `session_id`'s actor launched from it,
+ * one level down, first launched first. A subagent's own are listed by its
+ * id.
+ */
+export interface ListActorSubagentsRequest {
+	session_id: number;
 }
 
 /** Lists agent `agent_id`'s cues, oldest first. */
@@ -2922,6 +2977,16 @@ export interface ListTasksRequest {
 	offset?: number;
 	/** The most tasks to list: 50 when absent, and never over 500. */
 	limit?: number | null;
+}
+
+/**
+ * Lists the requests waiting on the user in actor session `session_id`'s
+ * subagents, at any depth, oldest first: each a question, permission or
+ * plan no one has responded to, of a subagent still going. A response goes
+ * to the subagent's own session id, as for any request.
+ */
+export interface ListUnansweredSubagentRequestsRequest {
+	session_id: number;
 }
 
 /**
@@ -5275,6 +5340,21 @@ export interface Requests {
 	listActorSessions: ListActorSessionsRequest;
 	getActorSession: GetActorSessionRequest;
 	/**
+	 * Lists an actor session's subagents, one level down, first launched
+	 * first.
+	 */
+	listActorSubagents: ListActorSubagentsRequest;
+	/**
+	 * Lists an actor session's family: the session Cohesion started, then
+	 * every subagent beneath it, each after the one it runs under.
+	 */
+	listActorSessionFamily: ListActorSessionFamilyRequest;
+	/**
+	 * Lists the requests waiting on the user in an actor session's
+	 * subagents, oldest first.
+	 */
+	listUnansweredSubagentRequests: ListUnansweredSubagentRequestsRequest;
+	/**
 	 * Full-text matches among actor sessions' titles and transcripts, best
 	 * first.
 	 */
@@ -5758,6 +5838,21 @@ export interface Replies {
 	/** Lists actor sessions, latest status change first. */
 	listActorSessions: ActorSession[];
 	getActorSession: ActorSession;
+	/**
+	 * Lists an actor session's subagents, one level down, first launched
+	 * first.
+	 */
+	listActorSubagents: ActorSession[];
+	/**
+	 * Lists an actor session's family: the session Cohesion started, then
+	 * every subagent beneath it, each after the one it runs under.
+	 */
+	listActorSessionFamily: ActorSession[];
+	/**
+	 * Lists the requests waiting on the user in an actor session's
+	 * subagents, oldest first.
+	 */
+	listUnansweredSubagentRequests: ActorSessionMessage[];
 	/**
 	 * Full-text matches among actor sessions' titles and transcripts, best
 	 * first.
