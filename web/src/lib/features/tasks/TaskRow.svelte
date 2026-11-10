@@ -6,8 +6,8 @@
 	agents and the workspace's contacts, its priority flag, and an overflow
 	menu, whose "Move to" opens the folders beside it, "Tags" its tags,
 	"Assign to" the same choices as the assignee, "Size" the sizes, and
-	"Forward" the agents to send it to. The line under the title names, when the task has them, its
-	#id, its size, its days, its list and its tags, in that order. Only the description opens a dialog. Views that span folders pass
+	"Forward" the agents to send it to. The line under the title shows, when the task has them, its
+	#id, its priority (a disc), its size, who it is assigned to, its list, its tags and a notes pill, in that order. Only the description opens a dialog. Views that span folders pass
 	`folder` to name the task's list under its title, beside its tags;
 	`showId` puts the task's #id first in that line.
 	The title button is the row's keyboard focus; arrow and j/k presses go
@@ -17,7 +17,6 @@
 <script lang="ts">
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
-	import Flag from '@lucide/svelte/icons/flag';
 	import NotebookText from '@lucide/svelte/icons/notebook-text';
 	import PanelRightOpen from '@lucide/svelte/icons/panel-right-open';
 	import Ruler from '@lucide/svelte/icons/ruler';
@@ -37,7 +36,8 @@
 	import DayPicker from './DayPicker.svelte';
 	import { assigneeId, NO_ONE } from './assignee';
 	import { assignees } from './assignees.svelte';
-	import { PRIORITY_KEYS, priorityOf } from './priority';
+	import { PRIORITY_KEYS } from './priority';
+	import PriorityBadge from './PriorityBadge.svelte';
 	import PriorityMenu from './PriorityMenu.svelte';
 	import { scheduleChips } from './schedule';
 	import { sizeOf, sizes } from './size';
@@ -104,7 +104,6 @@
 	const chips = $derived(scheduleChips(task));
 	const tagged = $derived(tagsOn(tags, task.tag_ids));
 	const assignee = $derived(assignees.shown(task.assignee, contacts));
-	const priority = $derived(priorityOf(task.priority));
 
 	$effect(() => {
 		if (task.assignee?.kind === 'user') assignees.loadProfile();
@@ -315,6 +314,8 @@
 			{#if twoLines}
 				<div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-subtle">
 					{#if showId}<span>#{task.id}</span>{/if}
+					<!-- What is set reads in the line, the priority as a disc; the row's buttons that change it show on hover. -->
+					{#if task.priority !== 'none'}<PriorityBadge priority={task.priority} />{/if}
 					{#if task.size !== null}
 						{@const size = sizeOf(task.size)}
 						<span
@@ -328,12 +329,6 @@
 							{size.label}
 						</span>
 					{/if}
-					<!-- What is set reads in the line, in words; the row's buttons that change it show on hover. -->
-					{#if task.priority !== 'none'}
-						<span class={['inline-flex items-center gap-1', priority.tone]}>
-							<Flag size={12} strokeWidth={2} aria-hidden="true" />{priority.label}
-						</span>
-					{/if}
 					{#if assignee}
 						<span class="inline-flex items-center gap-1">
 							<Avatar who={assignee.avatar} />{assignee.label}
@@ -341,16 +336,13 @@
 					{/if}
 					{#if folder !== undefined}<span>{folder}</span>{/if}
 					<TagPills tags={tagged} />
-					<!-- A task with a description says so in its line, in a word as everything else there is,
+					<!-- A task with a description says so in its line, in a pill like its tags,
 					     as the trailing details button shows only on hover. -->
 					{#if task.description !== ''}
-						<span class="inline-flex items-center gap-1">
-							<NotebookText
-								class="flex-none"
-								size={12}
-								strokeWidth={1.75}
-								aria-hidden="true"
-							/>Notes
+						<span
+							class="inline-flex h-4.5 flex-none items-center gap-1 rounded-full bg-current-item px-1.75 text-2xs leading-none font-medium text-fg-muted"
+						>
+							<NotebookText size={10} strokeWidth={2} aria-hidden="true" />Notes
 						</span>
 					{/if}
 				</div>
