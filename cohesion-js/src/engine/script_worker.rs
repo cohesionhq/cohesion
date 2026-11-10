@@ -18,6 +18,7 @@ use tokio::time::Instant;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval_at;
 
+use super::formula_pool::FormulaJob;
 use super::hosts::Hosts;
 use super::mermaid_pool::MermaidJob;
 use super::pressure_guard::PressureGuard;
@@ -116,6 +117,25 @@ impl ScriptWorker<MermaidJob> {
             let mut renderer = None;
             while let Some(request) = rx.blocking_recv() {
                 survive_panic(|| request.job.run(&mut renderer, options, queue_limit));
+            }
+        });
+        Self {
+            tx,
+            pressure: Arc::new(AtomicI64::new(0)),
+        }
+    }
+}
+
+impl ScriptWorker<FormulaJob> {
+    /// A worker that computes formulas with one runtime it keeps between
+    /// jobs, with the formulas it compiled, held to `options`. A panic in a
+    /// job costs only that job, and the runtime with it.
+    pub(super) fn formula(options: SandboxOptions) -> Self {
+        let (tx, mut rx) = mpsc::channel::<ScriptRequest<FormulaJob>>(64);
+        thread::spawn(move || {
+            let mut runtime = None;
+            while let Some(request) = rx.blocking_recv() {
+                survive_panic(|| request.job.run(&mut runtime, options));
             }
         });
         Self {

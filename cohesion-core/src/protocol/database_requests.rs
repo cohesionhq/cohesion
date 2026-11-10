@@ -49,13 +49,30 @@ pub struct ListDatabasePropertiesRequest {
     pub database_id: i64,
 }
 
-/// Adds a property to a database, after its others.
+/// Adds a property to a database, after its others: a formula computing
+/// its values from `formula`'s source (see `DatabaseFormula`), or one whose
+/// values are set by hand when absent.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+#[ts_wire(input)]
 pub struct CreateDatabasePropertyRequest {
     pub workspace_id: i64,
     pub database_id: i64,
     pub name: String,
     pub data_type: DatabaseDataType,
+    pub formula: Option<String>,
+}
+
+/// Makes property `property_id` of a database a formula computing its
+/// values from `formula`'s source, or changes its source; with `formula`
+/// absent, makes it a property set by hand again, keeping its last outputs
+/// as values. A property becoming a formula loses the values set by hand.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+#[ts_wire(input)]
+pub struct SetDatabasePropertyFormulaRequest {
+    pub workspace_id: i64,
+    pub database_id: i64,
+    pub property_id: i64,
+    pub formula: Option<String>,
 }
 
 /// Renames property `property_id` of a database.
@@ -175,7 +192,8 @@ pub struct DeleteDatabaseRowRequest {
 }
 
 /// Sets row `row_id`'s value for property `property_id`, which must be of
-/// the property's type, or empties it when `value` is absent.
+/// the property's type, or empties it when `value` is absent; refused for a
+/// formula, whose values are computed.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 #[ts_wire(input)]
 pub struct SetDatabaseValueRequest {

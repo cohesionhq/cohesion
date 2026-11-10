@@ -9,6 +9,9 @@
 use cohesion_macros::{Model, TextEnum, TsWire};
 use serde::{Deserialize, Serialize};
 
+use crate::stored_model::ColumnGroup;
+use crate::value::{IntoValue, Row, RowError, Value, read_column};
+
 /// A table of typed values in a workspace.
 #[derive(Clone, Debug, Serialize, Deserialize, Model, TsWire)]
 #[model(table = "databases", backup = Included)]
@@ -55,9 +58,54 @@ pub struct DatabaseProperty {
     pub id: i64,
     pub database_id: i64,
     pub name: String,
+    /// The type of the property's values; a formula's outputs must be of it.
     pub data_type: DatabaseDataType,
     /// Where the property sits among its database's; lower comes first.
     pub sort_order: i64,
+    /// What computes the property's values, or `null` for a property whose
+    /// values are set by hand.
+    #[model(group)]
+    pub formula: Option<DatabaseFormula>,
+}
+
+/// A property whose value in each row is computed by a JavaScript function
+/// of the row, such as `(row) => row.Price * row.Quantity`. The row maps
+/// each property that isn't a formula, by name, to its value: a string for
+/// text and dates (`"YYYY-MM-DD"`), a number for whole numbers, decimals and
+/// currency, a boolean for a checkbox, and `null` when empty. The function
+/// returns a value of the property's type (the same shapes), or `null` or
+/// `undefined` for an empty cell. Its outputs are stored like any value, so
+/// rows filter and sort on them; the daemon computes them again whenever
+/// the row's values, the database's properties or the source change.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, TsWire)]
+pub struct DatabaseFormula {
+    /// The function, in JavaScript or TypeScript.
+    pub source: String,
+    /// Why the last computation failed for a row (the function threw, ran
+    /// too long or returned a value of another type), leaving that cell
+    /// empty, or `null` once every row computes.
+    pub error: Option<String>,
+}
+
+/// A property's formula as two columns, `formula_source` and
+/// `formula_error`; the table's check keeps an error from outliving its
+/// source.
+impl ColumnGroup for Option<DatabaseFormula> {
+    const COLUMNS: &'static [&'static str] = &["formula_source", "formula_error"];
+
+    fn from_row(row: &dyn Row) -> Result<Self, RowError> {
+        let source: Option<String> = read_column(row, "formula_source")?;
+        let error: Option<String> = read_column(row, "formula_error")?;
+        Ok(source.map(|source| DatabaseFormula { source, error }))
+    }
+
+    fn into_values(self) -> Vec<Value> {
+        let (source, error) = match self {
+            Some(DatabaseFormula { source, error }) => (Some(source), error),
+            None => (None, None),
+        };
+        vec![source.into_value(), error.into_value()]
+    }
 }
 
 /// An entry of a database, which holds its values; it may have a document

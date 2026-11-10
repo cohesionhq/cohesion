@@ -1287,12 +1287,17 @@ export interface CreateContactRequest {
 	methods: NewContactMethod[];
 }
 
-/** Adds a property to a database, after its others. */
+/**
+ * Adds a property to a database, after its others: a formula computing
+ * its values from `formula`'s source (see `DatabaseFormula`), or one whose
+ * values are set by hand when absent.
+ */
 export interface CreateDatabasePropertyRequest {
 	workspace_id: number;
 	database_id: number;
 	name: string;
 	data_type: DatabaseDataType;
+	formula?: string | null;
 }
 
 /** Creates a database with no properties or rows in a workspace. */
@@ -1542,6 +1547,28 @@ export interface DatabaseFilter {
 	condition: DatabaseCondition;
 }
 
+/**
+ * A property whose value in each row is computed by a JavaScript function
+ * of the row, such as `(row) => row.Price * row.Quantity`. The row maps
+ * each property that isn't a formula, by name, to its value: a string for
+ * text and dates (`"YYYY-MM-DD"`), a number for whole numbers, decimals and
+ * currency, a boolean for a checkbox, and `null` when empty. The function
+ * returns a value of the property's type (the same shapes), or `null` or
+ * `undefined` for an empty cell. Its outputs are stored like any value, so
+ * rows filter and sort on them; the daemon computes them again whenever
+ * the row's values, the database's properties or the source change.
+ */
+export interface DatabaseFormula {
+	/** The function, in JavaScript or TypeScript. */
+	source: string;
+	/**
+	 * Why the last computation failed for a row (the function threw, ran
+	 * too long or returned a value of another type), leaving that cell
+	 * empty, or `null` once every row computes.
+	 */
+	error: string | null;
+}
+
 /** An import under way. */
 export interface DatabaseImport {
 	id: string;
@@ -1552,9 +1579,15 @@ export interface DatabaseProperty {
 	id: number;
 	database_id: number;
 	name: string;
+	/** The type of the property's values; a formula's outputs must be of it. */
 	data_type: DatabaseDataType;
 	/** Where the property sits among its database's; lower comes first. */
 	sort_order: number;
+	/**
+	 * What computes the property's values, or `null` for a property whose
+	 * values are set by hand.
+	 */
+	formula: DatabaseFormula | null;
 }
 
 /**
@@ -4418,6 +4451,19 @@ export interface SetContactPhotoRequest {
 }
 
 /**
+ * Makes property `property_id` of a database a formula computing its
+ * values from `formula`'s source, or changes its source; with `formula`
+ * absent, makes it a property set by hand again, keeping its last outputs
+ * as values. A property becoming a formula loses the values set by hand.
+ */
+export interface SetDatabasePropertyFormulaRequest {
+	workspace_id: number;
+	database_id: number;
+	property_id: number;
+	formula?: string | null;
+}
+
+/**
  * Changes the type of property `property_id` of a database. Each value
  * whose text reads as the new type is kept as one (`"42"` becomes the
  * number 42); every other value is emptied.
@@ -4431,7 +4477,8 @@ export interface SetDatabasePropertyTypeRequest {
 
 /**
  * Sets row `row_id`'s value for property `property_id`, which must be of
- * the property's type, or empties it when `value` is absent.
+ * the property's type, or empties it when `value` is absent; refused for a
+ * formula, whose values are computed.
  */
 export interface SetDatabaseValueRequest {
 	workspace_id: number;
@@ -5373,12 +5420,17 @@ export interface Requests {
 	deleteDatabase: DeleteDatabaseRequest;
 	/** Lists a database's properties in their order. */
 	listDatabaseProperties: ListDatabasePropertiesRequest;
-	/** Adds a property to a database, last. */
+	/** Adds a property to a database, last, set by hand or a formula. */
 	createDatabaseProperty: CreateDatabasePropertyRequest;
 	/** Renames a database property. */
 	renameDatabaseProperty: RenameDatabasePropertyRequest;
 	/** Changes a database property's type, keeping the values that fit it. */
 	setDatabasePropertyType: SetDatabasePropertyTypeRequest;
+	/**
+	 * Makes a database property a formula, changes its source, or makes it
+	 * a property set by hand again.
+	 */
+	setDatabasePropertyFormula: SetDatabasePropertyFormulaRequest;
 	/** Moves a database property among the others; replies with them all. */
 	moveDatabaseProperty: MoveDatabasePropertyRequest;
 	/** Deletes a database property with its values. */
@@ -5908,12 +5960,17 @@ export interface Replies {
 	deleteDatabase: Database;
 	/** Lists a database's properties in their order. */
 	listDatabaseProperties: DatabaseProperty[];
-	/** Adds a property to a database, last. */
+	/** Adds a property to a database, last, set by hand or a formula. */
 	createDatabaseProperty: DatabaseProperty;
 	/** Renames a database property. */
 	renameDatabaseProperty: DatabaseProperty;
 	/** Changes a database property's type, keeping the values that fit it. */
 	setDatabasePropertyType: DatabaseProperty;
+	/**
+	 * Makes a database property a formula, changes its source, or makes it
+	 * a property set by hand again.
+	 */
+	setDatabasePropertyFormula: DatabaseProperty;
 	/** Moves a database property among the others; replies with them all. */
 	moveDatabaseProperty: DatabaseProperty[];
 	/** Deletes a database property with its values. */

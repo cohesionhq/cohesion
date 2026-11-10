@@ -30,6 +30,9 @@
 //!
 //! Drawing a Mermaid diagram isn't a script at all: [`ScriptEngine::render_mermaid`]
 //! runs Pele, in a runtime with nothing mounted, on workers of its own.
+//! Neither is a database formula: [`ScriptEngine::evaluate_formula`] calls a
+//! property's function with each row's values, likewise with nothing
+//! mounted, on workers that keep the formulas they compiled.
 //!
 //! Fetching an article's page is `cohesion_internet::article_snapshot`; a
 //! sandbox that mounts `ArticleFetch` lets its scripts call it through
@@ -44,6 +47,7 @@ mod connector_access;
 mod conversion;
 mod engine;
 mod entities;
+mod formula;
 pub mod globals;
 mod mermaid;
 mod sandbox;
@@ -58,6 +62,7 @@ mod traced_command;
 pub use actor_access::ActorAccess;
 pub use connector_access::ConnectorAccess;
 pub use engine::{AgentRole, CueEvaluation, GENERAL_PURPOSE_MOUNTS, ScopeHandle, ScriptEngine};
+pub use formula::{Formula, FormulaOutput, FormulaRow};
 pub use globals::{Effects, ForegroundEffect};
 pub use sandbox::{Sandbox, SandboxOptions, ScriptArgument};
 pub use script_error::ScriptError;

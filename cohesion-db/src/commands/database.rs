@@ -15,6 +15,7 @@ use cohesion_core::protocol::{
 };
 
 use crate::changed::{Changed, Invalidates};
+use crate::commands::database_formula::{ensure_formula, formulas_stale, new_formula};
 use crate::commands::database_row::store_value;
 use crate::commands::title::ensure_title;
 use crate::commands::workspace_scope::ensure_workspace;
@@ -211,8 +212,9 @@ impl DatabaseCommand for GetDatabasePropertyCommand {
     }
 }
 
-/// Adds a property with a non-empty name to a database, after its others.
-/// No row holds a value for it yet.
+/// Adds a property with a non-empty name to a database, after its others:
+/// a formula with a non-empty source, or one set by hand. No row holds a
+/// value for it until a formula's outputs are computed.
 #[derive(FromRequest)]
 #[request(CreateDatabasePropertyRequest)]
 pub struct CreateDatabasePropertyCommand {
@@ -220,6 +222,7 @@ pub struct CreateDatabasePropertyCommand {
     pub database_id: i64,
     pub name: String,
     pub data_type: DatabaseDataType,
+    pub formula: Option<String>,
 }
 impl DatabaseCommand for CreateDatabasePropertyCommand {
     type Response = DatabaseProperty;
@@ -229,6 +232,7 @@ impl DatabaseCommand for CreateDatabasePropertyCommand {
         ctx: &mut CommandContext<'_>,
     ) -> DatabaseCommandResult<Changed<DatabaseProperty>> {
         ensure_name(&self.name)?;
+        ensure_formula(&self.formula)?;
         GetDatabaseCommand {
             workspace_id: self.workspace_id,
             database_id: self.database_id,
@@ -240,6 +244,7 @@ impl DatabaseCommand for CreateDatabasePropertyCommand {
             .set(DatabaseProperty::DATABASE_ID, self.database_id)
             .set(DatabaseProperty::NAME, self.name)
             .set(DatabaseProperty::DATA_TYPE, self.data_type)
+            .set_group(new_formula(self.formula))
             .set_max_incremented_within(
                 DatabaseProperty::SORT_ORDER,
                 DatabaseProperty::DATABASE_ID,
@@ -247,6 +252,9 @@ impl DatabaseCommand for CreateDatabasePropertyCommand {
             )
             .returning_one()
             .found()?;
+        // A formula is computed for every row; any other property is a new
+        // key, empty, in the row every formula reads.
+        formulas_stale(ctx, self.database_id, None)?;
         Ok(property.invalidating([Invalidation::Database(self.database_id)]))
     }
 }
@@ -281,6 +289,8 @@ impl DatabaseCommand for RenameDatabasePropertyCommand {
             .filter_eq(DatabaseProperty::ID, self.property_id)
             .returning_one()
             .found()?;
+        // Formulas read the row by property name.
+        formulas_stale(ctx, self.database_id, None)?;
         Ok(property.invalidating([Invalidation::Database(self.database_id)]))
     }
 }
@@ -289,7 +299,7 @@ impl DatabaseCommand for RenameDatabasePropertyCommand {
 /// the new type ([`DatabaseValue::parse`]) and stored as one, in the
 /// representations the new type gives; a value whose text isn't one is
 /// emptied. Text keeps every value; `"3.5"` doesn't survive becoming an
-/// integer.
+/// integer. A formula's outputs are then computed again, as the new type.
 #[derive(FromRequest)]
 #[request(SetDatabasePropertyTypeRequest)]
 pub struct SetDatabasePropertyTypeCommand {
@@ -327,6 +337,7 @@ impl DatabaseCommand for SetDatabasePropertyTypeCommand {
             let value = DatabaseValue::parse(self.data_type, &stored.text_value);
             store_value(ctx.db, &property, stored.row_id, value)?;
         }
+        formulas_stale(ctx, self.database_id, None)?;
         Ok(property.invalidating([Invalidation::Database(self.database_id)]))
     }
 }
@@ -413,6 +424,7 @@ impl DatabaseCommand for DeleteDatabasePropertyCommand {
             .delete::<DatabaseProperty>()
             .filter_eq(DatabaseProperty::ID, property.id)
             .execute()?;
+        formulas_stale(ctx, self.database_id, None)?;
         Ok(property.invalidating([Invalidation::Database(self.database_id)]))
     }
 }

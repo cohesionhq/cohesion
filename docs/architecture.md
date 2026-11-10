@@ -68,7 +68,7 @@ package, the web UI in `web/`. No crate declares cargo `[features]`.
 | `cohesion-internet-harness` | bin, `publish = false` | A tool: `cargo run -p cohesion-internet-harness -- page <url>` or `feed <url>` prints the Markdown the daemon would store, for building Coherence's rules. Nothing depends on it. | cohesion-core, cohesion-internet |
 | `cohesion-js` | lib | The QuickJS script runtime (rquickjs): `ScriptEngine` and its worker pools, `Sandbox`, globals and `Mount`, JS entities, `script_api` (which yields the `.d.ts`), `service_declarations`, `AgentRole`, and the traits a higher crate implements: `ConnectorAccess`, `ServiceAccess`, `ActorAccess`. Strips TypeScript with `swc_ts_fast_strip`; vendors the Pele diagram renderer in `vendor/pele`. | cohesion-core, cohesion-db, cohesion-internet, cohesion-macros |
 | `cohesion-intelligence` | lib | LLM conversations: provider backends (`providers/`), the models.dev catalog (`catalog/`), `Session` and its tools, `AgentCoordinator` and the agent machinery (`agents/`), `SpendLimits`, and the `AccountCredentials` trait. | cohesion-core, cohesion-db, cohesion-js |
-| `cohesionkit` | lib (+ `build.rs`) | The facade the daemon builds on: `CohesionContext`, the `Route` impls (`routes/`), hooks (`hooks/`), `ExtensionManager`, connectors, feeds, periodic cleanup, `Security`, `Presence`, `CapabilityClients`, `ActorSessions`, `EndpointRelay`, `PendingImport`, and `web_bundle` (the web UI compiled into the binary). | all of the above but the harness |
+| `cohesionkit` | lib (+ `build.rs`) | The facade the daemon builds on: `CohesionContext`, the `Route` impls (`routes/`), hooks (`hooks/`), database formula passes (`database_formulas.rs`), `ExtensionManager`, connectors, feeds, periodic cleanup, `Security`, `Presence`, `CapabilityClients`, `ActorSessions`, `EndpointRelay`, `PendingImport`, and `web_bundle` (the web UI compiled into the binary). | all of the above but the harness |
 | `cohesiond` | bin | The daemon: opens the database, builds `CohesionContext`, prints the first setup code, serves HTTPS with client certificates and a Unix socket until a signal. Also `examples/fake_actor.rs`, a minimal actor client. | cohesionkit |
 | `cohesion` | bin | The CLI: `setup`, `api`, the noun commands (`cli/`), and `open`, the loopback proxy that serves the web UI (`web_proxy/`). Never links rusqlite, rquickjs or cohesion-intelligence. | cohesion-core |
 
@@ -519,9 +519,10 @@ a `data_type` (`DatabaseDataType`: `text`, `integer`, `decimal`, `currency`,
 `DatabaseRow`s, each an id with an optional `document_id`. Every command
 takes the `workspace_id` and `database_id`: `ListDatabases`, `GetDatabase`,
 `CreateDatabase`, `RenameDatabase`, `DeleteDatabase`;
-`ListDatabaseProperties`, `CreateDatabaseProperty` (last),
-`RenameDatabaseProperty`, `SetDatabasePropertyType`, `MoveDatabaseProperty`
-(before `before_id`, or last), `DeleteDatabaseProperty`; `ListDatabaseRows`,
+`ListDatabaseProperties`, `CreateDatabaseProperty` (last, with an optional
+`formula`), `RenameDatabaseProperty`, `SetDatabasePropertyType`,
+`SetDatabasePropertyFormula`, `MoveDatabaseProperty` (before `before_id`, or
+last), `DeleteDatabaseProperty`; `ListDatabaseRows`,
 `GetDatabaseRow`, `CreateDatabaseRow`, `DeleteDatabaseRow`,
 `SetDatabaseValue` and `CreateDatabaseRowDocument`. A row comes as a
 `DatabaseRowEntry` (`id`, `database_id`, `document_id`, `cells`: a
@@ -534,6 +535,69 @@ properties, rows and values, a property its values, a row its values and
 document. Changing a property's type reads each value's text as the new type
 (`DatabaseValue::parse`: `"42"` is an integer, `"3.5"` no integer, `"true"`
 only a checkbox) and empties the values that aren't one.
+
+**Formulas** (`cohesion-db/src/commands/database_formula.rs`,
+`cohesion-js/src/formula.rs`, `cohesionkit/src/database_formulas.rs`). A
+property whose `formula` is a `DatabaseFormula{source, error}` has its values
+computed: `source` is a JavaScript (or TypeScript) function expression of the
+row, `(row) => row.Price * row.Quantity`, and its `data_type` is the type of
+its outputs. `CreateDatabaseProperty{formula}` makes one;
+`SetDatabasePropertyFormula{property_id, formula?}` makes a property a formula
+(dropping its hand-set values), changes the source (clearing `error`), or with
+no `formula` makes it a property set by hand again, keeping its last outputs.
+An empty source fails validation on `formula`, and `SetDatabaseValue` on a
+formula fails validation on `property_id`.
+
+- **The row** a formula reads is a plain object of the database's properties
+  that aren't formulas, keyed by name (of two with one name, the one created
+  first): text and dates as strings (`"YYYY-MM-DD"`), whole numbers, decimals
+  and currency as numbers, a checkbox as a boolean, and an empty value as
+  `null`. `{"Title": "Dune", "Price": 9.99, "Quantity": 2, "Read": null}`.
+  Formulas never read each other, so their order doesn't matter and there are
+  no cycles. Renaming a property changes the key, so a formula reading the old
+  name reads `undefined` until its source is changed.
+- **The output** must be of the property's type, in the same shapes (a whole
+  number for `integer`, any finite number for `decimal` and `currency`, a
+  string for `text`, a real `YYYY-MM-DD` string for `date`, a boolean for
+  `checkbox`, through `DatabaseValue::checked`); `null`, `undefined` and empty
+  text are an empty cell. A row whose call throws, runs past its time limit,
+  runs out of memory or returns anything else gets an empty cell, and the
+  pass records the first such message (at most 300 characters) as the
+  formula's `error`. A pass with no failure clears it if it covered every row;
+  a pass over some rows that leaves an error marks every row, so the next pass
+  finds whether another row still fails. A source that doesn't evaluate to a
+  function fails every row, so an empty database shows no error yet.
+- **Outputs are stored** with `store_value` in `database_row_values` like any
+  value, so `ListDatabaseRows` filters and sorts on them in SQL.
+- **When.** Every change to what a formula reads marks the rows it outdates
+  (`database_rows.formula_stale`, raised by one) and raises
+  `DatabaseFormulasStale{database_id}`: a value set (that row), a row created
+  (that row), and a property created, renamed, retyped, deleted or made a
+  formula or not, or a source changed (every row). A database with no formula
+  marks nothing. The event is no hook: `HookManager` hands it to the
+  `FormulaQueue`, and the `FormulaRunner` runs one pass at a time per
+  database, passes of different databases side by side, counted as work. A
+  pass (`evaluate_formulas`) reads the marked rows
+  (`ListStaleDatabaseRowsCommand`), computes each formula for them
+  (`ScriptEngine::evaluate_formula`), and stores the outputs
+  (`StoreDatabaseFormulaOutputsCommand`), which clears each mark no change
+  raised again meanwhile, drops the outputs of a source or type that changed
+  since and of a row that went, and invalidates `database(id)` again. So a
+  write returns before its outputs land, a moment later. An event arriving
+  during a pass runs the pass once more. The marks outlive a restart:
+  `CohesionContext::start` queues every database that has some
+  (`ListDatabasesWithStaleFormulasCommand`).
+- **Where it runs.** Not in a sandbox: on the engine's two formula workers
+  ([12](#12-how-a-turn-runs)), each with one QuickJS runtime with nothing
+  mounted (only the language's built-ins), under `SandboxOptions::FORMULA`
+  (16 MB a runtime, a second a row). A pass computes up to 64 rows a job
+  (`ROWS_PER_JOB`), so passes of several databases take turns; once a row
+  runs out of time or memory, that row and the rest of the pass fail with
+  it, and the runtime is replaced. Each runtime keeps the last 32 formulas it
+  compiled (`CACHE_SIZE`), each in a context of its own, keyed by property
+  and exact source, most recently used kept: a formula compiles once for a
+  whole pass and the edits after it, a new source replaces the property's
+  old one, and the least recently used goes past 32.
 
 `ListDatabaseRows{filters, sort?}` filters and sorts in SQL. A
 `DatabaseFilter{property_id, condition}` keeps the rows whose value meets the
@@ -703,7 +767,7 @@ flowchart LR
 
 **The pipeline** (`cohesionkit/src/hooks/`):
 
-1. **Raise.** A command sends a `DatabaseEvent{kind, trace}` (`cohesion-db/src/database_event.rs`). After it commits, the database thread hands the events to the `HookManager` before replying. The clock, launch and update hooks are queued directly.
+1. **Raise.** A command sends a `DatabaseEvent{kind, trace}` (`cohesion-db/src/database_event.rs`). After it commits, the database thread hands the events to the `HookManager` before replying. The clock, launch and update hooks are queued directly. One event is no hook: `DatabaseFormulasStale` goes to the database formulas' queue instead ([5](#5-the-wire-protocol), "Formulas").
 2. **Queue.** `HookManager::queue` wraps each in a `HookInstance` on an unbounded channel, in order, counted as work so shutdown waits for it.
 3. **Settle.** `journal:settled` and `document:settled` wait for quiet: one timer per document (`DOCUMENT_SETTLE`, 120 s) that each save restarts; when it runs out, the hook is queued with the last save's trace. During shutdown they're queued at once, and `settle_all` flushes the waiting ones. A new settled hook adds its case to `settle_all`, never a shutdown step of its own.
 4. **Receive** (`HookReceiver::start`, one task):
@@ -891,8 +955,8 @@ deleting sets `deleted`, and client reads use `select_live`.
 | `saved_task_views` and `saved_task_view_priorities`, `_sizes`, `_tags` | Saved task filters: a list or a folder, a sort, and filter sets. |
 | `contacts` (soft), `contact_methods` | People in a workspace, and their emails and phone numbers. A deleted contact is unassigned from tasks. |
 | `databases` | `workspace_id`, `title`. Deleted for good, with everything in it. |
-| `database_properties` | A database's columns: `database_id`, `name`, `data_type` (`text`, `integer`, `decimal`, `currency`, `checkbox`, `date`), `sort_order`. |
-| `database_rows` | `database_id`, and `document_id`, the row's own document (unique; set null if the document goes, which removes it when the row goes). |
+| `database_properties` | A database's columns: `database_id`, `name`, `data_type` (`text`, `integer`, `decimal`, `currency`, `checkbox`, `date`), `sort_order`, and for a formula `formula_source` and `formula_error` (its last failure; a check keeps it from outliving the source). |
+| `database_rows` | `database_id`, `document_id`, the row's own document (unique; set null if the document goes, which removes it when the row goes), and `formula_stale`, how many changes its formula outputs are behind (0 when current; a partial index finds the nonzero ones). |
 | `database_row_values` | One per row and property at most, composite keys keeping both in one database: `text_value` (always), `integer_value` (an integer, a checkbox as 1 or 0) and `real_value` (a decimal, an amount, an integer). A missing row is an empty value. |
 | `metadata` | Key-value pairs on exactly one workspace, document, task, folder or resource. Scripts only: a request can't carry metadata filters. |
 | `backlinks` | What links to what: `source_kind` and `source_id` (only documents so far), `target_kind` and `target_id` (a `LinkKind` and an id), and `link` as first written; one row per source and target, never a source to itself. Rewritten by `FollowLinksCommand` on every document write; a document removed for good takes its rows (trigger `documents_backlinks_ad`). The `backlinks` migration filled it from every live document through the SQL function `outgoing_links`, which runs the same Rust rule. |
@@ -1392,12 +1456,18 @@ the turn's work ends the turn once every call in that response succeeded.
 **The sandbox** (`cohesion-js`). `ScriptEngine` keeps pools of worker threads,
 each job on a fresh QuickJS runtime: `general_purpose` (`cohesion run` and
 `RunScript`), `turns` (agents' scripts), `cues` (cue functions), `isolated`
-(reading extension manifests), `mermaid`, and one persistent worker per
-extension. Limits (`SandboxOptions`): `STANDARD` 20 MiB and 60 s a job (users',
-agents', cues' and extensions' scripts), `MERMAID` 64 MiB and 15 s, `ISOLATED`
-4 MiB and 1 s. The deadline also caps blocking calls a script makes (fetches,
-services, connectors). `cohesion.sleep(seconds)` waits at most 30 s. The
-mounts a script gets come from its `AgentRole` ([13](#13-what-an-agent-can-read-and-write)).
+(reading extension manifests), `mermaid`, `formulas`, and one persistent
+worker per extension. `mermaid` and `formulas` aren't sandboxes: each worker
+keeps one runtime with nothing mounted and no database handle, Pele's for
+diagrams, and for database formulas one holding the last 32 it compiled
+([5](#5-the-wire-protocol), "Formulas"). Limits (`SandboxOptions`):
+`STANDARD` 20 MiB and 60 s a job (users', agents', cues' and extensions'
+scripts), `MERMAID` 64 MiB and 15 s, `ISOLATED` 4 MiB and 1 s, `FORMULA`
+16 MiB a runtime and 1 s a row. The deadline also caps blocking calls a
+script makes (fetches, services, connectors). `cohesion.sleep(seconds)` waits
+at most 30 s. The mounts a script gets come from its `AgentRole`
+([13](#13-what-an-agent-can-read-and-write)); a formula has no role, since it
+mounts nothing.
 
 **Read-only background runs.** A turn whose chain was started by an event (a
 cue run, and whatever it asks or follows) runs as `Turn(Initiative::Event)`:
@@ -2469,9 +2539,9 @@ Settings › Security lists the security events.
 | Where | What | How |
 |---|---|---|
 | `cohesion-db` | Commands, migrations, triggers, transactions, `CredentialManager`, `Secrets`, transfers and backups; `every_model_matches_the_schema` (`migrations/tests.rs`) | `test_support.rs`: `context()` (a migrated in-memory database, `Container::in_memory()`), `recording_context()` (also collects the events commands raise), `actor_session(db)` |
-| `cohesion-js` (`src/tests.rs`) | The runtime end to end: sandbox isolation, worker survival, deadlines, hooks calling into scripts, read-only enforcement, roles and mounts | Real scripts against an in-memory database: `database()`, `run(db, script)`, `json(db, script)`, `extension(id)`, with fakes for the access traits |
+| `cohesion-js` (`src/tests.rs`) | The runtime end to end: sandbox isolation, worker survival, deadlines, hooks calling into scripts, read-only enforcement, roles and mounts; the Mermaid and formula workers in their own `tests.rs` | Real scripts against an in-memory database: `database()`, `run(db, script)`, `json(db, script)`, `extension(id)`, with fakes for the access traits |
 | `cohesion-intelligence` | Sessions, agents, forks, caching | `test_model.rs`: a local server speaking Chat Completions that gives scripted answers and records each request; no network |
-| `cohesionkit` | Routes, hooks (`hook_events`, `day_clock`), connectors, the extension manager | In-memory contexts |
+| `cohesionkit` | Routes, hooks (`hook_events`, `day_clock`), database formula passes (`database_formulas`), connectors, the extension manager | In-memory contexts |
 | `cohesiond` | Sessions (`session/tests.rs`, with a `FakeExchange` in place of a socket), the first-byte timeout, PROXY headers, the unknown-peer cache, the local handshake | tokio's paused time |
 | `cohesion` | Argument definitions, `cohesion open`'s guard, launch link and token | tower's `ServiceExt` |
 | `cohesion-core` | Models (`tests/model.rs`) and core helpers | |

@@ -20,6 +20,7 @@ use crate::changed::{Changed, Invalidates};
 use crate::commands::database::{
     GetDatabaseCommand, GetDatabasePropertyCommand, ListDatabasePropertiesCommand,
 };
+use crate::commands::database_formula::formulas_stale;
 use crate::commands::document::changed;
 use crate::{
     CommandContext, CommandError, DatabaseCommand, DatabaseCommandResult, DatabaseError, Filtered,
@@ -335,6 +336,7 @@ impl DatabaseCommand for CreateDatabaseRowCommand {
             .set(DatabaseRow::DATABASE_ID, self.database_id)
             .returning_one()
             .found()?;
+        formulas_stale(ctx, self.database_id, Some(row.id))?;
         let entry = DatabaseRowEntry {
             id: row.id,
             database_id: row.database_id,
@@ -381,7 +383,8 @@ impl DatabaseCommand for DeleteDatabaseRowCommand {
 
 /// Sets one value of a row, or empties it when `value` is `None`. The value
 /// must be of the property's type and [checked](DatabaseValue::checked);
-/// empty text empties it.
+/// empty text empties it. A formula's values are computed, never set; the
+/// row's formulas are computed again.
 #[derive(FromRequest)]
 #[request(SetDatabaseValueRequest)]
 pub struct SetDatabaseValueCommand {
@@ -404,6 +407,13 @@ impl DatabaseCommand for SetDatabaseValueCommand {
             property_id: self.property_id,
         }
         .handle(&mut ctx.as_read())?;
+        if property.formula.is_some() {
+            return Err(ValidationError::in_field(
+                "property_id",
+                "A formula’s values can’t be set. Change its formula instead.".to_string(),
+            )
+            .into());
+        }
         let _: DatabaseRow = ctx
             .db
             .select()
@@ -425,6 +435,7 @@ impl DatabaseCommand for SetDatabaseValueCommand {
                 .map_err(|message| ValidationError::in_field("value", message.to_string()))?,
         };
         store_value(ctx.db, &property, self.row_id, value)?;
+        formulas_stale(ctx, self.database_id, Some(self.row_id))?;
         let entry = GetDatabaseRowCommand {
             workspace_id: self.workspace_id,
             database_id: self.database_id,

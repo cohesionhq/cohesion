@@ -4378,7 +4378,11 @@ pub const MIGRATIONS: &[Migration] = &[
     // as text and, where its type is a number, as one too, so SQL filters
     // and sorts on the column its type names. A row may have a document of
     // its own, which stays out of search, is never soft-deleted (deleting
-    // it removes it) and goes when its row does.
+    // it removes it) and goes when its row does. A property may be a
+    // formula, whose values the daemon computes and stores like any other;
+    // a row whose outputs are out of date has a nonzero `formula_stale`,
+    // raised by each change to what they read, so they are computed again
+    // even after a restart.
     Migration {
         name: "databases",
         sql: "
@@ -4396,6 +4400,8 @@ pub const MIGRATIONS: &[Migration] = &[
             data_type TEXT NOT NULL CHECK (data_type IN
                 ('text', 'integer', 'decimal', 'currency', 'checkbox', 'date')),
             sort_order INTEGER NOT NULL DEFAULT 0,
+            formula_source TEXT,
+            formula_error TEXT CHECK (formula_error IS NULL OR formula_source IS NOT NULL),
             UNIQUE (database_id, id)
         );
 
@@ -4403,8 +4409,11 @@ pub const MIGRATIONS: &[Migration] = &[
             id INTEGER PRIMARY KEY,
             database_id INTEGER NOT NULL REFERENCES databases(id) ON DELETE CASCADE,
             document_id INTEGER UNIQUE REFERENCES documents(id) ON DELETE SET NULL,
+            formula_stale INTEGER NOT NULL DEFAULT 0,
             UNIQUE (database_id, id)
         );
+        CREATE INDEX database_rows_formula_stale ON database_rows(database_id)
+            WHERE formula_stale > 0;
 
         CREATE TABLE database_row_values (
             id INTEGER PRIMARY KEY,

@@ -4338,6 +4338,7 @@ export function createMock(): Mock {
 		createDatabaseProperty: () => notFound('database'),
 		renameDatabaseProperty: () => notFound('database'),
 		setDatabasePropertyType: () => notFound('database'),
+		setDatabasePropertyFormula: () => notFound('database'),
 		moveDatabaseProperty: () => notFound('database'),
 		deleteDatabaseProperty: () => notFound('database'),
 		listDatabaseRows: () => notFound('database'),

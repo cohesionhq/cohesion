@@ -22,6 +22,15 @@ under "Unreleased" with any change users would notice.
   and a `databaseRow` document type, which a client meets only by opening a
   row's document. The web UI doesn't show databases yet; the iPhone app
   needn't.
+- A database column can be a formula: a JavaScript function of the row,
+  such as `(row) => row.Price * row.Quantity`, whose result fills the
+  column in every row and is computed again when the row or the columns
+  change. Its results filter and sort like any value. A row the formula
+  fails on stays empty, and the formula shows why. Formulas run with
+  nothing but the row, under a time and memory limit. The wire gains
+  `setDatabasePropertyFormula`, a `formula` on `createDatabaseProperty`
+  and on `DatabaseProperty` (`{source, error}` or `null`), and
+  `setDatabaseValue` refuses a formula's column.
 - An item's panel shows Backlinks: the documents and journal entries that
   link to the item, wherever the link is in their text. Click one to open it
   over the page. When nothing links to the item, the section doesn't show.

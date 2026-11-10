@@ -21,6 +21,7 @@ mod connector;
 mod connector_account;
 mod contact;
 mod database;
+mod database_formula;
 mod database_row;
 mod document;
 mod document_folder;
@@ -94,6 +95,11 @@ pub use connector::ListConnectorsCommand;
 pub use connector_account::*;
 pub use contact::*;
 pub use database::*;
+pub use database_formula::{
+    FormulaOutputs, FormulaProperty, ListDatabasesWithStaleFormulasCommand,
+    ListStaleDatabaseRowsCommand, RowStaleness, SetDatabasePropertyFormulaCommand,
+    StaleDatabaseRow, StaleDatabaseRows, StoreDatabaseFormulaOutputsCommand,
+};
 pub use database_row::*;
 pub use document::*;
 pub use document_folder::*;

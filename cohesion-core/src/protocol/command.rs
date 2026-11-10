@@ -163,7 +163,7 @@ pub enum Command {
     /// Lists a database's properties in their order.
     #[reply(Vec<DatabaseProperty>)]
     ListDatabaseProperties(ListDatabasePropertiesRequest),
-    /// Adds a property to a database, last.
+    /// Adds a property to a database, last, set by hand or a formula.
     #[reply(DatabaseProperty)]
     CreateDatabaseProperty(CreateDatabasePropertyRequest),
     /// Renames a database property.
@@ -172,6 +172,10 @@ pub enum Command {
     /// Changes a database property's type, keeping the values that fit it.
     #[reply(DatabaseProperty)]
     SetDatabasePropertyType(SetDatabasePropertyTypeRequest),
+    /// Makes a database property a formula, changes its source, or makes it
+    /// a property set by hand again.
+    #[reply(DatabaseProperty)]
+    SetDatabasePropertyFormula(SetDatabasePropertyFormulaRequest),
     /// Moves a database property among the others; replies with them all.
     #[reply(Vec<DatabaseProperty>)]
     MoveDatabaseProperty(MoveDatabasePropertyRequest),

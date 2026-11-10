@@ -81,8 +81,8 @@ pub use connector::{
 pub use connector_account::{AccountHost, ConnectorAccount};
 pub use contact::{Contact, ContactMethod, ContactMethodKind, NewContactMethod};
 pub use database::{
-    Database, DatabaseCell, DatabaseDataType, DatabaseProperty, DatabaseRow, DatabaseRowEntry,
-    DatabaseRowValue, DatabaseValue,
+    Database, DatabaseCell, DatabaseDataType, DatabaseFormula, DatabaseProperty, DatabaseRow,
+    DatabaseRowEntry, DatabaseRowValue, DatabaseValue,
 };
 pub use day_filter::{DayFilter, DayRange};
 pub use document::{Document, DocumentType};

@@ -39,7 +39,11 @@ pub(crate) struct Fixture {
 
 impl Fixture {
     pub fn new() -> Self {
-        let db = context();
+        Self::on(context())
+    }
+
+    /// A fixture whose database is `db`.
+    pub fn on(db: DatabaseContext) -> Self {
         let ws = db
             .send_blocking(CreateWorkspaceCommand {
                 title: "Home".to_string(),
@@ -57,14 +61,33 @@ impl Fixture {
     }
 
     pub fn property(&self, name: &str, data_type: DatabaseDataType) -> DatabaseProperty {
-        self.db
-            .send_blocking(CreateDatabasePropertyCommand {
-                workspace_id: self.ws,
-                database_id: self.database.id,
-                name: name.to_string(),
-                data_type,
-            })
+        self.create_property(name, data_type, None).unwrap()
+    }
+
+    /// A formula property computing `source`.
+    pub fn formula(
+        &self,
+        name: &str,
+        data_type: DatabaseDataType,
+        source: &str,
+    ) -> DatabaseProperty {
+        self.create_property(name, data_type, Some(source.to_string()))
             .unwrap()
+    }
+
+    pub fn create_property(
+        &self,
+        name: &str,
+        data_type: DatabaseDataType,
+        formula: Option<String>,
+    ) -> Result<DatabaseProperty, CommandError> {
+        self.db.send_blocking(CreateDatabasePropertyCommand {
+            workspace_id: self.ws,
+            database_id: self.database.id,
+            name: name.to_string(),
+            data_type,
+            formula,
+        })
     }
 
     pub fn row(&self) -> i64 {
@@ -105,7 +128,7 @@ impl Fixture {
             .cells
     }
 
-    fn retype(&self, property: &DatabaseProperty, data_type: DatabaseDataType) {
+    pub fn retype(&self, property: &DatabaseProperty, data_type: DatabaseDataType) {
         self.db
             .send_blocking(SetDatabasePropertyTypeCommand {
                 workspace_id: self.ws,
