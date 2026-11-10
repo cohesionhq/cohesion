@@ -3,7 +3,8 @@
 	titled with the item followed by its kind's icon on a tile and what it
 	is, `Task #42`, as its chip says it; then its details as rows of an
 	icon, a label and a value, and `children`, its text, under a rule when it
-	has details. An item with a page of its own takes `href`, which puts Open beside the panel's other actions; `link` puts a button before Open that copies a Markdown link to the item (`copyItemLink`). The item's main action (`leading`), then the actions and Open, sit in a toolbar along the panel's foot; Close alone stays at the top.
+	has details. Expanded, an item with details puts them in a column of their own beside its text,
+	each scrolling on its own. An item with a page of its own takes `href`, which puts Open beside the panel's other actions; `link` puts a button before Open that copies a Markdown link to the item (`copyItemLink`). The item's main action (`leading`), then the actions and Open, sit in a toolbar along the panel's foot; Close alone stays at the top.
 -->
 <script lang="ts">
 	import Link from '@lucide/svelte/icons/link';
@@ -49,6 +50,9 @@
 		children,
 		onOpenAutoFocus
 	}: Props = $props();
+
+	/** An item with details has two columns once expanded. */
+	const split = $derived(details !== undefined);
 </script>
 
 {#snippet toolbar()}
@@ -79,6 +83,7 @@
 	bind:open
 	{title}
 	{onOpenAutoFocus}
+	{split}
 	footer={leading || extra || href || link ? toolbar : undefined}
 >
 	{#snippet aside()}
@@ -91,15 +96,38 @@
 			{kind}
 		</span>
 	{/snippet}
-	<div class="flex flex-1 flex-col gap-4">
+	<div
+		class={[
+			'flex flex-1 flex-col gap-4',
+			split
+				? 'group-data-expanded/panel:min-h-0 group-data-expanded/panel:flex-row group-data-expanded/panel:gap-0'
+				: 'group-data-expanded/panel:mx-auto group-data-expanded/panel:w-full group-data-expanded/panel:max-w-4xl'
+		]}
+	>
 		{#if details}
-			<dl class="grid grid-cols-[max-content_minmax(0,1fr)] items-start gap-x-6 gap-y-1 text-sm">
-				{@render details()}
-			</dl>
+			<div
+				class="group-data-expanded/panel:w-80 group-data-expanded/panel:flex-none group-data-expanded/panel:overflow-y-auto group-data-expanded/panel:border-r group-data-expanded/panel:border-border group-data-expanded/panel:px-4 group-data-expanded/panel:py-4"
+			>
+				<dl
+					class="grid grid-cols-[max-content_minmax(0,1fr)] items-start gap-x-6 gap-y-1 text-sm group-data-expanded/panel:gap-x-4"
+				>
+					{@render details()}
+				</dl>
+			</div>
 		{/if}
 		{#if children}
-			<div class={['flex flex-1 flex-col', details && 'border-t border-border pt-4']}>
-				{@render children()}
+			<div
+				class={[
+					'flex flex-1 flex-col',
+					details &&
+						'border-t border-border pt-4 group-data-expanded/panel:min-w-0 group-data-expanded/panel:overflow-y-auto group-data-expanded/panel:border-t-0 group-data-expanded/panel:px-6 group-data-expanded/panel:py-4'
+				]}
+			>
+				<div
+					class="flex flex-1 flex-col group-data-expanded/panel:w-full group-data-expanded/panel:max-w-4xl"
+				>
+					{@render children()}
+				</div>
 			</div>
 		{/if}
 	</div>

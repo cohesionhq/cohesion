@@ -1828,7 +1828,14 @@ themselves. Following one in the web UI (`ui/Markdown.svelte`,
 folder, tags and contacts; a document; a resource; an agent; an actor session
 with its actor and messages; an article with its feed. Full-page content has
 an Open link (an article's opens in the current workspace). A modified click
-falls through to the `/open/…` page.
+falls through to the `/open/…` page. The panel can be expanded: a button
+beside Close (`SidePanel`) floats it at the middle of the window, up to 80rem
+wide and nearly its height, and the same button returns it. An item with
+details, a task's say, then reads in two columns under the header, its details
+in one of a fixed width and its text in the other, each scrolling on its own
+(`ItemPanel`); one without keeps a single column. A window narrower than 900px,
+where the drawer fills most of it already, has no button. Expansion belongs to
+one opening, so every opening starts as the drawer and nothing is stored.
 
 **Copy link.** Every kind an item panel shows can be copied as a link to paste
 into a document. "Copy link" puts `[Title](cohesion://…)` on the clipboard, the
@@ -1865,7 +1872,8 @@ opens the same picker, with the same rows and keys, and writes the same
 offers agents by name, then the
 workspace's documents, journal entries, tasks and resources
 (`searchWorkspace`), then actor sessions (`searchActorSessions`), at most 8
-rows; articles (`searchFeedCorpus`) only fill the rows left. ↑ and ↓ choose,
+rows. It offers no articles: copy an article's link ("Copy link" above) and
+paste it. ↑ and ↓ choose,
 ↩ or ⇥ inserts `[title](cohesion://…)` in place of the `@` or `[[` and what was typed, and
 Esc closes, leaving the text. On a line of its own the link becomes a card.
 

@@ -312,11 +312,7 @@
 		ondragend={() => kindOrder.end()}
 		onkeydown={(e) => kindOrder.key(e, index)}
 	>
-		<!-- An extension's own icon, quieted to the outline glyphs' weight beside it: grey, a little faded. -->
-		<!-- Inverted in the dark, so a dark tile keeps its edge on the near-black canvas. -->
-		<span class="flex opacity-60 grayscale dark:invert"
-			><IconTile icon={connector.icon} title={connector.title} size={16} /></span
-		>
+		<IconTile icon={connector.icon} title={connector.title} size={16} quiet />
 		<span class={['truncate', labelClass]}>{kind.plural}</span>
 	</a>
 {/snippet}

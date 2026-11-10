@@ -11,9 +11,15 @@
 		title: string;
 		/** Width and height in pixels. */
 		size?: number;
+		/**
+		 * Draw it at the weight of the outline glyphs beside it (the sidebar's rows)
+		 * instead of in its own colours. The treatment is a filter, so it holds for
+		 * any logo, and lives here so no call site repeats it.
+		 */
+		quiet?: boolean;
 	}
 
-	let { icon, title, size = 20 }: Props = $props();
+	let { icon, title, size = 20, quiet = false }: Props = $props();
 
 	// Rounder as it grows, so a large tile reads as an app icon.
 	const radius = $derived(`${Math.round(size / 4)}px`);
@@ -21,7 +27,7 @@
 
 {#if icon}
 	<img
-		class="flex-none object-contain"
+		class={['flex-none object-contain', quiet && 'quiet']}
 		style:border-radius={radius}
 		src={icon}
 		alt=""
@@ -33,6 +39,7 @@
 	<span
 		class={[
 			'inline-flex flex-none items-center justify-center font-semibold text-on-fill',
+			quiet && 'quiet',
 			tileColor(title)
 		]}
 		style:width="{size}px"
@@ -44,3 +51,14 @@
 		{title.trim().charAt(0).toUpperCase() || '?'}
 	</span>
 {/if}
+
+<style>
+	.quiet {
+		filter: grayscale(1) contrast(0.3) brightness(1.15);
+	}
+	@media (prefers-color-scheme: dark) {
+		.quiet {
+			filter: grayscale(1) contrast(0.3) brightness(1.05);
+		}
+	}
+</style>

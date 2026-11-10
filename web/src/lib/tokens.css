@@ -490,6 +490,40 @@
 		animation: side-panel-out 140ms cubic-bezier(0.3, 0, 0.8, 0.15) forwards;
 	}
 
+	/* The drawer sits against the right edge; expanded (the panel's Expand
+	   button) it floats at the middle of the window, up to 80rem wide and
+	   nearly the window's height, with only the sheet's slim inset above and
+	   below and room at the sides, and rounder corners and a
+	   deeper shadow to read as lifted. Its edges move on the slide's
+	   ease-out, so the one panel grows and returns instead of swapping.
+	   Closing it fades, as sliding it off from the middle would stop short
+	   of the window's edge. */
+	.overlay-surface.side-panel {
+		--panel-width: min(640px, calc(100vw - 2 * var(--gutter)));
+		top: calc(var(--gutter) + var(--titlebar-inset));
+		right: var(--gutter);
+		bottom: var(--gutter);
+		width: var(--panel-width);
+		transition-property: top, right, bottom, width, border-radius, box-shadow;
+		transition-duration: 180ms;
+		transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	.overlay-surface.side-panel[data-expanded] {
+		--panel-width: min(80rem, calc(100vw - 2 * var(--s7)));
+		top: calc(var(--sheet-inset) + var(--titlebar-inset));
+		right: calc((100vw - var(--panel-width)) / 2);
+		bottom: var(--sheet-inset);
+		border-radius: calc(var(--radius-md) + 6px);
+		box-shadow:
+			0 2px 4px oklch(0 0 0 / 0.08),
+			0 24px 64px oklch(0 0 0 / 0.22);
+	}
+
+	.overlay-surface.side-panel[data-expanded][data-state='closed'] {
+		animation: fade-out var(--duration) ease-in forwards;
+	}
+
 	/* Page navigations dissolve: the old page (whichever scope the root
 	   layout names `page`) fades out as the new one fades in over it, the
 	   two overlapping so the page never dips to empty between them.

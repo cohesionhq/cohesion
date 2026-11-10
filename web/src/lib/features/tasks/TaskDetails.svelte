@@ -1,6 +1,6 @@
 <!--
 	A task's panel (`ItemPanel`): where it stands, who it is assigned to, its
-	priority, size, days, folder and tags, each changed in place from its row
+	priority, size and tags, then its days and folder, each changed in place from its row
 	(a menu, a picker for the assignee, one for the tags, which stays open to
 	choose several, the size
 	slider, or the day picker), then its description the way a document page holds its text:
@@ -44,6 +44,7 @@
 	import { assigneeId, NO_ONE } from './assignee';
 	import { assignees } from './assignees.svelte';
 	import { priorities, priorityOf } from './priority';
+	import PriorityBadge from './PriorityBadge.svelte';
 	import { STATUSES } from './status';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 
@@ -308,12 +309,12 @@
 				<Menu items={priorityItems} align="start" inDialog>
 					{#snippet trigger(props)}
 						<button
-							class={[editable, priority.tone]}
+							class={[editable, 'gap-2', priority.tone]}
 							type="button"
 							aria-label="Priority: {priority.label}"
 							{...props}
 						>
-							{priority.label}
+							<PriorityBadge priority={priority.value} named={false} />{priority.label}
 						</button>
 					{/snippet}
 				</Menu>
@@ -324,6 +325,33 @@
 					title={task.title}
 					onchange={(size) => task && run(tasks.setSize(task, size))}
 				/>
+			</ItemDetail>
+			<ItemDetail label="Tags" icon={TagIcon}>
+				{#if tags.length}
+					<Picker
+						items={tagItems}
+						onpick={(id) =>
+							task && run(setTagged(task, Number(id), !task.tag_ids.includes(Number(id))))}
+						multiple
+						inDialog
+						placeholder="Find a tag"
+						empty="No tags"
+						emptyDetail="Create tags in the filter menu."
+					>
+						{#snippet trigger(props)}
+							<button
+								class={[editable, 'flex-wrap py-1', tagged.length === 0 && 'text-fg-muted']}
+								type="button"
+								aria-label="Tags: {tagged.map((t) => t.name).join(', ') || 'None'}"
+								{...props}
+							>
+								{#if tagged.length}<TagPills tags={tagged} />{:else}None{/if}
+							</button>
+						{/snippet}
+					</Picker>
+				{:else}
+					<span class="text-fg-muted">None</span>
+				{/if}
 			</ItemDetail>
 			{#each days as row (row.day)}
 				<ItemDetail label={row.label} icon={row.icon}>
@@ -354,33 +382,6 @@
 						</button>
 					{/snippet}
 				</Menu>
-			</ItemDetail>
-			<ItemDetail label="Tags" icon={TagIcon}>
-				{#if tags.length}
-					<Picker
-						items={tagItems}
-						onpick={(id) =>
-							task && run(setTagged(task, Number(id), !task.tag_ids.includes(Number(id))))}
-						multiple
-						inDialog
-						placeholder="Find a tag"
-						empty="No tags"
-						emptyDetail="Create tags in the filter menu."
-					>
-						{#snippet trigger(props)}
-							<button
-								class={[editable, 'flex-wrap py-1', tagged.length === 0 && 'text-fg-muted']}
-								type="button"
-								aria-label="Tags: {tagged.map((t) => t.name).join(', ') || 'None'}"
-								{...props}
-							>
-								{#if tagged.length}<TagPills tags={tagged} />{:else}None{/if}
-							</button>
-						{/snippet}
-					</Picker>
-				{:else}
-					<span class="text-fg-muted">None</span>
-				{/if}
 			</ItemDetail>
 		{/if}
 	{/snippet}
