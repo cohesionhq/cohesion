@@ -5,8 +5,9 @@ use cohesion_macros::{TextEnum, TsWire};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    ActorSession, Article, ArticleSummary, Document, DocumentFolder, DocumentFolderProperty,
-    DocumentType, IntelligenceAgent, ItemLink, Resource, ResourceContentKind, TableRow, Task,
+    ActorSession, Article, ArticleSummary, Contact, Document, DocumentFolder,
+    DocumentFolderProperty, DocumentType, IntelligenceAgent, ItemLink, Resource,
+    ResourceContentKind, TableRow, Task,
 };
 
 /// How many of a document folder's documents its embed holds as rows, the
@@ -18,7 +19,7 @@ pub const TABLE_PREVIEW_ROWS: u64 = 5;
 ///
 /// - `"task"`, `"document"`, `"journalEntry"` (a document of type
 ///   `journal`), `"resource"`, `"documentFolder"` (a table, or a plain
-///   folder), `"agent"`, `"actorSession"`, `"article"`.
+///   folder), `"contact"`, `"agent"`, `"actorSession"`, `"article"`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TextEnum, TsWire)]
 #[serde(rename_all = "camelCase")]
 #[text_enum(rename_all = "camelCase")]
@@ -28,6 +29,7 @@ pub enum EmbedKind {
     JournalEntry,
     Resource,
     DocumentFolder,
+    Contact,
     Agent,
     ActorSession,
     Article,
@@ -45,12 +47,14 @@ pub struct Embed {
     /// The item's workspace; `null` for an agent, an actor session or an
     /// article, which belong to none.
     pub workspace_id: Option<i64>,
-    /// The item's title; an agent's name.
+    /// The item's title; an agent's name; a contact's full name
+    /// (`Contact::full_name`).
     pub title: String,
     /// The start of the item's text as plain text, at most about 200
     /// characters: a task's description, a document's or text resource's
-    /// contents, an agent's role, an actor session's last message from its
-    /// actor, an article's text. `""` when it has none, as for a folder.
+    /// contents, a contact's notes, an agent's role, an actor session's last
+    /// message from its actor, an article's text. `""` when it has none, as
+    /// for a folder.
     pub excerpt: String,
     pub item: EmbedItem,
 }
@@ -82,6 +86,9 @@ pub enum EmbedItem {
         rows: Vec<TableRow>,
         /// How many live documents it holds in all.
         row_count: i64,
+    },
+    Contact {
+        contact: Contact,
     },
     Agent {
         agent: IntelligenceAgent,
@@ -176,6 +183,21 @@ impl Embed {
                 rows,
                 row_count,
             },
+        }
+    }
+
+    pub fn contact(contact: Contact) -> Self {
+        Self {
+            link: ItemLink::Contact {
+                workspace_id: contact.workspace_id,
+                id: contact.id,
+            }
+            .to_string(),
+            kind: EmbedKind::Contact,
+            workspace_id: Some(contact.workspace_id),
+            title: contact.full_name(),
+            excerpt: excerpt(&contact.notes),
+            item: EmbedItem::Contact { contact },
         }
     }
 

@@ -89,6 +89,25 @@ fn key(kind: LinkKind, id: i64) -> Invalidation {
 }
 
 #[test]
+fn a_document_linking_to_a_contact_is_its_backlink() {
+    let db = context();
+    let ws = workspace(&db);
+    let contact = db
+        .send_blocking(crate::CreateContactCommand {
+            workspace_id: ws,
+            first_name: "Ada".to_string(),
+            middle_name: None,
+            last_name: "Lovelace".to_string(),
+            notes: String::new(),
+            methods: Vec::new(),
+        })
+        .unwrap();
+    let link = format!("cohesion://contact/{ws}/{}", contact.id);
+    document(&db, ws, "Notes", &format!("Call [Ada]({link}) back."));
+    assert_eq!(titles(&db, &link), ["Notes"]);
+}
+
+#[test]
 fn a_documents_links_are_its_targets_backlinks_whichever_way_they_are_written() {
     let db = context();
     let ws = workspace(&db);

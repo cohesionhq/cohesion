@@ -140,7 +140,7 @@
 						{#each versions as row (row.id)}
 							<li class="border-b border-border">
 								<button
-									class="flex min-h-11 w-full cursor-pointer flex-wrap items-baseline gap-x-2 py-2 text-left transition-colors hover:bg-bg-hover"
+									class="flex min-h-11 w-full cursor-pointer flex-wrap items-center gap-x-2 py-2 text-left transition-colors hover:bg-bg-hover"
 									type="button"
 									onclick={() => choose(row)}
 								>

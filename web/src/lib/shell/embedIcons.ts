@@ -3,6 +3,7 @@
 // kind's, a task's box as it stands, a journal entry's notebook, a table's
 // grid.
 
+import BookUser from '@lucide/svelte/icons/book-user';
 import Bot from '@lucide/svelte/icons/bot';
 import Folder from '@lucide/svelte/icons/folder';
 import FileText from '@lucide/svelte/icons/file-text';
@@ -24,6 +25,7 @@ export const KIND_ICONS: Record<ItemKind, Component> = {
 	document: FileText,
 	resource: Package,
 	'document-folder': Folder,
+	contact: BookUser,
 	agent: Bot,
 	'actor-session': SquareTerminal,
 	article: Newspaper
@@ -35,6 +37,7 @@ const EMBED_KIND_ICONS: Record<Embed['kind'], Component> = {
 	journalEntry: NotebookPen,
 	resource: Package,
 	documentFolder: Folder,
+	contact: BookUser,
 	agent: Bot,
 	actorSession: SquareTerminal,
 	article: Newspaper

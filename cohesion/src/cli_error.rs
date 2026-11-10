@@ -29,6 +29,7 @@ pub enum CliError {
     CannotWriteExport(io::Error),
     CannotReadExport(io::Error),
     CannotReadStdin(io::Error),
+    CannotWriteStdout(io::Error),
     CannotReadTerminal(io::Error),
     NothingToAppend,
     EditorFailed,
@@ -95,6 +96,7 @@ impl fmt::Display for CliError {
                 path.display()
             ),
             Self::CannotReadStdin(err) => write!(f, "Couldn't read stdin: {err}"),
+            Self::CannotWriteStdout(err) => write!(f, "Couldn't write to stdout: {err}"),
             Self::CannotReadTerminal(err) => write!(f, "Couldn't read from the terminal: {err}"),
             Self::NothingToAppend => write!(f, "Nothing to append. Pass text or pipe it in."),
             Self::InvalidRequest(err) => write!(f, "Invalid request: {err}"),

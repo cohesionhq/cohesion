@@ -68,9 +68,10 @@ package, the web UI in `web/`. No crate declares cargo `[features]`.
 | `cohesion-internet-harness` | bin, `publish = false` | A tool: `cargo run -p cohesion-internet-harness -- page <url>` or `feed <url>` prints the Markdown the daemon would store, for building Coherence's rules. Nothing depends on it. | cohesion-core, cohesion-internet |
 | `cohesion-js` | lib | The QuickJS script runtime (rquickjs): `ScriptEngine` and its worker pools, `Sandbox`, globals and `Mount`, JS entities, `script_api` (which yields the `.d.ts`), `service_declarations`, `AgentRole`, and the traits a higher crate implements: `ConnectorAccess`, `ServiceAccess`, `ActorAccess`. Strips TypeScript with `swc_ts_fast_strip`; vendors the Pele diagram renderer in `vendor/pele`. | cohesion-core, cohesion-db, cohesion-internet, cohesion-macros |
 | `cohesion-intelligence` | lib | LLM conversations: provider backends (`providers/`), the models.dev catalog (`catalog/`), `Session` and its tools, `AgentCoordinator` and the agent machinery (`agents/`), `SpendLimits`, and the `AccountCredentials` trait. | cohesion-core, cohesion-db, cohesion-js |
-| `cohesionkit` | lib (+ `build.rs`) | The facade the daemon builds on: `CohesionContext`, the `Route` impls (`routes/`), hooks (`hooks/`), table formula passes (`table_formulas.rs`), `ExtensionManager`, connectors, feeds, periodic cleanup, `Security`, `Presence`, `CapabilityClients`, `ActorSessions`, `EndpointRelay`, `PendingImport`, and `web_bundle` (the web UI compiled into the binary). | all of the above but the harness |
+| `cohesionkit` | lib (+ `build.rs`) | The facade the daemon builds on: `CohesionContext`, the `Route` impls (`routes/`), hooks (`hooks/`), table formula passes (`table_formulas.rs`), `ExtensionManager`, connectors, feeds, periodic cleanup, `Security`, `Presence`, `CapabilityClients`, `ActorSessions`, `EndpointRelay`, `PendingImport`, and `web_bundle` (the web UI compiled into the binary). | all of the above but the harness and the bench |
+| `cohesion-bench` | lib + bin, `publish = false` | A tool: scores language models on Cohesion's agent, tools and script API. Each run of a case builds the daemon's `CohesionContext` on a scratch database, sends the case's prompt to a new agent on the model under test, and checks the result with the case's `validate.ts`; it writes `report.html`, `cases.csv` and `summary.csv` ([24](#24-testing)). Nothing depends on it. | cohesionkit, cohesion-js |
 | `cohesiond` | bin | The daemon: opens the database, builds `CohesionContext`, prints the first setup code, serves HTTPS with client certificates and a Unix socket until a signal. Also `examples/fake_actor.rs`, a minimal actor client. | cohesionkit |
-| `cohesion` | bin | The CLI: `setup`, `api`, the noun commands (`cli/`), and `open`, the loopback proxy that serves the web UI (`web_proxy/`). Never links rusqlite, rquickjs or cohesion-intelligence. | cohesion-core |
+| `cohesion` | bin | The CLI: `setup`, `api`, the noun commands (`cli/`), `open`, the loopback proxy that serves the web UI (`web_proxy/`), and `mcp`, a stdio MCP server whose one tool runs a script (`cli/mcp.rs`). Never links rusqlite, rquickjs or cohesion-intelligence. | cohesion-core |
 
 ```mermaid
 flowchart BT
@@ -85,6 +86,7 @@ flowchart BT
   kit --> daemon[cohesiond]
   core --> cli[cohesion CLI]
   net --> harness[cohesion-internet-harness]
+  kit --> bench[cohesion-bench]
   web[web/ build] -. build.rs compresses it in .-> kit
 ```
 
@@ -143,6 +145,7 @@ and the release profile strips symbols without LTO (set
 | Install the daemon only | `scripts/install-server.sh` (web UI, then `cargo install --path cohesiond`) |
 | Install the CLI only | `scripts/install-cli.sh` (`cargo install --path cohesion`; the CLI doesn't hold the web UI) |
 | Try an actor client | `cargo run -p cohesiond --example fake_actor -- <socket> [name]` |
+| Benchmark models | `cargo run -p cohesion-bench -- setup`, then `cargo run --release -p cohesion-bench -- run` ([24](#24-testing)) |
 
 **The web UI**, from `web/` (`web/package.json`):
 
@@ -343,7 +346,8 @@ certificate and setup key. `Security` remembers refused pairings for at most
 1. `work.close()`: `WorkTracker` refuses new work. Every request on every transport is answered "Cohesion is shutting down. Try again once it has restarted.", and so are `/register`, offers, day-clock ticks and timed passes; running work may still start follow-on work (hooks, cue runs, scripts, model calls). Running activities are cancelled. The listeners keep answering.
 2. `hooks.settle_all()`: every `journal:settled` and `document:settled` hook still waiting is queued now ([7](#7-hooks-and-events)).
 3. `work.idle()`: wait for all work.
-4. `database.close()`: run what is queued, then `ShutdownCleanupCommand` as the last write, then drop the connection. In one transaction it runs `SettleAgentThreadMarksCommand`, `SettleAgentActivityCommand`, `SettleActivitiesCommand`, `SettleActorSessionsCommand` and `SettleAgentAsksCommand` (`cohesion-db/src/commands/shutdown_cleanup.rs`). Startup runs it again, for a daemon that crashed. State a stopped daemon must not leave behind is one more `ctx.run` there.
+4. `script_engine.shutdown()`: every script worker thread, scoped ones included, ends once its queue has drained; a script submitted after is cancelled. Without it the threads would outlive the context, since the engine's clones hold one another.
+5. `database.close()`: run what is queued, then `ShutdownCleanupCommand` as the last write, then drop the connection. In one transaction it runs `SettleAgentThreadMarksCommand`, `SettleAgentActivityCommand`, `SettleActivitiesCommand`, `SettleActorSessionsCommand` and `SettleAgentAsksCommand` (`cohesion-db/src/commands/shutdown_cleanup.rs`). Startup runs it again, for a daemon that crashed. State a stopped daemon must not leave behind is one more `ctx.run` there.
 
 Every 5 seconds the daemon logs what it is still waiting for. After 5 minutes,
 or a second signal, it stops waiting, still closes the database, and exits 1.
@@ -466,7 +470,7 @@ agent's turn.
 (`ItemLink`, `cohesion-core/src/model/item_link.rs`):
 `cohesion://task/<ws>/<id>`, `cohesion://document/<ws>/<id>` (journal entries
 too), `cohesion://resource/<ws>/<id>`, `cohesion://document-folder/<ws>/<id>`
-(how a table is linked), `cohesion://agent/<id>`,
+(how a table is linked), `cohesion://contact/<ws>/<id>`, `cohesion://agent/<id>`,
 `cohesion://actor-session/<id>` and `cohesion://article/<id>`. A task or
 document link without its workspace, as links were first written, still names
 one, since those ids are unique across workspaces. `ResolveLink{link}`
@@ -481,12 +485,15 @@ its properties, its first `TABLE_PREVIEW_ROWS` (5) live documents as
 `TableRow`s, oldest first, and its `row_count`, enough to preview a table
 (a plain folder has no properties, so its rows are titles), and an empty
 excerpt. A row of a table is a document, and a link to it resolves as one. A
+contact's title is its full name (`Contact::full_name`) and its excerpt its
+notes'. A
 client that doesn't know a kind shows the title, the excerpt and the kind's
 word. An item deleted, in a deleted workspace or never made is `notFound`;
 text that isn't such a link fails validation on `link`. Old
 `cohesion://database/…` and `cohesion://database-row/…` links name nothing.
 Nothing pushes an embed: a client asks again on the item's invalidation,
 `taskList` of the task's workspace, `documents(ws)`, `resources(ws)`,
+`contacts(ws)`,
 `documentTable(folder)` for a folder, `agent(id)`, `actorSession(id)` or
 `feedArticles`. A link shows as a card
 where it is alone on its line, outside a fenced or indented code block
@@ -510,7 +517,7 @@ alone on its line or in a sentence: an inline link's target, an autolink
 span (`item_links`, `model/backlink.rs`); an item's links to itself don't
 count. The `backlinks` table keeps them: one row per item a source links to,
 the source and the target each a `LinkKind` (`task`, `document`, `resource`,
-`documentFolder`, `agent`, `actorSession`, `article`) and an id,
+`documentFolder`, `contact`, `agent`, `actorSession`, `article`) and an id,
 with the link as first written.
 An item says what it is and what its text is (`LinkSource`), and every
 command that writes a document or a task ends in `FollowLinksCommand`
@@ -910,7 +917,8 @@ was stopped doesn't fire. After `day:start` it queues `task:start` then
 
 The timed passes started by `CohesionContext::start` (cleanup, resource and
 feed refresh, update checks) raise no hooks of their own; what they change
-does.
+does. A pass that panics is logged and the timer goes on to the next
+(`WorkTracker::every`).
 
 ---
 
@@ -1035,7 +1043,7 @@ deleting sets `deleted`, and client reads use `select_live`.
 | `saved_task_views` and `saved_task_view_priorities`, `_sizes`, `_tags` | Saved task filters: a list or a folder, a sort, and filter sets. |
 | `contacts` (soft), `contact_methods` | People in a workspace, and their emails and phone numbers. A deleted contact is unassigned from tasks. |
 | `metadata` | Key-value pairs on exactly one workspace, document, task, folder or resource. Scripts only: a request can't carry metadata filters. |
-| `backlinks` | What links to what: `source_kind` and `source_id` (a document or a task so far), `target_kind` and `target_id` (a `LinkKind` and an id), and `link` as first written; one row per source and target, never a source to itself. Rewritten by `FollowLinksCommand` on every document and task write; a document or task removed for good takes its rows (triggers `documents_backlinks_ad`, `tasks_backlinks_ad`). The `backlinks` migration filled it from every live document, and `task_backlinks` from every live task's description, through the SQL function `outgoing_links`, which runs the same Rust rule; the `databases` migration rebuilt it, with those two triggers, to admit `database` and `databaseRow`, and `document_tables` rebuilt it again to admit `documentFolder` in their place, dropping the rows that named a database or a row. The `document_tables` migration also turned each database into a top-level folder and each row into a document in it (see "Tables" in [5](#5-the-wire-protocol)). |
+| `backlinks` | What links to what: `source_kind` and `source_id` (a document or a task so far), `target_kind` and `target_id` (a `LinkKind` and an id), and `link` as first written; one row per source and target, never a source to itself. Rewritten by `FollowLinksCommand` on every document and task write; a document or task removed for good takes its rows (triggers `documents_backlinks_ad`, `tasks_backlinks_ad`). The `backlinks` migration filled it from every live document, and `task_backlinks` from every live task's description, through the SQL function `outgoing_links`, which runs the same Rust rule; the `databases` migration rebuilt it, with those two triggers, to admit `database` and `databaseRow`, `contacts_search_and_links` to admit `contact`, filling in the links to contacts that live documents and tasks already held, and `document_tables` rebuilt it again to admit `documentFolder` in place of the two database kinds, dropping the rows that named a database or a row. The `document_tables` migration also turned each database into a top-level folder and each row into a document in it (see "Tables" in [5](#5-the-wire-protocol)). |
 | `versions` | Rewind: past versions of tasks and documents, with `change` (`created`, `edited`, `deleted`, `restored`, `earlier`), `author` and `author_name`. Written by triggers through the `version_writes` view, which folds edits within 120 s into one version. |
 | `rewind_writer` | One row: who is writing now (see above). |
 
@@ -1216,13 +1224,13 @@ English stemming, case-insensitive, accents ignored.
 
 | Index | Columns | Covers | Kept by |
 |---|---|---|---|
-| `search_fts` (rows mapped by `search_entries`: `entity_kind`, `entity_id`, `workspace_id`) | `title`, `contents` | Live documents (journal entries and tables' rows included), live tasks (the description as contents), resources (contents only if not JSON) | `documents_search_*`, `tasks_search_*`, `resources_search_*` |
+| `search_fts` (rows mapped by `search_entries`: `entity_kind`, `entity_id`, `workspace_id`) | `title`, `contents` | Live documents (journal entries and tables' rows included), live tasks (the description as contents), resources (contents only if not JSON), live contacts (the full name as title, the notes as contents; not their emails or phone numbers) | `documents_search_*`, `tasks_search_*`, `resources_search_*`, `contacts_search_*` |
 | `feed_corpus_fts` | `title`, `author`, `contents` | Live articles | `articles_feed_corpus_*` |
 | `actor_sessions_fts` | `title` | Actor sessions | `actor_sessions_search_*` |
 | `actor_session_messages_fts` | `text` | Actor session messages of kind `text`, from either side | `actor_session_messages_search_*` |
 
-Agent chats, model threads, contacts, tags, metadata and tables' values
-aren't indexed.
+Agent chats, model threads, tags, metadata and tables' values aren't
+indexed.
 
 **Query syntax.** The user's text is bound unchanged as the `MATCH` operand,
 so FTS5's syntax applies as is: words separated by spaces must all match,
@@ -1243,7 +1251,7 @@ internal error.
 
 | Search | Request and command | Ranks by | Returns |
 |---|---|---|---|
-| Workspace | `SearchWorkspace{workspace_id, query}`, `SearchWorkspaceCommand` | `bm25(search_fts, 5.0, 1.0)`: title weighs 5, contents 1 | `Vec<SearchResult>` (`id` of the index entry, `entity_kind` (`document`, `task`, `resource`), `entity_id`, `workspace_id`, `title`, `contents`); no paging, no snippet. Scripts: `workspace.search(query)`. CLI: `cohesion search`. |
+| Workspace | `SearchWorkspace{workspace_id, query}`, `SearchWorkspaceCommand` | `bm25(search_fts, 5.0, 1.0)`: title weighs 5, contents 1 | `Vec<SearchResult>` (`id` of the index entry, `entity_kind` (`document`, `task`, `resource`, `contact`), `entity_id`, `workspace_id`, `title`, `contents`); no paging, no snippet. Scripts: `workspace.search(query)`. CLI: `cohesion search`. |
 | Corpus (articles) | `SearchFeedCorpus{query, feed_ids?, offset, limit?}`, `SearchFeedCorpusCommand` | `bm25(feed_corpus_fts, 5.0, 2.0, 1.0)` | `FeedCorpusPage{hits, total}`, each hit with a 24-token snippet of the text; 50 a page by default, 500 at most. Scripts: `cohesion.searchCorpus(query, {feedIds})`, the best 200 whole articles. |
 | Actor sessions | `SearchActorSessions{query}`, `SearchActorSessionsCommand` | Title matches at `5.0 * bm25`, message matches at `bm25`; each session's best match, then most recently changed | `Vec<ActorSessionSearchHit>` across every actor, resolved sessions included, with a snippet when a message matched |
 
@@ -1994,7 +2002,7 @@ history; Alt-click opens a link in the second half, and the split closes below
 **Code layout** (`web/src/lib/`):
 
 - `protocol/`: the connection, the session API, generated types, the mock.
-- `stores/`: state, one `create…Store(send)` factory per area, built on `Resource<T, K>` (`resource.svelte.ts`), which loads, refetches when an invalidation touches it, and marks itself stale when no page is using it. Page stores are made once per split half (`pageStores.svelte.ts`); workspaces, feeds, connectors and extensions are app-wide.
+- `stores/`: state, one `create…Store(send)` factory per area, built on `Resource<T, K>` (`resource.svelte.ts`), which loads, refetches when an invalidation touches it, and marks itself stale when no page is using it. The daemon answers requests side by side, so a fetch can answer after a write it read before; a mutation reply applied while a fetch waits drops that fetch and fetches again. Page stores are made once per split half (`pageStores.svelte.ts`); workspaces, feeds, connectors and extensions are app-wide.
 - `features/<area>/`: components for one area (actors, agents, articles, connectors, contacts, dashboard, documents, extensions, folders, rewind, settings, tables, tags, tasks, threads).
 - `ui/`: about 70 shared components (buttons, dialogs, side panels, menus, pickers, fields, `Markdown`, `Editor`, avatars, toasts, status pills) and `motion.ts`.
 - `shell/`: the app frame: sidebar, palette, shortcuts, linked items, split view, notices.
@@ -2127,18 +2135,20 @@ background" while one is still going), which opens its thread at
 `/actors/<id>`; subagents launched from no tool use shown follow the
 transcript. What a session's subagents ask waits at the transcript's foot,
 answerable there, under a link to the one asking. The column beside the sheet
-shows, under the usage meters, the open session's family whenever it has
-subagents or is one: the session Cohesion started and every subagent beneath
-it, set in by depth, the open one marked, each opening its thread. A subagent's thread is the same view, read-only:
+shows, above the usage meters, the open session's own relations whenever it
+has subagents or is one: the session it runs under behind an up-left corner
+arrow, then its subagents one level down behind down-right ones, each opening
+its thread; the rest of the tree stays out of it. A subagent's thread is the same view, read-only:
 its header leads with a chevron up to the session it runs under (`BackLink`
 with `up`) and says what kind it is and whose, it has no composer or Resolve,
 and its requests show without their buttons, linking to the session Cohesion
 started, where they are answered. The store holds them in `subagents`,
-`waiting`, `above` and `family` (`stores/actors.svelte.ts`).
+`waiting` and `above` (`stores/actors.svelte.ts`).
 
 **Links.** Items link as `cohesion://task/<ws>/<id>`,
 `cohesion://document/<ws>/<id>`, `cohesion://resource/<ws>/<id>`,
-`cohesion://document-folder/<ws>/<id>`, `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and
+`cohesion://document-folder/<ws>/<id>`, `cohesion://contact/<ws>/<id>`,
+`cohesion://agent/<id>`, `cohesion://actor-session/<id>` and
 `cohesion://article/<id>` (`parseItemLink`, `lib/format/itemLinks.ts`, which
 `shell/routes.ts` re-exports; a task or document link without a workspace
 still opens). The daemon finds what a link names (`resolveLink`, through
@@ -2148,9 +2158,10 @@ themselves. Following one in the web UI (`ui/Markdown.svelte`,
 `ItemPanel`, the same for every kind but its content
 (`shell/linkedItem.svelte.ts`, `shell/LinkedItem.svelte`): a task with its
 folder, tags and contacts; a document, or, in a table, its row with its values
-and text (`TableRowPanel`); a resource; an agent; an actor session with its
-actor and messages; an article with its feed. A folder has no panel: its link
-goes to the Documents page at it.
+and text (`TableRowPanel`); a resource; a contact, changed through its
+workspace's contacts; an agent; an actor session with its actor and messages;
+an article with its feed. A folder has no panel: its link goes to the
+Documents page at it.
 Full-page content has
 an Open link (an article's opens in the current workspace). A modified click
 falls through to the `/open/…` page. The panel can be expanded: a button
@@ -2186,8 +2197,8 @@ workspace's.
 
 **Embeds.** In a document, a journal entry, Today and a task's description, a
 link alone on its line shows as a card of its item (`shell/EmbedCard.svelte`):
-its icon (a task's box, an agent's avatar, a session's status), title, kind
-and a detail, and the start of its text. The editor (`ui/Editor.svelte`, given
+its icon (a task's box, an agent's avatar, a contact's photo or initials, a
+session's status), title, kind and a detail (a contact's first email or phone), and the start of its text. The editor (`ui/Editor.svelte`, given
 `embed` by `shell/embedCards.ts`) draws the card in place of the line while the
 caret is elsewhere, and the line as typed while the caret is on it; the
 read-only preview and the document panel draw it too (`Markdown`'s `embeds`).
@@ -2208,7 +2219,7 @@ folders, since `searchWorkspace` doesn't search them: their Copy link does.
 opens the same picker, with the same rows and keys, and writes the same
 `[title](cohesion://…)`; both are read by `lib/format/mentionTrigger.ts`. It
 offers agents by name, then the
-workspace's documents, journal entries, tasks and resources
+workspace's documents, journal entries, tasks, resources and contacts
 (`searchWorkspace`), then actor sessions (`searchActorSessions`), at most 8
 rows. It offers no articles: copy an article's link ("Copy link" above) and
 paste it. ↑ and ↓ choose,
@@ -2337,7 +2348,7 @@ on Linux):
 
 **`cohesion open`** (`cohesion/src/cli/open.rs`, `cohesion/src/web_proxy/`):
 
-1. Reads `About` and the current workspace for `/client`, and takes a token: from `COHESION_DEV_TOKEN` with `--dev`, else the saved `web-token` (32 random letters and digits), made once and kept until `--reset-token`.
+1. Reads `About` and the current workspace for `/client`, and takes a token: from `COHESION_DEV_TOKEN` with `--dev`, else the saved `web-token` (32 random letters and digits), made once and kept until `--reset-token`; a file holding anything else, such as one a failed write left empty, is replaced.
 2. Fetches the bundle with `WebBundle` and inflates it into memory (`static_assets.rs`). With `--dev` it serves only `/client` and `/connect`, for Vite.
 3. Binds `127.0.0.1` on `--port` or 7343, falling back to a free port, prints the address, and opens a browser unless `--no-browser`.
 4. Serves `GET /launch/<nonce>` (one use, within 30 s, answering `303` to `/#token=<token>` with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`, so the token never sits on a command line), `GET /client`, `/connect` (a WebSocket relayed unchanged to a new session over the CLI's own connection, up to 64 MiB a message), and the files (anything unknown is `index.html`; `_app/immutable/` is cached for a year).
@@ -2560,8 +2571,9 @@ an HTTP status, "That address isn't an RSS or Atom feed.", "That feed is over
 client (`fetch.rs`): 20 s, user agent `cohesion`, redirects followed, at most
 5 MiB. An HTML page is searched for a feed link (`discover_feed`), followed
 once. The body is sniffed: `{` is JSON Feed, a root `rss` is RSS 2.0, a root
-`feed` is Atom; anything else isn't a feed. Items without a link are dropped,
-and items already known are skipped without fetching.
+`feed` is Atom; anything else isn't a feed. Items without a link, or whose
+link isn't an http or https address, are dropped, and items already known are
+skipped without fetching.
 
 **An article's text** (`feed/item.rs`). The feed's own HTML goes through
 Coherence, unless it is an excerpt (ending in an ellipsis or a "read more"
@@ -2644,7 +2656,7 @@ socket.
 
 **External input is bounded.** Fetched pages and feeds: 5 MiB and 20 s.
 Script fetches: 20 s and 32 MiB. Model requests: 30 s to connect, 10 minutes
-to finish. Extension downloads: 5 MiB and 20 s. Catalogs, feeds and pages are
+to finish. The models.dev catalog: 60 s. Extension downloads: 5 MiB and 20 s. Catalogs, feeds and pages are
 parsed defensively.
 
 **Logging** (`cohesion-core/src/log/`). `log_debug!`, `log_info!`,
@@ -2723,6 +2735,7 @@ Settings › Security lists the security events.
 | `cohesiond` | Sessions (`session/tests.rs`, with a `FakeExchange` in place of a socket), the first-byte timeout, PROXY headers, the unknown-peer cache, the local handshake | tokio's paused time |
 | `cohesion` | Argument definitions, `cohesion open`'s guard, launch link and token | tower's `ServiceExt` |
 | `cohesion-core` | Models (`tests/model.rs`) and core helpers | |
+| `cohesion-bench` | Every bench case fails on its starting data and passes after its `solution.ts` (`every_case_can_fail_and_pass`); a run's metrics match what Cohesion recorded; the scores | A scratch `CohesionContext`, and a local server speaking Chat Completions |
 | `web/` | Stores against the mock daemon, the connection (with an injected WebSocket), formatting and UI helpers (`src/**/*.test.ts`) | Vitest in Node, with `vocabulary.setup.ts`. There are no component or end-to-end tests: components are checked by `svelte-check`, lint and the build, and then by eye in mock mode. |
 
 Unit tests live out of line: `#[cfg(test)] mod tests;` at the end of a file,
@@ -2743,6 +2756,50 @@ scratch config directory and socket ("Running it locally" in `CLAUDE.md`), for e
 `target/debug/cohesiond -c /tmp/cohesion-smoke --socket /tmp/cs.sock --port 3100`
 then `target/debug/cohesion -c /tmp/cohesion-smoke/client setup --local /tmp/cs.sock`,
 or the web UI with `VITE_MOCK=1 npm run dev`.
+
+**Benchmarking models** (`cohesion-bench`). The bench scores how well a
+model does Cohesion's work through its real agent: the same
+`CohesionContext`, system prompt, tools, script API and provider backends
+the daemon runs, built from the same commit, so a change to a tool's
+definition or the API shows up in the next run with nothing to update.
+Its cases live in `cohesion-bench/cases/`, one directory each, written in
+TypeScript against the script API's declarations; the case format is in
+[the cases' README](../cohesion-bench/cases/README.md). A case starts from
+a starting state (`cases/states/`), plain data that `StartingState`
+(`starting_state.rs`) reads and the prelude applies through the script API.
+The bench scores outcomes: a check reads the data the agent left and what
+it told the user, never which tools it used. Every prompt starts with the
+nearest `prompt-prelude.md` (the case's directory, its category's, then
+`cases/`'s); the root one tells the agent not to ask, since no one answers
+during a run, and doing the work in fewer steps shows in efficiency.
+Whether it asks at the right times is scored apart, by the cases in
+`cases/alignment/`, whose empty prelude leaves only Cohesion's own
+instructions. A case can name an `answer`, which the bench gives once the
+first turn ends, picking the matching option of the agent's choice
+(`RespondToAgentChoice`) or sending it as a message, so the case also
+checks that the agent follows through.
+`cohesion-bench validate` and the crate's tests check that every case fails
+on its starting data and passes after its solution, so a script API change
+that breaks a case fails `cargo test`; fix the case in the same commit.
+
+`cohesion-bench setup` saves the providers, their API keys, the models and
+the options to `cohesion-bench/bench.json` (git-ignored, readable by its
+owner only), asking for each on a terminal or taking flags; `run` starts
+from it, each flag overriding it. Each run of a case gets a scratch
+database of its own under `target/cohesion-bench/<time>/runs/`. A run is
+measured from what Cohesion recorded: whether `validate.ts` passed, tool
+accuracy (the share of tool calls in its threads that succeeded), cost and
+tokens (its cost events), wall time, and turn metrics (model calls, tool
+calls, documentation lookups, messages sent, questions asked). Four
+scores summarise a model (`score.rs`), each 0 to 100 and comparable across
+runs: accuracy (passes weighted by difficulty, 1 to 3, alignment cases
+aside), efficiency (over those passed runs, tokens, model calls and time
+against fixed references by difficulty), overall (accuracy<sup>0.7</sup> ×
+efficiency<sup>0.3</sup>) and alignment (accuracy over the alignment cases
+alone).
+A run writes `report.html`, `cases.csv` (one row per run) and `summary.csv`
+(one row per model). It calls real providers and costs money; `validate`
+and the tests don't.
 
 **The rules in [conventions.md](conventions.md).** Write tests for low-level behaviour a
 regression would quietly break: the JS runtime (sandbox isolation, worker

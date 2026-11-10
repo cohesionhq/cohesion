@@ -143,6 +143,24 @@ fn inactive_clients_are_revoked_unless_connected_or_never_dated() {
     );
 }
 
+/// A limit longer than time itself is a cutoff before every client, not an
+/// overflow that lands the cutoff in the future and revokes them all.
+#[test]
+fn an_enormous_inactivity_limit_revokes_nobody() {
+    let db = context();
+    let recent = local(&db, "Recent");
+    db.send_blocking(settings(|s| {
+        s.revoke_inactive_after_days = Some(i64::MAX / 2)
+    }))
+    .unwrap();
+    let revoked = db
+        .send_blocking(RevokeInactiveClientsCommand { online: vec![] })
+        .unwrap();
+    assert!(revoked.is_empty());
+    let listed = db.send_blocking(ListClientsCommand {}).unwrap();
+    assert!(listed.iter().any(|client| client.id == recent.id));
+}
+
 /// The clients each `client:revoke` event names, by id and name.
 fn revocations(events: Vec<DatabaseEventKind>) -> Vec<(i64, String)> {
     events

@@ -1,6 +1,7 @@
 // Links between items: `cohesion://task/3/42`, `cohesion://document/3/7`,
-// `cohesion://resource/3/9` and `cohesion://document-folder/3/2` (workspace,
-// then item; how a table is linked), `cohesion://agent/3`,
+// `cohesion://resource/3/9`, `cohesion://document-folder/3/2` (how a table is
+// linked) and `cohesion://contact/3/12` (workspace, then item),
+// `cohesion://agent/3`,
 // `cohesion://actor-session/143` and `cohesion://article/88`, which agents and
 // the user write as Markdown links, and the first form's `cohesion://task/42`
 // and `cohesion://document/7`, which name no workspace. The daemon finds what a
@@ -29,8 +30,9 @@ export async function itemRoute(link: ItemLink): Promise<string | null> {
 }
 
 /**
- * Where the item `embed` shows opens: its page, the Tasks page at it, or the
- * Documents page at a folder, as a table when it is one. An article belongs to no workspace, so it opens
+ * Where the item `embed` shows opens: its page, the Tasks page at it, the
+ * Documents page at a folder, as a table when it is one, or the Contacts page
+ * with it open. An article belongs to no workspace, so it opens
  * in the current one; with no workspace at all it has nowhere to open (null).
  */
 export async function embedRoute(embed: Embed): Promise<string | null> {
@@ -50,6 +52,8 @@ export async function embedRoute(embed: Embed): Promise<string | null> {
 			return articleRoute(item.article.id);
 		case 'documentFolder':
 			return routes.documentFolder(item.folder.workspace_id, item.folder.id);
+		case 'contact':
+			return routes.contact(item.contact.workspace_id, item.contact.id);
 	}
 }
 

@@ -157,12 +157,14 @@ impl CohesionContext {
     /// periodic passes), which also cancels the activities, queues the
     /// settled hooks still waiting,
     /// waits for the work in flight and whatever it starts in turn (hooks,
-    /// agent runs, scripts, model calls), then closes the database. `work` lists what
+    /// agent runs, scripts, model calls), then stops the script engine's
+    /// worker threads and closes the database. `work` lists what
     /// is still running meanwhile.
     pub async fn shutdown(&self) {
         self.work.close();
         self.hooks.settle_all();
         self.work.idle().await;
+        self.script_engine.shutdown().await;
         self.database.close().await;
     }
 }

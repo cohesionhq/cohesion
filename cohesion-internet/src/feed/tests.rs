@@ -120,6 +120,34 @@ fn atom_content_keeps_its_xhtml_and_its_base() {
 }
 
 #[test]
+fn an_item_linking_anything_but_a_web_address_is_left_out() {
+    let rss = r#"<rss version="2.0"><channel><title>Mixed</title>
+        <item><title>Mail</title><link>mailto:ada@bakery.example</link></item>
+        <item><title>Script</title><link>javascript:alert(1)</link></item>
+        <item><title>File</title><link>ftp://bakery.example/rye.txt</link></item>
+        <item><title>Page</title><link>/posts/rye</link></item>
+    </channel></rss>"#;
+    let feed = parse_feed(rss, &base()).unwrap();
+    let urls: Vec<&str> = feed.items.iter().map(|item| item.url.as_str()).collect();
+    assert_eq!(urls, ["https://bakery.example/posts/rye"]);
+
+    let json = r#"{"version": "https://jsonfeed.org/version/1.1", "title": "Mixed", "items": [
+        {"id": "1", "url": "javascript:alert(1)", "content_text": "One."},
+        {"id": "2", "url": "https://bakery.example/two", "content_text": "Two."}]}"#;
+    let feed = parse_feed(json, &base()).unwrap();
+    let urls: Vec<&str> = feed.items.iter().map(|item| item.url.as_str()).collect();
+    assert_eq!(urls, ["https://bakery.example/two"]);
+
+    let atom = r#"<feed xmlns="http://www.w3.org/2005/Atom"><title>Mixed</title>
+        <entry><title>Mail</title><link href="mailto:ada@bakery.example"/></entry>
+        <entry><title>Page</title><link href="https://bakery.example/three"/></entry>
+    </feed>"#;
+    let feed = parse_feed(atom, &base()).unwrap();
+    let urls: Vec<&str> = feed.items.iter().map(|item| item.url.as_str()).collect();
+    assert_eq!(urls, ["https://bakery.example/three"]);
+}
+
+#[test]
 fn a_page_is_not_a_feed() {
     assert!(parse_feed("<!doctype html><html><body>Hi</body></html>", &base()).is_none());
     assert!(parse_feed("not xml at all", &base()).is_none());

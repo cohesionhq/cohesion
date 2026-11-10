@@ -310,7 +310,10 @@
 					{session}
 					actor={actors.list.value.find((a) => a.id === session.actor_id) ?? null}
 					plan={planOf(actors.usage.value, session.actor_id)}
-					family={actors.family.key === session.id ? actors.family.value : []}
+					above={session.subagent && actors.above.key === session.subagent.parent_session_id
+						? actors.above.value
+						: null}
+					subagents={actors.subagents.key === session.id ? actors.subagents.value : []}
 				/>
 			{/if}
 		</ConversationGutter>

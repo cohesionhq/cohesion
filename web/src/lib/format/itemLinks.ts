@@ -6,25 +6,27 @@
 export type ItemKind = WorkspaceItemKind | 'agent' | 'actor-session' | 'article';
 
 /** What a `cohesion://` link names with its workspace. */
-export type WorkspaceItemKind = 'task' | 'document' | 'resource' | 'document-folder';
+export type WorkspaceItemKind = 'task' | 'document' | 'resource' | 'document-folder' | 'contact';
 
 /** What a `cohesion://` link can name without its workspace. */
 export type UnscopedItemKind = 'task' | 'document' | 'agent' | 'actor-session' | 'article';
 
-// `cohesion://task/3/42`, `cohesion://document/3/7`, `cohesion://resource/3/9`
-// and `cohesion://document-folder/3/2` (workspace, then item; a folder is how
-// a table is linked); `cohesion://agent/3`, `cohesion://actor-session/143`
-// and `cohesion://article/88`. The daemon reads them the same way (`ItemLink`).
-const WORKSPACE_ITEM_LINK = /^cohesion:\/\/(task|document|resource|document-folder)\/(\d+)\/(\d+)$/;
+// `cohesion://task/3/42`, `cohesion://document/3/7`, `cohesion://resource/3/9`,
+// `cohesion://document-folder/3/2` and `cohesion://contact/3/12` (workspace,
+// then item; a folder is how a table is linked); `cohesion://agent/3`,
+// `cohesion://actor-session/143` and `cohesion://article/88`. The daemon reads
+// them the same way (`ItemLink`).
+const WORKSPACE_ITEM_LINK =
+	/^cohesion:\/\/(task|document|resource|document-folder|contact)\/(\d+)\/(\d+)$/;
 // `cohesion://task/42` and `cohesion://document/7` without their workspace,
 // as links were first written, as well as agents, actor sessions and articles.
 const ITEM_LINK = /^cohesion:\/\/(task|document|agent|actor-session|article)\/(\d+)$/;
 
 /**
- * What a `cohesion://` link names: a task, document, resource or document
- * folder with its workspace (`cohesion://task/3/42`), or an item without one
- * (`cohesion://task/42`, `cohesion://agent/3`), as links to tasks and
- * documents were first written.
+ * What a `cohesion://` link names: a task, document, resource, document
+ * folder or contact with its workspace (`cohesion://task/3/42`), or an item
+ * without one (`cohesion://task/42`, `cohesion://agent/3`), as links to tasks
+ * and documents were first written.
  */
 export type ItemLink =
 	| { kind: WorkspaceItemKind; ws: number; id: number }

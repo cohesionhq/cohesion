@@ -55,3 +55,14 @@ fn a_long_cache_write_costs_its_multiple_of_the_write_rate_and_a_short_one_the_w
     });
     assert!((mixed - (0.6 * 3.75 + 0.4 * 6.0)).abs() < 1e-9);
 }
+
+#[test]
+fn counts_too_large_to_add_are_the_largest_count_not_an_overflow() {
+    let usage = Usage {
+        input_tokens: 10,
+        cache_reads: u64::MAX,
+        cache_writes: 5,
+        ..Usage::default()
+    };
+    assert_eq!(usage.prompt_tokens(), u64::MAX);
+}

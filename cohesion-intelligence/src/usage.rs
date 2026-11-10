@@ -18,7 +18,11 @@ impl Usage {
     /// How many tokens the provider counted in the request's prompt, cached
     /// or not.
     pub fn prompt_tokens(&self) -> u64 {
-        self.input_tokens + self.cache_reads + self.cache_writes
+        // The counts are the provider's own, so they are added without trusting
+        // them to fit.
+        self.input_tokens
+            .saturating_add(self.cache_reads)
+            .saturating_add(self.cache_writes)
     }
 
     /// Computes what this turn's usage cost at the model's rates, a long

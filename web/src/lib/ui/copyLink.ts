@@ -18,6 +18,7 @@ const embedKinds: Record<ItemKind, EmbedKind> = {
 	document: 'document',
 	resource: 'resource',
 	'document-folder': 'documentFolder',
+	contact: 'contact',
 	agent: 'agent',
 	'actor-session': 'actorSession',
 	article: 'article'

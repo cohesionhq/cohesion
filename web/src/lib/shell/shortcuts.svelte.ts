@@ -56,6 +56,32 @@ export function showsShortcuts(
 	);
 }
 
+type Chord = Pick<KeyboardEvent, 'code' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>;
+
+function modN(event: Chord, shift: boolean): boolean {
+	return (
+		(event.metaKey || event.ctrlKey) &&
+		!(event.metaKey && event.ctrlKey) &&
+		!event.altKey &&
+		event.shiftKey === shift &&
+		event.code === 'KeyN'
+	);
+}
+
+/**
+ * Whether a key press asks for a new item on the page: ⌘N (Ctrl+N), as a
+ * native app's File › New. Each page makes what it lists: a task or a
+ * document, which in a table is a row.
+ */
+export function asksForNew(event: Chord): boolean {
+	return modN(event, false);
+}
+
+/** Whether a key press asks for a new folder: ⇧⌘N (Ctrl+Shift+N), as Finder's. */
+export function asksForNewFolder(event: Chord): boolean {
+	return modN(event, true);
+}
+
 /** Which way a mouse's side button steps through history: its back button (3) or forward one (4). */
 export function historyStepForButton(button: number): -1 | 1 | null {
 	if (button === 3) return -1;

@@ -15,8 +15,8 @@ use crate::commands::document_value::first_rows;
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::{
     CommandContext, CommandError, DatabaseCommand, DatabaseCommandResult, Filtered, Found,
-    GetActorSessionCommand, GetArticleCommand, GetIntelligenceAgentCommand, GetResourceCommand,
-    Read, ReadableDatabase, ValidationError,
+    GetActorSessionCommand, GetArticleCommand, GetContactCommand, GetIntelligenceAgentCommand,
+    GetResourceCommand, Read, ReadableDatabase, ValidationError,
 };
 
 /// `link`, a request's `link` field, as the item link it is, or a validation
@@ -83,6 +83,13 @@ impl DatabaseCommand for ResolveLinkCommand {
                     first_rows(ctx.db, workspace_id, id, &properties, TABLE_PREVIEW_ROWS)?;
                 Embed::document_folder(folder, properties, rows, row_count)
             }
+            ItemLink::Contact { workspace_id, id } => Embed::contact(
+                GetContactCommand {
+                    workspace_id,
+                    contact_id: id,
+                }
+                .handle(ctx)?,
+            ),
             ItemLink::Agent { id } => {
                 Embed::agent(GetIntelligenceAgentCommand { agent_id: id }.handle(ctx)?)
             }

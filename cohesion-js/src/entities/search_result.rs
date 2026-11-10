@@ -1,10 +1,11 @@
 //! `SearchResult` in scripts.
 
 use cohesion_core::model::{SearchEntityKind, SearchResult};
-use cohesion_db::{GetDocumentCommand, GetResourceCommand, GetTaskCommand};
+use cohesion_db::{GetContactCommand, GetDocumentCommand, GetResourceCommand, GetTaskCommand};
 use cohesion_macros::js_entity;
 use rquickjs::{Ctx, IntoJs, Value};
 
+use super::contact::JsContact;
 use super::document::JsDocument;
 use super::resource::JsResource;
 use super::task::JsTask;
@@ -16,11 +17,11 @@ use super::task::JsTask;
 #[js_entity(SearchResult)]
 impl JsSearchResult {
     /// Loads the item this result points at: a `Document` when `entityKind` is
-    /// `"document"`, a `Task` when it is `"task"`, an `Resource` when it is
-    /// `"resource"`, an `Article` when it is `"article"`.
+    /// `"document"`, a `Task` when it is `"task"`, a `Resource` when it is
+    /// `"resource"`, a `Contact` when it is `"contact"`.
     ///
     /// Throws if the item no longer exists.
-    #[ts(returns = "Task | Document | Resource")]
+    #[ts(returns = "Task | Document | Resource | Contact")]
     pub fn open<'js>(&self, ctx: Ctx<'js>) -> rquickjs::Result<Value<'js>> {
         match self.inner.entity_kind {
             SearchEntityKind::Task => {
@@ -52,6 +53,16 @@ impl JsSearchResult {
                     },
                 )?;
                 JsResource::new(resource, self.db.clone()).into_js(&ctx)
+            }
+            SearchEntityKind::Contact => {
+                let contact = self.read(
+                    &ctx,
+                    GetContactCommand {
+                        workspace_id: self.inner.workspace_id,
+                        contact_id: self.inner.entity_id,
+                    },
+                )?;
+                JsContact::new(contact, self.db.clone()).into_js(&ctx)
             }
         }
     }

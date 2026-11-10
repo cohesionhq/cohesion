@@ -297,6 +297,8 @@
 		if (result.entity_kind === 'document')
 			go(routes.document(result.workspace_id, result.entity_id));
 		else if (result.entity_kind === 'resource') void openResource(result);
+		else if (result.entity_kind === 'contact')
+			go(routes.contact(result.workspace_id, result.entity_id));
 		else go(routes.task(result.workspace_id, result.entity_id));
 	}
 
@@ -306,12 +308,14 @@
 		const fts = prefixQuery(q);
 		const id = ws;
 		if (searchTimer) clearTimeout(searchTimer);
+		// Counted before leaving early, so an answer still on its way for a
+		// query since cleared or shortened is dropped too.
+		const generation = ++searchGeneration;
 		if (mode !== 'root' || fts === null || q.length < 2) {
 			results = [];
 			actorResults = [];
 			return;
 		}
-		const generation = ++searchGeneration;
 		// Both answers land on their own; a failed search shows nothing.
 		const answer = <T,>(search: Promise<T[]>, take: (found: T[]) => void) =>
 			search.then(
@@ -454,6 +458,8 @@
 													<FileText size={15} strokeWidth={1.75} />
 												{:else if result.entity_kind === 'resource'}
 													<Layers size={15} strokeWidth={1.75} />
+												{:else if result.entity_kind === 'contact'}
+													<BookUser size={15} strokeWidth={1.75} />
 												{:else}
 													<CheckSquare size={15} strokeWidth={1.75} />
 												{/if}

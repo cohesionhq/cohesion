@@ -398,6 +398,7 @@
 		{ "kind": "journalEntry", "label": "Journal entry" },
 		{ "kind": "resource", "label": "Resource" },
 		{ "kind": "documentFolder", "label": "Folder" },
+		{ "kind": "contact", "label": "Contact" },
 		{ "kind": "agent", "label": "Agent" },
 		{ "kind": "actorSession", "label": "Actor session" },
 		{ "kind": "article", "label": "Article" }

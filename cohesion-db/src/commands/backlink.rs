@@ -141,6 +141,7 @@ fn source_link(source: LinkTarget) -> Option<ItemLink> {
         // Only documents' and tasks' links are followed so far.
         LinkKind::Resource
         | LinkKind::DocumentFolder
+        | LinkKind::Contact
         | LinkKind::Agent
         | LinkKind::ActorSession
         | LinkKind::Article => None,

@@ -22,6 +22,7 @@
 		agent: 'Agent not found.',
 		resource: 'Resource not found.',
 		'document-folder': 'Folder not found.',
+		contact: 'Contact not found.',
 		'actor-session': 'Session not found.',
 		article: 'Article not found.'
 	};

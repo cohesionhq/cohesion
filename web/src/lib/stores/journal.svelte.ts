@@ -1,6 +1,6 @@
 import { localDay } from '$lib/format/dates';
 import { send as defaultSend } from '$lib/protocol/api';
-import type { ProtocolError } from '$lib/protocol/errors';
+import { ProtocolError } from '$lib/protocol/errors';
 import type { Document, Send } from '$lib/protocol/types';
 import { Draft } from './draft.svelte';
 import { Resource } from './resource.svelte';
@@ -75,10 +75,19 @@ export class JournalStore {
 	/**
 	 * Adds `text` to the end of today's entry as a paragraph of its own, then
 	 * saves, so a note can be taken without opening the entry. The entry is
-	 * loaded first, so what is already written is never replaced.
+	 * loaded first, so what is already written is never replaced: when it
+	 * can't be loaded, nothing is saved and the load's error is thrown.
 	 */
 	async append(workspace_id: number, text: string): Promise<void> {
 		await this.open(workspace_id);
+		// A failed load leaves the draft empty, and saving the note onto that
+		// would replace the whole entry with it.
+		if (!this.today.loaded) {
+			throw (
+				this.today.error ??
+				new ProtocolError('internalError', 'Couldn’t load today’s journal. Try again.')
+			);
+		}
 		const written = this.text.draft.trimEnd();
 		this.text.edit(written === '' ? text.trim() : `${written}\n\n${text.trim()}`);
 		await this.flush();

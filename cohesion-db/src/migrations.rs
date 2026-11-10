@@ -4515,6 +4515,86 @@ pub const MIGRATIONS: &[Migration] = &[
             DELETE FROM backlinks WHERE source_kind = 'task' AND source_id = old.id;
         END;",
     },
+    // A contact is in search, under its full name (`Contact::full_name`)
+    // with its notes as its text, while it is live. A link can name a
+    // contact, so `backlinks` is rebuilt to admit the kind, with the
+    // triggers that name it, and the links to contacts that documents and
+    // tasks already hold are filled in by the rule the commands keep them by.
+    Migration {
+        name: "contacts_search_and_links",
+        sql: "
+        CREATE TRIGGER contacts_search_ai AFTER INSERT ON contacts WHEN new.deleted = 0 BEGIN
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                VALUES ('contact', new.id, new.workspace_id);
+            INSERT INTO search_fts (rowid, title, contents)
+                VALUES (last_insert_rowid(),
+                    concat_ws(' ', new.first_name, new.middle_name, new.last_name), new.notes);
+        END;
+        CREATE TRIGGER contacts_search_ad AFTER DELETE ON contacts BEGIN
+            DELETE FROM search_fts WHERE rowid =
+                (SELECT id FROM search_entries WHERE entity_kind = 'contact' AND entity_id = old.id);
+            DELETE FROM search_entries WHERE entity_kind = 'contact' AND entity_id = old.id;
+        END;
+        CREATE TRIGGER contacts_search_au
+        AFTER UPDATE OF first_name, middle_name, last_name, notes, deleted, workspace_id
+        ON contacts BEGIN
+            DELETE FROM search_fts WHERE rowid =
+                (SELECT id FROM search_entries WHERE entity_kind = 'contact' AND entity_id = old.id);
+            DELETE FROM search_entries WHERE entity_kind = 'contact' AND entity_id = old.id;
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                SELECT 'contact', new.id, new.workspace_id WHERE new.deleted = 0;
+            INSERT INTO search_fts (rowid, title, contents)
+                SELECT last_insert_rowid(),
+                    concat_ws(' ', new.first_name, new.middle_name, new.last_name), new.notes
+                WHERE new.deleted = 0;
+        END;
+        INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+            SELECT 'contact', id, workspace_id FROM contacts WHERE deleted = 0;
+        INSERT INTO search_fts (rowid, title, contents)
+            SELECT entry.id, concat_ws(' ', c.first_name, c.middle_name, c.last_name), c.notes
+            FROM search_entries AS entry
+            INNER JOIN contacts AS c ON c.id = entry.entity_id
+            WHERE entry.entity_kind = 'contact';
+
+        DROP TRIGGER documents_backlinks_ad;
+        DROP TRIGGER tasks_backlinks_ad;
+        CREATE TABLE backlinks_new (
+            id INTEGER PRIMARY KEY,
+            source_kind TEXT NOT NULL CHECK (source_kind IN ('task', 'document', 'resource',
+                'database', 'databaseRow', 'contact', 'agent', 'actorSession', 'article')),
+            source_id INTEGER NOT NULL,
+            target_kind TEXT NOT NULL CHECK (target_kind IN ('task', 'document', 'resource',
+                'database', 'databaseRow', 'contact', 'agent', 'actorSession', 'article')),
+            target_id INTEGER NOT NULL,
+            link TEXT NOT NULL,
+            UNIQUE (source_kind, source_id, target_kind, target_id),
+            CHECK (source_kind IS NOT target_kind OR source_id IS NOT target_id)
+        );
+        INSERT INTO backlinks_new (id, source_kind, source_id, target_kind, target_id, link)
+            SELECT id, source_kind, source_id, target_kind, target_id, link FROM backlinks;
+        DROP TABLE backlinks;
+        ALTER TABLE backlinks_new RENAME TO backlinks;
+        CREATE INDEX backlinks_target ON backlinks(target_kind, target_id);
+        CREATE TRIGGER documents_backlinks_ad AFTER DELETE ON documents
+        BEGIN
+            DELETE FROM backlinks WHERE source_kind = 'document' AND source_id = old.id;
+        END;
+        CREATE TRIGGER tasks_backlinks_ad AFTER DELETE ON tasks
+        BEGIN
+            DELETE FROM backlinks WHERE source_kind = 'task' AND source_id = old.id;
+        END;
+
+        INSERT OR IGNORE INTO backlinks (source_kind, source_id, target_kind, target_id, link)
+        SELECT 'document', documents.id, json_extract(links.value, '$.kind'),
+               json_extract(links.value, '$.id'), json_extract(links.value, '$.link')
+        FROM documents, json_each(outgoing_links('document', documents.id, documents.contents)) links
+        WHERE documents.deleted = FALSE AND json_extract(links.value, '$.kind') = 'contact';
+        INSERT OR IGNORE INTO backlinks (source_kind, source_id, target_kind, target_id, link)
+        SELECT 'task', tasks.id, json_extract(links.value, '$.kind'),
+               json_extract(links.value, '$.id'), json_extract(links.value, '$.link')
+        FROM tasks, json_each(outgoing_links('task', tasks.id, tasks.description)) links
+        WHERE tasks.deleted = FALSE AND json_extract(links.value, '$.kind') = 'contact';",
+    },
     // Databases stop being an area of their own: a document folder with
     // properties is a table, and each document in it is a row. Each
     // database becomes a top-level folder of its workspace, after the
@@ -4712,10 +4792,10 @@ pub const MIGRATIONS: &[Migration] = &[
         CREATE TABLE backlinks_new (
             id INTEGER PRIMARY KEY,
             source_kind TEXT NOT NULL CHECK (source_kind IN ('task', 'document', 'resource',
-                'documentFolder', 'agent', 'actorSession', 'article')),
+                'documentFolder', 'contact', 'agent', 'actorSession', 'article')),
             source_id INTEGER NOT NULL,
             target_kind TEXT NOT NULL CHECK (target_kind IN ('task', 'document', 'resource',
-                'documentFolder', 'agent', 'actorSession', 'article')),
+                'documentFolder', 'contact', 'agent', 'actorSession', 'article')),
             target_id INTEGER NOT NULL,
             link TEXT NOT NULL,
             UNIQUE (source_kind, source_id, target_kind, target_id),

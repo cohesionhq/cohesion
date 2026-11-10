@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { ProtocolError } from '$lib/protocol/errors';
 import { createMock } from '$lib/protocol/mock';
+import type { Send } from '$lib/protocol/types';
 import { createJournalStore } from './journal.svelte';
 
 describe('journal store', () => {
@@ -55,5 +57,19 @@ describe('journal store', () => {
 		expect(mock.state.documents.find((d) => d.id === 1)?.contents).toBe(
 			`${before.trimEnd()}\n\nA new thought`
 		);
+	});
+
+	it('saves no note when the entry could not be loaded', async () => {
+		const mock = createMock();
+		const send: Send = (command, ...args) =>
+			command === 'getJournal'
+				? Promise.reject(new ProtocolError('disconnected', 'Not connected.'))
+				: mock.send(command, ...args);
+		const store = createJournalStore(send);
+		const before = mock.state.documents.find((d) => d.id === 1)?.contents;
+
+		await expect(store.append(1, 'A new thought')).rejects.toThrow('Not connected.');
+		expect(mock.state.documents.find((d) => d.id === 1)?.contents).toBe(before);
+		expect(store.dirty).toBe(false);
 	});
 });

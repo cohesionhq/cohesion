@@ -112,12 +112,4 @@ describe('actors store', () => {
 		await expect(store.say(7, { kind: 'text', text: 'Hurry' })).rejects.toThrow();
 		await expect(store.stop(7)).rejects.toThrow();
 	});
-	it('lists a session’s family from any member, each after the one it runs under', async () => {
-		const mock = createMock();
-		const store = createActorsStore(mock.send);
-		await store.family.load(8);
-		expect(store.family.value.map((t) => t.id)).toEqual([3, 6, 8, 7]);
-		await store.family.load(1);
-		expect(store.family.value.map((t) => t.id)).toEqual([1]);
-	});
 });

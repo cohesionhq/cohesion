@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 ///   (a journal entry is a document); `cohesion://task/<id>` and
 ///   `cohesion://document/<id>`, without the workspace, as links were first
 ///   written, still name one, since their ids are unique across workspaces.
-/// - `cohesion://resource/<workspace>/<id>` and
+/// - `cohesion://resource/<workspace>/<id>`,
+///   `cohesion://contact/<workspace>/<id>` and
 ///   `cohesion://document-folder/<workspace>/<id>`, a document folder, which
 ///   is how a table is linked.
 /// - `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and
@@ -24,6 +25,7 @@ pub enum ItemLink {
     Document { workspace_id: Option<i64>, id: i64 },
     Resource { workspace_id: i64, id: i64 },
     DocumentFolder { workspace_id: i64, id: i64 },
+    Contact { workspace_id: i64, id: i64 },
     Agent { id: i64 },
     ActorSession { id: i64 },
     Article { id: i64 },
@@ -33,7 +35,7 @@ pub enum ItemLink {
 /// as text.
 ///
 /// - `"task"`, `"document"` (a journal entry too), `"resource"`,
-///   `"documentFolder"`, `"agent"`, `"actorSession"`, `"article"`.
+///   `"documentFolder"`, `"contact"`, `"agent"`, `"actorSession"`, `"article"`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, TextEnum, TsWire)]
 #[serde(rename_all = "camelCase")]
 #[text_enum(rename_all = "camelCase")]
@@ -42,6 +44,7 @@ pub enum LinkKind {
     Document,
     Resource,
     DocumentFolder,
+    Contact,
     Agent,
     ActorSession,
     Article,
@@ -64,6 +67,7 @@ impl ItemLink {
             ItemLink::Document { id, .. } => (LinkKind::Document, id),
             ItemLink::Resource { id, .. } => (LinkKind::Resource, id),
             ItemLink::DocumentFolder { id, .. } => (LinkKind::DocumentFolder, id),
+            ItemLink::Contact { id, .. } => (LinkKind::Contact, id),
             ItemLink::Agent { id } => (LinkKind::Agent, id),
             ItemLink::ActorSession { id } => (LinkKind::ActorSession, id),
             ItemLink::Article { id } => (LinkKind::Article, id),
@@ -111,6 +115,7 @@ impl FromStr for ItemLink {
             ("document-folder", &[workspace_id, id]) => {
                 ItemLink::DocumentFolder { workspace_id, id }
             }
+            ("contact", &[workspace_id, id]) => ItemLink::Contact { workspace_id, id },
             ("agent", &[id]) => ItemLink::Agent { id },
             ("actor-session", &[id]) => ItemLink::ActorSession { id },
             ("article", &[id]) => ItemLink::Article { id },
@@ -152,6 +157,9 @@ impl fmt::Display for ItemLink {
             }
             ItemLink::DocumentFolder { workspace_id, id } => {
                 write!(f, "cohesion://document-folder/{workspace_id}/{id}")
+            }
+            ItemLink::Contact { workspace_id, id } => {
+                write!(f, "cohesion://contact/{workspace_id}/{id}")
             }
             ItemLink::Agent { id } => write!(f, "cohesion://agent/{id}"),
             ItemLink::ActorSession { id } => write!(f, "cohesion://actor-session/{id}"),

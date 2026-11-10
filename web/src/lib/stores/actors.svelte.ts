@@ -83,11 +83,6 @@ export class ActorsStore {
 	readonly waiting: Resource<ActorSessionMessage[], number>;
 	/** The session one level above a subagent, by its id, for the way back up. */
 	readonly above: Resource<ActorSession | null, number>;
-	/**
-	 * One session's family, by its id: the session Cohesion started, then every
-	 * subagent beneath it, each after the one it runs under.
-	 */
-	readonly family: Resource<ActorSession[], number>;
 	/** How much of its limits each actor whose client is connected has used, as the client said. */
 	readonly usage: Resource<ListedActorUsage[]>;
 	/**
@@ -139,13 +134,6 @@ export class ActorsStore {
 			initial: null,
 			matches: (key, id) =>
 				key.kind === 'actorSessions' || (key.kind === 'actorSession' && key.id === id)
-		});
-		this.family = new Resource({
-			fetch: (session_id) => send('listActorSessionFamily', { session_id }),
-			initial: [],
-			// Any member's change touches the session above it, so a member's key covers a launch too.
-			matches: (key) =>
-				key.kind === 'actorSession' && this.family.value.some((member) => member.id === key.id)
 		});
 		this.usage = new Resource({
 			fetch: () => send('listActorUsage'),

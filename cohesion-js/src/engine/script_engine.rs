@@ -99,6 +99,13 @@ struct Pool {
 }
 
 impl Pool {
+    /// Ends every worker's thread once its queue has drained.
+    async fn stop(&self) {
+        for worker in self.workers.iter() {
+            worker.stop().await;
+        }
+    }
+
     /// `count` workers held to `options`, whose sandboxes are served by
     /// `hosts`, building `spec`'s sandbox by default.
     fn new(count: usize, options: SandboxOptions, spec: SandboxSpec, hosts: Option<Hosts>) -> Self {
@@ -141,6 +148,33 @@ impl ScriptEngine {
     /// that in the cues pool, whose scripts reach the database through
     /// `database`, narrowed as each agent role says. The isolated worker gets
     /// a read-only copy of it.
+    /// Stops every worker thread, each once the scripts queued on it have
+    /// run, and the scoped workers with them: a script submitted after is
+    /// cancelled. The daemon calls it as it shuts down; without it the
+    /// threads outlive the engine, since its clones hold one another.
+    pub async fn shutdown(&self) {
+        for pool in [
+            &self.general_purpose,
+            &self.turns,
+            &self.cues,
+            &self.isolated,
+        ] {
+            pool.stop().await;
+        }
+        self.mermaid.stop().await;
+        self.formulas.stop().await;
+        let scoped: Vec<Scope> = self
+            .scoped
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .drain()
+            .map(|(_, scope)| scope)
+            .collect();
+        for scope in scoped {
+            scope.worker.stop().await;
+        }
+    }
+
     pub fn new(database: GuardedDatabaseContext) -> Self {
         let cores = thread::available_parallelism()
             .map(|n| n.get())
