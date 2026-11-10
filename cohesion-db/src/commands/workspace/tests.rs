@@ -1,8 +1,8 @@
 use crate::test_support::context;
 use crate::{
     CommandError, CreateDocumentCommand, CreateTaskCommand, CreateWorkspaceCommand,
-    GetWorkspaceIncludingDeletedCommand, RenameWorkspaceCommand, SearchWorkspaceCommand,
-    SetWorkspaceEmojiCommand,
+    DeleteWorkspaceCommand, GetWorkspaceIncludingDeletedCommand, RenameWorkspaceCommand,
+    SearchWorkspaceCommand, SetWorkspaceEmojiCommand,
 };
 
 #[test]
@@ -94,6 +94,40 @@ fn renaming_to_an_empty_title_is_rejected_and_keeps_the_old_one() {
         .send_blocking(GetWorkspaceIncludingDeletedCommand { id: workspace.id })
         .unwrap();
     assert_eq!(unchanged.title, "home");
+}
+
+#[test]
+fn a_deleted_workspace_is_not_searched() {
+    let db = context();
+    let home = db
+        .send_blocking(CreateWorkspaceCommand {
+            title: "home".to_string(),
+            emoji: None,
+        })
+        .unwrap();
+    db.send_blocking(CreateTaskCommand {
+        workspace_id: home.id,
+        title: "milk".to_string(),
+        folder_id: None,
+        priority: None,
+        size: None,
+        assignee: None,
+        description: None,
+        start_date: None,
+        due_date: None,
+        tag_ids: Vec::new(),
+    })
+    .unwrap();
+    let search = || {
+        db.send_blocking(SearchWorkspaceCommand {
+            workspace_id: home.id,
+            query: "milk".to_string(),
+        })
+    };
+    assert_eq!(search().unwrap().len(), 1);
+    db.send_blocking(DeleteWorkspaceCommand { id: home.id })
+        .unwrap();
+    assert!(matches!(search(), Err(CommandError::NotFound(_))));
 }
 
 #[test]
