@@ -400,5 +400,13 @@
 		{ "kind": "agent", "label": "Agent" },
 		{ "kind": "actorSession", "label": "Actor session" },
 		{ "kind": "article", "label": "Article" }
+	],
+	"database_data_types": [
+		{ "kind": "text", "label": "Text" },
+		{ "kind": "integer", "label": "Whole number" },
+		{ "kind": "decimal", "label": "Decimal" },
+		{ "kind": "currency", "label": "Currency" },
+		{ "kind": "checkbox", "label": "Checkbox" },
+		{ "kind": "date", "label": "Date" }
 	]
 }

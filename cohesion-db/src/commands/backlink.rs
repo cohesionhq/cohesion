@@ -7,12 +7,13 @@
 
 use std::collections::HashSet;
 
-use cohesion_core::FromRequest;
 use cohesion_core::invalidation::Invalidation;
 use cohesion_core::model::{
-    Backlink, Embed, ItemLink, LinkKind, LinkSource, LinkTarget, OutgoingLink, outgoing_links,
+    Backlink, Embed, EmbedItem, ItemLink, LinkKind, LinkSource, LinkTarget, OutgoingLink,
+    outgoing_links,
 };
 use cohesion_core::protocol::BacklinksOfRequest;
+use cohesion_core::{DocumentType, FromRequest};
 
 use crate::changed::{Changed, Invalidates};
 use crate::commands::embed::item_link;
@@ -116,6 +117,12 @@ impl DatabaseCommand for BacklinksOfCommand {
             })
             .handle(ctx)
             {
+                // A database row's document is part of its row, not an item
+                // of its own to list.
+                Ok(Embed {
+                    item: EmbedItem::Document { document },
+                    ..
+                }) if matches!(document.document_type, DocumentType::DatabaseRow) => {}
                 Ok(embed) => embeds.push(embed),
                 Err(CommandError::NotFound(_)) => {}
                 Err(error) => return Err(error),

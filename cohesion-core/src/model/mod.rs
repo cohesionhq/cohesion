@@ -15,6 +15,7 @@ mod cohesion_ui;
 mod connector;
 mod connector_account;
 mod contact;
+mod database;
 mod day_filter;
 mod document;
 mod document_folder;
@@ -79,6 +80,10 @@ pub use connector::{
 };
 pub use connector_account::{AccountHost, ConnectorAccount};
 pub use contact::{Contact, ContactMethod, ContactMethodKind, NewContactMethod};
+pub use database::{
+    Database, DatabaseCell, DatabaseDataType, DatabaseProperty, DatabaseRow, DatabaseRowEntry,
+    DatabaseRowValue, DatabaseValue,
+};
 pub use day_filter::{DayFilter, DayRange};
 pub use document::{Document, DocumentType};
 pub use document_folder::DocumentFolder;

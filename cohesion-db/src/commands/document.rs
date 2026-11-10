@@ -10,6 +10,7 @@ use cohesion_core::{Document, DocumentType, FromRequest};
 
 use crate::changed::{Changed, Invalidates};
 use crate::commands::backlink::FollowLinksCommand;
+use crate::commands::database_row::row_of_document;
 use crate::commands::document_folder::GetDocumentFolderCommand;
 use crate::commands::title::ensure_title;
 use crate::commands::workspace_scope::ensure_workspace;
@@ -43,7 +44,8 @@ fn find_or_create_journal(
 }
 
 /// Invalidates `document`'s workspace and raises `JournalSaved` for a
-/// journal, else `DocumentSaved`.
+/// journal, `DocumentSaved` for an ordinary document, and nothing for a
+/// database row's, which hooks don't see.
 pub(crate) fn saved(
     ctx: &mut CommandContext<'_>,
     document: Document,
@@ -51,16 +53,19 @@ pub(crate) fn saved(
     let document_id = document.id;
     let workspace_id = document.workspace_id;
     let event = match document.document_type {
-        DocumentType::Journal => DatabaseEventKind::JournalSaved {
+        DocumentType::Journal => Some(DatabaseEventKind::JournalSaved {
             document_id,
             workspace_id,
-        },
-        DocumentType::Normal => DatabaseEventKind::DocumentSaved {
+        }),
+        DocumentType::Normal => Some(DatabaseEventKind::DocumentSaved {
             document_id,
             workspace_id,
-        },
+        }),
+        DocumentType::DatabaseRow => None,
     };
-    ctx.events.send(ctx.trace.event(event));
+    if let Some(event) = event {
+        ctx.events.send(ctx.trace.event(event));
+    }
     changed(ctx, document)
 }
 
@@ -94,7 +99,8 @@ fn create_journal(
 /// Live documents in a workspace, most recently modified first, optionally
 /// only of `document_type`, only journals dated in
 /// `journal_from..journal_to`, and only those carrying every one of the
-/// `metadata` pairs and `has_metadata` keys.
+/// `metadata` pairs and `has_metadata` keys. A database row's document is
+/// never listed.
 #[derive(FromRequest)]
 #[request(ListDocumentsRequest)]
 pub struct ListDocumentsCommand {
@@ -114,6 +120,8 @@ impl DatabaseCommand for ListDocumentsCommand {
             .db
             .select_live::<Document>()
             .filter_eq(Document::WORKSPACE_ID, self.workspace_id)
+            .filter("document_type IS NOT ?")
+            .bind(DocumentType::DatabaseRow)
             .with_metadata(self.metadata)
             .with_metadata_keys(self.has_metadata);
         if let Some(document_type) = self.document_type {
@@ -193,7 +201,9 @@ impl DatabaseCommand for RenameDocumentCommand {
     }
 }
 
-/// Soft-deletes a document in a workspace.
+/// Soft-deletes a document in a workspace, where Rewind can bring it back.
+/// A database row's document is never soft-deleted: it is removed for good,
+/// which takes it off its row.
 #[derive(FromRequest)]
 #[request(DeleteDocumentRequest)]
 pub struct DeleteDocumentCommand {
@@ -205,6 +215,17 @@ impl DatabaseCommand for DeleteDocumentCommand {
     type Access = Write;
     fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<Document>> {
         ensure_workspace(ctx.db, self.workspace_id)?;
+        if let Some(row) = row_of_document(ctx.db, self.document_id)? {
+            let mut document: Document = ctx
+                .db
+                .delete()
+                .filter_eq(Document::WORKSPACE_ID, self.workspace_id)
+                .filter_eq(Document::ID, self.document_id)
+                .returning_one()
+                .found()?;
+            document.deleted = true;
+            return Ok(changed(ctx, document)?.and([Invalidation::Database(row.database_id)]));
+        }
         let document = ctx
             .db
             .update()
@@ -377,7 +398,8 @@ impl DatabaseCommand for AppendToDocumentCommand {
     }
 }
 
-/// Live documents in a workspace whose title contains `query`.
+/// Live documents in a workspace whose title contains `query`, but never a
+/// database row's.
 #[derive(FromRequest)]
 #[request(SearchDocumentRequest)]
 pub struct SearchDocumentsCommand {
@@ -392,9 +414,10 @@ impl DatabaseCommand for SearchDocumentsCommand {
         Ok(ctx
             .db
             .select_live()
-            .filter("workspace_id = ? AND title LIKE ?")
+            .filter("workspace_id = ? AND title LIKE ? AND document_type IS NOT ?")
             .bind(self.workspace_id)
             .bind(format!("%{}%", self.query))
+            .bind(DocumentType::DatabaseRow)
             .all()?)
     }
 }

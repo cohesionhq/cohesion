@@ -102,7 +102,7 @@ impl Embed {
             }
             .to_string(),
             kind: match document.document_type {
-                DocumentType::Normal => EmbedKind::Document,
+                DocumentType::Normal | DocumentType::DatabaseRow => EmbedKind::Document,
                 DocumentType::Journal => EmbedKind::JournalEntry,
             },
             workspace_id: Some(document.workspace_id),

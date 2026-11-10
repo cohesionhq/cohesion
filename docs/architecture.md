@@ -400,7 +400,7 @@ A session reads up to 64 requests ahead (`QUEUED_REQUESTS`) and runs them side
 by side, so replies come back in the order they finish; match them by `id`.
 
 **Requests, replies and routes.** `Command` (`cohesion-core/src/protocol/command.rs`)
-is one enum with a variant per request, 203 of them, each tagged
+is one enum with a variant per request, 220 of them, each tagged
 `#[reply(ReplyType, via = Kind)]`. `#[derive(Commands)]` generates the
 dispatch; the request structs live in the `*_requests.rs` modules beside it,
 and `ReplyData` (`reply_data.rs`) is the enum of reply payloads. Each
@@ -445,8 +445,9 @@ the time the client hears back.
 clients refetch. `Invalidation` (`cohesion-core/src/invalidation.rs`, tagged
 `{kind, id}`) has the keys `workspace(id)`, `intelligenceCostEvents`,
 `agent(id)`, `agentTeams`, `taskFolders(ws)`, `documents(ws)`,
-`documentFolders(ws)`,
-`taskList{workspace_id, folder_id}` (null folder is the inbox),
+`documentFolders(ws)`, `databases(ws)` (one was created, renamed or deleted),
+`database(id)` (anything in it: its title, a property, a row, a value, which
+rows have a document), `taskList{workspace_id, folder_id}` (null folder is the inbox),
 `connectorAccounts`, `resources(ws)`, `resourceKinds(ws)`, `feeds`,
 `feedArticles`, `intelligence`, `clients`, `security`, `storage`, `profile`,
 `tags(ws)`, `contacts(ws)`, `savedTaskViews(ws)`, `extensionUpdates`,
@@ -506,6 +507,56 @@ command that writes a document ends in `FollowLinksCommand`, which rewrites
 its rows from its text, or removes them once it is deleted, and invalidates
 `backlinks` of each item it linked to before or links to now, so a rename
 reaches every list showing it. Documents themselves never touch the table.
+A database row's document keeps its rows like any document, but
+`BacklinksOf` leaves it out, as it is part of its row and not an item of its
+own.
+
+**Databases** (`cohesion-db/src/commands/database.rs` and
+`database_row.rs`, models in `cohesion-core/src/model/database.rs`). A
+`Database` in a workspace has ordered `DatabaseProperty`s, each a `name` and
+a `data_type` (`DatabaseDataType`: `text`, `integer`, `decimal`, `currency`,
+`checkbox`, `date`, worded by `hello.vocabulary.database_data_types`), and
+`DatabaseRow`s, each an id with an optional `document_id`. Every command
+takes the `workspace_id` and `database_id`: `ListDatabases`, `GetDatabase`,
+`CreateDatabase`, `RenameDatabase`, `DeleteDatabase`;
+`ListDatabaseProperties`, `CreateDatabaseProperty` (last),
+`RenameDatabaseProperty`, `SetDatabasePropertyType`, `MoveDatabaseProperty`
+(before `before_id`, or last), `DeleteDatabaseProperty`; `ListDatabaseRows`,
+`GetDatabaseRow`, `CreateDatabaseRow`, `DeleteDatabaseRow`,
+`SetDatabaseValue` and `CreateDatabaseRowDocument`. A row comes as a
+`DatabaseRowEntry` (`id`, `database_id`, `document_id`, `cells`: a
+`DatabaseCell{property_id, value}` per property it holds a value in, in the
+properties' order). A value is a `DatabaseValue` tagged with its type,
+`{"type": "integer", "value": 42}`, and must be of its property's type;
+`null` or empty text empties it, a decimal or amount must be finite and a
+date a real `YYYY-MM-DD`. Deletes are for good: a database takes its
+properties, rows and values, a property its values, a row its values and
+document. Changing a property's type reads each value's text as the new type
+(`DatabaseValue::parse`: `"42"` is an integer, `"3.5"` no integer, `"true"`
+only a checkbox) and empties the values that aren't one.
+
+`ListDatabaseRows{filters, sort?}` filters and sorts in SQL. A
+`DatabaseFilter{property_id, condition}` keeps the rows whose value meets the
+`DatabaseCondition` (tagged `kind`): `isEmpty` and `isNotEmpty` for every
+type, `equals` and `notEquals` with a `value` of the property's type,
+`contains` and `notContains` with `text` for text, and `greaterThan`,
+`greaterOrEqual`, `lessThan` and `lessOrEqual` for integers, decimals,
+currency and dates; another condition, or a value of another type, fails
+validation on `filters`. Text compares ignoring case. An empty value meets
+only `isEmpty`, `notEquals` and `notContains`. Filters all hold.
+`DatabaseSort{property_id, descending}` orders by the property's values,
+empty ones last either way, ties and no sort by when the row was added. Each
+condition is `id IN` (or `NOT IN`) the row ids of the matching values; the
+column and operator are fixed text the type and condition pick, and the
+property id and value are bound (`order_bound` binds the sort's).
+
+A row's document (`CreateDatabaseRowDocument`) is a `Document` of type
+`databaseRow` in the database's workspace, empty and untitled, opened and
+edited with the document commands. It never shows in `ListDocuments`,
+`SearchDocuments`, workspace search or folders (it can't be filed), raises no
+`document:saved` hook, and is never soft-deleted: `DeleteDocument` removes it
+for good, taking it off its row, and deleting its row removes it (trigger
+`database_rows_document_ad`).
 
 **Versioning.** `PROTOCOL_VERSION` is `1` and stays 1 while Cohesion is in
 active development. There is no negotiation: the web UI compares the number in
@@ -515,7 +566,8 @@ the daemon and its clients. `hello.vocabulary` (`protocol/vocabulary.rs`) holds
 the daemon's words for its kinds, in display order: permissions, hooks, task
 priorities and sizes, version changes, activity and actor session statuses
 and stops, agent colours, personalities and verbosities, tiers, spend periods,
-providers, dialects, reactions, pairing openers and security events. A new
+providers, dialects, reactions, pairing openers, security events, embed kinds
+and database data types. A new
 variant of one of those enums doesn't compile until it has its words.
 
 **Limits.**
@@ -791,7 +843,7 @@ script's own key-value store (`set_storage_blocking`) and `credentials()`.
 and no other permission to any area.
 
 **Migrations** (`cohesion-db/src/migrations.rs`). `MIGRATIONS` is a list of
-`Migration{name, sql}`, 89 at the time of writing; the first seven are the
+`Migration{name, sql}`, 95 at the time of writing; the first seven are the
 squashed schema of the 68 that came before them. `PRAGMA user_version` is how
 many have been applied. `Container::migrate()`, called by the daemon right
 after opening the file:
@@ -831,13 +883,17 @@ deleting sets `deleted`, and client reads use `select_live`.
 | Table | Holds |
 |---|---|
 | `workspaces` (soft) | `title`, `emoji`. |
-| `documents` (soft) | `workspace_id`, `document_type` (`normal` or `journal`), `title`, `contents` (Markdown), `modified`, `journal_date`, `deleted_at`, `folder_id` (null is the Inbox; never set on a journal). A journal entry is a document of type `journal`; a unique index allows one live entry per workspace per day. |
+| `documents` (soft) | `workspace_id`, `document_type` (`normal`, `journal` or `databaseRow`, a database row's own document, never soft-deleted), `title`, `contents` (Markdown), `modified`, `journal_date`, `deleted_at`, `folder_id` (null is the Inbox; never set on a journal). A journal entry is a document of type `journal`; a unique index allows one live entry per workspace per day. |
 | `document_folders` (soft) | `workspace_id`, `parent_id` (null at the top level; a composite key keeps it in the same workspace), `title`, `sort_order` (among its siblings). Folders nest without limit; deleting one deletes those inside it and moves their documents to the Inbox. |
 | `task_folders` (soft) | `workspace_id`, `title`, `sort_order`. |
 | `tasks` (soft) | `workspace_id`, `task_folder_id` (null is the inbox; a composite key keeps it in the same workspace), `title`, `status` (`incomplete`, `completed`, `cancelled`), `priority` 0–4, `size` 1–5, `description`, `start_date`, `due_date`, and one assignee at most: `assigned_to_user`, `assignee_agent_id` or `assignee_contact_id` (the contact must be live and in the same workspace). |
 | `tags`, `task_tags` | Per-workspace tags (names unique ignoring case) and which tasks carry them; composite keys keep both in one workspace. |
 | `saved_task_views` and `saved_task_view_priorities`, `_sizes`, `_tags` | Saved task filters: a list or a folder, a sort, and filter sets. |
 | `contacts` (soft), `contact_methods` | People in a workspace, and their emails and phone numbers. A deleted contact is unassigned from tasks. |
+| `databases` | `workspace_id`, `title`. Deleted for good, with everything in it. |
+| `database_properties` | A database's columns: `database_id`, `name`, `data_type` (`text`, `integer`, `decimal`, `currency`, `checkbox`, `date`), `sort_order`. |
+| `database_rows` | `database_id`, and `document_id`, the row's own document (unique; set null if the document goes, which removes it when the row goes). |
+| `database_row_values` | One per row and property at most, composite keys keeping both in one database: `text_value` (always), `integer_value` (an integer, a checkbox as 1 or 0) and `real_value` (a decimal, an amount, an integer). A missing row is an empty value. |
 | `metadata` | Key-value pairs on exactly one workspace, document, task, folder or resource. Scripts only: a request can't carry metadata filters. |
 | `backlinks` | What links to what: `source_kind` and `source_id` (only documents so far), `target_kind` and `target_id` (a `LinkKind` and an id), and `link` as first written; one row per source and target, never a source to itself. Rewritten by `FollowLinksCommand` on every document write; a document removed for good takes its rows (trigger `documents_backlinks_ad`). The `backlinks` migration filled it from every live document through the SQL function `outgoing_links`, which runs the same Rust rule. |
 | `versions` | Rewind: past versions of tasks and documents, with `change` (`created`, `edited`, `deleted`, `restored`, `earlier`), `author` and `author_name`. Written by triggers through the `version_writes` view, which folds edits within 120 s into one version. |
@@ -917,6 +973,12 @@ erDiagram
   document_folders |o--o{ documents : N
   workspaces ||--o{ task_folders : C
   workspaces ||--o{ tasks : C
+  workspaces ||--o{ databases : C
+  databases ||--o{ database_properties : C
+  databases ||--o{ database_rows : C
+  database_rows ||--o{ database_row_values : C
+  database_properties ||--o{ database_row_values : C
+  documents |o--o| database_rows : N
   task_folders ||--o{ tasks : C
   workspaces ||--o{ tags : C
   tasks ||--o{ task_tags : C
@@ -967,7 +1029,8 @@ erDiagram
 `actor_sessions_status_changed`, `activities_actor_session_unread`,
 `intelligence_agent_messages_reply_to`, `intelligence_agent_messages_unread`,
 `resources_same_connector`, `saved_task_views_folder_in_workspace`,
-`documents_folder_in_workspace*`,
+`documents_folder_in_workspace*`, `database_rows_document_ad`,
+`documents_database_row_never_soft_deleted`,
 `tasks_assignee_contact_*`, `contacts_deleted_assign_nothing`,
 `task_folders_saved_views_deleted`, `clients_deleted_own_nothing`,
 `extensions_orphan_accounts`, `connector_accounts_orphaned_endpoints`).
@@ -1016,12 +1079,13 @@ English stemming, case-insensitive, accents ignored.
 
 | Index | Columns | Covers | Kept by |
 |---|---|---|---|
-| `search_fts` (rows mapped by `search_entries`: `entity_kind`, `entity_id`, `workspace_id`) | `title`, `contents` | Live documents (journal entries included), live tasks (the description as contents), resources (contents only if not JSON) | `documents_search_*`, `tasks_search_*`, `resources_search_*` |
+| `search_fts` (rows mapped by `search_entries`: `entity_kind`, `entity_id`, `workspace_id`) | `title`, `contents` | Live documents (journal entries included, database rows' left out), live tasks (the description as contents), resources (contents only if not JSON) | `documents_search_*`, `tasks_search_*`, `resources_search_*` |
 | `feed_corpus_fts` | `title`, `author`, `contents` | Live articles | `articles_feed_corpus_*` |
 | `actor_sessions_fts` | `title` | Actor sessions | `actor_sessions_search_*` |
 | `actor_session_messages_fts` | `text` | Actor session messages of kind `text`, from either side | `actor_session_messages_search_*` |
 
-Agent chats, model threads, contacts, tags and metadata aren't indexed.
+Agent chats, model threads, contacts, tags, metadata, databases and database
+rows' documents aren't indexed.
 
 **Query syntax.** The user's text is bound unchanged as the `MATCH` operand,
 so FTS5's syntax applies as is: words separated by spaces must all match,

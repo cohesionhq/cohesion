@@ -3295,6 +3295,9 @@ export function createMock(): Mock {
 	const notFound = (what: string): never => {
 		throw new ProtocolError('notFound', `The requested ${what} wasn’t found.`);
 	};
+	const notMocked = (what: string): never => {
+		throw new ProtocolError('badRequest', `${what} aren’t in the mock yet.`);
+	};
 	const workspace = (id: number) =>
 		state.workspaces.find((w) => w.id === id && !w.deleted) ?? notFound('workspace');
 	const document = (workspace_id: number, id: number) =>
@@ -4322,6 +4325,27 @@ export function createMock(): Mock {
 			for (const id of doomed) documentFolder(workspace_id, id).deleted = true;
 			return { ...f };
 		},
+		// Databases aren't in the mock yet: it has none, and refuses to make one.
+		listDatabases: ({ workspace_id }) => {
+			workspace(workspace_id);
+			return [];
+		},
+		getDatabase: () => notFound('database'),
+		createDatabase: () => notMocked('Databases'),
+		renameDatabase: () => notFound('database'),
+		deleteDatabase: () => notFound('database'),
+		listDatabaseProperties: () => notFound('database'),
+		createDatabaseProperty: () => notFound('database'),
+		renameDatabaseProperty: () => notFound('database'),
+		setDatabasePropertyType: () => notFound('database'),
+		moveDatabaseProperty: () => notFound('database'),
+		deleteDatabaseProperty: () => notFound('database'),
+		listDatabaseRows: () => notFound('database'),
+		getDatabaseRow: () => notFound('database'),
+		createDatabaseRow: () => notFound('database'),
+		deleteDatabaseRow: () => notFound('database'),
+		setDatabaseValue: () => notFound('database'),
+		createDatabaseRowDocument: () => notFound('database'),
 		renameDocument: ({ workspace_id, document_id, title }) => {
 			requireTitle(title);
 			const d = document(workspace_id, document_id);

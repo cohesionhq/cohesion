@@ -4373,6 +4373,92 @@ pub const MIGRATIONS: &[Migration] = &[
         FROM documents, json_each(outgoing_links('document', documents.id, documents.contents)) links
         WHERE documents.deleted = FALSE;",
     },
+    // Databases: tables of typed values in a workspace. A property is a
+    // column of one type; a row holds at most one value per property, kept
+    // as text and, where its type is a number, as one too, so SQL filters
+    // and sorts on the column its type names. A row may have a document of
+    // its own, which stays out of search, is never soft-deleted (deleting
+    // it removes it) and goes when its row does.
+    Migration {
+        name: "databases",
+        sql: "
+        CREATE TABLE databases (
+            id INTEGER PRIMARY KEY,
+            workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+            title TEXT NOT NULL
+        );
+        CREATE INDEX databases_workspace ON databases(workspace_id);
+
+        CREATE TABLE database_properties (
+            id INTEGER PRIMARY KEY,
+            database_id INTEGER NOT NULL REFERENCES databases(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            data_type TEXT NOT NULL CHECK (data_type IN
+                ('text', 'integer', 'decimal', 'currency', 'checkbox', 'date')),
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            UNIQUE (database_id, id)
+        );
+
+        CREATE TABLE database_rows (
+            id INTEGER PRIMARY KEY,
+            database_id INTEGER NOT NULL REFERENCES databases(id) ON DELETE CASCADE,
+            document_id INTEGER UNIQUE REFERENCES documents(id) ON DELETE SET NULL,
+            UNIQUE (database_id, id)
+        );
+
+        CREATE TABLE database_row_values (
+            id INTEGER PRIMARY KEY,
+            database_id INTEGER NOT NULL,
+            row_id INTEGER NOT NULL,
+            property_id INTEGER NOT NULL,
+            text_value TEXT NOT NULL,
+            integer_value INTEGER,
+            real_value REAL,
+            UNIQUE (row_id, property_id),
+            FOREIGN KEY (database_id, row_id) REFERENCES database_rows(database_id, id)
+                ON DELETE CASCADE,
+            FOREIGN KEY (database_id, property_id) REFERENCES database_properties(database_id, id)
+                ON DELETE CASCADE
+        );
+        CREATE INDEX database_row_values_property ON database_row_values(property_id);
+
+        CREATE TRIGGER database_rows_document_ad AFTER DELETE ON database_rows
+        WHEN old.document_id IS NOT NULL
+        BEGIN
+            DELETE FROM documents WHERE id = old.document_id;
+        END;
+
+        CREATE TRIGGER documents_database_row_never_soft_deleted
+        BEFORE UPDATE OF deleted ON documents
+        WHEN new.deleted AND new.document_type = 'databaseRow'
+        BEGIN
+            SELECT RAISE(ABORT, 'A database row''s document is removed, never soft-deleted.');
+        END;
+
+        DROP TRIGGER documents_search_ai;
+        DROP TRIGGER documents_search_au;
+        CREATE TRIGGER documents_search_ai AFTER INSERT ON documents
+        WHEN new.deleted = 0 AND new.document_type IS NOT 'databaseRow'
+        BEGIN
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                VALUES ('document', new.id, new.workspace_id);
+            INSERT INTO search_fts (rowid, title, contents)
+                VALUES (last_insert_rowid(), new.title, new.contents);
+        END;
+        CREATE TRIGGER documents_search_au
+        AFTER UPDATE OF title, contents, deleted, workspace_id ON documents
+        BEGIN
+            DELETE FROM search_fts WHERE rowid =
+                (SELECT id FROM search_entries WHERE entity_kind = 'document' AND entity_id = old.id);
+            DELETE FROM search_entries WHERE entity_kind = 'document' AND entity_id = old.id;
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                SELECT 'document', new.id, new.workspace_id
+                WHERE new.deleted = 0 AND new.document_type IS NOT 'databaseRow';
+            INSERT INTO search_fts (rowid, title, contents)
+                SELECT last_insert_rowid(), new.title, new.contents
+                WHERE new.deleted = 0 AND new.document_type IS NOT 'databaseRow';
+        END;",
+    },
 ];
 
 #[cfg(test)]

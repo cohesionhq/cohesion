@@ -40,7 +40,8 @@ const EMPTY: Words = {
 	agent_reactions: [],
 	pairing_openers: [],
 	security_events: [],
-	embed_kinds: []
+	embed_kinds: [],
+	database_data_types: []
 };
 
 class Vocabulary {

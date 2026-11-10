@@ -1287,6 +1287,36 @@ export interface CreateContactRequest {
 	methods: NewContactMethod[];
 }
 
+/** Adds a property to a database, after its others. */
+export interface CreateDatabasePropertyRequest {
+	workspace_id: number;
+	database_id: number;
+	name: string;
+	data_type: DatabaseDataType;
+}
+
+/** Creates a database with no properties or rows in a workspace. */
+export interface CreateDatabaseRequest {
+	workspace_id: number;
+	title: string;
+}
+
+/**
+ * Gives row `row_id` of a database an empty document of its own; refused
+ * when it has one. `deleteDocument` removes it.
+ */
+export interface CreateDatabaseRowDocumentRequest {
+	workspace_id: number;
+	database_id: number;
+	row_id: number;
+}
+
+/** Adds an empty row to a database. */
+export interface CreateDatabaseRowRequest {
+	workspace_id: number;
+	database_id: number;
+}
+
 /** Creates a document folder in a workspace, last among its siblings. */
 export interface CreateDocumentFolderRequest {
 	workspace_id: number;
@@ -1412,6 +1442,13 @@ export interface CreateWorkspaceRequest {
 	emoji?: string | null;
 }
 
+/** A table of typed values in a workspace. */
+export interface Database {
+	id: number;
+	workspace_id: number;
+	title: string;
+}
+
 /** A backup the daemon wrote. */
 export interface DatabaseBackup {
 	/** Where it is, on the daemon's computer. */
@@ -1419,6 +1456,73 @@ export interface DatabaseBackup {
 	/** How large it is, in bytes. */
 	bytes: number;
 }
+
+/** One row's value for one property, on the wire. */
+export interface DatabaseCell {
+	property_id: number;
+	value: DatabaseValue;
+}
+
+/**
+ * What a filter keeps of a property's values. Values compare as their
+ * property's type: text ignoring case, numbers as numbers, dates by day.
+ *
+ * - `isEmpty`, `isNotEmpty`: whether the row holds a value; every type.
+ * - `equals`, `notEquals`: the value is or isn't `value`, of the property's
+ *   type; every type.
+ * - `contains`, `notContains`: the text holds `text` or doesn't; text only.
+ * - `greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`: against
+ *   `value`; integers, decimals, currency and dates (later is greater).
+ *
+ * An empty value matches only `isEmpty`, `notEquals` and `notContains`.
+ */
+export type DatabaseCondition =
+	| { kind: 'isEmpty' }
+	| { kind: 'isNotEmpty' }
+	| {
+			kind: 'equals';
+			value: DatabaseValue;
+	  }
+	| {
+			kind: 'notEquals';
+			value: DatabaseValue;
+	  }
+	| {
+			kind: 'contains';
+			text: string;
+	  }
+	| {
+			kind: 'notContains';
+			text: string;
+	  }
+	| {
+			kind: 'greaterThan';
+			value: DatabaseValue;
+	  }
+	| {
+			kind: 'greaterOrEqual';
+			value: DatabaseValue;
+	  }
+	| {
+			kind: 'lessThan';
+			value: DatabaseValue;
+	  }
+	| {
+			kind: 'lessOrEqual';
+			value: DatabaseValue;
+	  };
+
+/**
+ * What kind of value a database property holds; stored as text.
+ *
+ * - `"text"`: any text.
+ * - `"integer"`: a whole number.
+ * - `"decimal"`: a number with a fractional part.
+ * - `"currency"`: an amount of money, a decimal number.
+ * - `"checkbox"`: checked or not.
+ * - `"date"`: a day, as `"YYYY-MM-DD"`.
+ */
+export type DatabaseDataType = 'text' | 'integer' | 'decimal' | 'currency' | 'checkbox' | 'date';
 
 /** An export the daemon wrote, waiting to be read. */
 export interface DatabaseExport {
@@ -1432,9 +1536,51 @@ export interface DatabaseExportPart {
 	data: string;
 }
 
+/** Keeps the rows whose value for `property_id` meets `condition`. */
+export interface DatabaseFilter {
+	property_id: number;
+	condition: DatabaseCondition;
+}
+
 /** An import under way. */
 export interface DatabaseImport {
 	id: string;
+}
+
+/** A column of a database: a name and the type of value it holds. */
+export interface DatabaseProperty {
+	id: number;
+	database_id: number;
+	name: string;
+	data_type: DatabaseDataType;
+	/** Where the property sits among its database's; lower comes first. */
+	sort_order: number;
+}
+
+/**
+ * An entry of a database, which holds its values; it may have a document
+ * of its own.
+ */
+export interface DatabaseRow {
+	id: number;
+	database_id: number;
+	/**
+	 * The row's own document, of type `"databaseRow"`, or `null` when it has
+	 * none. It never shows in the document list and goes with the row.
+	 */
+	document_id: number | null;
+}
+
+/**
+ * A database row with its values: one cell per property it holds a value
+ * in, in the properties' order; a property with no cell is empty.
+ */
+export interface DatabaseRowEntry {
+	id: number;
+	database_id: number;
+	/** The row's own document, or `null` when it has none. */
+	document_id: number | null;
+	cells: DatabaseCell[];
 }
 
 /** How large the database file is, and what fills it. */
@@ -1452,6 +1598,34 @@ export interface DatabaseSize {
 	 */
 	areas: StorageAreaSize[];
 }
+
+/**
+ * Orders rows by their values for `property_id`, as its type compares
+ * them, empty values last either way; ties by when the row was added.
+ */
+export interface DatabaseSort {
+	property_id: number;
+	descending: boolean;
+}
+
+/**
+ * A value in a database, tagged with its type, which must be the type of
+ * the property it is written to.
+ *
+ * - `{"type": "text", "value": "Ada"}`; empty text is no value.
+ * - `{"type": "integer", "value": 42}`
+ * - `{"type": "decimal", "value": 3.5}`
+ * - `{"type": "currency", "value": 12.99}`
+ * - `{"type": "checkbox", "value": true}`
+ * - `{"type": "date", "value": "2026-11-09"}`
+ */
+export type DatabaseValue =
+	| { type: 'text'; value: string }
+	| { type: 'integer'; value: number }
+	| { type: 'decimal'; value: number }
+	| { type: 'currency'; value: number }
+	| { type: 'checkbox'; value: boolean }
+	| { type: 'date'; value: string };
 
 /**
  * Which days a date filter matches, each day as `"YYYY-MM-DD"`:
@@ -1508,6 +1682,35 @@ export interface DeleteContactMethodRequest {
 export interface DeleteContactRequest {
 	workspace_id: number;
 	contact_id: number;
+}
+
+/**
+ * Deletes property `property_id` of a database, with every row's value
+ * for it.
+ */
+export interface DeleteDatabasePropertyRequest {
+	workspace_id: number;
+	database_id: number;
+	property_id: number;
+}
+
+/**
+ * Deletes database `database_id` in a workspace for good, with its
+ * properties, rows, values and rows' documents.
+ */
+export interface DeleteDatabaseRequest {
+	workspace_id: number;
+	database_id: number;
+}
+
+/**
+ * Deletes row `row_id` of a database for good, with its values and its
+ * document.
+ */
+export interface DeleteDatabaseRowRequest {
+	workspace_id: number;
+	database_id: number;
+	row_id: number;
 }
 
 /**
@@ -1665,8 +1868,10 @@ export interface DocumentFolder {
  *
  * - `"normal"`: an ordinary document.
  * - `"journal"`: a daily journal entry; one per workspace per local day.
+ * - `"databaseRow"`: a database row's own document. It never shows in the
+ *   document list or search, is never filed, and goes with its row.
  */
-export type DocumentType = 'normal' | 'journal';
+export type DocumentType = 'normal' | 'journal' | 'databaseRow';
 
 export interface DocumentationResponse {
 	documentation: string;
@@ -2104,6 +2309,19 @@ export interface GetArticleRequest {
 export interface GetContactRequest {
 	workspace_id: number;
 	contact_id: number;
+}
+
+/** Fetches database `database_id` in a workspace. */
+export interface GetDatabaseRequest {
+	workspace_id: number;
+	database_id: number;
+}
+
+/** Fetches row `row_id` of a database with its values. */
+export interface GetDatabaseRowRequest {
+	workspace_id: number;
+	database_id: number;
+	row_id: number;
 }
 
 /** Fetches live document `document_id` in a workspace. */
@@ -2715,6 +2933,8 @@ export type Invalidation =
 	| { kind: 'taskFolders'; id: number }
 	| { kind: 'documents'; id: number }
 	| { kind: 'documentFolders'; id: number }
+	| { kind: 'databases'; id: number }
+	| { kind: 'database'; id: number }
 	| {
 			kind: 'taskList';
 			id: {
@@ -2893,6 +3113,28 @@ export interface ListConnectorOrganizationUnitsRequest {
  * first name, ignoring case.
  */
 export interface ListContactsRequest {
+	workspace_id: number;
+}
+
+/** Lists a database's properties in their order. */
+export interface ListDatabasePropertiesRequest {
+	workspace_id: number;
+	database_id: number;
+}
+
+/**
+ * Lists a database's rows with their values: those meeting every filter,
+ * in `sort`'s order, or the order they were added when absent.
+ */
+export interface ListDatabaseRowsRequest {
+	workspace_id: number;
+	database_id: number;
+	filters: DatabaseFilter[];
+	sort?: DatabaseSort | null;
+}
+
+/** Lists the databases in a workspace, by title. */
+export interface ListDatabasesRequest {
 	workspace_id: number;
 }
 
@@ -3184,6 +3426,17 @@ export interface ModelPrices {
 	output_token_cost: number;
 	cache_read_token_cost?: number | null;
 	cache_write_token_cost?: number | null;
+}
+
+/**
+ * Moves property `property_id` of a database just before its property
+ * `before_id`, or last when absent.
+ */
+export interface MoveDatabasePropertyRequest {
+	workspace_id: number;
+	database_id: number;
+	property_id: number;
+	before_id?: number | null;
 }
 
 /**
@@ -3522,6 +3775,21 @@ export interface RenameArticleRequest {
 export interface RenameClientRequest {
 	id: number;
 	client_name: string;
+}
+
+/** Renames property `property_id` of a database. */
+export interface RenameDatabasePropertyRequest {
+	workspace_id: number;
+	database_id: number;
+	property_id: number;
+	name: string;
+}
+
+/** Retitles database `database_id` in a workspace. */
+export interface RenameDatabaseRequest {
+	workspace_id: number;
+	database_id: number;
+	title: string;
 }
 
 /** Retitles document folder `folder_id` in a workspace. */
@@ -4147,6 +4415,30 @@ export interface SetContactPhotoRequest {
 	workspace_id: number;
 	contact_id: number;
 	photo: ImageUpload | null;
+}
+
+/**
+ * Changes the type of property `property_id` of a database. Each value
+ * whose text reads as the new type is kept as one (`"42"` becomes the
+ * number 42); every other value is emptied.
+ */
+export interface SetDatabasePropertyTypeRequest {
+	workspace_id: number;
+	database_id: number;
+	property_id: number;
+	data_type: DatabaseDataType;
+}
+
+/**
+ * Sets row `row_id`'s value for property `property_id`, which must be of
+ * the property's type, or empties it when `value` is absent.
+ */
+export interface SetDatabaseValueRequest {
+	workspace_id: number;
+	database_id: number;
+	row_id: number;
+	property_id: number;
+	value?: DatabaseValue | null;
 }
 
 /**
@@ -4921,6 +5213,8 @@ export interface Vocabulary {
 	security_events: { kind: SecurityEventKind; label: string }[];
 	/** What each kind of item a `cohesion://` link names is called. */
 	embed_kinds: { kind: EmbedKind; label: string }[];
+	/** What each type of value a database property holds is called. */
+	database_data_types: { kind: DatabaseDataType; label: string }[];
 }
 
 /** The web UI's static build, for a client to serve. */
@@ -5067,6 +5361,40 @@ export interface Requests {
 	moveDocumentFolder: MoveDocumentFolderRequest;
 	/** Deletes a document folder and the folders inside it. */
 	deleteDocumentFolder: DeleteDocumentFolderRequest;
+	/** Lists a workspace's databases. */
+	listDatabases: ListDatabasesRequest;
+	/** Fetches a database. */
+	getDatabase: GetDatabaseRequest;
+	/** Creates an empty database in a workspace. */
+	createDatabase: CreateDatabaseRequest;
+	/** Retitles a database. */
+	renameDatabase: RenameDatabaseRequest;
+	/** Deletes a database for good, with everything in it. */
+	deleteDatabase: DeleteDatabaseRequest;
+	/** Lists a database's properties in their order. */
+	listDatabaseProperties: ListDatabasePropertiesRequest;
+	/** Adds a property to a database, last. */
+	createDatabaseProperty: CreateDatabasePropertyRequest;
+	/** Renames a database property. */
+	renameDatabaseProperty: RenameDatabasePropertyRequest;
+	/** Changes a database property's type, keeping the values that fit it. */
+	setDatabasePropertyType: SetDatabasePropertyTypeRequest;
+	/** Moves a database property among the others; replies with them all. */
+	moveDatabaseProperty: MoveDatabasePropertyRequest;
+	/** Deletes a database property with its values. */
+	deleteDatabaseProperty: DeleteDatabasePropertyRequest;
+	/** Lists a database's rows with their values, filtered and sorted. */
+	listDatabaseRows: ListDatabaseRowsRequest;
+	/** Fetches a database row with its values. */
+	getDatabaseRow: GetDatabaseRowRequest;
+	/** Adds an empty row to a database. */
+	createDatabaseRow: CreateDatabaseRowRequest;
+	/** Deletes a database row for good, with its values and document. */
+	deleteDatabaseRow: DeleteDatabaseRowRequest;
+	/** Sets or empties one value of a database row. */
+	setDatabaseValue: SetDatabaseValueRequest;
+	/** Gives a database row a document of its own. */
+	createDatabaseRowDocument: CreateDatabaseRowDocumentRequest;
 	/** Lists an item's kept versions, newest first, without their text. */
 	listVersions: ListVersionsRequest;
 	/** Fetches one kept version. */
@@ -5568,6 +5896,40 @@ export interface Replies {
 	moveDocumentFolder: DocumentFolder[];
 	/** Deletes a document folder and the folders inside it. */
 	deleteDocumentFolder: DocumentFolder;
+	/** Lists a workspace's databases. */
+	listDatabases: Database[];
+	/** Fetches a database. */
+	getDatabase: Database;
+	/** Creates an empty database in a workspace. */
+	createDatabase: Database;
+	/** Retitles a database. */
+	renameDatabase: Database;
+	/** Deletes a database for good, with everything in it. */
+	deleteDatabase: Database;
+	/** Lists a database's properties in their order. */
+	listDatabaseProperties: DatabaseProperty[];
+	/** Adds a property to a database, last. */
+	createDatabaseProperty: DatabaseProperty;
+	/** Renames a database property. */
+	renameDatabaseProperty: DatabaseProperty;
+	/** Changes a database property's type, keeping the values that fit it. */
+	setDatabasePropertyType: DatabaseProperty;
+	/** Moves a database property among the others; replies with them all. */
+	moveDatabaseProperty: DatabaseProperty[];
+	/** Deletes a database property with its values. */
+	deleteDatabaseProperty: DatabaseProperty;
+	/** Lists a database's rows with their values, filtered and sorted. */
+	listDatabaseRows: DatabaseRowEntry[];
+	/** Fetches a database row with its values. */
+	getDatabaseRow: DatabaseRowEntry;
+	/** Adds an empty row to a database. */
+	createDatabaseRow: DatabaseRowEntry;
+	/** Deletes a database row for good, with its values and document. */
+	deleteDatabaseRow: DatabaseRow;
+	/** Sets or empties one value of a database row. */
+	setDatabaseValue: DatabaseRowEntry;
+	/** Gives a database row a document of its own. */
+	createDatabaseRowDocument: Document;
 	/** Lists an item's kept versions, newest first, without their text. */
 	listVersions: VersionSummary[];
 	/** Fetches one kept version. */

@@ -7,6 +7,21 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- The daemon keeps databases: tables in a workspace whose columns each hold
+  one type of value (text, whole number, decimal, currency, checkbox or
+  date), whose rows may each have a document of their own, and whose rows
+  can be filtered and sorted on any column. A row's document stays out of
+  the document list and search. The wire gains `listDatabases`,
+  `getDatabase`, `createDatabase`, `renameDatabase`, `deleteDatabase`,
+  `listDatabaseProperties`, `createDatabaseProperty`,
+  `renameDatabaseProperty`, `setDatabasePropertyType`,
+  `moveDatabaseProperty`, `deleteDatabaseProperty`, `listDatabaseRows`,
+  `getDatabaseRow`, `createDatabaseRow`, `deleteDatabaseRow`,
+  `setDatabaseValue` and `createDatabaseRowDocument`, the `databases(ws)`
+  and `database(id)` invalidations, `hello.vocabulary.database_data_types`,
+  and a `databaseRow` document type, which a client meets only by opening a
+  row's document. The web UI doesn't show databases yet; the iPhone app
+  needn't.
 - An item's panel shows Backlinks: the documents and journal entries that
   link to the item, wherever the link is in their text. Click one to open it
   over the page. When nothing links to the item, the section doesn't show.
