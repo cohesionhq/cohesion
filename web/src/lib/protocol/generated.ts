@@ -4689,6 +4689,16 @@ export type ThreadOrigin =
 	  };
 
 /**
+ * Has agent `agent_id` stop following actor session `session_id`: it no
+ * longer wakes when the session stops on its own. A session another agent
+ * follows, or none does, is left as it is.
+ */
+export interface UnfollowActorSessionRequest {
+	session_id: number;
+	agent_id: number;
+}
+
+/**
  * Removes extension `extension_id`, stopping its sandbox and timers and
  * dropping its permission and hook grants.
  */
@@ -5409,6 +5419,11 @@ export interface Requests {
 	stopActorSession: StopActorSessionRequest;
 	/** Resolves an actor session, stopping it first if it is going on. */
 	resolveActorSession: ResolveActorSessionRequest;
+	/**
+	 * Has an agent stop following an actor session, so it no longer wakes
+	 * when the session stops.
+	 */
+	unfollowActorSession: UnfollowActorSessionRequest;
 	/** Switches an actor session's mode, through its client. */
 	setActorSessionMode: SetActorSessionModeRequest;
 	/** Lists every service a `connector`-granted extension reaches. */
@@ -5910,6 +5925,11 @@ export interface Replies {
 	stopActorSession: ActorSession;
 	/** Resolves an actor session, stopping it first if it is going on. */
 	resolveActorSession: ActorSession;
+	/**
+	 * Has an agent stop following an actor session, so it no longer wakes
+	 * when the session stops.
+	 */
+	unfollowActorSession: ActorSession;
 	/** Switches an actor session's mode, through its client. */
 	setActorSessionMode: ActorSession;
 	/** Lists every service a `connector`-granted extension reaches. */

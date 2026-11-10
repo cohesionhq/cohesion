@@ -5998,6 +5998,11 @@ export function createMock(): Mock {
 			}
 			return { ...session };
 		},
+		unfollowActorSession: ({ session_id, agent_id }) => {
+			const session = actorSession(session_id);
+			if (session.follower?.agent_id === agent_id) session.follower = null;
+			return { ...session };
+		},
 		setActorSessionMode: ({ session_id, mode }) => {
 			const session = startedSession(session_id);
 			session.mode = mode;

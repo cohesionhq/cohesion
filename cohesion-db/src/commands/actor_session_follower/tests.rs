@@ -62,7 +62,7 @@ fn the_last_agent_to_tell_a_session_something_follows_it_through_every_move() {
             .unwrap();
         assert_eq!(follower(), Some(pilot));
     }
-    // Only deleting the agent does.
+    // Only deleting the agent ends it here; stopping is the other way (below).
     db.send_blocking(DeleteIntelligenceAgentCommand { agent_id: pilot })
         .unwrap();
     assert_eq!(follower(), None);
@@ -162,4 +162,61 @@ fn the_agents_whose_count_changes_are_invalidated_and_no_others() {
     db.send_blocking(DeleteActorSessionCommand { id: session_id })
         .unwrap();
     assert_eq!(agents_invalidated(), [pilot]);
+}
+
+#[test]
+fn an_agent_that_stops_following_a_session_no_longer_follows_or_counts_it() {
+    let db = context();
+    let session_id = actor_session(&db);
+    let (scout, pilot) = (agent(&db, "Scout"), agent(&db, "Pilot"));
+    let mut batches = db.subscribe();
+    let mut agents_invalidated = || -> Vec<i64> {
+        let mut agents = Vec::new();
+        while let Ok(batch) = batches.try_recv() {
+            agents.extend(batch.keys.iter().filter_map(|key| match key {
+                Invalidation::Agent(id) => Some(*id),
+                _ => None,
+            }));
+        }
+        agents.sort();
+        agents
+    };
+    let unfollow = |agent_id| {
+        db.send_blocking(UnfollowActorSessionCommand {
+            session_id,
+            agent_id,
+        })
+        .unwrap()
+        .follower
+        .map(|follower| follower.agent_id)
+    };
+    let count = |agent_id| {
+        db.send_blocking(GetIntelligenceAgentCommand { agent_id })
+            .unwrap()
+            .following_count
+    };
+    db.send_blocking(FollowActorSessionCommand {
+        session_id,
+        agent_id: pilot,
+        initiative: Initiative::User,
+    })
+    .unwrap();
+    agents_invalidated();
+
+    // Only the agent following it can stop: another's leaves it be.
+    assert_eq!(unfollow(scout), Some(pilot));
+    assert!(agents_invalidated().is_empty());
+
+    assert_eq!(unfollow(pilot), None);
+    assert_eq!(count(pilot), 0);
+    assert_eq!(agents_invalidated(), [pilot]);
+
+    // A move after it brings no follower back, and stopping again changes nothing.
+    db.send_blocking(SetActorSessionStatusCommand {
+        session_id,
+        moved: ActorSessionMove::Finished,
+    })
+    .unwrap();
+    assert_eq!(unfollow(pilot), None);
+    assert!(agents_invalidated().is_empty());
 }

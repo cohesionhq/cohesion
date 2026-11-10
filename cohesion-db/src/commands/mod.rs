@@ -71,7 +71,7 @@ pub use actor::{
     SUBAGENT_MESSAGE_LIMIT, SetActorSessionContextCommand, SetActorSessionModeCommand,
     SetActorSessionStatusCommand, SetActorSessionTitleCommand, SettleActorSessionsCommand,
 };
-pub use actor_session_follower::FollowActorSessionCommand;
+pub use actor_session_follower::{FollowActorSessionCommand, UnfollowActorSessionCommand};
 pub use actor_subagent::{
     GetActorSubagentCommand, GetTopActorSessionCommand, LaunchActorSubagentCommand,
     ListActorSessionFamilyCommand, ListActorSubagentsCommand,

@@ -568,6 +568,10 @@ pub enum Command {
     /// Resolves an actor session, stopping it first if it is going on.
     #[reply(ActorSession, via = Local)]
     ResolveActorSession(ResolveActorSessionRequest),
+    /// Has an agent stop following an actor session, so it no longer wakes
+    /// when the session stops.
+    #[reply(ActorSession)]
+    UnfollowActorSession(UnfollowActorSessionRequest),
     /// Switches an actor session's mode, through its client.
     #[reply(ActorSession, via = Local)]
     SetActorSessionMode(SetActorSessionModeRequest),
