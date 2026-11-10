@@ -71,7 +71,7 @@ package, the web UI in `web/`. No crate declares cargo `[features]`.
 | `cohesionkit` | lib (+ `build.rs`) | The facade the daemon builds on: `CohesionContext`, the `Route` impls (`routes/`), hooks (`hooks/`), database formula passes (`database_formulas.rs`), `ExtensionManager`, connectors, feeds, periodic cleanup, `Security`, `Presence`, `CapabilityClients`, `ActorSessions`, `EndpointRelay`, `PendingImport`, and `web_bundle` (the web UI compiled into the binary). | all of the above but the harness and the bench |
 | `cohesion-bench` | lib + bin, `publish = false` | A tool: scores language models on Cohesion's agent, tools and script API. Each run of a case builds the daemon's `CohesionContext` on a scratch database, sends the case's prompt to a new agent on the model under test, and checks the result with the case's `validate.ts`; it writes `report.html`, `cases.csv` and `summary.csv` ([24](#24-testing)). Nothing depends on it. | cohesionkit, cohesion-js |
 | `cohesiond` | bin | The daemon: opens the database, builds `CohesionContext`, prints the first setup code, serves HTTPS with client certificates and a Unix socket until a signal. Also `examples/fake_actor.rs`, a minimal actor client. | cohesionkit |
-| `cohesion` | bin | The CLI: `setup`, `api`, the noun commands (`cli/`), and `open`, the loopback proxy that serves the web UI (`web_proxy/`). Never links rusqlite, rquickjs or cohesion-intelligence. | cohesion-core |
+| `cohesion` | bin | The CLI: `setup`, `api`, the noun commands (`cli/`), `open`, the loopback proxy that serves the web UI (`web_proxy/`), and `mcp`, a stdio MCP server whose one tool runs a script (`cli/mcp.rs`). Never links rusqlite, rquickjs or cohesion-intelligence. | cohesion-core |
 
 ```mermaid
 flowchart BT

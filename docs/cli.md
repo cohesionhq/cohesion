@@ -56,6 +56,7 @@ cohesion article feed add https://example.com/feed.xml  # every workspace shares
 cohesion search dentist              # documents, tasks, resources and contacts
 cohesion run script.js               # run a script in cohesiond and print its result
 cohesion script new script.js        # write a starter script and cohesion.d.ts
+cohesion mcp                         # serve MCP on stdin and stdout, for an MCP client to start
 cohesion extension install ext.js    # install an extension with its grants off, or `-o` to replace one
 cohesion extension call <identifier> <name> '{"q":1}'   # call its `serviceRequest` and print the JSON
 cohesion open                        # serve the web UI on 127.0.0.1:7343 and open it
@@ -161,6 +162,23 @@ Agents resolve by id or name, ignoring case. `agent update` takes `--name`, `--c
 `--emoji`, `--team`, `--personality` (`balanced`, `friendly`, `professional`,
 `candid`, `playful`) and `--verbosity` (`terse`, `brief`, `detailed`, `thorough`).
 `agent delete` asks first unless given `-y`.
+
+## MCP: `cohesion mcp`
+
+`cohesion mcp` is a local MCP server for an MCP client, such as Claude Code, to start.
+It speaks MCP over stdin and stdout and runs until the client closes stdin. Its one
+tool, `code`, runs a script in cohesiond, as `cohesion run` does, and returns the
+script's result. A script that throws comes back as an error result with the
+message. The script API's TypeScript declarations, the `cohesion.d.ts` that
+`cohesion script new` writes, are the resource `cohesion://cohesion.d.ts`.
+
+```sh
+claude mcp add cohesion -- cohesion mcp
+```
+
+The tool has the same access as this client, so the MCP client can read and change
+everything in cohesiond. Pass `-c <DIR>` in the command the client starts to use
+another client's configuration.
 
 ## Raw commands: `cohesion api`
 
