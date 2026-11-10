@@ -534,6 +534,10 @@ pub enum Command {
     /// first.
     #[reply(Vec<ActorSession>)]
     ListActorSubagents(ListActorSubagentsRequest),
+    /// Lists an actor session's family: the session Cohesion started, then
+    /// every subagent beneath it, each after the one it runs under.
+    #[reply(Vec<ActorSession>)]
+    ListActorSessionFamily(ListActorSessionFamilyRequest),
     /// Lists the requests waiting on the user in an actor session's
     /// subagents, oldest first.
     #[reply(Vec<ActorSessionMessage>)]

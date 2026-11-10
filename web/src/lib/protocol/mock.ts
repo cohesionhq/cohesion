@@ -5656,6 +5656,16 @@ export function createMock(): Mock {
 				.sort((a, b) => a.started_at - b.started_at || a.id - b.id)
 				.map((t) => structuredClone(t));
 		},
+		listActorSessionFamily: ({ session_id }) => {
+			let top = actorSession(session_id);
+			while (top.subagent) top = actorSession(top.subagent.parent_session_id);
+			const below = (id: number): ActorSession[] =>
+				state.actorSessions
+					.filter((t) => t.subagent?.parent_session_id === id)
+					.sort((a, b) => a.started_at - b.started_at || a.id - b.id)
+					.flatMap((t) => [t, ...below(t.id)]);
+			return [top, ...below(top.id)].map((t) => structuredClone(t));
+		},
 		listUnansweredSubagentRequests: ({ session_id }) => {
 			actorSession(session_id);
 			const going = subagentsBelow(session_id)

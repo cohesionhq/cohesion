@@ -72,8 +72,9 @@ pub use actor::{
 pub use actor_session_follower::FollowActorSessionCommand;
 pub use actor_subagent::{
     GetActorSubagentCommand, GetTopActorSessionCommand, LaunchActorSubagentCommand,
-    ListActorSubagentsCommand, ListUnansweredSubagentRequestsCommand, SUBAGENT_DEPTH_LIMIT,
-    SUBAGENT_LIMIT, SettleActorSubagentsCommand, SubagentsOf,
+    ListActorSessionFamilyCommand, ListActorSubagentsCommand,
+    ListUnansweredSubagentRequestsCommand, SUBAGENT_DEPTH_LIMIT, SUBAGENT_LIMIT,
+    SettleActorSubagentsCommand, SubagentsOf,
 };
 pub use agent_ask::{
     ASK_STOPPED_REASON, AgentAskRecord, AnswerAgentAskCommand, AskAgentCommand,

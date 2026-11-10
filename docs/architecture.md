@@ -400,7 +400,7 @@ A session reads up to 64 requests ahead (`QUEUED_REQUESTS`) and runs them side
 by side, so replies come back in the order they finish; match them by `id`.
 
 **Requests, replies and routes.** `Command` (`cohesion-core/src/protocol/command.rs`)
-is one enum with a variant per request, 197 of them, each tagged
+is one enum with a variant per request, 198 of them, each tagged
 `#[reply(ReplyType, via = Kind)]`. `#[derive(Commands)]` generates the
 dispatch; the request structs live in the `*_requests.rs` modules beside it,
 and `ReplyData` (`reply_data.rs`) is the enum of reply payloads. Each
@@ -1665,7 +1665,7 @@ has a transcript, a status, a title and context like any session.
 - **Reports into it.** `message`, `status`, `end`, `context` and `title` work as for a session; `progress` only marks it working. A subagent's transcript holds at most 2,000 messages.
 - **What it doesn't do.** It has no activity, so it is never unread; its moves raise no `actor:moved` and wake no follower; it is not in `ListActorSessions`, search, the sidebar or `@`; it can't be stopped, resolved or switched on its own ("A subagent goes with its session."), and the user tells it nothing but responses to its requests ("A subagent takes only responses to what it asked."). A response goes out as `sendActorSessionMessage` with the session Cohesion started as `session_id` and the subagent's `subagent` key.
 - **Settling.** Stopping or resolving a session leaves its subagents still going `idle` as stopped; its client going away (not replaced) leaves its working subagents `idle` as interrupted; the daemon stopping settles them with every session. A session's turn ending leaves its subagents be, since a background one goes on.
-- **Reads.** `ListActorSubagents{session_id}` lists one session's subagents one level down, first launched first; `ListUnansweredSubagentRequests{session_id}` lists the requests waiting on the user in its subagents at any depth, those of subagents still going. A subagent's launch, status, title or context invalidates `actorSession` of itself, of the session one level up and of the session Cohesion started; a message in it only its own, and the started session's too when it is a request or a response.
+- **Reads.** `ListActorSubagents{session_id}` lists one session's subagents one level down, first launched first; `ListUnansweredSubagentRequests{session_id}` lists the requests waiting on the user in its subagents at any depth, those of subagents still going; `ListActorSessionFamily{session_id}` lists the family of any session or subagent: the session Cohesion started, then every subagent beneath it, each right after the one it runs under, siblings first launched first. A subagent's launch, status, title or context invalidates `actorSession` of itself, of the session one level up and of the session Cohesion started; a message in it only its own, and the started session's too when it is a request or a response.
 - **Retention.** Subagents go with the session they run under (the rows cascade).
 
 **The follower.** An agent that dispatches or sends to a session follows it
@@ -1775,12 +1775,14 @@ background" while one is still going), which opens its thread at
 `/actors/<id>`; subagents launched from no tool use shown follow the
 transcript. What a session's subagents ask waits at the transcript's foot,
 answerable there, under a link to the one asking. The column beside the sheet
-lists a session's subagents. A subagent's thread is the same view, read-only:
+shows, under the usage meters, the open session's family whenever it has
+subagents or is one: the session Cohesion started and every subagent beneath
+it, set in by depth, the open one marked, each opening its thread. A subagent's thread is the same view, read-only:
 its header leads with a chevron up to the session it runs under (`BackLink`
 with `up`) and says what kind it is and whose, it has no composer or Resolve,
 and its requests show without their buttons, linking to the session Cohesion
 started, where they are answered. The store holds them in `subagents`,
-`waiting` and `above` (`stores/actors.svelte.ts`).
+`waiting`, `above` and `family` (`stores/actors.svelte.ts`).
 
 **Links.** Items link as `cohesion://task/<ws>/<id>`,
 `cohesion://document/<ws>/<id>`, `cohesion://agent/<id>` and

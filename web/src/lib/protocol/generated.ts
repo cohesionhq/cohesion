@@ -2686,6 +2686,15 @@ export interface ListActivitiesRequest {
 }
 
 /**
+ * Lists actor session `session_id`'s family: the session Cohesion started
+ * that it is, or runs under at any depth, then every subagent beneath that,
+ * each after the one it runs under, first launched first.
+ */
+export interface ListActorSessionFamilyRequest {
+	session_id: number;
+}
+
+/**
  * Lists the images attached to actor session message `message_id`, in the
  * order sent.
  */
@@ -5218,6 +5227,11 @@ export interface Requests {
 	 */
 	listActorSubagents: ListActorSubagentsRequest;
 	/**
+	 * Lists an actor session's family: the session Cohesion started, then
+	 * every subagent beneath it, each after the one it runs under.
+	 */
+	listActorSessionFamily: ListActorSessionFamilyRequest;
+	/**
 	 * Lists the requests waiting on the user in an actor session's
 	 * subagents, oldest first.
 	 */
@@ -5704,6 +5718,11 @@ export interface Replies {
 	 * first.
 	 */
 	listActorSubagents: ActorSession[];
+	/**
+	 * Lists an actor session's family: the session Cohesion started, then
+	 * every subagent beneath it, each after the one it runs under.
+	 */
+	listActorSessionFamily: ActorSession[];
 	/**
 	 * Lists the requests waiting on the user in an actor session's
 	 * subagents, oldest first.

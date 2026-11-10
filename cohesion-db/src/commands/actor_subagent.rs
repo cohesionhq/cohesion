@@ -9,7 +9,10 @@ use cohesion_core::{
         ActorMessageContent, ActorSession, ActorSessionMessage, ActorSessionMessageContent,
         ActorSessionMove, ActorSessionStatus, ActorSubagent,
     },
-    protocol::{ListActorSubagentsRequest, ListUnansweredSubagentRequestsRequest, SubagentLaunch},
+    protocol::{
+        ListActorSessionFamilyRequest, ListActorSubagentsRequest,
+        ListUnansweredSubagentRequestsRequest, SubagentLaunch,
+    },
 };
 
 use super::actor::{
@@ -296,6 +299,54 @@ impl DatabaseCommand for ListActorSubagentsCommand {
             .bind(self.session_id)
             .order("started_at, id")
             .all()?)
+    }
+}
+
+/// Actor session `session_id`'s family: the session Cohesion started that it
+/// is, or runs under at any depth, then every subagent beneath that, each
+/// right after the one it runs under and its earlier siblings' own, siblings
+/// first launched first.
+#[derive(FromRequest)]
+#[request(ListActorSessionFamilyRequest)]
+pub struct ListActorSessionFamilyCommand {
+    pub session_id: i64,
+}
+impl DatabaseCommand for ListActorSessionFamilyCommand {
+    type Response = Vec<ActorSession>;
+    type Access = Read;
+    fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Self::Response> {
+        let session = GetActorSessionCommand {
+            id: self.session_id,
+        }
+        .handle(ctx)?;
+        let top = match session.subagent {
+            None => session,
+            Some(_) => {
+                let id = top_session_id(ctx, &session)?;
+                GetActorSessionCommand { id }.handle(ctx)?
+            }
+        };
+        let below: Vec<ActorSession> = ctx
+            .db
+            .select::<ActorSession>()
+            .filter(BELOW)
+            .bind(top.id)
+            .order("started_at, id")
+            .all()?;
+        let mut family = vec![top];
+        let mut index = 0;
+        // Each session is followed by its own subagents before its next sibling.
+        while index < family.len() {
+            let parent = family[index].id;
+            let children: Vec<ActorSession> = below
+                .iter()
+                .filter(|s| s.subagent.as_ref().map(|s| s.parent_session_id) == Some(parent))
+                .cloned()
+                .collect();
+            family.splice(index + 1..index + 1, children);
+            index += 1;
+        }
+        Ok(family)
     }
 }
 

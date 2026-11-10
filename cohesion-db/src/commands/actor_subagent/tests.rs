@@ -546,3 +546,31 @@ fn subagents_go_with_their_session() {
     let again = start(&db, top.actor_id, "Again");
     launch(&db, again.id, "a1", launch_as("First", None, None)).unwrap();
 }
+
+#[test]
+fn a_family_is_its_top_session_then_each_subagent_after_the_one_it_runs_under() {
+    let db = context();
+    let top = session(&db);
+    let first = launch(&db, top.id, "a1", launch_as("First", None, None)).unwrap();
+    let second = launch(&db, top.id, "a2", launch_as("Second", None, None)).unwrap();
+    let nested = launch(&db, top.id, "a3", launch_as("Nested", Some("a1"), None)).unwrap();
+    let deeper = launch(&db, top.id, "a4", launch_as("Deeper", Some("a3"), None)).unwrap();
+    let other = start(&db, top.actor_id, "Something else");
+    launch(&db, other.id, "b1", launch_as("Elsewhere", None, None)).unwrap();
+
+    let family = |session_id| {
+        db.send_blocking(ListActorSessionFamilyCommand { session_id })
+            .unwrap()
+            .into_iter()
+            .map(|session| session.id)
+            .collect::<Vec<_>>()
+    };
+    let expected = [top.id, first.id, nested.id, deeper.id, second.id];
+    // The same from any member of it.
+    assert_eq!(family(top.id), expected);
+    assert_eq!(family(deeper.id), expected);
+    assert_eq!(family(second.id), expected);
+    // A session with no subagents is a family of one.
+    let alone = start(&db, top.actor_id, "Alone");
+    assert_eq!(family(alone.id), [alone.id]);
+}
