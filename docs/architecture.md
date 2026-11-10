@@ -69,7 +69,7 @@ package, the web UI in `web/`. No crate declares cargo `[features]`.
 | `cohesion-js` | lib | The QuickJS script runtime (rquickjs): `ScriptEngine` and its worker pools, `Sandbox`, globals and `Mount`, JS entities, `script_api` (which yields the `.d.ts`), `service_declarations`, `AgentRole`, and the traits a higher crate implements: `ConnectorAccess`, `ServiceAccess`, `ActorAccess`. Strips TypeScript with `swc_ts_fast_strip`; vendors the Pele diagram renderer in `vendor/pele`. | cohesion-core, cohesion-db, cohesion-internet, cohesion-macros |
 | `cohesion-intelligence` | lib | LLM conversations: provider backends (`providers/`), the models.dev catalog (`catalog/`), `Session` and its tools, `AgentCoordinator` and the agent machinery (`agents/`), `SpendLimits`, and the `AccountCredentials` trait. | cohesion-core, cohesion-db, cohesion-js |
 | `cohesionkit` | lib (+ `build.rs`) | The facade the daemon builds on: `CohesionContext`, the `Route` impls (`routes/`), hooks (`hooks/`), database formula passes (`database_formulas.rs`), `ExtensionManager`, connectors, feeds, periodic cleanup, `Security`, `Presence`, `CapabilityClients`, `ActorSessions`, `EndpointRelay`, `PendingImport`, and `web_bundle` (the web UI compiled into the binary). | all of the above but the harness and the bench |
-| `cohesion-bench` | lib + bin, `publish = false` | A tool: scores language models on Cohesion's agent, tools and script API. Each run of a case builds the daemon's `CohesionContext` on a scratch database, sends the case's prompt to a new agent on the model under test, and judges the result with the case's `check.js`; it writes `report.html`, `cases.csv` and `summary.csv` ([24](#24-testing)). Nothing depends on it. | cohesionkit |
+| `cohesion-bench` | lib + bin, `publish = false` | A tool: scores language models on Cohesion's agent, tools and script API. Each run of a case builds the daemon's `CohesionContext` on a scratch database, sends the case's prompt to a new agent on the model under test, and checks the result with the case's `validate.ts`; it writes `report.html`, `cases.csv` and `summary.csv` ([24](#24-testing)). Nothing depends on it. | cohesionkit, cohesion-js |
 | `cohesiond` | bin | The daemon: opens the database, builds `CohesionContext`, prints the first setup code, serves HTTPS with client certificates and a Unix socket until a signal. Also `examples/fake_actor.rs`, a minimal actor client. | cohesionkit |
 | `cohesion` | bin | The CLI: `setup`, `api`, the noun commands (`cli/`), and `open`, the loopback proxy that serves the web UI (`web_proxy/`). Never links rusqlite, rquickjs or cohesion-intelligence. | cohesion-core |
 
@@ -145,7 +145,7 @@ and the release profile strips symbols without LTO (set
 | Install the daemon only | `scripts/install-server.sh` (web UI, then `cargo install --path cohesiond`) |
 | Install the CLI only | `scripts/install-cli.sh` (`cargo install --path cohesion`; the CLI doesn't hold the web UI) |
 | Try an actor client | `cargo run -p cohesiond --example fake_actor -- <socket> [name]` |
-| Benchmark models | `cargo run --release -p cohesion-bench -- run --model anthropic/<model> --model openai/<model>` ([24](#24-testing)) |
+| Benchmark models | `cargo run -p cohesion-bench -- setup`, then `cargo run --release -p cohesion-bench -- run` ([24](#24-testing)) |
 
 **The web UI**, from `web/` (`web/package.json`):
 
@@ -2626,7 +2626,7 @@ Settings › Security lists the security events.
 | `cohesiond` | Sessions (`session/tests.rs`, with a `FakeExchange` in place of a socket), the first-byte timeout, PROXY headers, the unknown-peer cache, the local handshake | tokio's paused time |
 | `cohesion` | Argument definitions, `cohesion open`'s guard, launch link and token | tower's `ServiceExt` |
 | `cohesion-core` | Models (`tests/model.rs`) and core helpers | |
-| `cohesion-bench` | Every bench case fails on its untouched data and passes after its `solution.js` (`every_case_can_fail_and_pass`); a run's metrics match what Cohesion recorded | A scratch `CohesionContext`, and a local server speaking Chat Completions |
+| `cohesion-bench` | Every bench case fails on its starting data and passes after its `solution.ts` (`every_case_can_fail_and_pass`); a run's metrics match what Cohesion recorded; the scores | A scratch `CohesionContext`, and a local server speaking Chat Completions |
 | `web/` | Stores against the mock daemon, the connection (with an injected WebSocket), formatting and UI helpers (`src/**/*.test.ts`) | Vitest in Node, with `vocabulary.setup.ts`. There are no component or end-to-end tests: components are checked by `svelte-check`, lint and the build, and then by eye in mock mode. |
 
 Unit tests live out of line: `#[cfg(test)] mod tests;` at the end of a file,
@@ -2652,29 +2652,32 @@ or the web UI with `VITE_MOCK=1 npm run dev`.
 model does Cohesion's work through its real agent: the same
 `CohesionContext`, system prompt, tools, script API and provider backends
 the daemon runs, built from the same commit, so a change to a tool's
-definition or the API shows up in the next run with nothing to update. A
-case is a directory in `cohesion-bench/cases/`: `case.json` (title,
-category, optional `timeoutSeconds`, default 300), `prompt.md` (the user's
-message), `setup.js` (fills a workspace called `Personal`), `check.js`
-(its last expression is `true`, `false` or `{ pass, reason }`; `reply`
-holds what the agent told the user) and `solution.js` (what a good agent
-would do). `cohesion-bench validate` and the crate's tests check every case
-can fail and pass, so a script API change that breaks a case fails
-`cargo test`; fix the case in the same commit.
+definition or the API shows up in the next run with nothing to update.
+Its cases live in `cohesion-bench/cases/`, one directory each, written in
+TypeScript against the script API's declarations; the case format is in
+[the cases' README](../cohesion-bench/cases/README.md). A case starts from
+a starting state (`cases/states/`), plain data that `StartingState`
+(`starting_state.rs`) reads and the prelude applies through the script API.
+`cohesion-bench validate` and the crate's tests check that every case fails
+on its starting data and passes after its solution, so a script API change
+that breaks a case fails `cargo test`; fix the case in the same commit.
 
-`cohesion-bench run --model ENDPOINT/MODEL …` runs each case (`--repeat N`
-times, `--jobs N` at once) on a scratch database of its own under
-`target/cohesion-bench/<time>/runs/`, with the endpoint's key from
-`<PROVIDER>_API_KEY` or an endpoint described with `--endpoint`. Prices
-come from the models.dev catalog through `ModelCatalog`, once per run. A
-run is measured from what Cohesion recorded: success (the check passed),
-tool accuracy (the share of tool calls in its threads that succeeded),
-cost and tokens (its cost events), speed (from the message to the end of
-everything it set going) and turn metrics (model calls, tool calls,
-documentation lookups, messages sent, questions asked). It writes
-`report.html`, `cases.csv` (one row per run) and `summary.csv` (one row
-per model). A run calls real providers and costs money; `validate` and the
-tests don't.
+`cohesion-bench setup` saves the providers, their API keys, the models and
+the options to `cohesion-bench/bench.json` (git-ignored, readable by its
+owner only), asking for each on a terminal or taking flags; `run` starts
+from it, each flag overriding it. Each run of a case gets a scratch
+database of its own under `target/cohesion-bench/<time>/runs/`. A run is
+measured from what Cohesion recorded: whether `validate.ts` passed, tool
+accuracy (the share of tool calls in its threads that succeeded), cost and
+tokens (its cost events), wall time, and turn metrics (model calls, tool
+calls, documentation lookups, messages sent, questions asked). Three
+scores summarise a model (`score.rs`), each 0 to 100 and comparable across
+runs: accuracy (passes weighted by difficulty, 1 to 3), efficiency (over
+passed runs, tokens, model calls and time against fixed references by
+difficulty) and overall (accuracy<sup>0.7</sup> × efficiency<sup>0.3</sup>).
+A run writes `report.html`, `cases.csv` (one row per run) and `summary.csv`
+(one row per model). It calls real providers and costs money; `validate`
+and the tests don't.
 
 **The rules in [conventions.md](conventions.md).** Write tests for low-level behaviour a
 regression would quietly break: the JS runtime (sandbox isolation, worker

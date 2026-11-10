@@ -5,9 +5,12 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use cohesionkit::db::{
-    DatabaseContext, GetIntelligenceThreadMessagesCommand, ListAgentMessagesCommand,
-    ListIntelligenceCostEventsCommand,
+    DatabaseContext, GetIntelligenceThreadMessagesCommand, ListAgentCuesCommand,
+    ListAgentMessagesCommand, ListIntelligenceCostEventsCommand, ListMemoriesCommand,
 };
+
+use crate::case::{CueLeft, Difficulty, Left};
+use crate::score;
 use cohesionkit::model::{AgentMessageContent, IntelligenceAgentMessageSender, ThreadItem};
 
 /// The code tool, whose calls run the script API.
@@ -58,13 +61,18 @@ pub struct Activity {
     pub cost: f64,
     /// Messages the agent sent the user.
     pub messages_sent: u32,
-    /// Whether it asked the user to pick instead of finishing.
-    pub asked_user: bool,
+    /// The questions it asked the user to pick an answer to.
+    pub asked: Vec<String>,
     /// What the agent said to the user, its messages and questions joined
     /// by blank lines.
     pub reply: String,
     /// The errors its turns posted.
     pub errors: Vec<String>,
+    /// The cues it holds once its turns have ended.
+    pub cues: Vec<CueLeft>,
+    /// The memories it holds once its turns have ended, its own and those
+    /// every agent shares.
+    pub memories: Vec<String>,
 }
 
 /// One run of one case on one model.
@@ -74,6 +82,7 @@ pub struct CaseResult {
     pub case: String,
     pub title: String,
     pub category: String,
+    pub difficulty: Difficulty,
     /// Which repetition, from 1.
     pub repeat: u32,
     pub outcome: Outcome,
@@ -108,6 +117,16 @@ impl Activity {
         self.prompt_tokens() + self.output_tokens
     }
 
+    /// What a check reads besides the database.
+    pub fn left(&self) -> Left {
+        Left {
+            reply: self.reply.clone(),
+            asked: self.asked.clone(),
+            cues: self.cues.clone(),
+            memories: self.memories.clone(),
+        }
+    }
+
     /// Of the calls made, the share that succeeded; `None` with no calls.
     pub fn tool_accuracy(&self) -> Option<f64> {
         ratio(
@@ -139,18 +158,38 @@ impl Activity {
                     reply.push(text);
                 }
                 AgentMessageContent::Choice(choice) => {
-                    activity.asked_user = true;
-                    reply.push(format!(
-                        "{} [{}]",
-                        choice.question,
-                        choice.options.join(" / ")
-                    ));
+                    let question = format!("{} [{}]", choice.question, choice.options.join(" / "));
+                    activity.asked.push(question.clone());
+                    reply.push(question);
                 }
                 AgentMessageContent::Error { error } => activity.errors.push(error),
                 _ => {}
             }
         }
         activity.reply = reply.join("\n\n");
+        let fail = |e| format!("{e:?}");
+        activity.cues = database
+            .send(ListAgentCuesCommand { agent_id })
+            .await
+            .map_err(fail)?
+            .into_iter()
+            .map(|cue| CueLeft {
+                name: cue.name,
+                hook: cue.hook.to_string(),
+                code: cue.script,
+                instructions: cue.instructions,
+                effort: cue.effort.to_string(),
+            })
+            .collect();
+        activity.memories = database
+            .send(ListMemoriesCommand {
+                agent_id: Some(agent_id),
+            })
+            .await
+            .map_err(fail)?
+            .into_iter()
+            .map(|memory| memory.memory)
+            .collect();
 
         let events = database
             .send(ListIntelligenceCostEventsCommand {
@@ -219,6 +258,12 @@ pub struct Summary {
     pub passed: u32,
     pub failed: u32,
     pub errors: u32,
+    /// The scores, from 0 to 100 (`score.rs`); `None` with nothing to go on.
+    pub accuracy: Option<f64>,
+    pub efficiency: Option<f64>,
+    pub overall: Option<f64>,
+    /// Accuracy over each difficulty's cases alone, easy to hard.
+    pub accuracy_by_difficulty: [Option<f64>; 3],
     pub tool_calls: u32,
     pub failed_tool_calls: u32,
     pub code_calls: u32,
@@ -243,6 +288,38 @@ pub struct Summary {
     pub asked_user: u32,
 }
 
+impl CaseResult {
+    /// How efficiently it ran, from 0 to 100; `None` unless it passed.
+    pub fn efficiency(&self) -> Option<f64> {
+        (self.outcome == Outcome::Passed).then(|| {
+            score::run_efficiency(
+                self.difficulty,
+                self.activity.total_tokens() as f64,
+                f64::from(self.activity.model_calls),
+                self.seconds,
+            )
+        })
+    }
+}
+
+/// Accuracy over `results`, from 0 to 100, leaving out the bench's own
+/// errors (`score.rs`).
+pub fn accuracy(results: &[&CaseResult]) -> Option<f64> {
+    let (got, possible) = results.iter().filter(|r| r.outcome != Outcome::Error).fold(
+        (0.0, 0.0),
+        |(got, possible), r| {
+            let weight = score::weight(r.difficulty);
+            let got_it = if r.outcome == Outcome::Passed {
+                weight
+            } else {
+                0.0
+            };
+            (got + got_it, possible + weight)
+        },
+    );
+    ratio(100.0 * got, possible)
+}
+
 impl Summary {
     /// Sums `results`, which are all one model's.
     pub fn of(model: &str, results: &[&CaseResult]) -> Self {
@@ -254,12 +331,27 @@ impl Summary {
         seconds.sort_by(f64::total_cmp);
         let passed = count(Outcome::Passed);
         let total_tokens = sum(|r| r.activity.total_tokens() as f64);
+        let accuracy_score = accuracy(results);
+        let efficiencies: Vec<f64> = results.iter().filter_map(|r| r.efficiency()).collect();
+        let efficiency = ratio(efficiencies.iter().sum(), efficiencies.len() as f64);
+        let overall = accuracy_score.map(|a| score::overall(a, efficiency.unwrap_or(0.0)));
         Self {
             model: model.to_string(),
             runs,
             passed,
             failed: count(Outcome::Failed),
             errors: count(Outcome::Error),
+            accuracy: accuracy_score,
+            efficiency,
+            overall,
+            accuracy_by_difficulty: Difficulty::ALL.map(|difficulty| {
+                let of: Vec<&CaseResult> = results
+                    .iter()
+                    .copied()
+                    .filter(|r| r.difficulty == difficulty)
+                    .collect();
+                accuracy(&of)
+            }),
             tool_calls: results.iter().map(|r| r.activity.tool_calls()).sum(),
             failed_tool_calls: results.iter().map(|r| r.activity.failed_tool_calls()).sum(),
             code_calls: results.iter().map(|r| r.activity.calls_to(CODE_TOOL)).sum(),
@@ -291,7 +383,10 @@ impl Summary {
                 sum(|r| r.activity.cache_read_tokens as f64),
                 sum(|r| r.activity.prompt_tokens() as f64),
             ),
-            asked_user: results.iter().filter(|r| r.activity.asked_user).count() as u32,
+            asked_user: results
+                .iter()
+                .filter(|r| !r.activity.asked.is_empty())
+                .count() as u32,
         }
     }
 

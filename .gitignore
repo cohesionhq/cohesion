@@ -8,3 +8,5 @@ web/.svelte-kit/
 web/build/*
 !web/build/.gitkeep
 CLAUDE.local.md
+/cohesion-bench/bench.json
+/cohesion-bench/cases/types/cohesion.d.ts

@@ -20,7 +20,6 @@ use cohesionkit::protocol::{
     ServerError, StopAgentTurnRequest, UpdateModelCatalogRequest,
 };
 
-use crate::case::WORKSPACE;
 use crate::model_spec::ModelUnderTest;
 
 /// What a stopped turn gets to wind down before the case gives up on it.
@@ -36,8 +35,7 @@ pub struct BenchAgent {
 }
 
 impl Scratch {
-    /// A daemon on a new database at `path`, or in memory when `None`,
-    /// holding the bench's workspace.
+    /// A daemon on a new database at `path`, or in memory when `None`.
     pub async fn open(path: Option<&Path>) -> Result<Self, String> {
         let mut container = match path {
             Some(path) => Container::open(path),
@@ -55,13 +53,19 @@ impl Scratch {
         let scratch = Self {
             context: CohesionContext::new(container, Secrets::new(), address),
         };
-        scratch
-            .send(CreateWorkspaceCommand {
-                title: WORKSPACE.to_string(),
+        Ok(scratch)
+    }
+
+    /// Makes a workspace for each of `titles`, as a client would.
+    pub async fn create_workspaces(&self, titles: &[String]) -> Result<(), String> {
+        for title in titles {
+            self.send(CreateWorkspaceCommand {
+                title: title.clone(),
                 emoji: None,
             })
             .await?;
-        Ok(scratch)
+        }
+        Ok(())
     }
 
     pub fn database(&self) -> &DatabaseContext {

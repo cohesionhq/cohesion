@@ -11,7 +11,7 @@ use crate::case::{default_directory, load_cases};
 use crate::metrics::{CODE_TOOL, Outcome, ToolUse};
 use crate::model_spec::{Endpoint, ModelUnderTest};
 use crate::run::run_case;
-use crate::validate::validate;
+use crate::validate::validate_all;
 
 fn runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new_multi_thread()
@@ -26,15 +26,12 @@ fn runtime() -> tokio::runtime::Runtime {
 fn every_case_can_fail_and_pass() {
     let cases = load_cases(&default_directory(), &[]).unwrap();
     assert!(!cases.is_empty());
-    let broken: Vec<String> = runtime().block_on(async {
-        let mut broken = Vec::new();
-        for case in &cases {
-            if let Err(error) = validate(case).await {
-                broken.push(format!("{}: {error}", case.name));
-            }
-        }
-        broken
-    });
+    let outcomes = runtime().block_on(validate_all(&cases, 8));
+    let broken: Vec<String> = cases
+        .iter()
+        .zip(outcomes)
+        .filter_map(|(case, outcome)| outcome.err().map(|error| format!("{}: {error}", case.name)))
+        .collect();
     assert!(broken.is_empty(), "{broken:#?}");
 }
 
@@ -163,13 +160,18 @@ fn a_run_measures_what_the_agent_did() {
             cache_write_token_cost: None,
         }),
     };
-    let cases = load_cases(&default_directory(), &["create-task".to_string()]).unwrap();
+    let cases = load_cases(
+        &default_directory(),
+        &["create-task-plain-start".to_string()],
+    )
+    .unwrap();
     let directory = scratch_path("run");
     let result = runtime().block_on(run_case(
         &cases[0],
         &model,
         1,
         &directory.join("cohesion.db"),
+        jiff::Zoned::now().date(),
     ));
     _ = std::fs::remove_dir_all(&directory);
 
@@ -233,13 +235,18 @@ fn an_unpriced_run_still_counts_its_calls() {
         model: "base".to_string(),
         prices: None,
     };
-    let cases = load_cases(&default_directory(), &["create-task".to_string()]).unwrap();
+    let cases = load_cases(
+        &default_directory(),
+        &["create-task-plain-start".to_string()],
+    )
+    .unwrap();
     let directory = scratch_path("unpriced");
     let result = runtime().block_on(run_case(
         &cases[0],
         &model,
         1,
         &directory.join("cohesion.db"),
+        jiff::Zoned::now().date(),
     ));
     _ = std::fs::remove_dir_all(&directory);
 

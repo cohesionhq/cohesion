@@ -11,20 +11,23 @@ use crate::case::Case;
 use crate::metrics::{Activity, CaseResult, Outcome};
 use crate::model_spec::ModelUnderTest;
 use crate::scratch::Scratch;
+use crate::starting_state::StartingState;
 
 /// Runs `case` on `model` with its database at `database`, its `repeat`th
-/// time.
+/// time, its prompt's dates counted from `today`.
 pub async fn run_case(
     case: &Case,
     model: &ModelUnderTest,
     repeat: u32,
     database: &Path,
+    today: jiff::civil::Date,
 ) -> CaseResult {
     let mut result = CaseResult {
         model: model.label.clone(),
         case: case.name.clone(),
         title: case.title.clone(),
         category: case.category.clone(),
+        difficulty: case.difficulty,
         repeat,
         outcome: Outcome::Error,
         reason: String::new(),
@@ -39,7 +42,7 @@ pub async fn run_case(
             return result;
         }
     };
-    if let Err(error) = converse(&scratch, case, model, &mut result).await {
+    if let Err(error) = converse(&scratch, case, model, today, &mut result).await {
         result.outcome = Outcome::Error;
         result.reason = error;
     }
@@ -51,57 +54,90 @@ async fn converse(
     scratch: &Scratch,
     case: &Case,
     model: &ModelUnderTest,
+    today: jiff::civil::Date,
     result: &mut CaseResult,
 ) -> Result<(), String> {
-    if let Some(setup) = &case.setup {
-        scratch
-            .run_script(setup.clone())
-            .await
-            .map_err(|e| format!("setup: {e}"))?;
-    }
+    let prompt = case.prompt_on(today)?;
+    prepare(scratch, case).await?;
     let agent = scratch.agent_on(model).await?;
     let started = Instant::now();
-    let in_time = scratch
-        .converse(&agent, case.prompt.clone(), case.timeout)
-        .await?;
+    let in_time = scratch.converse(&agent, prompt, case.timeout).await?;
     result.seconds = started.elapsed().as_secs_f64();
     result.activity = Activity::read(scratch.database(), agent.id).await?;
 
-    let verdict = scratch
-        .run_script(case.check_script(&result.activity.reply))
-        .await;
-    let (passed, reason) = match verdict {
+    let verdict = match scratch
+        .run_script(case.validate_script(&result.activity.left()))
+        .await
+    {
         Ok(verdict) => judge(&verdict),
-        Err(error) => (false, format!("check threw: {error}")),
+        Err(error) => Err(format!("validate.ts threw: {error}")),
     };
-    result.outcome = match passed && in_time {
-        true => Outcome::Passed,
-        false => Outcome::Failed,
+    let reason = match (&verdict, in_time) {
+        (_, false) => format!(
+            "timed out after {}s{}",
+            case.timeout.as_secs(),
+            verdict
+                .as_ref()
+                .err()
+                .map(|reason| format!("; {reason}"))
+                .unwrap_or_default()
+        ),
+        (Ok(()), true) => String::new(),
+        (Err(reason), true) => match result.activity.errors.last() {
+            Some(error) => format!("{reason}; the turn failed: {error}"),
+            None => reason.clone(),
+        },
     };
-    result.reason = match (in_time, result.activity.errors.last()) {
-        (false, _) => format!("timed out after {}s; {reason}", case.timeout.as_secs()),
-        (true, Some(error)) if !passed => format!("{reason}; the turn failed: {error}"),
-        _ => reason,
+    let passed = verdict.is_ok() && in_time;
+    result.outcome = if passed {
+        Outcome::Passed
+    } else {
+        Outcome::Failed
     };
+    result.reason = reason;
     Ok(())
 }
 
-/// A check's verdict: `true`, `false` or `{ pass, reason }`.
-pub fn judge(verdict: &Value) -> (bool, String) {
+/// Fills `scratch` as `case` starts: its starting state read and its
+/// workspaces made, then the state applied, the case's own setup run and
+/// the snapshot taken.
+pub async fn prepare(scratch: &Scratch, case: &Case) -> Result<(), String> {
+    let state = match &case.state {
+        Some(script) => {
+            let value = scratch
+                .run_script(case.script(script))
+                .await
+                .map_err(|e| format!("starting state: {e}"))?;
+            serde_json::from_value::<StartingState>(value)
+                .map_err(|e| format!("starting state: {e}"))?
+        }
+        None => StartingState::empty(),
+    };
+    let workspaces = case
+        .workspaces
+        .clone()
+        .unwrap_or_else(|| state.workspace_titles());
+    scratch.create_workspaces(&workspaces).await?;
+    scratch
+        .run_script(case.setup_script(&state))
+        .await
+        .map_err(|e| format!("setup: {e}"))?;
+    Ok(())
+}
+
+/// What `validate.ts` returned, as a pass or the reason it failed: nothing
+/// (`undefined` or `null`) or `false` passes, a string fails, and anything
+/// else is a check that doesn't follow the rule, so it fails too.
+pub fn judge(verdict: &Value) -> Result<(), String> {
     match verdict {
-        Value::Bool(passed) => (*passed, String::new()),
-        Value::Object(object) => match object.get("pass") {
-            Some(Value::Bool(passed)) => (
-                *passed,
-                object
-                    .get("reason")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string(),
-            ),
-            _ => (false, format!("the check returned no `pass`: {verdict}")),
-        },
-        other => (false, format!("the check returned {other}")),
+        Value::Null | Value::Bool(false) => Ok(()),
+        Value::String(reason) if reason.trim().is_empty() => {
+            Err("validate.ts failed without saying why".to_string())
+        }
+        Value::String(reason) => Err(reason.clone()),
+        other => Err(format!(
+            "validate.ts returned {other}; return nothing to pass, or a string saying what failed"
+        )),
     }
 }
 

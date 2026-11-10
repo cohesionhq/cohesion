@@ -1,5 +1,5 @@
 use super::*;
-use crate::metrics::{Activity, Outcome};
+use crate::metrics::Activity;
 
 #[test]
 fn a_csv_field_is_quoted_only_when_it_must_be() {
@@ -15,9 +15,10 @@ fn the_report_escapes_what_the_agent_said() {
         case: "c".to_string(),
         title: "T".to_string(),
         category: "tasks".to_string(),
+        difficulty: Difficulty::Easy,
         repeat: 1,
-        outcome: Outcome::Passed,
-        reason: String::new(),
+        outcome: Outcome::Failed,
+        reason: "missed: <b>bold</b>".to_string(),
         seconds: 1.0,
         priced: false,
         activity: Activity {
@@ -25,16 +26,22 @@ fn the_report_escapes_what_the_agent_said() {
             ..Activity::default()
         },
     };
-    let case = Case {
-        name: "c".to_string(),
-        title: "T".to_string(),
-        category: "tasks".to_string(),
-        prompt: "Do it".to_string(),
-        setup: None,
-        check: "true".to_string(),
-        solution: None,
-        timeout: std::time::Duration::from_secs(1),
-    };
+    let directory = std::env::temp_dir()
+        .join(format!("cohesion-bench-report-{}", std::process::id()))
+        .join("c");
+    std::fs::create_dir_all(&directory).unwrap();
+    std::fs::write(
+        directory.join("prompt.md"),
+        "---\ntitle: T\ndifficulty: easy\nstate: none\n---\nDo it\n",
+    )
+    .unwrap();
+    std::fs::write(
+        directory.join("validate.ts"),
+        "export default function validate() {}\n",
+    )
+    .unwrap();
+    let case = Case::load(&directory, "tasks".to_string(), "", &Default::default()).unwrap();
+    _ = std::fs::remove_dir_all(&directory);
     let models = ["m".to_string()];
     let cases = [case];
     let info = RunInfo {
@@ -47,5 +54,6 @@ fn the_report_escapes_what_the_agent_said() {
     let page = html(&info, &[result], &summaries);
     assert!(page.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
     assert!(!page.contains("<script>"));
+    assert!(page.contains("missed: &lt;b&gt;bold&lt;/b&gt;"));
     assert!(page.contains("unpriced"));
 }
