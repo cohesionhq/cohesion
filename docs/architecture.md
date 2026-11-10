@@ -1865,7 +1865,8 @@ opens the same picker, with the same rows and keys, and writes the same
 offers agents by name, then the
 workspace's documents, journal entries, tasks and resources
 (`searchWorkspace`), then actor sessions (`searchActorSessions`), at most 8
-rows; articles (`searchFeedCorpus`) only fill the rows left. ↑ and ↓ choose,
+rows. It offers no articles: copy an article's link ("Copy link" above) and
+paste it. ↑ and ↓ choose,
 ↩ or ⇥ inserts `[title](cohesion://…)` in place of the `@` or `[[` and what was typed, and
 Esc closes, leaving the text. On a line of its own the link becomes a card.
 
