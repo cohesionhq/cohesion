@@ -1,15 +1,14 @@
 <!--
 	The Tasks page's add field. While it is focused, or holds anything, a
-	strip under it chooses the new task's folder, priority, size, tags and
-	days, each but the size also on an ⌥ key from the field (see PICKER_KEYS), and opens a
-	description under it (⌥O), where Enter starts a new line and ⌘/Ctrl+Enter
+	strip under it chooses the new task's priority, size and tags, opens a
+	description under it (⌥O), then chooses its folder and days, each but
+	the size also on an ⌥ key from the field (see PICKER_KEYS), where Enter starts a new line and ⌘/Ctrl+Enter
 	adds. Enter adds the task with all of it in one go and starts the row
 	over; Escape, or Backspace in an empty field, starts it over without
 	adding.
 -->
 <script lang="ts">
 	import CalendarDays from '@lucide/svelte/icons/calendar-days';
-	import Flag from '@lucide/svelte/icons/flag';
 	import Folder from '@lucide/svelte/icons/folder';
 	import Inbox from '@lucide/svelte/icons/inbox';
 	import NotebookText from '@lucide/svelte/icons/notebook-text';
@@ -30,6 +29,7 @@
 	import { toasts } from '$lib/ui/toasts.svelte';
 	import DayPicker from './DayPicker.svelte';
 	import { priorities, PRIORITY_KEYS, priorityOf } from './priority';
+	import PriorityBadge from './PriorityBadge.svelte';
 	import { NO_SIZE_KEY, sizeOf, sizes } from './size';
 
 	interface Props {
@@ -312,25 +312,6 @@
 			transition:slide={{ duration: motion.duration }}
 		>
 			<Picker
-				items={folderItems}
-				onpick={(id) => (folder = id === 'inbox' ? null : Number(id))}
-				placeholder="Find a folder"
-				empty="No folders yet."
-				bind:open={open.folder}
-				returnTo={element}
-			>
-				{#snippet trigger(props)}
-					<button class={[chip, set]} type="button" aria-label="Folder: {folderName}" {...props}>
-						{#if folder === null}
-							<Inbox size={13} strokeWidth={1.75} />
-						{:else}
-							<Folder size={13} strokeWidth={1.75} />
-						{/if}
-						<span class="truncate">{folderName}</span>
-					</button>
-				{/snippet}
-			</Picker>
-			<Picker
 				items={priorityItems}
 				onpick={(id) => (priority = id as TaskPriority)}
 				placeholder="Find a priority"
@@ -345,11 +326,7 @@
 						aria-label="Priority: {current.label}"
 						{...props}
 					>
-						<Flag
-							size={13}
-							strokeWidth={1.75}
-							fill={priority === 'none' ? 'none' : 'currentColor'}
-						/>
+						<PriorityBadge {priority} named={false} />
 						{priority === 'none' ? 'Priority' : current.label}
 					</button>
 				{/snippet}
@@ -396,6 +373,34 @@
 					</button>
 				{/snippet}
 			</Picker>
+			<button
+				class={[chip, description === '' ? unset : set]}
+				type="button"
+				aria-expanded={describing}
+				onclick={describe}
+			>
+				<NotebookText size={13} strokeWidth={1.75} />
+				Description
+			</button>
+			<Picker
+				items={folderItems}
+				onpick={(id) => (folder = id === 'inbox' ? null : Number(id))}
+				placeholder="Find a folder"
+				empty="No folders yet."
+				bind:open={open.folder}
+				returnTo={element}
+			>
+				{#snippet trigger(props)}
+					<button class={[chip, set]} type="button" aria-label="Folder: {folderName}" {...props}>
+						{#if folder === null}
+							<Inbox size={13} strokeWidth={1.75} />
+						{:else}
+							<Folder size={13} strokeWidth={1.75} />
+						{/if}
+						<span class="truncate">{folderName}</span>
+					</button>
+				{/snippet}
+			</Picker>
 			{#each days as d (d.which)}
 				<DayPicker
 					{start}
@@ -416,15 +421,6 @@
 					{/snippet}
 				</DayPicker>
 			{/each}
-			<button
-				class={[chip, description === '' ? unset : set]}
-				type="button"
-				aria-expanded={describing}
-				onclick={describe}
-			>
-				<NotebookText size={13} strokeWidth={1.75} />
-				Description
-			</button>
 		</div>
 		{#if describing}
 			<div class="pt-1 pl-7.5" transition:slide={{ duration: motion.duration }}>

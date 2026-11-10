@@ -61,7 +61,6 @@
 					class={on ? undefined : p.tone}
 					size={12}
 					strokeWidth={1.75}
-					fill="currentColor"
 					aria-hidden="true"
 				/>{/if}
 		{/snippet}
