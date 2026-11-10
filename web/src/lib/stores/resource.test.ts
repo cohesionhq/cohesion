@@ -90,6 +90,38 @@ describe('Resource', () => {
 		expect(fetches()).toBe(2);
 	});
 
+	it('a write applied while a fetch waits wins over that fetch, which may have read before it', async () => {
+		const answers: ((value: string) => void)[] = [];
+		const resource = new Resource<string, number>({
+			fetch: () => new Promise((resolve) => answers.push(resolve)),
+			initial: ''
+		});
+		const loading = resource.load(1);
+		answers[0]('old');
+		await loading;
+
+		const before = resource.refetch();
+		resource.set('new');
+		expect(answers).toHaveLength(3);
+		answers[1]('old');
+		await before;
+		expect(resource.value).toBe('new');
+
+		// The fetch the write started read after it, so its value goes on.
+		answers[2]('newer');
+		await new Promise((resolve) => setTimeout(resolve));
+		expect(resource.value).toBe('newer');
+	});
+
+	it('a write with no fetch waiting fetches nothing', async () => {
+		const { resource, fetches } = counted();
+		await resource.load(1);
+		resource.set(10);
+		resource.update((n) => n + 1);
+		expect(fetches()).toBe(1);
+		expect(resource.value).toBe(11);
+	});
+
 	it('a first fetch that outlasts a page fade’s wait goes on through its reveal', async () => {
 		let answer: (value: string) => void = () => undefined;
 		const late = new Resource<string, number>({

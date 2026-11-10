@@ -1934,7 +1934,7 @@ history; Alt-click opens a link in the second half, and the split closes below
 **Code layout** (`web/src/lib/`):
 
 - `protocol/`: the connection, the session API, generated types, the mock.
-- `stores/`: state, one `create…Store(send)` factory per area, built on `Resource<T, K>` (`resource.svelte.ts`), which loads, refetches when an invalidation touches it, and marks itself stale when no page is using it. Page stores are made once per split half (`pageStores.svelte.ts`); workspaces, feeds, connectors and extensions are app-wide.
+- `stores/`: state, one `create…Store(send)` factory per area, built on `Resource<T, K>` (`resource.svelte.ts`), which loads, refetches when an invalidation touches it, and marks itself stale when no page is using it. The daemon answers requests side by side, so a fetch can answer after a write it read before; a mutation reply applied while a fetch waits drops that fetch and fetches again. Page stores are made once per split half (`pageStores.svelte.ts`); workspaces, feeds, connectors and extensions are app-wide.
 - `features/<area>/`: components for one area (actors, agents, articles, connectors, contacts, dashboard, databases, documents, extensions, folders, rewind, settings, tags, tasks, threads).
 - `ui/`: about 70 shared components (buttons, dialogs, side panels, menus, pickers, fields, `Markdown`, `Editor`, avatars, toasts, status pills) and `motion.ts`.
 - `shell/`: the app frame: sidebar, palette, shortcuts, linked items, split view, notices.

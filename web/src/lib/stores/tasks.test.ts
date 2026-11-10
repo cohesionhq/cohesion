@@ -310,6 +310,31 @@ describe('tasks store', () => {
 		expect(store.list.value.tasks.find((t) => t.id === 3)?.task_folder_id).toBeNull();
 	});
 
+	it('a saved description stays when a listing that read before the save answers after it', async () => {
+		const mock = createMock();
+		// Holds back each listTasks reply, having read the tasks when it was asked.
+		let held: (() => void)[] = [];
+		const send: typeof mock.send = (type, ...args) => {
+			const reply = mock.send(type, ...args);
+			if (type !== 'listTasks') return reply;
+			return new Promise((resolve) => held.push(() => resolve(reply)));
+		};
+		const store = createTasksStore(send);
+		const opening = store.open(1, 'inbox');
+		held.forEach((answer) => answer());
+		await opening;
+		held = [];
+
+		const refetch = store.list.refetch();
+		await store.describe(store.list.value.tasks[0], 'Bring the old one.');
+		held.forEach((answer) => answer());
+		await refetch;
+		await new Promise((resolve) => setTimeout(resolve));
+		held.forEach((answer) => answer());
+		await new Promise((resolve) => setTimeout(resolve));
+		expect(store.list.value.tasks[0].description).toBe('Bring the old one.');
+	});
+
 	it('manages folders from replies', async () => {
 		const store = createTasksStore(createMock().send);
 		await store.open(1, 'inbox');
