@@ -2,12 +2,12 @@
 <script lang="ts">
 	import { itemRoute } from '$lib/shell/links';
 	import OpenItem from '$lib/shell/OpenItem.svelte';
-	import type { ItemKind } from '$lib/shell/routes';
+	import type { UnscopedItemKind } from '$lib/shell/routes';
 	import { pane } from '$lib/shell/pane.svelte';
 
 	const page = pane();
 
-	const kind = $derived(page.params.kind as ItemKind);
+	const kind = $derived(page.params.kind as UnscopedItemKind);
 	const id = $derived(Number(page.params.id));
 </script>
 

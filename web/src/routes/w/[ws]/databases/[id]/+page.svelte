@@ -2,7 +2,8 @@
 	One database as a table. The filters and sort are the page's own: they go
 	to the daemon with every listing (`listDatabaseRows`), which filters and
 	sorts, and they last while the page's half keeps the database open. A row
-	opens its document over the page, made the first time.
+	opens in the panel over the page (`DatabaseRowPanel`), as `?row=` opens
+	one when the page loads.
 -->
 <script lang="ts">
 	import ArrowDown from '@lucide/svelte/icons/arrow-down';
@@ -33,6 +34,7 @@
 	import { NO_QUERY } from '$lib/stores/databases.svelte';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import { copyLinkItems } from '$lib/ui/copyLink';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
 	import EmptyState from '$lib/ui/EmptyState.svelte';
 	import MoreActions from '$lib/ui/MoreActions.svelte';
@@ -96,11 +98,12 @@
 		propertyOpen = true;
 	}
 
-	function submitProperty({ name, data_type }: PropertyFields) {
+	function submitProperty({ name, data_type, formula }: PropertyFields) {
 		const edit = propertyEdit;
 		if (edit?.mode === 'rename') return databases.renameProperty(edit.property.id, name);
 		if (edit?.mode === 'type') return databases.setPropertyType(edit.property.id, data_type);
-		return databases.createProperty(name, data_type);
+		if (edit?.mode === 'formula') return databases.setPropertyFormula(edit.property.id, formula);
+		return databases.createProperty(name, data_type, formula);
 	}
 
 	let deletingProperty = $state<DatabaseProperty | null>(null);
@@ -118,14 +121,24 @@
 		}
 	}
 
-	/** Opens the row's document over the page, giving the row one first if it has none. */
-	async function openRow(row: DatabaseRowEntry) {
-		try {
-			const document_id = row.document_id ?? (await databases.createRowDocument(row.id)).id;
-			await linkedItem.show({ kind: 'document', ws, id: document_id });
-		} catch (error) {
-			toasts.error(error);
-		}
+	/** Opens a row in the panel over the page. */
+	function openRow(row_id: number): Promise<void> {
+		return linkedItem.show({ kind: 'database-row', ws, database: id, id: row_id });
+	}
+
+	// A link to a row lands here with `?row=`: open it over the table, then
+	// drop the parameter, once the navigation that brought it has settled.
+	$effect(() => {
+		const param = page.url.searchParams.get('row');
+		if (param === null) return;
+		untrack(() => void reveal(Number(param)));
+	});
+
+	async function reveal(row_id: number) {
+		await openRow(row_id);
+		const url = new URL(page.url);
+		url.searchParams.delete('row');
+		await page.goto(url.pathname + url.search, { replaceState: true });
 	}
 
 	let deletingRow = $state<DatabaseRowEntry | null>(null);
@@ -170,6 +183,10 @@
 					<MoreActions
 						items={[
 							{ label: 'Rename…', onSelect: () => (renaming = true) },
+							...copyLinkItems(() => ({
+								link: { kind: 'database', ws, id },
+								title: database?.title ?? ''
+							})),
 							{
 								label: 'Delete…',
 								danger: true,
@@ -244,12 +261,15 @@
 							}}
 							onrename={(property) => editProperty({ mode: 'rename', property })}
 							onretype={(property) => editProperty({ mode: 'type', property })}
+							onformula={(property) => editProperty({ mode: 'formula', property })}
+							onsetbyhand={(property) => run(databases.setPropertyFormula(property.id, null))}
 							onmove={(property, before) => run(databases.moveProperty(property.id, before))}
 							ondelete={(property) => {
 								deletingProperty = property;
 							}}
 							onaddproperty={() => editProperty({ mode: 'new' })}
-							onopenrow={openRow}
+							onopenrow={(row) => void openRow(row.id)}
+							workspace={ws}
 							ondeleterow={(row) => {
 								deletingRow = row;
 							}}
@@ -280,7 +300,12 @@
 	</ResourceState>
 </div>
 
-<PropertyDialog bind:open={propertyOpen} edit={propertyEdit} onsubmit={submitProperty} />
+<PropertyDialog
+	bind:open={propertyOpen}
+	edit={propertyEdit}
+	{properties}
+	onsubmit={submitProperty}
+/>
 
 <FilterDialog bind:open={filtering} {properties} property={filterFrom} onadd={addFilter} />
 

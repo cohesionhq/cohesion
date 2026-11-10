@@ -41,8 +41,10 @@ this page in the same pull request and say so in its description.
   retypes and deletes at any time; a column can be a formula, a JavaScript
   function of its row. Filtering and sorting happen on the daemon, in SQL; the
   web UI keeps a table's filters and sort on the page, with no saved views. A
-  row may have a document of its own, which stays out of the document list.
-  Web only for now: the iPhone app has no databases.
+  row opens over the page with its values and a document of its own, which
+  stays out of the document list. A database and a row can be linked and
+  shown as cards in any text. Web only for now: the iPhone app has no
+  databases.
 - **Area: Agents.** One global model tier for agent conversations; jobs run
   at low, medium or high effort, which is the cost control. An agent works
   as its conversation, forks of it, jobs and cues. The conversation and its

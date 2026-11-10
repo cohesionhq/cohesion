@@ -1,9 +1,10 @@
 <!--
 	A database as a table: a column per property in its order, a row per entry
 	as the daemon lists them. A column's header opens its menu (sort, filter,
-	rename, change type, move, delete); a cell edits in place with an editor for
-	its type, and a formula's cells only read. Each row opens from its leading
-	button or its ⋯ menu.
+	rename, change type, its formula, move, delete); a cell edits in place with
+	an editor for its type (`ValueCell`, which a row's panel shares), and a
+	formula's cells only read. Each row opens from its leading button or its ⋯
+	menu, which also copies a link to it.
 -->
 <script lang="ts" module>
 	import ArrowDown from '@lucide/svelte/icons/arrow-down';
@@ -44,25 +45,17 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import { tick } from 'svelte';
-	import { toProtocolError } from '$lib/protocol/errors';
 	import type {
 		DatabaseProperty,
 		DatabaseRowEntry,
 		DatabaseSort,
 		DatabaseValue
 	} from '$lib/protocol/types';
+	import { copyLinkItems } from '$lib/ui/copyLink';
 	import Menu, { type MenuItem } from '$lib/ui/Menu.svelte';
 	import RowMenu from '$lib/ui/RowMenu.svelte';
-	import { toasts } from '$lib/ui/toasts.svelte';
-	import {
-		cellValue,
-		formatValue,
-		inputText,
-		isNumeric,
-		parseInput,
-		rowLabel,
-		sortDirections
-	} from './values';
+	import ValueCell from './ValueCell.svelte';
+	import { cellValue, isNumeric, rowLabel, sortDirections } from './values';
 
 	interface Props {
 		properties: DatabaseProperty[];
@@ -73,11 +66,17 @@
 		onfilter: (property: DatabaseProperty) => void;
 		onrename: (property: DatabaseProperty) => void;
 		onretype: (property: DatabaseProperty) => void;
+		/** Makes a property a formula, or edits the formula it is. */
+		onformula: (property: DatabaseProperty) => void;
+		/** Makes a formula a property set by hand again. */
+		onsetbyhand: (property: DatabaseProperty) => void;
 		/** Moves a property just before `before_id`, or last when it's null. */
 		onmove: (property: DatabaseProperty, before_id: number | null) => void;
 		ondelete: (property: DatabaseProperty) => void;
 		onaddproperty: () => void;
 		onopenrow: (row: DatabaseRowEntry) => void;
+		/** The workspace the database is in, for a row's link. */
+		workspace: number;
 		ondeleterow: (row: DatabaseRowEntry) => void;
 		/** Sets a row's value, or empties it when null; throws the daemon's refusal. */
 		onsetvalue: (
@@ -95,125 +94,42 @@
 		onfilter,
 		onrename,
 		onretype,
+		onformula,
+		onsetbyhand,
 		onmove,
 		ondelete,
 		onaddproperty,
 		onopenrow,
+		workspace,
 		ondeleterow,
 		onsetvalue
 	}: Props = $props();
 
 	// ---- Editing a cell -------------------------------------------------------
 
-	/** The cell being edited and what its editor holds. */
+	/** The cell being edited. */
 	let editing = $state<{ row: number; property: number } | null>(null);
-	let text = $state('');
-	let error = $state<string | null>(null);
-	let saving = $state(false);
-	let input = $state<HTMLInputElement>();
 
 	/** Cells that edit as text: every property set by hand but a checkbox. */
 	const editable = (p: DatabaseProperty) => p.formula === null && p.data_type !== 'checkbox';
 
-	async function edit(row: DatabaseRowEntry, property: DatabaseProperty) {
-		if (!editable(property)) return;
-		editing = { row: row.id, property: property.id };
-		text = inputText(cellValue(row, property.id));
-		error = null;
-		await tick();
-		input?.focus();
-		if (property.data_type !== 'date') input?.select();
-	}
-
 	/** Starts editing the first cell of row `row_id` that edits as text, once it is drawn. */
 	export async function editFirst(row_id: number) {
 		await tick();
-		const row = rows.find((r) => r.id === row_id);
 		const property = properties.find(editable);
-		if (row && property) await edit(row, property);
+		if (rows.some((r) => r.id === row_id) && property)
+			editing = { row: row_id, property: property.id };
 	}
 
-	function stop() {
-		editing = null;
-		error = null;
-	}
-
-	/** Saves the editor's value; true once the cell holds it, false while it shows an error. */
-	async function commit(): Promise<boolean> {
-		const target = editing;
-		if (target === null || saving) return false;
-		const row = rows.find((r) => r.id === target.row);
-		const property = properties.find((p) => p.id === target.property);
-		if (!row || !property) {
-			stop();
-			return true;
-		}
-		const parsed = parseInput(property.data_type, text);
-		if ('error' in parsed) {
-			error = parsed.error;
-			return false;
-		}
-		const current = cellValue(row, property.id);
-		if (JSON.stringify(parsed.value) === JSON.stringify(current)) {
-			stop();
-			return true;
-		}
-		// A click on another cell may have moved the editor on while this saves.
-		const still = () => editing === target;
-		saving = true;
-		try {
-			await onsetvalue(row, property, parsed.value);
-			if (still()) stop();
-			return true;
-		} catch (e) {
-			const failure = toProtocolError(e);
-			if (failure.code === 'validationFailed' && still()) {
-				error = failure.message;
-				return false;
-			}
-			toasts.error(failure);
-			if (still()) stop();
-			return true;
-		} finally {
-			saving = false;
-		}
-	}
-
-	/** The editable cell after (or before) the one being edited, in reading order. */
-	function neighbour(back: boolean): { row: DatabaseRowEntry; property: DatabaseProperty } | null {
-		if (editing === null) return null;
+	/** Moves the editor to the editable cell after (or before) the one being edited, in reading order. */
+	function moveEditor(back: boolean) {
+		if (editing === null) return;
 		const cells = rows.flatMap((row) =>
-			properties.filter(editable).map((property) => ({ row, property }))
+			properties.filter(editable).map((property) => ({ row: row.id, property: property.id }))
 		);
-		const at = cells.findIndex(
-			(c) => c.row.id === editing!.row && c.property.id === editing!.property
-		);
-		return cells[at + (back ? -1 : 1)] ?? null;
-	}
-
-	async function onkeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape') {
-			event.preventDefault();
-			event.stopPropagation();
-			stop();
-		} else if (event.key === 'Enter') {
-			event.preventDefault();
-			void commit();
-		} else if (event.key === 'Tab') {
-			const next = neighbour(event.shiftKey);
-			if (next === null) return;
-			event.preventDefault();
-			if (await commit()) void edit(next.row, next.property);
-		}
-	}
-
-	function onblur() {
-		// Escape and Tab have already settled the cell; a click elsewhere saves it.
-		if (editing !== null) void commit();
-	}
-
-	function toggle(row: DatabaseRowEntry, property: DatabaseProperty, checked: boolean) {
-		onsetvalue(row, property, { type: 'checkbox', value: checked }).catch((e) => toasts.error(e));
+		const at = cells.findIndex((c) => c.row === editing!.row && c.property === editing!.property);
+		// Past the first or last cell, the editor closes.
+		editing = cells[at + (back ? -1 : 1)] ?? null;
 	}
 
 	// ---- A column's menu ------------------------------------------------------
@@ -246,6 +162,12 @@
 			{ label: 'Filter…', onSelect: () => onfilter(property) },
 			{ label: 'Rename…', separated: true, onSelect: () => onrename(property) },
 			{ label: 'Change type…', onSelect: () => onretype(property) },
+			property.formula
+				? { label: 'Edit formula…', onSelect: () => onformula(property) }
+				: { label: 'Change to formula…', onSelect: () => onformula(property) },
+			...(property.formula
+				? [{ label: 'Change to set by hand', onSelect: () => onsetbyhand(property) }]
+				: []),
 			{
 				label: 'Move left',
 				disabled: index === 0,
@@ -348,65 +270,19 @@
 						{@const numeric = isNumeric(property.data_type)}
 						{@const here = editing?.row === row.id && editing.property === property.id}
 						<td class={['p-0 align-middle', numeric && 'text-right tabular-nums']}>
-							{#if property.data_type === 'checkbox'}
-								<label class={['flex items-center', cellPad]}>
-									<input
-										class="size-3.5 accent-accent disabled:cursor-default"
-										type="checkbox"
-										checked={value?.type === 'checkbox' && value.value}
-										disabled={property.formula !== null}
-										aria-label="{property.name} for {label}"
-										onchange={(e) => toggle(row, property, e.currentTarget.checked)}
-									/>
-								</label>
-							{:else if here}
-								<input
-									bind:this={input}
-									bind:value={text}
-									class={[
-										'block w-full min-w-0 bg-transparent outline-none',
-										cellPad,
-										numeric && 'text-right tabular-nums'
-									]}
-									type={property.data_type === 'date' ? 'date' : 'text'}
-									inputmode={property.data_type === 'integer'
-										? 'numeric'
-										: numeric
-											? 'decimal'
-											: undefined}
-									autocomplete="off"
-									aria-label="{property.name} for {label}"
-									aria-invalid={error !== null}
-									aria-describedby={error ? 'cell-error' : undefined}
-									{onkeydown}
-									{onblur}
-									oninput={() => (error = null)}
-								/>
-								{#if error}
-									<p
-										class="max-w-60 px-2.5 pb-1.5 text-left text-xs whitespace-normal text-danger"
-										id="cell-error"
-										role="alert"
-									>
-										{error}
-									</p>
-								{/if}
-							{:else if property.formula}
-								<span class={['block min-h-8 truncate text-fg-muted', cellPad]}
-									>{value ? formatValue(value) : ''}</span
-								>
-							{:else}
-								<button
-									class={[
-										'block min-h-8 w-full cursor-text truncate hover:bg-bg-hover',
-										cellPad,
-										numeric ? 'text-right' : 'text-left'
-									]}
-									type="button"
-									aria-label="{property.name} for {label}: {value ? formatValue(value) : 'empty'}"
-									onclick={() => edit(row, property)}>{value ? formatValue(value) : ''}</button
-								>
-							{/if}
+							<ValueCell
+								{property}
+								{value}
+								rowLabel={label}
+								look="cell"
+								editing={here}
+								onedit={() => (editing = { row: row.id, property: property.id })}
+								onstop={() => {
+									if (here) editing = null;
+								}}
+								onsave={(next) => onsetvalue(row, property, next)}
+								ontab={moveEditor}
+							/>
 						</td>
 					{/each}
 					<td class="sticky right-0 w-10 bg-bg p-0 text-right">
@@ -414,6 +290,15 @@
 							label="More for {label}"
 							items={[
 								{ label: 'Open', onSelect: () => onopenrow(row) },
+								...copyLinkItems(() => ({
+									link: {
+										kind: 'database-row',
+										ws: workspace,
+										database: row.database_id,
+										id: row.id
+									},
+									title: rowLabel(row, properties)
+								})).map((item, i) => ({ ...item, separated: i === 0 })),
 								{
 									label: 'Delete…',
 									danger: true,

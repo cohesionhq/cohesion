@@ -2,6 +2,7 @@
 // as the fixture for tests. Each `createMock()` call starts from fresh seed data.
 
 import { parseItemLink, textPieces } from '$lib/format/itemLinks';
+import { compileMockFormula } from './mockFormula';
 import { ProtocolError, toProtocolError } from './errors';
 import type {
 	DayFilter,
@@ -1487,18 +1488,8 @@ function seedContacts(now: number): Pick<MockState, 'contacts' | 'contactMethods
 // ---- Databases --------------------------------------------------------------
 // The daemon filters and sorts rows in SQL and runs formulas in QuickJS; the
 // mock does both in JS, by the same rules (`database_row.rs`,
-// `database_formula.rs`).
-
-/**
- * The formulas the mock can run, by source: it has no JavaScript sandbox, so
- * a formula with any other source fails every row.
- */
-const MOCK_FORMULAS: Record<string, (row: Record<string, unknown>) => unknown> = {
-	"(row) => row.Rating.toFixed(1) + ' stars'": (row) =>
-		(row.Rating as number).toFixed(1) + ' stars',
-	'(row) => row.Quantity * row["Unit price"]': (row) =>
-		(row.Quantity as number) * (row['Unit price'] as number)
-};
+// `database_formula.rs`), reading only a small part of the language for a
+// formula (`mockFormula.ts`).
 
 /** Whether `text` is a real day written `YYYY-MM-DD`. */
 function isDay(text: string): boolean {
@@ -1631,7 +1622,7 @@ function computeFormulas(state: MockState, database_id: number) {
 	const rows = state.databaseRows.filter((r) => r.database_id === database_id);
 	for (const property of properties) {
 		if (property.formula === null) continue;
-		const run = MOCK_FORMULAS[property.formula.source.trim()];
+		const run = compileMockFormula(property.formula.source);
 		let error: string | null = null;
 		for (const row of rows) {
 			const input: Record<string, unknown> = {};
@@ -1639,7 +1630,7 @@ function computeFormulas(state: MockState, database_id: number) {
 				if (!(p.name in input)) input[p.name] = databaseValue(state, row.id, p.id)?.value ?? null;
 			let value: DatabaseValue | null = null;
 			try {
-				if (!run) throw new Error('The mock runs only the formulas it was seeded with.');
+				if (!run) throw new Error('The mock runs only simple formulas (see mockFormula.ts).');
 				value = formulaOutput(property.data_type, run(input));
 			} catch (e) {
 				error ??= (e instanceof Error ? e.message : String(e)).slice(0, 300);
@@ -1761,7 +1752,8 @@ function listDatabaseRows(
 /**
  * Two databases in the first workspace: a reading list holding a value of
  * every type and a formula that fails on the row with no rating, and a
- * renovation budget whose total is a formula. The first row has a document.
+ * renovation budget whose total is a formula. The first row has a document,
+ * and a document links to the reading list and to one of its rows.
  */
 function seedDatabases(state: MockState) {
 	type Cell = string | number | boolean | null;
@@ -1853,6 +1845,20 @@ function seedDatabases(state: MockState) {
 		folder_id: null
 	});
 	state.databaseRows[0].document_id = id;
+	// A document showing the reading list and one of its rows as cards, which
+	// their backlinks list.
+	state.documents.push({
+		id: id + 1,
+		workspace_id: 1,
+		document_type: 'normal',
+		title: 'Winter reading',
+		contents:
+			'Books for the long evenings.\n\n[Reading list](cohesion://database/1/1)\n\nNext up:\n\n[Piranesi](cohesion://database-row/1/1/3)\n',
+		modified: nowSeconds() - 2 * DAY,
+		journal_date: null,
+		deleted: false,
+		folder_id: null
+	});
 }
 
 /** Six articles across the feeds: one read and one whose page couldn't be fetched among them. */
@@ -3920,8 +3926,47 @@ export function createMock(): Mock {
 		}
 		return false;
 	};
+	/** A database row with its database's properties and its document's excerpt, as the daemon's `database_row` resolves it. */
+	const databaseRowEmbed = (workspace_id: number, database_id: number, row_id: number): Embed => {
+		const database = databaseOf(workspace_id, database_id);
+		const row = rowOf(workspace_id, database_id, row_id);
+		const properties = databaseProperties(state, database_id).map((p) => structuredClone(p));
+		const entry = databaseEntry(state, row);
+		const labelled = properties.find((p) => p.data_type === 'text');
+		const label = labelled ? databaseValue(state, row.id, labelled.id) : null;
+		const document = state.documents.find((d) => d.id === row.document_id && !d.deleted);
+		return {
+			link: `cohesion://database-row/${workspace_id}/${database_id}/${row_id}`,
+			kind: 'databaseRow',
+			workspace_id,
+			title: label?.type === 'text' && label.value.trim() !== '' ? label.value : 'Untitled',
+			excerpt: document ? excerptOf(document.contents) : '',
+			item: { kind: 'databaseRow', row: entry, database_title: database.title, properties }
+		};
+	};
 	/** The live item a `cohesion://` link names, as the daemon's `ResolveLinkCommand` finds it. */
 	const resolveLink = (link: string): Embed => {
+		const target = parseItemLink(link.trim());
+		if (target?.kind === 'database-row')
+			return databaseRowEmbed(target.ws, target.database, target.id);
+		if (target?.kind === 'database') {
+			const database = databaseOf(target.ws, target.id);
+			const rows = state.databaseRows.filter((r) => r.database_id === database.id);
+			return {
+				link: `cohesion://database/${target.ws}/${target.id}`,
+				kind: 'database',
+				workspace_id: target.ws,
+				title: database.title,
+				excerpt: '',
+				item: {
+					kind: 'database',
+					database: { ...database },
+					properties: databaseProperties(state, database.id).map((p) => structuredClone(p)),
+					rows: rows.slice(0, 5).map((r) => databaseEntry(state, r)),
+					row_count: rows.length
+				}
+			};
+		}
 		const match =
 			/^cohesion:\/\/(task|document|resource|agent|actor-session|article)\/(\d+)(?:\/(\d+))?$/.exec(
 				link.trim()
@@ -3961,6 +4006,12 @@ export function createMock(): Mock {
 						(d) => d.id === id && !d.deleted && (ws === null || d.workspace_id === ws)
 					) ?? notFound('document');
 				workspace(found.workspace_id);
+				// A row's document is part of its row, so it resolves as the row.
+				if (found.document_type === 'databaseRow') {
+					const row =
+						state.databaseRows.find((r) => r.document_id === found.id) ?? notFound('document');
+					return databaseRowEmbed(found.workspace_id, row.database_id, row.id);
+				}
 				return {
 					link: `cohesion://document/${found.workspace_id}/${id}`,
 					kind: found.document_type === 'journal' ? 'journalEntry' : 'document',
@@ -4938,6 +4989,12 @@ export function createMock(): Mock {
 		},
 		deleteDocument: ({ workspace_id, document_id }) => {
 			const d = document(workspace_id, document_id);
+			// A row's document goes for good and leaves its row.
+			if (d.document_type === 'databaseRow') {
+				state.documents = state.documents.filter((x) => x.id !== d.id);
+				for (const row of state.databaseRows) if (row.document_id === d.id) row.document_id = null;
+				return { ...d, deleted: true };
+			}
 			d.deleted = true;
 			keepDocument(d, 'deleted');
 			return { ...d };
@@ -6081,7 +6138,10 @@ export function createMock(): Mock {
 				);
 			const linking: Embed[] = [];
 			for (const d of state.documents) {
-				const self = target.kind === 'document' && d.id === target.id;
+				const self =
+					(target.kind === 'document' && d.id === target.id) ||
+					(target.kind === 'database-row' &&
+						state.databaseRows.some((r) => r.id === target.id && r.document_id === d.id));
 				if (d.deleted || self || !linksTo(d.contents, target)) continue;
 				try {
 					linking.push(structuredClone(resolveLink(`cohesion://document/${d.id}`)));

@@ -55,8 +55,29 @@ describe('embeds store', () => {
 		expect(touches({ kind: 'documents', id: 1 }, link, row)).toBe(false);
 	});
 
+	it('resolves a database, a row, and a row’s document as its row', async () => {
+		const mock = createMock();
+		const database = await mock.send('resolveLink', { link: 'cohesion://database/1/1' });
+		expect(database.title).toBe('Reading list');
+		expect(database.item.kind === 'database' && database.item.rows).toHaveLength(5);
+		expect(database.item.kind === 'database' && database.item.row_count).toBe(6);
+		const row = await mock.send('resolveLink', { link: 'cohesion://database-row/1/1/1' });
+		expect(row).toMatchObject({ kind: 'databaseRow', title: 'Dune' });
+		expect(row.excerpt).toMatch(/train/);
+		const document = row.item.kind === 'databaseRow' ? row.item.row.document_id : null;
+		const viaDocument = await mock.send('resolveLink', {
+			link: `cohesion://document/1/${document}`
+		});
+		expect(viaDocument.link).toBe('cohesion://database-row/1/1/1');
+		await expect(
+			mock.send('resolveLink', { link: 'cohesion://database-row/1/2/1' })
+		).rejects.toMatchObject({ code: 'notFound' });
+	});
+
 	it('lets a missing item come back on any change of its kind', () => {
 		expect(touches({ kind: 'documents', id: 4 }, 'cohesion://document/1/9', null)).toBe(true);
 		expect(touches({ kind: 'taskFolders', id: 1 }, 'cohesion://task/1/9', null)).toBe(false);
+		expect(touches({ kind: 'database', id: 2 }, 'cohesion://database-row/1/2/9', null)).toBe(true);
+		expect(touches({ kind: 'databases', id: 1 }, 'cohesion://database/1/2', null)).toBe(true);
 	});
 });

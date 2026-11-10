@@ -13,9 +13,10 @@ import type {
 	TaskFolder
 } from '$lib/protocol/types';
 
+import { goto } from '$app/navigation';
 import { toasts } from '$lib/ui/toasts.svelte';
 import { resolve } from './links';
-import type { ItemLink } from './routes';
+import { itemLinkRoute, type ItemLink } from './routes';
 
 /** What a link opened, with what its panel shows besides the item itself. */
 export type LinkedItem =
@@ -37,7 +38,15 @@ export type LinkedItem =
 			actor: Actor | null;
 			messages: ActorSessionMessage[];
 	  }
-	| { kind: 'article'; article: Article; feedTitle: string };
+	| { kind: 'article'; article: Article; feedTitle: string }
+	| {
+			kind: 'database-row';
+			ws: number;
+			database: number;
+			row: number;
+			/** The row's label as it resolved, shown until the row itself loads. */
+			label: string;
+	  };
 
 /**
  * The item a `cohesion://` link or a forward opens: one panel, mounted once
@@ -47,8 +56,15 @@ class LinkedItems {
 	item = $state<LinkedItem | null>(null);
 	open = $state(false);
 
-	/** Finds the item `link` names and opens it, or says it is gone. */
+	/**
+	 * Finds the item `link` names and opens it, or says it is gone. A
+	 * database has no panel: it goes to its table.
+	 */
 	async show(link: ItemLink): Promise<void> {
+		if (link.kind === 'database') {
+			await goto(itemLinkRoute(link));
+			return;
+		}
 		try {
 			const item = await find(link);
 			if (item === null) {
@@ -65,10 +81,11 @@ class LinkedItems {
 	/**
 	 * A click on a link to `link` opens it over the page, unless it is
 	 * opened elsewhere (a modifier or another button), when the link's Open
-	 * page goes to it.
+	 * page goes to it. A database has no panel, so its link goes to its table
+	 * as any link would.
 	 */
 	follow(event: MouseEvent, link: ItemLink): void {
-		if (event.button !== 0) return;
+		if (event.button !== 0 || link.kind === 'database') return;
 		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
 		event.preventDefault();
 		void this.show(link);
@@ -79,6 +96,8 @@ const NAMES: Record<ItemLink['kind'], string> = {
 	task: 'Task',
 	document: 'Document',
 	resource: 'Resource',
+	database: 'Database',
+	'database-row': 'Row',
 	agent: 'Agent',
 	'actor-session': 'Actor session',
 	article: 'Article'
@@ -118,17 +137,17 @@ async function find(link: ItemLink): Promise<LinkedItem | null> {
 			const article = await send('getArticle', { article_id: item.article.id });
 			return { kind: 'article', article, feedTitle: item.feed_title };
 		}
-		// A link to a row's document resolves as its row, which opens as its
-		// document until rows have a panel of their own; a database has none yet.
-		case 'databaseRow': {
-			const { row } = item;
-			if (row.document_id === null || embed.workspace_id === null) return null;
-			const document = await send('getDocument', {
-				workspace_id: embed.workspace_id,
-				document_id: row.document_id
-			});
-			return { kind: 'document', document };
-		}
+		// A link to a row's document resolves as its row, and opens as it.
+		case 'databaseRow':
+			if (embed.workspace_id === null) return null;
+			return {
+				kind: 'database-row',
+				ws: embed.workspace_id,
+				database: item.row.database_id,
+				row: item.row.id,
+				label: embed.title
+			};
+		// A database has no panel; `show` sends it to its table.
 		case 'database':
 			return null;
 	}

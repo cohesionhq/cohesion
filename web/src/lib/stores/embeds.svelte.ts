@@ -5,7 +5,7 @@
 import { send as defaultSend } from '$lib/protocol/api';
 import { ProtocolError } from '$lib/protocol/errors';
 import type { Embed, Invalidation, Send } from '$lib/protocol/types';
-import { parseItemLink } from '$lib/format/itemLinks';
+import { parseItemLink, type ItemKind } from '$lib/format/itemLinks';
 import { Resource } from './resource.svelte';
 
 /** What a card shows: the item, null once it is deleted or never was. */
@@ -94,14 +94,16 @@ export function touches(key: Invalidation, link: string, embed: Embed | null): b
 }
 
 /** The invalidation that says an item of a kind changed somewhere. */
-const KEYS = {
+const KEYS: Record<ItemKind, Invalidation['kind']> = {
 	task: 'taskList',
 	document: 'documents',
 	resource: 'resources',
+	database: 'databases',
+	'database-row': 'database',
 	agent: 'agent',
 	'actor-session': 'actorSession',
 	article: 'feedArticles'
-} as const satisfies Record<string, Invalidation['kind']>;
+};
 
 export function createEmbedsStore(send: Send = defaultSend): EmbedsStore {
 	return new EmbedsStore(send);

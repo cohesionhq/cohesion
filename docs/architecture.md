@@ -1969,14 +1969,22 @@ databases by title, with New database and each one's Rename and Delete. A
 database opens as a table (`DatabaseTable.svelte`): a column per property in
 its order, its header a menu to sort (the type's two directions or none),
 filter, rename, change type (a dialog warning that values that don't fit are
-cleared), move left or right (`moveDatabaseProperty`) and delete; the last
-column, which stays in view as a wide table scrolls, adds a property and holds
-each row's ⋯ (Open, Delete). A cell edits in place with an editor for its type
-(text, a number, a date picker; a checkbox toggles), read by
-`features/databases/values.ts`; ↩ saves, Esc cancels, ⇥ and ⇧⇥ save and move
-along the row, and the daemon's refusal shows under the editor. A formula's
-column wears a function icon and its cells only read; a formula's `error`
-shows above the table. Filters (Add filter…, or a column's Filter…) offer the
+cleared), its formula, move left or right (`moveDatabaseProperty`) and delete;
+the last column, which stays in view as a wide table scrolls, adds a property
+and holds each row's ⋯ (Open, Copy link, Copy plain link, Delete). A cell edits
+in place with an editor for its type (`ValueCell.svelte`: text, a number, a
+date picker; a checkbox toggles), read by `features/databases/values.ts`; ↩
+saves, Esc cancels, ⇥ and ⇧⇥ save and move along the row, and the daemon's
+refusal shows under the editor. A formula's column wears a function icon and
+its cells only read; a formula's `error` shows above the table. A new property
+is set by hand or a formula (`PropertyDialog.svelte`), and a column's menu
+edits a formula ("Edit formula…"), turns a property set by hand into one
+("Change to formula…", warning that its values will be deleted) and back
+("Change to set by hand", which keeps the last outputs). The formula is
+written in the code editor (`FormulaField.svelte`) under a short account of
+the contract, starting from an example made of the database's own properties
+(`formulaStarter`, `features/databases/formulas.ts`), with its last `error`
+under it. Filters (Add filter…, or a column's Filter…) offer the
 conditions the property's type allows and are ANDed; they and the sort show as
 pills above the table, each removable. **The daemon filters and sorts**: the
 page sends them with `listDatabaseRows` and shows what comes back. They are
@@ -1984,11 +1992,25 @@ the page's own, kept in the rows resource's key, so they last while the half
 keeps that database open and are never stored. A value reads in the browser's
 locale (`formatValue`): numbers grouped, an amount to two places with no
 currency sign, since a database names no currency, a date as `shortDay`. A
-row's leading button opens its document over the page in the document panel
-(`linkedItem.show`), giving the row one first (`createDatabaseRowDocument`). A
-link's Open goes to a database's table, and a row's to its database's
-(`embedRoute`). The mock filters, sorts and runs formulas in JS, by the
-daemon's rules; it runs only the formulas it was seeded with.
+row's leading button, its Open, a link to it and `?row=` on the table's address
+open it in the item panel (`DatabaseRowPanel.svelte`): its value for each of
+the database's properties as its details, each edited in place with the
+table's `ValueCell` (a formula's only reads), then its document, read or
+written as a task's description is (`DocumentBody`, Edit and Done, saving as it
+goes). The row's label stands for a title. Opening a row makes no document: the
+first save of something written makes one (`createDatabaseRowDocument`, in
+`DatabasesStore.writeRowDocument`). A row's document gets none of a document's
+own affordances: no title of its own, no folder, no page of its own, no Rewind
+and no Delete; Open goes to the table, Copy link copies the row's link and
+Backlinks lists what links to the row. The panel keeps the row in the store's
+`row`, `rowProperties`, `rowDatabase` and `rowDocument`, refetched on the
+database's invalidation, and a write in either the panel or the table updates
+the other from its reply when both are in the main half; it closes once the row
+is gone. A database's link and its card go to its table (`embedRoute`); its ⋯
+menu copies its link. The mock filters, sorts and runs formulas in JS, by the
+daemon's rules; it reads only a small part of JavaScript for a formula
+(`protocol/mockFormula.ts`: arithmetic, comparisons, `??`, `?:`, a few methods
+and `Math` functions over `row`), and anything else fails every row.
 
 **Subagents** (`features/actors/SessionView.svelte`, `SubagentRow.svelte`).
 In a session's transcript, the tool use that launched a subagent shows as the
@@ -2008,6 +2030,7 @@ started, where they are answered. The store holds them in `subagents`,
 
 **Links.** Items link as `cohesion://task/<ws>/<id>`,
 `cohesion://document/<ws>/<id>`, `cohesion://resource/<ws>/<id>`,
+`cohesion://database/<ws>/<id>`, `cohesion://database-row/<ws>/<database>/<id>`,
 `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and
 `cohesion://article/<id>` (`parseItemLink`, `lib/format/itemLinks.ts`, which
 `shell/routes.ts` re-exports; a task or document link without a workspace
@@ -2017,8 +2040,10 @@ themselves. Following one in the web UI (`ui/Markdown.svelte`,
 `linkedItem.follow`) opens the item over the current page in one side panel,
 `ItemPanel`, the same for every kind but its content
 (`shell/linkedItem.svelte.ts`, `shell/LinkedItem.svelte`): a task with its
-folder, tags and contacts; a document; a resource; an agent; an actor session
-with its actor and messages; an article with its feed. Full-page content has
+folder, tags and contacts; a document; a resource; a database row with its
+values and document; an agent; an actor session with its actor and messages;
+an article with its feed. A database has no panel: its link goes to its table.
+Full-page content has
 an Open link (an article's opens in the current workspace). A modified click
 falls through to the `/open/…` page. The panel can be expanded: a button
 beside Close (`SidePanel`) floats it at the middle of the window, up to 80rem
@@ -2037,7 +2062,8 @@ becomes a card; "Copy plain link" puts the bare `cohesion://` address. Both are
 items in the menus that already hold an item's actions (`copyLinkItems`,
 `lib/ui/copyLink.ts`): a task row's (`l` chooses Copy link), the document and
 journal pages' (`DocumentMenu`), an agent's, an article's in a list and on its
-page, and the ⋯ menus a resource's and an actor session's page have for them
+page, a database row's ⋯ in its table, and the ⋯ menus a resource's, a
+database's and an actor session's page have for them
 (`ui/MoreActions.svelte`). An item panel has one "Copy link" button before Open
 (`ItemPanel`'s `link`), which copies the Markdown link; the `/open/…` pages
 only redirect, so they have none.
@@ -2063,10 +2089,12 @@ embeds"). Each card resolves its link through `stores/embeds.svelte.ts`, once
 for every card showing it, and asks again on its item's invalidation. While it
 resolves, the link's text shimmers; an item gone shows its text quietly with
 "Task not found"; a link that can't be resolved stays a plain link. A click
-opens the panel, as the link does. A link to a database or a row isn't read
-as an item yet (`parseItemLink`), so it stays a plain link and Backlinks
-leaves out a row linking; a link to a row's document resolves as its row and
-opens its document's panel.
+opens the panel, as the link does. A database's card adds its first rows as a
+small table under its row count, and a click goes to its table; a row's adds a
+few of its values before its document's excerpt and opens the row's panel. A
+link to a row's document resolves as its row, and Backlinks lists a row
+linking through its document as the row. `@` doesn't offer databases or rows,
+since `searchWorkspace` doesn't search them: their Copy link does.
 
 **`@`.** In the same editors, `@` at a word's start looks items up to link
 (`shell/mentions.ts`, on `@codemirror/autocomplete`). `[[` at a word's start

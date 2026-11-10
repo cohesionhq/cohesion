@@ -1,6 +1,8 @@
 // Databases: a workspace's tables of typed values. The list of a workspace's
-// databases, and the one database a page has open with its properties and
-// its rows under the page's filters and sort, which the daemon applies.
+// databases, the one database a page has open with its properties and its
+// rows under the page's filters and sort, which the daemon applies, and the
+// one row open in the panel over the page, with its database's properties
+// and its document.
 
 import { send as defaultSend } from '$lib/protocol/api';
 import type {
@@ -15,6 +17,7 @@ import type {
 	Invalidation,
 	Send
 } from '$lib/protocol/types';
+import { ProtocolError } from '$lib/protocol/errors';
 import { Resource } from './resource.svelte';
 
 export interface DatabaseKey {
@@ -31,6 +34,15 @@ export interface DatabaseQuery {
 }
 
 export interface DatabaseRowsKey extends DatabaseKey, DatabaseQuery {}
+
+export interface DatabaseRowKey extends DatabaseKey {
+	row_id: number;
+}
+
+export interface RowDocumentKey {
+	workspace_id: number;
+	document_id: number;
+}
 
 /** Every row, in the order they were added. */
 export const NO_QUERY: DatabaseQuery = { filters: [], sort: null };
@@ -54,6 +66,16 @@ export function withoutProperty(query: DatabaseQuery, property_id: number): Data
 const inDatabase = (key: Invalidation, { database_id }: DatabaseKey) =>
 	key.kind === 'database' && key.id === database_id;
 
+/** What `request` returns, or null when it is not found. */
+async function orNull<T>(request: Promise<T>): Promise<T | null> {
+	try {
+		return await request;
+	} catch (error) {
+		if (error instanceof ProtocolError && error.code === 'notFound') return null;
+		throw error;
+	}
+}
+
 export class DatabasesStore {
 	/** The workspace's databases, by title. */
 	readonly list: Resource<Database[], number>;
@@ -63,6 +85,14 @@ export class DatabasesStore {
 	readonly properties: Resource<DatabaseProperty[], DatabaseKey>;
 	/** The open database's rows that meet the query's filters, in its order. */
 	readonly rows: Resource<DatabaseRowEntry[], DatabaseRowsKey>;
+	/** The row open in the panel; null once it is deleted. */
+	readonly row: Resource<DatabaseRowEntry | null, DatabaseRowKey>;
+	/** The open row's database; null once it is deleted. */
+	readonly rowDatabase: Resource<Database | null, DatabaseKey>;
+	/** The open row's database's properties, in their order. */
+	readonly rowProperties: Resource<DatabaseProperty[], DatabaseKey>;
+	/** The open row's document, while it has one. */
+	readonly rowDocument: Resource<Document | null, RowDocumentKey>;
 
 	#send: Send;
 
@@ -92,6 +122,29 @@ export class DatabasesStore {
 			matches: (key, rows) => inDatabase(key, rows),
 			// A filter or the order changing swaps the rows in place.
 			keepsValue: (from, to) => from.database_id === to.database_id
+		});
+		this.row = new Resource({
+			fetch: (key: DatabaseRowKey) => orNull(send('getDatabaseRow', key)),
+			initial: null,
+			matches: inDatabase,
+			onFetched: (row) => void this.#loadRowDocument(row)
+		});
+		this.rowDatabase = new Resource({
+			fetch: (key) => orNull(send('getDatabase', key)),
+			initial: null,
+			matches: (key, db) =>
+				inDatabase(key, db) || (key.kind === 'databases' && key.id === db.workspace_id)
+		});
+		this.rowProperties = new Resource({
+			fetch: (key) => send('listDatabaseProperties', key),
+			initial: [],
+			matches: inDatabase
+		});
+		this.rowDocument = new Resource({
+			fetch: (key) => orNull(send('getDocument', key)),
+			initial: null,
+			matches: (key, doc) =>
+				(key.kind === 'documents' || key.kind === 'workspace') && key.id === doc.workspace_id
 		});
 	}
 
@@ -275,6 +328,7 @@ export class DatabasesStore {
 	async removeRow(row_id: number): Promise<void> {
 		await this.#send('deleteDatabaseRow', { ...this.#key, row_id });
 		this.rows.update((rows) => rows.filter((r) => r.id !== row_id));
+		if (this.#isOpenRow(this.#key.database_id, row_id)) this.row.set(null);
 	}
 
 	/** Sets a row's value for a property, or empties it when `value` is null. */
@@ -289,16 +343,96 @@ export class DatabasesStore {
 			property_id,
 			value
 		});
-		this.#putRow(entry);
+		this.#took(entry);
 		return entry;
 	}
 
-	/** Gives a row a document of its own. */
-	async createRowDocument(row_id: number): Promise<Document> {
-		const document = await this.#send('createDatabaseRowDocument', { ...this.#key, row_id });
-		this.rows.update((rows) =>
-			rows.map((r) => (r.id === row_id ? { ...r, document_id: document.id } : r))
-		);
+	/** A row from a reply, in the open database's rows and the panel, wherever it shows. */
+	#took(entry: DatabaseRowEntry) {
+		if (this.database.key?.database_id === entry.database_id) this.#putRow(entry);
+		if (this.#isOpenRow(entry.database_id, entry.id)) this.row.set(entry);
+	}
+
+	#isOpenRow(database_id: number, row_id: number): boolean {
+		const key = this.row.key;
+		return key?.database_id === database_id && key.row_id === row_id;
+	}
+
+	// ---- The row open in the panel ----------------------------------------------
+
+	/** Loads a row for the panel with its database, its properties and its document. */
+	async openRow(workspace_id: number, database_id: number, row_id: number): Promise<void> {
+		const current = this.row.key;
+		const same =
+			current?.workspace_id === workspace_id &&
+			current.database_id === database_id &&
+			current.row_id === row_id;
+		const rowKey = same && current ? current : { workspace_id, database_id, row_id };
+		const db = this.rowDatabase.key;
+		const dbKey =
+			db?.workspace_id === workspace_id && db.database_id === database_id
+				? db
+				: { workspace_id, database_id };
+		await Promise.all([
+			this.row.load(rowKey),
+			this.rowDatabase.load(dbKey),
+			this.rowProperties.load(dbKey)
+		]);
+		// A row already loaded isn't fetched again, so its document is loaded here too.
+		await this.#loadRowDocument(this.row.value);
+	}
+
+	/** Stops the panel's row refetching once the panel closes. */
+	closeRow(): void {
+		this.row.release();
+		this.rowDatabase.release();
+		this.rowProperties.release();
+		this.rowDocument.release();
+	}
+
+	/** Loads `row`'s document for the panel, or forgets the last one when it has none. */
+	async #loadRowDocument(row: DatabaseRowEntry | null): Promise<void> {
+		const key = this.row.key;
+		if (row === null || row.document_id === null || !key) {
+			this.rowDocument.set(null);
+			return;
+		}
+		const current = this.rowDocument.key;
+		if (current?.workspace_id === key.workspace_id && current.document_id === row.document_id)
+			return this.rowDocument.load(current);
+		return this.rowDocument.load({ workspace_id: key.workspace_id, document_id: row.document_id });
+	}
+
+	/** Sets the open row's value for a property, or empties it when `value` is null. */
+	async setRowValue(property_id: number, value: DatabaseValue | null): Promise<DatabaseRowEntry> {
+		const entry = await this.#send('setDatabaseValue', {
+			...this.row.key!,
+			property_id,
+			value
+		});
+		this.#took(entry);
+		return entry;
+	}
+
+	/**
+	 * Writes the document of row `key`, giving the row one first when it has
+	 * none, so a row gains a document only once something is written in it.
+	 */
+	async writeRowDocument(key: DatabaseRowKey, contents: string): Promise<Document> {
+		const { workspace_id, database_id, row_id } = key;
+		const open = this.#isOpenRow(database_id, row_id);
+		const entry = open ? this.row.value : await this.#send('getDatabaseRow', key);
+		let document_id = entry?.document_id ?? null;
+		if (document_id === null) {
+			const created = await this.#send('createDatabaseRowDocument', key);
+			document_id = created.id;
+			if (entry) this.#took({ ...entry, document_id });
+		}
+		const document = await this.#send('editDocument', { workspace_id, document_id, contents });
+		if (this.#isOpenRow(database_id, row_id)) {
+			if (this.rowDocument.key?.document_id === document.id) this.rowDocument.set(document);
+			else await this.rowDocument.load({ workspace_id, document_id: document.id });
+		}
 		return document;
 	}
 }

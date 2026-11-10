@@ -3,27 +3,36 @@
 // text shows items as cards.
 
 /** What a `cohesion://` link can point at. */
-export type ItemKind = WorkspaceItemKind | 'agent' | 'actor-session' | 'article';
+export type ItemKind = WorkspaceItemKind | 'database-row' | 'agent' | 'actor-session' | 'article';
 
 /** What a `cohesion://` link names with its workspace. */
-export type WorkspaceItemKind = 'task' | 'document' | 'resource';
+export type WorkspaceItemKind = 'task' | 'document' | 'resource' | 'database';
 
-// `cohesion://task/3/42`, `cohesion://document/3/7` and `cohesion://resource/3/9`
-// (workspace, then item); `cohesion://agent/3`, `cohesion://actor-session/143`
-// and `cohesion://article/88`. The daemon reads them the same way (`ItemLink`).
-const WORKSPACE_ITEM_LINK = /^cohesion:\/\/(task|document|resource)\/(\d+)\/(\d+)$/;
+/** What a `cohesion://` link can name without its workspace. */
+export type UnscopedItemKind = 'task' | 'document' | 'agent' | 'actor-session' | 'article';
+
+// `cohesion://task/3/42`, `cohesion://document/3/7`, `cohesion://resource/3/9`
+// and `cohesion://database/3/2` (workspace, then item); a database row's
+// `cohesion://database-row/3/2/14` (workspace, database, then row);
+// `cohesion://agent/3`, `cohesion://actor-session/143` and
+// `cohesion://article/88`. The daemon reads them the same way (`ItemLink`).
+const WORKSPACE_ITEM_LINK = /^cohesion:\/\/(task|document|resource|database)\/(\d+)\/(\d+)$/;
+const DATABASE_ROW_LINK = /^cohesion:\/\/database-row\/(\d+)\/(\d+)\/(\d+)$/;
 // `cohesion://task/42` and `cohesion://document/7` without their workspace,
 // as links were first written, as well as agents, actor sessions and articles.
 const ITEM_LINK = /^cohesion:\/\/(task|document|agent|actor-session|article)\/(\d+)$/;
 
 /**
- * What a `cohesion://` link names: a task, document or resource with its
- * workspace (`cohesion://task/3/42`), or an item without one
- * (`cohesion://task/42`, `cohesion://agent/3`), as links to tasks and
- * documents were first written.
+ * What a `cohesion://` link names: a task, document, resource or database
+ * with its workspace (`cohesion://task/3/42`), a database row with its
+ * workspace and database (`cohesion://database-row/3/2/14`), or an item
+ * without one (`cohesion://task/42`, `cohesion://agent/3`), as links to tasks
+ * and documents were first written.
  */
 export type ItemLink =
-	{ kind: WorkspaceItemKind; ws: number; id: number } | { kind: ItemKind; ws: null; id: number };
+	| { kind: WorkspaceItemKind; ws: number; id: number }
+	| { kind: 'database-row'; ws: number; database: number; id: number }
+	| { kind: UnscopedItemKind; ws: null; id: number };
 
 /** What a link to an item (`cohesion://task/3/42`) names, or null for any other href. */
 export function parseItemLink(href: string): ItemLink | null {
@@ -34,12 +43,22 @@ export function parseItemLink(href: string): ItemLink | null {
 			ws: Number(scoped[2]),
 			id: Number(scoped[3])
 		};
+	const row = DATABASE_ROW_LINK.exec(href);
+	if (row)
+		return {
+			kind: 'database-row',
+			ws: Number(row[1]),
+			database: Number(row[2]),
+			id: Number(row[3])
+		};
 	const match = ITEM_LINK.exec(href);
-	return match ? { kind: match[1] as ItemKind, ws: null, id: Number(match[2]) } : null;
+	return match ? { kind: match[1] as UnscopedItemKind, ws: null, id: Number(match[2]) } : null;
 }
 
 /** `link` as written: `cohesion://task/3/42`. */
 export function itemLinkHref(link: ItemLink): string {
+	if (link.kind === 'database-row')
+		return `cohesion://database-row/${link.ws}/${link.database}/${link.id}`;
 	return link.ws === null
 		? `cohesion://${link.kind}/${link.id}`
 		: `cohesion://${link.kind}/${link.ws}/${link.id}`;

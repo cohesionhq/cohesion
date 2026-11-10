@@ -108,19 +108,59 @@ describe('databases store', () => {
 		expect(column(store.rows.value, notes.id).every((v) => v === null)).toBe(true);
 	});
 
-	it('adds and deletes rows, and gives a row a document the document list leaves out', async () => {
-		const mock = createMock();
-		const store = createDatabasesStore(mock.send);
+	it('adds and deletes rows', async () => {
+		const store = createDatabasesStore(createMock().send);
 		await store.open(1, 1);
 		const count = store.rows.value.length;
 		const row = await store.createRow();
 		expect(store.rows.value).toHaveLength(count + 1);
-		const document = await store.createRowDocument(row.id);
-		expect(store.rows.value.at(-1)?.document_id).toBe(document.id);
-		const listed = await mock.send('listDocuments', { workspace_id: 1 });
-		expect(listed.map((d) => d.id)).not.toContain(document.id);
 		await store.removeRow(row.id);
 		expect(store.rows.value).toHaveLength(count);
+	});
+
+	it('opens a row in the panel and keeps it and the table in step', async () => {
+		const store = createDatabasesStore(createMock().send);
+		await store.open(1, 2);
+		const first = store.rows.value[0];
+		await store.openRow(1, 2, first.id);
+		expect(store.rowDatabase.value?.title).toBe('Kitchen renovation');
+		expect(store.rowProperties.value).toHaveLength(7);
+		await store.setRowValue(11, { type: 'integer', value: 3 });
+		expect(column([store.row.value!], 13)).toEqual([1020]);
+		expect(column(store.rows.value, 13)[0]).toBe(1020);
+		await store.setValue(first.id, 11, { type: 'integer', value: 4 });
+		expect(column([store.row.value!], 11)).toEqual([4]);
+		await store.removeRow(first.id);
+		expect(store.row.value).toBeNull();
+	});
+
+	it('gives a row a document only once something is written, which the document list leaves out', async () => {
+		const mock = createMock();
+		const store = createDatabasesStore(mock.send);
+		await store.open(1, 1);
+		const row = await store.createRow();
+		await store.openRow(1, 1, row.id);
+		expect(store.rowDocument.value).toBeNull();
+		const document = await store.writeRowDocument(store.row.key!, 'Lent to Mira.');
+		expect(document.document_type).toBe('databaseRow');
+		expect(store.row.value?.document_id).toBe(document.id);
+		expect(store.rows.value.at(-1)?.document_id).toBe(document.id);
+		expect(store.rowDocument.value?.contents).toBe('Lent to Mira.');
+		await store.writeRowDocument(store.row.key!, 'Lent to Mira and back.');
+		expect(store.rowDocument.value?.id).toBe(document.id);
+		const listed = await mock.send('listDocuments', { workspace_id: 1 });
+		expect(listed.map((d) => d.id)).not.toContain(document.id);
+	});
+
+	it('loads the document of a row that has one, and empties once the row is gone', async () => {
+		const mock = createMock();
+		const store = createDatabasesStore(mock.send);
+		await store.openRow(1, 1, 1);
+		expect(store.rowDocument.value?.contents).toMatch(/train/);
+		await mock.send('deleteDatabaseRow', { workspace_id: 1, database_id: 1, row_id: 1 });
+		await store.row.refetch();
+		expect(store.row.value).toBeNull();
+		expect(store.rowDocument.value).toBeNull();
 	});
 
 	it('records a formula’s failure on its property', async () => {

@@ -8,6 +8,7 @@
 <script lang="ts">
 	import FileText from '@lucide/svelte/icons/file-text';
 	import NotebookPen from '@lucide/svelte/icons/notebook-pen';
+	import TableProperties from '@lucide/svelte/icons/table-properties';
 	import { longDay } from '$lib/format/dates';
 	import { itemLinkHref, type ItemLink } from '$lib/format/itemLinks';
 	import type { Embed } from '$lib/protocol/types';
@@ -30,8 +31,9 @@
 
 	const linking = $derived(shown?.backlinks.value ?? []);
 
-	/** Only documents and journal entries link so far. */
+	/** Only documents, journal entries and database rows (through their documents) link so far. */
 	function icon(embed: Embed) {
+		if (embed.kind === 'databaseRow') return TableProperties;
 		return embed.kind === 'journalEntry' ? NotebookPen : FileText;
 	}
 

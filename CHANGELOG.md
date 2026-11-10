@@ -42,14 +42,25 @@ under "Unreleased" with any change users would notice.
   lists the row among its backlinks. `hello.vocabulary.embed_kinds` gains
   their words. Clients that switch on an embed's `kind` or `item.kind`
   need the two new cases; the iPhone app can show them by title, excerpt
-  and kind word until it draws them. The web UI doesn't show them as cards
-  yet.
+  and kind word until it draws them.
 - The web UI shows databases. Databases, in each workspace's sidebar and
   ⌘K, lists them, and a database opens as a table: add a column of any type,
   rename it, change its type, move it or delete it; add and delete rows; edit
   a cell in place; and sort and filter on any column, which Cohesion does on
-  the server. A formula's column is read-only and shows why it failed. A row
-  opens its document over the page.
+  the server. A formula's column is read-only and shows why it failed.
+- A database row opens over the page, with its value for each of the
+  database's properties, editable there as in the table, and a document of
+  its own below them, which the row gains once you write in it. A new column
+  can be a formula, written in a code editor that explains what the row holds
+  and starts from an example using the database's own columns; a column's
+  menu edits its formula, turns a column set by hand into a formula, which
+  deletes its values, and back.
+- A link to a database or a row alone on its line shows as a card: a
+  database with its first rows as a small table, a row with a few of its
+  values and the start of its document. Clicking a database's card opens its
+  table; clicking a row's opens the row over the page. Copy link is on a
+  database's ⋯ menu, a row's ⋯ menu and the row's panel, and a row's panel
+  lists what links to it.
 - An item's panel shows Backlinks: the documents and journal entries that
   link to the item, wherever the link is in their text. Click one to open it
   over the page. When nothing links to the item, the section doesn't show.

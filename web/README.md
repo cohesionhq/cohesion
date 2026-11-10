@@ -62,7 +62,10 @@ Swaps the transport for `src/lib/protocol/mock.ts`, an in-memory daemon with
 seed data modelled on a real daemon's, with people's names made up (three workspaces, journals,
 tasks and tags, documents, databases, contacts, feeds and their articles, agents and their threads, actors,
 settings).
-No daemon or CLI needed. The tests use the same mock.
+No daemon or CLI needed. The tests use the same mock. It has no JavaScript
+engine, so a database formula runs only if it is written in the small part of
+the language `src/lib/protocol/mockFormula.ts` reads (arithmetic, comparisons,
+`??`, `?:` and a few methods over `row`); the formula editor's examples are.
 
 ## Checks
 
@@ -360,7 +363,7 @@ doing, not by how it looks.
   the workspace picker, or ⌘K.
 - **SidePanel** (`ui/SidePanel.svelte`) is for reading or writing
   something longer without leaving the page; `ItemPanel` on top of it opens
-  every linked item (`cohesion://…`). An Expand button beside Close floats it
+  every linked item (`cohesion://…`) but a database, which opens its table. An Expand button beside Close floats it
   wider and nearly full height at the middle of the window (Minimize returns it),
   with an item's details in a column beside its text, each scrolling on its own;
   it is gone below 900px and forgotten when the panel closes.
