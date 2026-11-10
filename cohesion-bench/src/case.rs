@@ -7,9 +7,12 @@
 //!   score and sets its efficiency references), and optionally `state`
 //!   (the starting state in `states/`: `default` when left out, `none` for
 //!   an empty `Personal` workspace), `workspaces` (the workspaces to make,
-//!   comma-separated, when not the state's) and `timeout` (seconds; 300
-//!   when left out). In the message, `{{day:N}}` is the local date N days
-//!   from today (`{{day:0}}` is today), as `YYYY-MM-DD`.
+//!   comma-separated, when not the state's), `timeout` (seconds; 300
+//!   when left out, for each turn) and `answer` (what the user says once
+//!   the agent's first turn ends: the option of its last choice that
+//!   contains it, else a message). In the message and the answer,
+//!   `{{day:N}}` is the local date N days from today (`{{day:0}}` is
+//!   today), as `YYYY-MM-DD`.
 //! - `validate.ts`: `export default function validate()`, which passes by
 //!   returning nothing (`undefined`, `null` or `false`) and fails by
 //!   returning a string saying what is wrong. It reads the database
@@ -97,6 +100,9 @@ pub struct Case {
     pub workspaces: Option<Vec<String>>,
     /// The user's message, with `{{day:N}}` still in it.
     pub prompt: String,
+    /// What the user answers once the first turn ends, with `{{day:N}}`
+    /// still in it; `None` for a case of one turn.
+    pub answer: Option<String>,
     /// `setup.ts`, `validate.ts` and `solution.ts`, as scripts whose value is
     /// what their function returns.
     pub setup: Option<String>,
@@ -127,7 +133,14 @@ pub struct CueLeft {
     pub effort: String,
 }
 
-const KEYS: [&str; 5] = ["title", "difficulty", "state", "workspaces", "timeout"];
+const KEYS: [&str; 6] = [
+    "title",
+    "difficulty",
+    "state",
+    "workspaces",
+    "timeout",
+    "answer",
+];
 
 /// A module's default export as a script whose value is that export, or
 /// what it returns when it is a function: `export default` becomes a
@@ -231,6 +244,7 @@ impl Case {
                 .remove("workspaces")
                 .map(|list| list.split(',').map(|w| w.trim().to_string()).collect()),
             prompt,
+            answer: keys.remove("answer"),
             setup: module("setup.ts")?,
             validate: module("validate.ts")?.ok_or("no validate.ts")?,
             solution: module("solution.ts")?,
@@ -242,25 +256,15 @@ impl Case {
     /// The prompt with each `{{day:N}}` replaced by the date N days from
     /// `today`.
     pub fn prompt_on(&self, today: jiff::civil::Date) -> Result<String, String> {
-        let mut prompt = String::new();
-        let mut rest = self.prompt.as_str();
-        while let Some(start) = rest.find("{{day:") {
-            prompt.push_str(&rest[..start]);
-            let after = &rest[start + "{{day:".len()..];
-            let end = after.find("}}").ok_or("an unclosed {{day:")?;
-            let days: i64 = after[..end]
-                .trim()
-                .trim_start_matches('+')
-                .parse()
-                .map_err(|_| format!("`{}` isn't a number of days", &after[..end]))?;
-            let date = today
-                .checked_add(jiff::Span::new().days(days))
-                .map_err(|e| e.to_string())?;
-            prompt.push_str(&date.to_string());
-            rest = &after[end + 2..];
-        }
-        prompt.push_str(rest);
-        Ok(prompt)
+        with_dates(&self.prompt, today)
+    }
+
+    /// The answer, if the case has one, its dates as in the prompt.
+    pub fn answer_on(&self, today: jiff::civil::Date) -> Result<Option<String>, String> {
+        self.answer
+            .as_deref()
+            .map(|answer| with_dates(answer, today))
+            .transpose()
     }
 
     /// The setup that fills the workspaces: the state applied, the case's
@@ -286,6 +290,29 @@ impl Case {
     pub fn script(&self, script: &str) -> String {
         format!("{}\n{script}", self.prelude)
     }
+}
+
+/// `text` with each `{{day:N}}` replaced by the date N days from `today`.
+fn with_dates(text: &str, today: jiff::civil::Date) -> Result<String, String> {
+    let mut prompt = String::new();
+    let mut rest = text;
+    while let Some(start) = rest.find("{{day:") {
+        prompt.push_str(&rest[..start]);
+        let after = &rest[start + "{{day:".len()..];
+        let end = after.find("}}").ok_or("an unclosed {{day:")?;
+        let days: i64 = after[..end]
+            .trim()
+            .trim_start_matches('+')
+            .parse()
+            .map_err(|_| format!("`{}` isn't a number of days", &after[..end]))?;
+        let date = today
+            .checked_add(jiff::Span::new().days(days))
+            .map_err(|e| e.to_string())?;
+        prompt.push_str(&date.to_string());
+        rest = &after[end + 2..];
+    }
+    prompt.push_str(rest);
+    Ok(prompt)
 }
 
 /// `script` in a block of its own, so its bindings don't meet the ones

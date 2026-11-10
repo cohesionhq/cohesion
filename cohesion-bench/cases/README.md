@@ -29,8 +29,14 @@ Move all my overdue Personal tasks to {{day:3}}.
 - `state` is the starting state in `states/`: `default` when left out, or
   `none` for an empty `Personal` workspace.
 - `workspaces` names the workspaces to make, comma-separated, when they
-  aren't the state's; `timeout` is in seconds, 300 when left out.
-- `{{day:N}}` is the date N days from today, as `YYYY-MM-DD`.
+  aren't the state's; `timeout` is in seconds for each turn, 300 when left
+  out.
+- `answer` is what the user says once the agent's first turn ends, for a
+  case of two turns: the bench picks the option of the agent's last choice
+  that contains it, ignoring case, or else sends it as a message, then
+  waits for the turn that starts.
+- `{{day:N}}` is the date N days from today, as `YYYY-MM-DD`, in the
+  message and the answer.
 - The bench puts the nearest `prompt-prelude.md` ahead of the prompt: the
   case directory's own, else its category's, else the one here. An empty
   one means no prelude. The one here tells the agent not to ask, since no
@@ -62,6 +68,10 @@ when it should. A vague request, or one saying to ask, passes on
 `B.askedFirst('asked which call')`: it asked, by a choice or in its
 message, and changed nothing. One saying not to ask, or a clear one,
 passes on `B.acted([...checks])`: it asked nothing and the checks hold.
+One with an `answer` passes on `B.askedThen([...checks])`: it asked, and
+once answered the checks hold. A case that says "ask me" only tests that
+the agent follows an instruction, so keep those few; the cases worth
+having are the ones where whether to ask is the agent's call.
 
 Check the outcome, not the route: the data the agent left and the facts
 in its answer, not which calls it made or how it worded things. When the

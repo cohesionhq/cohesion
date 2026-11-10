@@ -1,5 +1,6 @@
 //! Running a case: a scratch daemon of its own, the case's setup, the
-//! user's message to an agent on the model under test, then the check and
+//! user's message to an agent on the model under test (and the user's
+//! answer once that turn ends, for a case with one), then the check and
 //! what Cohesion recorded.
 
 use std::path::Path;
@@ -61,7 +62,11 @@ async fn converse(
     prepare(scratch, case).await?;
     let agent = scratch.agent_on(model).await?;
     let started = Instant::now();
-    let in_time = scratch.converse(&agent, prompt, case.timeout).await?;
+    let answer = case.answer_on(today)?;
+    let mut in_time = scratch.converse(&agent, prompt, case.timeout).await?;
+    if let (true, Some(answer)) = (in_time, answer) {
+        in_time = scratch.answer(&agent, answer, case.timeout).await?;
+    }
     result.seconds = started.elapsed().as_secs_f64();
     result.activity = Activity::read(scratch.database(), agent.id).await?;
 

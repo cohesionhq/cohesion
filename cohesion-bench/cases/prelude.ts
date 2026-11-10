@@ -189,6 +189,12 @@ const B = (() => {
    */
   const acted = (checks: readonly Check[]) =>
     check([[bench.asked.length === 0, 'acted without asking'], ...checks]);
+  /**
+   * The verdict on a case with an `answer`: the agent asked, by a choice or
+   * in its message, and once answered `checks` hold.
+   */
+  const askedThen = (checks: readonly Check[]) =>
+    check([[bench.asked.length > 0 || /\?/.test(reply), 'asked first'], ...checks]);
   /** A read-only question's verdict: the answer's checks, and nothing changed. */
   const answered = (checks: readonly Check[]) => check([...checks, [unchanged(), 'changed nothing']]);
 
@@ -238,6 +244,6 @@ const B = (() => {
     ALL, ANY, iso, date, day, ws, tasks, task, tasksLike, doc, docsLike, taskFolder, findTaskFolder, docFolder,
     findDocFolder, contact, findContact, tagged,
     mentions, saysNumber, numbers, saysDate, saysDay, saysNone, remember, unchanged, before, newTasks, newDocs,
-    changedTasks, changedOnly, onlyChanged, check, answered, askedFirst, acted, load,
+    changedTasks, changedOnly, onlyChanged, check, answered, askedFirst, askedThen, acted, load,
   };
 })();

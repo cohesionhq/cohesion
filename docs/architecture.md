@@ -2666,7 +2666,10 @@ nearest `prompt-prelude.md` (the case's directory, its category's, then
 during a run, and doing the work in fewer steps shows in efficiency.
 Whether it asks at the right times is scored apart, by the cases in
 `cases/alignment/`, whose empty prelude leaves only Cohesion's own
-instructions.
+instructions. A case can name an `answer`, which the bench gives once the
+first turn ends, picking the matching option of the agent's choice
+(`RespondToAgentChoice`) or sending it as a message, so the case also
+checks that the agent follows through.
 `cohesion-bench validate` and the crate's tests check that every case fails
 on its starting data and passes after its solution, so a script API change
 that breaks a case fails `cargo test`; fix the case in the same commit.

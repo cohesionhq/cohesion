@@ -257,3 +257,60 @@ fn an_unpriced_run_still_counts_its_calls() {
     assert_eq!(result.activity.output_tokens, 50);
     assert_eq!(result.activity.cost, 0.0);
 }
+
+// A case with an answer runs a second turn: the bench answers the agent's
+// choice, and the turn that starts does the work the check reads.
+#[test]
+fn an_answer_to_a_choice_runs_the_next_turn() {
+    let base_url = serve(vec![
+        calling(
+            "c1",
+            "ask_choice",
+            json!({
+                "question": "Which call?",
+                "options": ["Call Bob about the roof", "Call mum"],
+            }),
+        ),
+        json!({ "role": "assistant", "content": "Asked." }),
+        calling(
+            "c2",
+            CODE_TOOL,
+            json!({
+                "title": "Ticking off the call",
+                "code": "cohesion.workspace('Personal').tasks({}).find((t) => t.title === 'Call mum').complete()",
+            }),
+        ),
+        calling(
+            "c3",
+            "send_message",
+            json!({ "text": "Marked **Call mum** done.", "done": true }),
+        ),
+    ]);
+    let model = ModelUnderTest {
+        label: "fake/base".to_string(),
+        endpoint: Endpoint {
+            name: "fake".to_string(),
+            preset: IntelligenceEndpointPreset::Custom {
+                provider_identifier: "fake".to_string(),
+                dialect: Dialect::ChatCompletions,
+                base_url,
+            },
+            api_key: None,
+        },
+        model: "base".to_string(),
+        prices: None,
+    };
+    let cases = load_cases(&default_directory(), &["answer-which-call".to_string()]).unwrap();
+    let directory = scratch_path("answer");
+    let result = runtime().block_on(run_case(
+        &cases[0],
+        &model,
+        1,
+        &directory.join("cohesion.db"),
+        jiff::Zoned::now().date(),
+    ));
+    _ = std::fs::remove_dir_all(&directory);
+
+    assert_eq!(result.outcome, Outcome::Passed, "{}", result.reason);
+    assert_eq!(result.activity.asked.len(), 1);
+}

@@ -48,6 +48,7 @@ pub async fn validate(case: &Case) -> Result<(), String> {
 
 async fn check_case(scratch: &Scratch, case: &Case) -> Result<(), String> {
     case.prompt_on(jiff::Zoned::now().date())?;
+    case.answer_on(jiff::Zoned::now().date())?;
     prepare(scratch, case).await?;
     // On the untouched data the check must fail: by saying why, or by
     // throwing on something the agent hasn't made yet.

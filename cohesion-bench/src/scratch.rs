@@ -12,12 +12,14 @@ use cohesionkit::ServerAddress;
 use cohesionkit::db::{
     AddEndpointModelCommand, Container, CreateIntelligenceAgentCommand,
     CreateIntelligenceEndpointCommand, CreateWorkspaceCommand, DatabaseCommand, DatabaseContext,
-    Secrets, SetIntelligenceDefaultCommand,
+    ListAgentMessagesCommand, Secrets, SetIntelligenceDefaultCommand,
 };
-use cohesionkit::model::{IntelligenceAgentColor, IntelligenceTier};
+use cohesionkit::model::{
+    AgentMessageContent, IntelligenceAgentColor, IntelligenceAgentMessageSender, IntelligenceTier,
+};
 use cohesionkit::protocol::{
-    Intelligence, ModelPrices, Route, RunScriptRequest, Script, SendAgentMessageRequest,
-    ServerError, StopAgentTurnRequest, UpdateModelCatalogRequest,
+    Intelligence, ModelPrices, RespondToAgentChoiceRequest, Route, RunScriptRequest, Script,
+    SendAgentMessageRequest, ServerError, StopAgentTurnRequest, UpdateModelCatalogRequest,
 };
 
 use crate::model_spec::ModelUnderTest;
@@ -185,6 +187,69 @@ impl Scratch {
         )
         .await
         .map_err(server_error)?;
+        self.wait(agent, timeout).await
+    }
+
+    /// Answers the turn that just ended as the user would: picks the
+    /// option of the agent's last message, when that is a choice, that
+    /// contains `answer` (ignoring case), and otherwise sends `answer` as
+    /// a message; then waits as `converse` does.
+    pub async fn answer(
+        &self,
+        agent: &BenchAgent,
+        answer: String,
+        timeout: Duration,
+    ) -> Result<bool, String> {
+        let messages = self
+            .send(ListAgentMessagesCommand {
+                agent_id: agent.id,
+                before: None,
+                limit: i64::from(u32::MAX),
+            })
+            .await?;
+        let last = messages
+            .into_iter()
+            .filter(|m| m.sender != IntelligenceAgentMessageSender::User)
+            .max_by_key(|m| m.id);
+        let wanted = answer.to_lowercase();
+        let pick = last.and_then(|message| match message.message_content {
+            AgentMessageContent::Choice(choice) => choice
+                .options
+                .iter()
+                .position(|option| option.to_lowercase().contains(&wanted))
+                .map(|option| (message.id, option)),
+            _ => None,
+        });
+        match pick {
+            Some((message_id, option)) => {
+                Route::<Intelligence, RespondToAgentChoiceRequest>::route(
+                    &self.context,
+                    RespondToAgentChoiceRequest { message_id, option },
+                )
+                .await
+                .map(|_| ())
+                .map_err(server_error)?
+            }
+            None => Route::<Intelligence, SendAgentMessageRequest>::route(
+                &self.context,
+                SendAgentMessageRequest {
+                    agent_id: agent.id,
+                    message: answer,
+                    attachments: None,
+                    forward: None,
+                },
+            )
+            .await
+            .map(|_| ())
+            .map_err(server_error)?,
+        }
+        self.wait(agent, timeout).await
+    }
+
+    /// Waits until the agent's turn, and whatever it set going, has ended,
+    /// or `timeout` has passed, when the turn is stopped as a user would
+    /// stop it; whether it ended in time.
+    async fn wait(&self, agent: &BenchAgent, timeout: Duration) -> Result<bool, String> {
         if tokio::time::timeout(timeout, self.context.work.idle())
             .await
             .is_ok()

@@ -41,7 +41,7 @@ fn a_case_reads_its_prompt_and_scripts() {
             (
                 "prompt.md",
                 "---\ntitle: Move it\ndifficulty: hard\nstate: none\nworkspaces: Personal, Acme\n\
-                 timeout: 60\n---\n\nMove it to {{day:+2}}, not {{day:-1}}.\n",
+                 timeout: 60\nanswer: To {{day:3}}\n---\n\nMove it to {{day:+2}}, not {{day:-1}}.\n",
             ),
             ("setup.ts", "export default function setup() { B.ws(); }\n"),
             VALIDATE,
@@ -63,6 +63,10 @@ fn a_case_reads_its_prompt_and_scripts() {
     assert_eq!(
         case.prompt_on(jiff::civil::date(2026, 12, 31)).unwrap(),
         "Move it to 2027-01-02, not 2026-12-30."
+    );
+    assert_eq!(
+        case.answer_on(jiff::civil::date(2026, 12, 31)).unwrap(),
+        Some("To 2027-01-03".to_string())
     );
 }
 

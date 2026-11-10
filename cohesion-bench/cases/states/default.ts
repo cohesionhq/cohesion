@@ -266,7 +266,7 @@ About £300 for the year.
       tasks: [
         { title: 'Fix the login redirect bug', folder: 'Sprint 42', priority: 'urgent', size: 2, due: 1 },
         { title: "Review Leo's pull request", folder: 'Sprint 42', priority: 'high', due: 0 },
-        { title: 'Write release notes for 3.2', folder: 'Sprint 42', size: 2, due: 3 },
+        { title: 'Write release notes for 3.2', folder: 'Sprint 42', size: 2, due: 2 },
         { title: 'Pair with Mei on the billing export', folder: 'Sprint 42', assignee: { kind: 'contact', firstName: 'Mei', lastName: 'Chen' } },
         { title: 'Upgrade the Postgres cluster', folder: 'Backlog', size: 5 },
         { title: 'Add dark mode to settings', folder: 'Backlog', size: 3 },
