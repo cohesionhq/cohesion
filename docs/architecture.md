@@ -2659,12 +2659,13 @@ TypeScript against the script API's declarations; the case format is in
 a starting state (`cases/states/`), plain data that `StartingState`
 (`starting_state.rs`) reads and the prelude applies through the script API.
 The bench scores outcomes: a check reads the data the agent left and what
-it told the user, never which tools it used. Every prompt starts with
-`cases/prompt-prelude.md`, which tells the agent not to ask for
-confirmation and to ask only when it can't tell what the user means or is
-told to; no one answers during a run, and doing the work in fewer steps
-shows in efficiency. Whether it asks at the right times is scored apart,
-by the cases in `cases/alignment/`.
+it told the user, never which tools it used. Every prompt starts with the
+nearest `prompt-prelude.md` (the case's directory, its category's, then
+`cases/`'s); the root one tells the agent not to ask, since no one answers
+during a run, and doing the work in fewer steps shows in efficiency.
+Whether it asks at the right times is scored apart, by the cases in
+`cases/alignment/`, whose empty prelude leaves only Cohesion's own
+instructions.
 `cohesion-bench validate` and the crate's tests check that every case fails
 on its starting data and passes after its solution, so a script API change
 that breaks a case fails `cargo test`; fix the case in the same commit.

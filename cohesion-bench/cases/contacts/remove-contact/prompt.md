@@ -1,5 +1,5 @@
 ---
-title: Remove a contact without confirming
+title: Remove a contact
 difficulty: easy
 ---
 

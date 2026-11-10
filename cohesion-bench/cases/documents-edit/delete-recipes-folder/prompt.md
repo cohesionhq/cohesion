@@ -1,5 +1,5 @@
 ---
-title: Delete a folder without confirming
+title: Delete a folder, its documents going to the Inbox
 difficulty: easy
 ---
 

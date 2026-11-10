@@ -23,9 +23,12 @@
 //!   string standing for its reply). Only `validate` runs it, to show the
 //!   case can pass.
 //!
-//! Every prompt starts with `prompt-prelude.md`, which tells the agent not
-//! to ask before acting: a run has no one to answer, so the bench scores the
-//! work done, not whether the agent checked first.
+//! Every prompt starts with the nearest `prompt-prelude.md`: the case's
+//! own, else its category's, else the one in the cases directory. The root
+//! one tells the agent not to ask, since a run has no one to answer, so the
+//! bench scores the work done; `alignment/` has an empty one, so those
+//! cases see only Cohesion's own instructions and score when the agent
+//! chooses to ask. An empty file means no prelude.
 //!
 //! Every script runs on the scratch daemon with the user's rights, through
 //! the same `RunScript` request `cohesion run` sends, after `prelude.ts`,
@@ -48,7 +51,8 @@ const DEFAULT_STATE: &str = "default";
 /// How long a case runs before it is stopped, unless it says otherwise.
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(300);
 
-/// The file in the cases directory whose text starts every case's prompt.
+/// The file whose text starts a case's prompt: the nearest of the case's
+/// directory, its category's and the cases directory.
 const PROMPT_PRELUDE: &str = "prompt-prelude.md";
 
 /// Directories in the cases directory that hold no cases.
@@ -302,8 +306,7 @@ pub fn load_cases(directory: &Path, only: &[String]) -> Result<Vec<Case>, String
     let read =
         |path: &Path| std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()));
     let prelude = read(&directory.join("prelude.ts"))?;
-    let prompt_prelude = read(&directory.join(PROMPT_PRELUDE))?;
-    let prompt_prelude = prompt_prelude.trim();
+    let root_prelude = read(&directory.join(PROMPT_PRELUDE))?;
     let mut states = BTreeMap::new();
     for file in sorted_entries(&directory.join("states"))? {
         if file.extension().is_some_and(|extension| extension == "ts") {
@@ -323,6 +326,7 @@ pub fn load_cases(directory: &Path, only: &[String]) -> Result<Vec<Case>, String
         if !category.is_dir() || NOT_CATEGORIES.contains(&category_name.as_str()) {
             continue;
         }
+        let category_prelude = read_if_there(&category.join(PROMPT_PRELUDE))?;
         for case_directory in sorted_entries(&category)? {
             if !case_directory.join("prompt.md").exists() {
                 continue;
@@ -336,6 +340,12 @@ pub fn load_cases(directory: &Path, only: &[String]) -> Result<Vec<Case>, String
             }
             let mut case = Case::load(&case_directory, category_name.clone(), &prelude, &states)
                 .map_err(|e| format!("{}: {e}", case_directory.display()))?;
+            let case_prelude = read_if_there(&case_directory.join(PROMPT_PRELUDE))?;
+            let prompt_prelude = case_prelude
+                .as_deref()
+                .or(category_prelude.as_deref())
+                .unwrap_or(&root_prelude)
+                .trim();
             if !prompt_prelude.is_empty() {
                 case.prompt = format!("{prompt_prelude}\n\n{}", case.prompt);
             }
@@ -351,6 +361,15 @@ pub fn load_cases(directory: &Path, only: &[String]) -> Result<Vec<Case>, String
         .into_iter()
         .filter(|case| only.is_empty() || only.contains(&case.name))
         .collect())
+}
+
+/// The file at `path`, or `None` when there is none.
+fn read_if_there(path: &Path) -> Result<Option<String>, String> {
+    match std::fs::read_to_string(path) {
+        Ok(text) => Ok(Some(text)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("{}: {e}", path.display())),
+    }
 }
 
 fn sorted_entries(directory: &Path) -> Result<Vec<PathBuf>, String> {

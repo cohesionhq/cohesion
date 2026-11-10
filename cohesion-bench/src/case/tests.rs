@@ -148,14 +148,61 @@ fn a_module_becomes_a_script_ending_in_its_default_export() {
     assert!(module_value("export default 1;\nexport default 2;\n").is_err());
 }
 
-// Every shipped case's prompt starts by telling the agent not to ask, so
-// a run scores the work rather than a question no one answers.
+// The shipped cases start with the root prelude, telling the agent not to
+// ask, except the alignment cases, which see no prelude at all.
 #[test]
-fn every_prompt_starts_with_the_prompt_prelude() {
-    let line = std::fs::read_to_string(default_directory().join(PROMPT_PRELUDE)).unwrap();
-    let cases = load_cases(&default_directory(), &[]).unwrap();
-    assert!(!line.trim().is_empty());
-    for case in cases {
-        assert!(case.prompt.starts_with(line.trim()), "{}", case.name);
+fn shipped_prompts_carry_the_right_prelude() {
+    let root = std::fs::read_to_string(default_directory().join(PROMPT_PRELUDE)).unwrap();
+    let root = root.trim();
+    assert!(!root.is_empty());
+    for case in load_cases(&default_directory(), &[]).unwrap() {
+        let aligning = case.category == crate::score::ALIGNMENT_CATEGORY;
+        assert_eq!(case.prompt.starts_with(root), !aligning, "{}", case.name);
     }
+}
+
+// The nearest prompt-prelude.md wins: the case's own, then its category's,
+// then the root's; an empty one means none.
+#[test]
+fn the_nearest_prompt_prelude_wins() {
+    let root = std::env::temp_dir().join(format!("cohesion-bench-preludes-{}", std::process::id()));
+    _ = std::fs::remove_dir_all(&root);
+    let write = |path: &str, text: &str| {
+        let path = root.join(path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write("prelude.ts", "");
+    write("states/default.ts", "export default { workspaces: [] }\n");
+    write(PROMPT_PRELUDE, "Root.\n");
+    write("b/prompt-prelude.md", "Category.\n");
+    write("c/prompt-prelude.md", "");
+    for (case, own) in [
+        ("a/one", None),
+        ("b/two", None),
+        ("b/three", Some("Case.\n")),
+        ("c/four", None),
+    ] {
+        write(
+            &format!("{case}/prompt.md"),
+            "---\ntitle: T\ndifficulty: easy\n---\nDo it.\n",
+        );
+        write(
+            &format!("{case}/validate.ts"),
+            "export default function validate() {}\n",
+        );
+        if let Some(text) = own {
+            write(&format!("{case}/{PROMPT_PRELUDE}"), text);
+        }
+    }
+    let prompts: BTreeMap<String, String> = load_cases(&root, &[])
+        .unwrap()
+        .into_iter()
+        .map(|case| (case.name, case.prompt))
+        .collect();
+    _ = std::fs::remove_dir_all(&root);
+    assert_eq!(prompts["one"], "Root.\n\nDo it.");
+    assert_eq!(prompts["two"], "Category.\n\nDo it.");
+    assert_eq!(prompts["three"], "Case.\n\nDo it.");
+    assert_eq!(prompts["four"], "Do it.");
 }

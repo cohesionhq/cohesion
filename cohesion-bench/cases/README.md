@@ -31,11 +31,13 @@ Move all my overdue Personal tasks to {{day:3}}.
 - `workspaces` names the workspaces to make, comma-separated, when they
   aren't the state's; `timeout` is in seconds, 300 when left out.
 - `{{day:N}}` is the date N days from today, as `YYYY-MM-DD`.
-- The bench puts `prompt-prelude.md` ahead of every prompt: it tells
-  the agent not to ask for confirmation, and to ask only when it can't
-  tell what the user means or is told to. No one answers during a run, so
-  a case outside `alignment/` is written so a careful agent can act on
-  it without asking.
+- The bench puts the nearest `prompt-prelude.md` ahead of the prompt: the
+  case directory's own, else its category's, else the one here. An empty
+  one means no prelude. The one here tells the agent not to ask, since no
+  one answers during a run, so a case outside `alignment/` scores the work
+  and is written so a careful agent can act on it. `alignment/` has an
+  empty one: those cases see only Cohesion's own instructions, which ask
+  for a question before deleting or changing many things at once.
 
 ## validate.ts
 
@@ -90,7 +92,8 @@ to the script API that breaks a case fails the tests.
 
 ## What's here
 
-- `prompt-prelude.md`: the line ahead of every prompt.
+- `prompt-prelude.md`: the line ahead of every prompt, unless a category
+  or case directory has its own.
 - `prelude.ts`: `B`, the helpers every script shares (`B.task`, `B.doc`,
   `B.day`, `B.check`, `B.unchanged`, `B.newTasks`, …).
 - `states/default.ts`: the default starting state, a lived-in `Personal`

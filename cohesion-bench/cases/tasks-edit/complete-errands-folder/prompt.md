@@ -1,5 +1,5 @@
 ---
-title: Complete a whole folder without confirming
+title: Complete every open task in a folder
 difficulty: medium
 ---
 
