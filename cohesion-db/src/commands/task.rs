@@ -46,6 +46,27 @@ pub(crate) fn followed(ctx: &mut CommandContext<'_>, task: &Task) -> DatabaseCom
     ctx.run(FollowLinksCommand::of(task))
 }
 
+/// Fails with a validation error unless `workspace_id` has a live task folder
+/// `folder_id`: a task is put only in a folder that lists it.
+fn ensure_folder<'c>(
+    db: impl ReadableDatabase<'c>,
+    workspace_id: i64,
+    folder_id: i64,
+) -> DatabaseCommandResult<()> {
+    let exists = db
+        .select_live::<TaskFolder>()
+        .filter_eq(TaskFolder::WORKSPACE_ID, workspace_id)
+        .filter_eq(TaskFolder::ID, folder_id)
+        .exists()?;
+    if exists {
+        Ok(())
+    } else {
+        Err(CommandError::Validation(ValidationError::new(
+            "That task folder doesn’t exist.",
+        )))
+    }
+}
+
 /// The live tasks some filters cover, in `sort`'s order.
 #[derive(Clone)]
 pub struct TaskListing {
@@ -230,20 +251,8 @@ impl DatabaseCommand for CreateTaskCommand {
     fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<Task>> {
         ensure_workspace(ctx.db, self.workspace_id)?;
 
-        let folder_id_exists = match self.folder_id {
-            Some(folder_id) => ctx
-                .db
-                .select_live::<TaskFolder>()
-                .filter_eq(TaskFolder::WORKSPACE_ID, self.workspace_id)
-                .filter_eq(TaskFolder::ID, folder_id)
-                .exists()?,
-            None => true,
-        };
-
-        if !folder_id_exists {
-            return DatabaseCommandResult::Err(CommandError::Validation(ValidationError::new(
-                "That task folder doesn’t exist.",
-            )));
+        if let Some(folder_id) = self.folder_id {
+            ensure_folder(ctx.db, self.workspace_id, folder_id)?;
         }
 
         let task: Task = ctx
@@ -307,7 +316,7 @@ impl DatabaseCommand for ChangeTaskStatusCommand {
         ensure_workspace(ctx.db, self.workspace_id)?;
         let changed: Option<Task> = ctx
             .db
-            .update()
+            .update_live()
             .set(Task::STATUS, self.status.clone())
             .filter("workspace_id = ? AND id = ? AND status != ?")
             .bind(self.workspace_id)
@@ -349,7 +358,7 @@ impl DatabaseCommand for ChangeTaskTitleCommand {
         ensure_workspace(ctx.db, self.workspace_id)?;
         let changed: Option<Task> = ctx
             .db
-            .update()
+            .update_live()
             .set(Task::TITLE, self.title.clone())
             .filter("workspace_id = ? AND id = ? AND title != ?")
             .bind(self.workspace_id)
@@ -390,7 +399,7 @@ impl DatabaseCommand for ChangeTaskPriorityCommand {
         ensure_workspace(ctx.db, self.workspace_id)?;
         let changed: Option<Task> = ctx
             .db
-            .update()
+            .update_live()
             .set(Task::PRIORITY, self.priority)
             .filter("workspace_id = ? AND id = ? AND priority != ?")
             .bind(self.workspace_id)
@@ -431,7 +440,7 @@ impl DatabaseCommand for ChangeTaskSizeCommand {
         ensure_workspace(ctx.db, self.workspace_id)?;
         let changed: Option<Task> = ctx
             .db
-            .update()
+            .update_live()
             .set(Task::SIZE, self.size)
             .filter("workspace_id = ? AND id = ? AND size IS NOT ?")
             .bind(self.workspace_id)
@@ -474,7 +483,7 @@ impl DatabaseCommand for ChangeTaskAssigneeCommand {
             .expect("an assignee is three columns");
         let changed: Option<Task> = ctx
             .db
-            .update()
+            .update_live()
             .set_group(self.assignee)
             .filter(
                 "workspace_id = ? AND id = ? \
@@ -521,7 +530,7 @@ impl DatabaseCommand for ChangeTaskDescriptionCommand {
         ensure_workspace(ctx.db, self.workspace_id)?;
         let changed: Option<Task> = ctx
             .db
-            .update()
+            .update_live()
             .set(Task::DESCRIPTION, self.description.clone())
             .filter("workspace_id = ? AND id = ? AND description != ?")
             .bind(self.workspace_id)
@@ -609,7 +618,7 @@ impl DatabaseCommand for ChangeTasksStatusCommand {
     ) -> DatabaseCommandResult<Changed<Self::Response>> {
         let changed: Vec<Task> = ctx
             .db
-            .update()
+            .update_live()
             .set(Task::STATUS, self.status.clone())
             .filter_in_values("id", self.task_ids)
             .filter("workspace_id = ? AND status != ?")
@@ -651,6 +660,9 @@ impl DatabaseCommand for MoveTaskToFolderCommand {
             task_id: self.task_id,
         }
         .handle(&mut ctx.as_read())?;
+        if let Some(folder_id) = self.folder_id {
+            ensure_folder(ctx.db, self.workspace_id, folder_id)?;
+        }
         let v = ctx
             .db
             .update()
@@ -684,7 +696,7 @@ impl DatabaseCommand for DeleteTaskCommand {
         ensure_workspace(ctx.db, self.workspace_id)?;
         let task = ctx
             .db
-            .update()
+            .update_live()
             .set_true(Task::DELETED)
             .filter_eq(Task::WORKSPACE_ID, self.workspace_id)
             .filter_eq(Task::ID, self.task_id)

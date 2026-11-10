@@ -6,6 +6,8 @@ use std::future::Future;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
+use cohesion_core::log::Module;
+use cohesion_core::log_error;
 use cohesion_core::protocol::ShuttingDown;
 use tokio::sync::Notify;
 
@@ -95,7 +97,8 @@ impl WorkTracker {
     /// Runs `task` on a timer: first after `first_after`, then every
     /// `interval`, until the tracker is closed. Each pass is new work under
     /// `label`, so one under way runs to its end and none starts after
-    /// [`close`](Self::close).
+    /// [`close`](Self::close). A pass that panics is logged and ends alone:
+    /// the timer goes on to the next.
     pub fn every<F, Fut>(
         &self,
         label: &'static str,
@@ -104,12 +107,18 @@ impl WorkTracker {
         task: F,
     ) where
         F: Fn() -> Fut + Send + 'static,
-        Fut: Future<Output = ()> + Send,
+        Fut: Future<Output = ()> + Send + 'static,
     {
         let work = self.clone();
         tokio::spawn(async move {
             tokio::time::sleep(first_after).await;
-            while work.run_new(label, task()).await.is_ok() {
+            while let Ok(running) = work.begin_new(label) {
+                // A task of its own, so a panic in the pass is its end and
+                // not this loop's, which nothing would start again.
+                if let Err(error) = tokio::spawn(task()).await {
+                    log_error!(Module::Server, "A {label} pass failed: {error}");
+                }
+                drop(running);
                 tokio::time::sleep(interval).await;
             }
         });

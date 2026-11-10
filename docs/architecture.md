@@ -852,7 +852,8 @@ was stopped doesn't fire. After `day:start` it queues `task:start` then
 
 The timed passes started by `CohesionContext::start` (cleanup, resource and
 feed refresh, update checks) raise no hooks of their own; what they change
-does.
+does. A pass that panics is logged and the timer goes on to the next
+(`WorkTracker::every`).
 
 ---
 
@@ -2244,7 +2245,7 @@ on Linux):
 
 **`cohesion open`** (`cohesion/src/cli/open.rs`, `cohesion/src/web_proxy/`):
 
-1. Reads `About` and the current workspace for `/client`, and takes a token: from `COHESION_DEV_TOKEN` with `--dev`, else the saved `web-token` (32 random letters and digits), made once and kept until `--reset-token`.
+1. Reads `About` and the current workspace for `/client`, and takes a token: from `COHESION_DEV_TOKEN` with `--dev`, else the saved `web-token` (32 random letters and digits), made once and kept until `--reset-token`; a file holding anything else, such as one a failed write left empty, is replaced.
 2. Fetches the bundle with `WebBundle` and inflates it into memory (`static_assets.rs`). With `--dev` it serves only `/client` and `/connect`, for Vite.
 3. Binds `127.0.0.1` on `--port` or 7343, falling back to a free port, prints the address, and opens a browser unless `--no-browser`.
 4. Serves `GET /launch/<nonce>` (one use, within 30 s, answering `303` to `/#token=<token>` with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`, so the token never sits on a command line), `GET /client`, `/connect` (a WebSocket relayed unchanged to a new session over the CLI's own connection, up to 64 MiB a message), and the files (anything unknown is `index.html`; `_app/immutable/` is cached for a year).
@@ -2467,8 +2468,9 @@ an HTTP status, "That address isn't an RSS or Atom feed.", "That feed is over
 client (`fetch.rs`): 20 s, user agent `cohesion`, redirects followed, at most
 5 MiB. An HTML page is searched for a feed link (`discover_feed`), followed
 once. The body is sniffed: `{` is JSON Feed, a root `rss` is RSS 2.0, a root
-`feed` is Atom; anything else isn't a feed. Items without a link are dropped,
-and items already known are skipped without fetching.
+`feed` is Atom; anything else isn't a feed. Items without a link, or whose
+link isn't an http or https address, are dropped, and items already known are
+skipped without fetching.
 
 **An article's text** (`feed/item.rs`). The feed's own HTML goes through
 Coherence, unless it is an excerpt (ending in an ellipsis or a "read more"
@@ -2551,7 +2553,7 @@ socket.
 
 **External input is bounded.** Fetched pages and feeds: 5 MiB and 20 s.
 Script fetches: 20 s and 32 MiB. Model requests: 30 s to connect, 10 minutes
-to finish. Extension downloads: 5 MiB and 20 s. Catalogs, feeds and pages are
+to finish. The models.dev catalog: 60 s. Extension downloads: 5 MiB and 20 s. Catalogs, feeds and pages are
 parsed defensively.
 
 **Logging** (`cohesion-core/src/log/`). `log_debug!`, `log_info!`,

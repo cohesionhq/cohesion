@@ -2,6 +2,8 @@
 
 use std::collections::HashSet;
 
+use cohesion_core::log::Module;
+use cohesion_core::log_error;
 use cohesion_core::model::{ArticleFetchFailure, Feed, FeedCapture, FeedFullPagePolicy};
 use cohesion_core::protocol::ServerError;
 use cohesion_db::{FeedItemUrlsCommand, RecordFeedCommand};
@@ -43,6 +45,8 @@ pub(crate) async fn refresh_feed(ctx: &CohesionContext, feed: &Feed) -> Result<F
 }
 
 /// Refreshes every feed of `feeds` at once, each result in `feeds`' order.
+/// A feed whose reading panics is an internal error of its own; the rest
+/// are still refreshed.
 pub(crate) async fn refresh_feeds(
     ctx: &CohesionContext,
     feeds: Vec<Feed>,
@@ -56,7 +60,10 @@ pub(crate) async fn refresh_feeds(
         .collect::<Vec<_>>();
     let mut refreshed = Vec::with_capacity(tasks.len());
     for task in tasks {
-        refreshed.push(task.await.expect("refreshing a feed doesn't panic"));
+        refreshed.push(task.await.unwrap_or_else(|panic| {
+            log_error!(Module::Feeds, "Refreshing a feed panicked: {panic}");
+            Err(ServerError::internal())
+        }));
     }
     refreshed
 }
