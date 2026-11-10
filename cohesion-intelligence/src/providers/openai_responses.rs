@@ -487,9 +487,11 @@ impl ResponsesResponse {
                 .cache_write_tokens_details
                 .map_or(0, |writes| writes.ttl_12h_tokens);
             Usage {
-                input_tokens: usage
-                    .input_tokens
-                    .saturating_sub(details.cached_tokens + details.cache_write_tokens),
+                input_tokens: usage.input_tokens.saturating_sub(
+                    details
+                        .cached_tokens
+                        .saturating_add(details.cache_write_tokens),
+                ),
                 output_tokens: usage.output_tokens,
                 cache_reads: details.cached_tokens,
                 cache_writes: details.cache_write_tokens,
