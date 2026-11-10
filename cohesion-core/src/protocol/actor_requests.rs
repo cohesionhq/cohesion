@@ -136,6 +136,15 @@ pub struct ResolveActorSessionRequest {
     pub session_id: i64,
 }
 
+/// Has agent `agent_id` stop following actor session `session_id`: it no
+/// longer wakes when the session stops on its own. A session another agent
+/// follows, or none does, is left as it is.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct UnfollowActorSessionRequest {
+    pub session_id: i64,
+    pub agent_id: i64,
+}
+
 /// Switches actor session `session_id` to mode `mode`, one its actor offers, from
 /// its next step on, even while it works. Its client must be online.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]

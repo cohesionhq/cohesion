@@ -281,6 +281,17 @@ export class ActorsStore {
 		return session;
 	}
 
+	/**
+	 * Has agent `agent_id` stop following session `session_id`: it no longer
+	 * wakes when the session stops, and leaves the agent's list at once.
+	 */
+	async unfollow(session_id: number, agent_id: number): Promise<ActorSession> {
+		const session = await this.#send('unfollowActorSession', { session_id, agent_id });
+		this.sessions.update((list) => list.map((t) => (t.id === session.id ? session : t)));
+		if (this.session.key === session_id) this.session.set(session);
+		return session;
+	}
+
 	/** Holds the images just sent with message `message_id`, so they show without a fetch. */
 	#keep(message_id: number, images: ImageUpload[]) {
 		if (images.length === 0) return;

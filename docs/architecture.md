@@ -1448,6 +1448,10 @@ something, replacing any earlier follower. When the session stops on its own
 (it needs the user, finishes, fails, or its device goes away), a follow-up
 fork wakes with the actor's latest reply and the prompt it was given (cut at
 800 characters), and the follow's initiative ([14](#14-actor-clients-and-actor-sessions)).
+The user ends a follow with `UnfollowActorSession` (`session_id`, `agent_id`;
+Stop following in the agent's Monitoring list), which clears the follower only
+when it is that agent, so an agent that took the session over since keeps it;
+the agent follows again the next time it tells the session something.
 
 ### 13. What an agent can read and write
 

@@ -1,11 +1,12 @@
 <!--
 	The column beside an agent's conversation: its context size, role and how many sessions it follows, the actor sessions
 	not yet resolved that it handed work and follows, each led by where it stands
-	and naming its actor, with Resolve on hover or focus, then its cues.
+	and naming its actor, with Stop following and Resolve on hover or focus, then its cues.
 -->
 <script lang="ts">
 	import Archive from '@lucide/svelte/icons/archive';
 	import BellRing from '@lucide/svelte/icons/bell-ring';
+	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import { flip } from 'svelte/animate';
 	import { backOut } from 'svelte/easing';
 	import { fade, fly, scale } from 'svelte/transition';
@@ -33,11 +34,16 @@
 		/** The sessions not yet resolved that the agent follows. */
 		sessions: ActorSession[];
 		onresolve: (session: ActorSession) => void;
+		/** Has the agent stop following `session`, so it no longer wakes when the session stops. */
+		onunfollow: (session: ActorSession) => void;
 	}
 
-	let { agent, cues, actors, sessions, onresolve }: Props = $props();
+	let { agent, cues, actors, sessions, onresolve, onunfollow }: Props = $props();
 
 	const actorTitle = (id: number) => actors.find((actor) => actor.id === id)?.title;
+	// A row's Stop following and Resolve, on the canvas their wrapper lays under them.
+	const actionClass =
+		'flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-fg-subtle hover:bg-bg-hover hover:text-fg';
 	// Each session names its actor only when they differ; the same name under every row says nothing.
 	const namesActors = $derived(
 		sessions.length === 1 ||
@@ -78,9 +84,9 @@
 					out:fade={{ duration: motion.duration }}
 					animate:flip={{ duration: motion.duration }}
 				>
-					<!-- A touch screen, which always shows Resolve, keeps the row's end clear of it. -->
+					<!-- A touch screen, which always shows the actions, keeps the row's end clear of them. -->
 					<a
-						class="flex cursor-pointer items-start gap-2 py-1 text-left text-sm text-fg-muted no-underline hover:text-fg hover:no-underline touch:pr-7"
+						class="flex cursor-pointer items-start gap-2 py-1 text-left text-sm text-fg-muted no-underline hover:text-fg hover:no-underline touch:pr-13"
 						href={routes.actorSession(session.id)}
 					>
 						<span class="sr-only">{vocabulary.actorSessionStatus(session.status)}, </span>
@@ -113,16 +119,28 @@
 							>
 						</span>
 					</a>
-					<!-- Beside the link, not in it: hover or focus shows it, a touch screen always does. It lies over the
-				     row's end on the column's canvas, faded in on its left, so showing it never rewraps a title. -->
-					<button
-						type="button"
-						class="absolute top-1/2 right-0 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md border-0 bg-canvas text-fg-subtle opacity-0 group-focus-within/session:opacity-100 group-hover/session:opacity-100 before:absolute before:inset-y-0 before:right-full before:w-3 before:bg-linear-to-r before:from-transparent before:to-canvas hover:bg-bg-hover hover:text-fg touch:opacity-100"
-						aria-label="Resolve “{session.title}”"
-						onclick={() => onresolve(session)}
+					<!-- Beside the link, not in it: hover or focus shows them, a touch screen always does. They lie over
+				     the row's end on the column's canvas, faded in on their left, so showing them never rewraps a title. -->
+					<div
+						class="absolute top-1/2 right-0 flex -translate-y-1/2 items-center gap-0.5 bg-canvas opacity-0 group-focus-within/session:opacity-100 group-hover/session:opacity-100 before:absolute before:inset-y-0 before:right-full before:w-3 before:bg-linear-to-r before:from-transparent before:to-canvas touch:opacity-100"
 					>
-						<Archive size={14} strokeWidth={1.75} />
-					</button>
+						<button
+							type="button"
+							class={actionClass}
+							aria-label="Stop following “{session.title}”"
+							onclick={() => onunfollow(session)}
+						>
+							<EyeOff size={14} strokeWidth={1.75} />
+						</button>
+						<button
+							type="button"
+							class={actionClass}
+							aria-label="Resolve “{session.title}”"
+							onclick={() => onresolve(session)}
+						>
+							<Archive size={14} strokeWidth={1.75} />
+						</button>
+					</div>
 				</div>
 			{/each}
 		</div>

@@ -271,12 +271,15 @@
 		</div>
 		<ConversationGutter open={gutterAgent !== null || gutterSession !== null}>
 			{#if gutterAgent}
+				{@const agentId = gutterAgent.id}
 				<AgentGutter
 					agent={gutterAgent}
 					cues={agents.cues.key === gutterAgent.id ? agents.cues.value : []}
 					actors={actors.list.value}
 					sessions={actors.followedBy(gutterAgent.id)}
 					onresolve={resolveSession}
+					onunfollow={(session) =>
+						actors.unfollow(session.id, agentId).catch((e) => toasts.error(e))}
 				/>
 			{:else if gutterSession}
 				<SessionGutter

@@ -7,6 +7,11 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- An agent's Monitoring list, in the column beside its conversation, has
+  Stop following on hover or focus beside Resolve. The agent then no longer
+  wakes when that actor session stops, until it tells the session something
+  again. Clients send `unfollowActorSession` with the session and the agent;
+  a session another agent follows is left as it is.
 - An item's panel shows Backlinks: the documents and journal entries that
   link to the item, wherever the link is in their text. Click one to open it
   over the page. When nothing links to the item, the section doesn't show.
