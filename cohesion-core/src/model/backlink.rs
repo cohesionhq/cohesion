@@ -5,6 +5,8 @@
 //! text links to, rewritten whenever the item is written. The item itself
 //! never deals with them.
 
+use std::collections::HashSet;
+
 use cohesion_macros::Model;
 use serde::{Deserialize, Serialize};
 
@@ -81,9 +83,10 @@ pub struct OutgoingLink {
 /// in the order the text first links to it, and never `source` itself.
 pub fn outgoing_links(source: LinkTarget, text: &str) -> Vec<OutgoingLink> {
     let mut links: Vec<OutgoingLink> = Vec::new();
+    let mut known = HashSet::from([source]);
     for (link, written) in item_links(text) {
         let target = link.target();
-        if target != source && !links.iter().any(|known| known.target == target) {
+        if known.insert(target) {
             links.push(OutgoingLink {
                 target,
                 link: written.to_string(),
@@ -112,9 +115,12 @@ pub fn item_links(text: &str) -> Vec<(ItemLink, &str)> {
         if fenced {
             continue;
         }
-        let code = code_spans(line);
+        // Spans and matches both come in order, so each span is passed once: a
+        // line of many spans and many links is read in one pass, not one per link.
+        let mut code = code_spans(line).into_iter().peekable();
         for (at, _) in line.match_indices(SCHEME) {
-            if code.iter().any(|span| span.contains(&at)) {
+            while code.next_if(|span| span.end <= at).is_some() {}
+            if code.peek().is_some_and(|span| span.contains(&at)) {
                 continue;
             }
             let before = &line[..at];
