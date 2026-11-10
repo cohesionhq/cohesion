@@ -40,6 +40,7 @@
 	import { workspaces } from '$lib/stores/workspaces.svelte';
 	import Toast from '$lib/ui/Toast.svelte';
 	import { UNREACHABLE_MESSAGE, toasts } from '$lib/ui/toasts.svelte';
+	import { notify, openNotificationsWith } from '$lib/ui/notify';
 	import { planOf } from '$lib/features/actors/plan';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 
@@ -66,11 +67,31 @@
 	const routeAgent = $derived(page.params.agent ? Number(page.params.agent) : null);
 	const routeSession = $derived(page.params.session ? Number(page.params.session) : null);
 	/** The agent whose conversation is open, which the column beside the page speaks for. */
-	const gutterAgent = $derived(agents.list.value.find((agent) => agent.id === routeAgent) ?? null);
+	const routeGutterAgent = $derived(
+		agents.list.value.find((agent) => agent.id === routeAgent) ?? null
+	);
 	/** The actor session open, which the column speaks for in the same way. */
-	const gutterSession = $derived(
+	const routeGutterSession = $derived(
 		routeSession !== null && actors.session.key === routeSession ? actors.session.value : null
 	);
+	/** Whether the open conversation's agent or session is still on its way. */
+	const gutterLoading = $derived(
+		routeAgent !== null
+			? !agents.list.loaded
+			: routeSession !== null && (actors.session.key !== routeSession || actors.session.loading)
+	);
+	// What the column speaks for. It keeps the last conversation while the next one loads, so
+	// moving between two stays one open column whose contents fade (`shell/fade.ts`), rather than
+	// one that shuts and opens again.
+	let gutterAgent = $state<typeof routeGutterAgent>(null);
+	let gutterSession = $state<typeof routeGutterSession>(null);
+	$effect.pre(() => {
+		const agent = routeGutterAgent;
+		const session = routeGutterSession;
+		if (gutterLoading) return;
+		gutterAgent = agent;
+		gutterSession = session;
+	});
 
 	// The route owns the current workspace; remember it for the next visit.
 	$effect(() => {
@@ -130,10 +151,11 @@
 			connection.onInvalidate((keys) => {
 				for (const key of keys) {
 					if (key.kind === 'notification') {
-						toasts.show(key.id.message, 'info', { title: key.id.title });
+						notify({ message: key.id.message, title: key.id.title });
 					}
 				}
 			}),
+			openNotificationsWith((href) => void goto(href)),
 			connection.onReset(() => void refreshAll()),
 			connection.onReconnected(() => void refreshAll())
 		];
@@ -142,7 +164,8 @@
 		void workspaces.load();
 		// Loaded app-wide so the sidebar's agents and new-message toasts work on every page.
 		agents.onNewMessage = (agent) =>
-			toasts.show(`${agent.agent_name} sent you a message.`, 'info', {
+			notify({
+				message: `${agent.agent_name} sent you a message.`,
 				href: routes.agent(agent.id),
 				avatar: { name: agent.agent_name, color: agent.agent_color, emoji: agent.agent_emoji }
 			});
@@ -271,19 +294,23 @@
 		</div>
 		<ConversationGutter open={gutterAgent !== null || gutterSession !== null}>
 			{#if gutterAgent}
+				{@const agentId = gutterAgent.id}
 				<AgentGutter
 					agent={gutterAgent}
 					cues={agents.cues.key === gutterAgent.id ? agents.cues.value : []}
 					actors={actors.list.value}
 					sessions={actors.followedBy(gutterAgent.id)}
 					onresolve={resolveSession}
+					onunfollow={(session) =>
+						actors.unfollow(session.id, agentId).catch((e) => toasts.error(e))}
 				/>
 			{:else if gutterSession}
+				{@const session = gutterSession}
 				<SessionGutter
-					session={gutterSession}
-					actor={actors.list.value.find((a) => a.id === gutterSession.actor_id) ?? null}
-					plan={planOf(actors.usage.value, gutterSession.actor_id)}
-					family={actors.family.key === gutterSession.id ? actors.family.value : []}
+					{session}
+					actor={actors.list.value.find((a) => a.id === session.actor_id) ?? null}
+					plan={planOf(actors.usage.value, session.actor_id)}
+					family={actors.family.key === session.id ? actors.family.value : []}
 				/>
 			{/if}
 		</ConversationGutter>

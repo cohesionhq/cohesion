@@ -13,6 +13,7 @@ mod client_requests;
 mod command;
 mod connector_requests;
 mod contact_requests;
+mod database_requests;
 mod document_requests;
 mod embed_requests;
 mod envelope;
@@ -49,6 +50,7 @@ pub use client_requests::*;
 pub use command::Command;
 pub use connector_requests::*;
 pub use contact_requests::*;
+pub use database_requests::*;
 pub use document_requests::*;
 pub use embed_requests::*;
 pub use envelope::{

@@ -57,3 +57,39 @@ export function usageTotals(events: IntelligenceCostEvent[]): UsageTotals {
 		{ calls: 0, input_tokens: 0, cached_tokens: 0, output_tokens: 0, cost: 0 }
 	);
 }
+
+/** The columns of a usage export, each with how to read it from a cost event. */
+const CSV_COLUMNS: [string, (event: IntelligenceCostEvent) => string | number | null][] = [
+	['time', (e) => new Date(e.created_at * 1000).toISOString()],
+	['provider', (e) => e.provider_identifier],
+	['model', (e) => e.model_identifier],
+	['thread_id', (e) => e.thread_id],
+	['input_tokens', (e) => e.input_tokens],
+	['cache_write_tokens', (e) => e.cache_write_tokens],
+	['cache_read_tokens', (e) => e.cache_read_tokens],
+	['output_tokens', (e) => e.output_tokens],
+	['input_cost_usd', (e) => e.input_cost],
+	['cache_write_cost_usd', (e) => e.cache_write_cost],
+	['cache_read_cost_usd', (e) => e.cache_read_cost],
+	['output_cost_usd', (e) => e.output_cost],
+	['total_cost_usd', (e) => e.total_cost]
+];
+
+/** One CSV field: quoted when it holds a comma, quote or line break; empty for null. */
+function csvField(value: string | number | null): string {
+	if (value === null) return '';
+	const text = String(value);
+	return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+/**
+ * Every call as a CSV row (RFC 4180), oldest first, for analysis elsewhere. Times are UTC in
+ * ISO 8601; token counts are as the provider reported them, so `input_tokens` leaves out cache
+ * writes; a cost a provider didn't break down is empty, and costs are in US dollars, unrounded.
+ */
+export function usageCsv(events: IntelligenceCostEvent[]): string {
+	const rows = [...events]
+		.sort((a, b) => a.created_at - b.created_at || a.id - b.id)
+		.map((event) => CSV_COLUMNS.map(([, read]) => csvField(read(event))).join(','));
+	return [CSV_COLUMNS.map(([name]) => name).join(','), ...rows].map((row) => `${row}\r\n`).join('');
+}

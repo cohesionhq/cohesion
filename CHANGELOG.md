@@ -7,6 +7,69 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- An agent's Monitoring list, in the column beside its conversation, has
+  Stop following on hover or focus beside Resolve. The agent then no longer
+  wakes when that actor session stops, until it tells the session something
+  again. Clients send `unfollowActorSession` with the session and the agent;
+  a session another agent follows is left as it is.
+- A task's description links as a document does: a task whose description
+  links to an item, as a card or in a sentence, shows under that item's
+  Backlinks, and moves off it when the link goes or the task is deleted.
+  When the daemon is upgraded, it fills the list from existing tasks.
+- The daemon keeps databases: tables in a workspace whose columns each hold
+  one type of value (text, whole number, decimal, currency, checkbox or
+  date), whose rows may each have a document of their own, and whose rows
+  can be filtered and sorted on any column. A row's document stays out of
+  the document list and search. The wire gains `listDatabases`,
+  `getDatabase`, `createDatabase`, `renameDatabase`, `deleteDatabase`,
+  `listDatabaseProperties`, `createDatabaseProperty`,
+  `renameDatabaseProperty`, `setDatabasePropertyType`,
+  `moveDatabaseProperty`, `deleteDatabaseProperty`, `listDatabaseRows`,
+  `getDatabaseRow`, `createDatabaseRow`, `deleteDatabaseRow`,
+  `setDatabaseValue` and `createDatabaseRowDocument`, the `databases(ws)`
+  and `database(id)` invalidations, `hello.vocabulary.database_data_types`,
+  and a `databaseRow` document type, which a client meets only by opening a
+  row's document. The iPhone app needn't show databases.
+- A database column can be a formula: a JavaScript function of the row,
+  such as `(row) => row.Price * row.Quantity`, whose result fills the
+  column in every row and is computed again when the row or the columns
+  change. Its results filter and sort like any value. A row the formula
+  fails on stays empty, and the formula shows why. Formulas run with
+  nothing but the row, under a time and memory limit. The wire gains
+  `setDatabasePropertyFormula`, a `formula` on `createDatabaseProperty`
+  and on `DatabaseProperty` (`{source, error}` or `null`), and
+  `setDatabaseValue` refuses a formula's column.
+- A database and a row of one can be linked to, as
+  `cohesion://database/<ws>/<id>` and
+  `cohesion://database-row/<ws>/<database>/<id>`, and `resolveLink`,
+  `resolveEmbeds` and `backlinksOf` answer for them: `EmbedKind` and
+  `LinkKind` gain `database` and `databaseRow`, and `EmbedItem` gains
+  `database` (its properties, its first 5 rows and its `row_count`) and
+  `databaseRow` (the row's cells, its database's title and properties). A
+  row's title is its first text column's value, or "Untitled". A link to a
+  row's document resolves as the row, and what a row's document links to
+  lists the row among its backlinks. `hello.vocabulary.embed_kinds` gains
+  their words. Clients that switch on an embed's `kind` or `item.kind`
+  need the two new cases; the iPhone app can show them by title, excerpt
+  and kind word until it draws them.
+- The web UI shows databases. Databases, in each workspace's sidebar and
+  ⌘K, lists them, and a database opens as a table: add a column of any type,
+  rename it, change its type, move it or delete it; add and delete rows; edit
+  a cell in place; and sort and filter on any column, which Cohesion does on
+  the server. A formula's column is read-only and shows why it failed.
+- A database row opens over the page, with its value for each of the
+  database's properties, editable there as in the table, and a document of
+  its own below them, which the row gains once you write in it. A new column
+  can be a formula, written in a code editor that explains what the row holds
+  and starts from an example using the database's own columns; a column's
+  menu edits its formula, turns a column set by hand into a formula, which
+  deletes its values, and back.
+- A link to a database or a row alone on its line shows as a card: a
+  database with its first rows as a small table, a row with a few of its
+  values and the start of its document. Clicking a database's card opens its
+  table; clicking a row's opens the row over the page. Copy link is on a
+  database's ⋯ menu, a row's ⋯ menu and the row's panel, and a row's panel
+  lists what links to it.
 - An item's panel shows Backlinks: the documents and journal entries that
   link to the item, wherever the link is in their text. Click one to open it
   over the page. When nothing links to the item, the section doesn't show.

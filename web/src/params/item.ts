@@ -1,8 +1,8 @@
 import type { ParamMatcher } from '@sveltejs/kit';
-import type { ItemKind } from '$lib/shell/routes';
+import type { UnscopedItemKind } from '$lib/shell/routes';
 
 /** The kinds of item a `cohesion://` link opens. */
-export const match = ((param: string): param is ItemKind =>
+export const match = ((param: string): param is UnscopedItemKind =>
 	param === 'task' ||
 	param === 'document' ||
 	param === 'agent' ||

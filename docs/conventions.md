@@ -74,8 +74,10 @@ type would need it, the client keeps that part as raw JSON instead
   tasks. A client that is nothing but the WebUI in a web view is a WebUI harness. An actor session's connection-level cousin is a client's session; say
   which you mean.
 - Items link to each other as `cohesion://task/<ws>/<id>`,
-  `cohesion://document/<ws>/<id>`, `cohesion://agent/<id>` and
-  `cohesion://actor-session/<id>` (see "The web UI" in [architecture.md](architecture.md#16-the-web-ui)).
+  `cohesion://document/<ws>/<id>`, `cohesion://resource/<ws>/<id>`,
+  `cohesion://database/<ws>/<id>`,
+  `cohesion://database-row/<ws>/<database>/<id>`, `cohesion://agent/<id>`,
+  `cohesion://actor-session/<id>` and `cohesion://article/<id>` (see "The web UI" in [architecture.md](architecture.md#16-the-web-ui)).
   Every client opens a link to one-row content (an item shown as one row in
   a list with a small detail view: a task) over the current screen, never by
   navigating away: a sheet in the iPhone app. The web UI opens every link

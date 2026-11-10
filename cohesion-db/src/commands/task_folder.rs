@@ -8,6 +8,7 @@ use cohesion_core::protocol::{
 use cohesion_core::{FromRequest, Task, TaskFolder};
 
 use crate::changed::{Changed, Invalidates};
+use crate::commands::task::followed;
 use crate::commands::title::ensure_title;
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::{
@@ -137,14 +138,17 @@ impl DatabaseCommand for DeleteTaskFolderCommand {
             .filter_eq(TaskFolder::ID, self.folder_id)
             .returning_one()
             .found()?;
-        _ = ctx
+        let tasks: Vec<Task> = ctx
             .db
-            .update::<Task>()
+            .update()
             .set_true(Task::DELETED)
             .filter("task_folder_id = ? AND workspace_id = ?")
             .bind(self.folder_id)
             .bind(self.workspace_id)
-            .execute()?;
+            .returning_all()?;
+        for task in &tasks {
+            followed(ctx, task)?;
+        }
         ctx.events
             .send(ctx.trace.event(DatabaseEventKind::TaskFolderDeleted {
                 folder_id: self.folder_id,

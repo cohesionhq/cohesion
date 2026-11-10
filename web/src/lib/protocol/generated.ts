@@ -952,8 +952,8 @@ export type AttachmentMessage =
 /**
  * The items whose text links to the item `link` names, as `resolveLink`
  * resolves each: a link anywhere in their text, alone on its line or in a
- * sentence, outside code. Only documents and journal entries are followed
- * so far. The item named needn't exist; text that isn't a `cohesion://`
+ * sentence, outside code. Documents, journal entries and tasks'
+ * descriptions are followed so far. The item named needn't exist; text that isn't a `cohesion://`
  * link fails validation on `link`. `backlinks` of the item's kind and id
  * says when the list changed.
  */
@@ -1287,6 +1287,41 @@ export interface CreateContactRequest {
 	methods: NewContactMethod[];
 }
 
+/**
+ * Adds a property to a database, after its others: a formula computing
+ * its values from `formula`'s source (see `DatabaseFormula`), or one whose
+ * values are set by hand when absent.
+ */
+export interface CreateDatabasePropertyRequest {
+	workspace_id: number;
+	database_id: number;
+	name: string;
+	data_type: DatabaseDataType;
+	formula?: string | null;
+}
+
+/** Creates a database with no properties or rows in a workspace. */
+export interface CreateDatabaseRequest {
+	workspace_id: number;
+	title: string;
+}
+
+/**
+ * Gives row `row_id` of a database an empty document of its own; refused
+ * when it has one. `deleteDocument` removes it.
+ */
+export interface CreateDatabaseRowDocumentRequest {
+	workspace_id: number;
+	database_id: number;
+	row_id: number;
+}
+
+/** Adds an empty row to a database. */
+export interface CreateDatabaseRowRequest {
+	workspace_id: number;
+	database_id: number;
+}
+
 /** Creates a document folder in a workspace, last among its siblings. */
 export interface CreateDocumentFolderRequest {
 	workspace_id: number;
@@ -1412,6 +1447,13 @@ export interface CreateWorkspaceRequest {
 	emoji?: string | null;
 }
 
+/** A table of typed values in a workspace. */
+export interface Database {
+	id: number;
+	workspace_id: number;
+	title: string;
+}
+
 /** A backup the daemon wrote. */
 export interface DatabaseBackup {
 	/** Where it is, on the daemon's computer. */
@@ -1419,6 +1461,73 @@ export interface DatabaseBackup {
 	/** How large it is, in bytes. */
 	bytes: number;
 }
+
+/** One row's value for one property, on the wire. */
+export interface DatabaseCell {
+	property_id: number;
+	value: DatabaseValue;
+}
+
+/**
+ * What a filter keeps of a property's values. Values compare as their
+ * property's type: text ignoring case, numbers as numbers, dates by day.
+ *
+ * - `isEmpty`, `isNotEmpty`: whether the row holds a value; every type.
+ * - `equals`, `notEquals`: the value is or isn't `value`, of the property's
+ *   type; every type.
+ * - `contains`, `notContains`: the text holds `text` or doesn't; text only.
+ * - `greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`: against
+ *   `value`; integers, decimals, currency and dates (later is greater).
+ *
+ * An empty value matches only `isEmpty`, `notEquals` and `notContains`.
+ */
+export type DatabaseCondition =
+	| { kind: 'isEmpty' }
+	| { kind: 'isNotEmpty' }
+	| {
+			kind: 'equals';
+			value: DatabaseValue;
+	  }
+	| {
+			kind: 'notEquals';
+			value: DatabaseValue;
+	  }
+	| {
+			kind: 'contains';
+			text: string;
+	  }
+	| {
+			kind: 'notContains';
+			text: string;
+	  }
+	| {
+			kind: 'greaterThan';
+			value: DatabaseValue;
+	  }
+	| {
+			kind: 'greaterOrEqual';
+			value: DatabaseValue;
+	  }
+	| {
+			kind: 'lessThan';
+			value: DatabaseValue;
+	  }
+	| {
+			kind: 'lessOrEqual';
+			value: DatabaseValue;
+	  };
+
+/**
+ * What kind of value a database property holds; stored as text.
+ *
+ * - `"text"`: any text.
+ * - `"integer"`: a whole number.
+ * - `"decimal"`: a number with a fractional part.
+ * - `"currency"`: an amount of money, a decimal number.
+ * - `"checkbox"`: checked or not.
+ * - `"date"`: a day, as `"YYYY-MM-DD"`.
+ */
+export type DatabaseDataType = 'text' | 'integer' | 'decimal' | 'currency' | 'checkbox' | 'date';
 
 /** An export the daemon wrote, waiting to be read. */
 export interface DatabaseExport {
@@ -1432,9 +1541,79 @@ export interface DatabaseExportPart {
 	data: string;
 }
 
+/** Keeps the rows whose value for `property_id` meets `condition`. */
+export interface DatabaseFilter {
+	property_id: number;
+	condition: DatabaseCondition;
+}
+
+/**
+ * A property whose value in each row is computed by a JavaScript function
+ * of the row, such as `(row) => row.Price * row.Quantity`. The row maps
+ * each property that isn't a formula, by name, to its value: a string for
+ * text and dates (`"YYYY-MM-DD"`), a number for whole numbers, decimals and
+ * currency, a boolean for a checkbox, and `null` when empty. The function
+ * returns a value of the property's type (the same shapes), or `null` or
+ * `undefined` for an empty cell. Its outputs are stored like any value, so
+ * rows filter and sort on them; the daemon computes them again whenever
+ * the row's values, the database's properties or the source change.
+ */
+export interface DatabaseFormula {
+	/** The function, in JavaScript or TypeScript. */
+	source: string;
+	/**
+	 * Why the last computation failed for a row (the function threw, ran
+	 * too long or returned a value of another type), leaving that cell
+	 * empty, or `null` once every row computes.
+	 */
+	error: string | null;
+}
+
 /** An import under way. */
 export interface DatabaseImport {
 	id: string;
+}
+
+/** A column of a database: a name and the type of value it holds. */
+export interface DatabaseProperty {
+	id: number;
+	database_id: number;
+	name: string;
+	/** The type of the property's values; a formula's outputs must be of it. */
+	data_type: DatabaseDataType;
+	/** Where the property sits among its database's; lower comes first. */
+	sort_order: number;
+	/**
+	 * What computes the property's values, or `null` for a property whose
+	 * values are set by hand.
+	 */
+	formula: DatabaseFormula | null;
+}
+
+/**
+ * An entry of a database, which holds its values; it may have a document
+ * of its own.
+ */
+export interface DatabaseRow {
+	id: number;
+	database_id: number;
+	/**
+	 * The row's own document, of type `"databaseRow"`, or `null` when it has
+	 * none. It never shows in the document list and goes with the row.
+	 */
+	document_id: number | null;
+}
+
+/**
+ * A database row with its values: one cell per property it holds a value
+ * in, in the properties' order; a property with no cell is empty.
+ */
+export interface DatabaseRowEntry {
+	id: number;
+	database_id: number;
+	/** The row's own document, or `null` when it has none. */
+	document_id: number | null;
+	cells: DatabaseCell[];
 }
 
 /** How large the database file is, and what fills it. */
@@ -1452,6 +1631,34 @@ export interface DatabaseSize {
 	 */
 	areas: StorageAreaSize[];
 }
+
+/**
+ * Orders rows by their values for `property_id`, as its type compares
+ * them, empty values last either way; ties by when the row was added.
+ */
+export interface DatabaseSort {
+	property_id: number;
+	descending: boolean;
+}
+
+/**
+ * A value in a database, tagged with its type, which must be the type of
+ * the property it is written to.
+ *
+ * - `{"type": "text", "value": "Ada"}`; empty text is no value.
+ * - `{"type": "integer", "value": 42}`
+ * - `{"type": "decimal", "value": 3.5}`
+ * - `{"type": "currency", "value": 12.99}`
+ * - `{"type": "checkbox", "value": true}`
+ * - `{"type": "date", "value": "2026-11-09"}`
+ */
+export type DatabaseValue =
+	| { type: 'text'; value: string }
+	| { type: 'integer'; value: number }
+	| { type: 'decimal'; value: number }
+	| { type: 'currency'; value: number }
+	| { type: 'checkbox'; value: boolean }
+	| { type: 'date'; value: string };
 
 /**
  * Which days a date filter matches, each day as `"YYYY-MM-DD"`:
@@ -1508,6 +1715,35 @@ export interface DeleteContactMethodRequest {
 export interface DeleteContactRequest {
 	workspace_id: number;
 	contact_id: number;
+}
+
+/**
+ * Deletes property `property_id` of a database, with every row's value
+ * for it.
+ */
+export interface DeleteDatabasePropertyRequest {
+	workspace_id: number;
+	database_id: number;
+	property_id: number;
+}
+
+/**
+ * Deletes database `database_id` in a workspace for good, with its
+ * properties, rows, values and rows' documents.
+ */
+export interface DeleteDatabaseRequest {
+	workspace_id: number;
+	database_id: number;
+}
+
+/**
+ * Deletes row `row_id` of a database for good, with its values and its
+ * document.
+ */
+export interface DeleteDatabaseRowRequest {
+	workspace_id: number;
+	database_id: number;
+	row_id: number;
 }
 
 /**
@@ -1665,8 +1901,10 @@ export interface DocumentFolder {
  *
  * - `"normal"`: an ordinary document.
  * - `"journal"`: a daily journal entry; one per workspace per local day.
+ * - `"databaseRow"`: a database row's own document. It never shows in the
+ *   document list or search, is never filed, and goes with its row.
  */
-export type DocumentType = 'normal' | 'journal';
+export type DocumentType = 'normal' | 'journal' | 'databaseRow';
 
 export interface DocumentationResponse {
 	documentation: string;
@@ -1713,13 +1951,17 @@ export interface Embed {
 	 * article, which belong to none.
 	 */
 	workspace_id: number | null;
-	/** The item's title; an agent's name. */
+	/**
+	 * The item's title; an agent's name; a database row's label
+	 * (`DatabaseRowEntry::label`).
+	 */
 	title: string;
 	/**
 	 * The start of the item's text as plain text, at most about 200
 	 * characters: a task's description, a document's or text resource's
-	 * contents, an agent's role, an actor session's last message from its
-	 * actor, an article's text. `""` when it has none.
+	 * contents, a database row's document's contents, an agent's role, an
+	 * actor session's last message from its actor, an article's text. `""`
+	 * when it has none, as for a database.
 	 */
 	excerpt: string;
 	item: EmbedItem;
@@ -1743,6 +1985,26 @@ export type EmbedItem =
 			resource: Resource;
 	  }
 	| {
+			kind: 'database';
+			database: Database;
+			/** Its properties in their order. */
+			properties: DatabaseProperty[];
+			/**
+			 * Its first rows in the order they were added, at most
+			 * `DATABASE_PREVIEW_ROWS` (5).
+			 */
+			rows: DatabaseRowEntry[];
+			/** How many rows it has in all. */
+			row_count: number;
+	  }
+	| {
+			kind: 'databaseRow';
+			row: DatabaseRowEntry;
+			database_title: string;
+			/** Its database's properties in their order. */
+			properties: DatabaseProperty[];
+	  }
+	| {
 			kind: 'agent';
 			agent: IntelligenceAgent;
 	  }
@@ -1763,10 +2025,19 @@ export type EmbedItem =
  * What kind of item an embed shows; `vocabulary.embed_kinds` words each.
  *
  * - `"task"`, `"document"`, `"journalEntry"` (a document of type
- *   `journal`), `"resource"`, `"agent"`, `"actorSession"`, `"article"`.
+ *   `journal`), `"resource"`, `"database"`, `"databaseRow"`, `"agent"`,
+ *   `"actorSession"`, `"article"`.
  */
 export type EmbedKind =
-	'task' | 'document' | 'journalEntry' | 'resource' | 'agent' | 'actorSession' | 'article';
+	| 'task'
+	| 'document'
+	| 'journalEntry'
+	| 'resource'
+	| 'database'
+	| 'databaseRow'
+	| 'agent'
+	| 'actorSession'
+	| 'article';
 
 /**
  * A model an intelligence endpoint offers, one of the models every picker
@@ -2104,6 +2375,19 @@ export interface GetArticleRequest {
 export interface GetContactRequest {
 	workspace_id: number;
 	contact_id: number;
+}
+
+/** Fetches database `database_id` in a workspace. */
+export interface GetDatabaseRequest {
+	workspace_id: number;
+	database_id: number;
+}
+
+/** Fetches row `row_id` of a database with its values. */
+export interface GetDatabaseRowRequest {
+	workspace_id: number;
+	database_id: number;
+	row_id: number;
 }
 
 /** Fetches live document `document_id` in a workspace. */
@@ -2715,6 +2999,8 @@ export type Invalidation =
 	| { kind: 'taskFolders'; id: number }
 	| { kind: 'documents'; id: number }
 	| { kind: 'documentFolders'; id: number }
+	| { kind: 'databases'; id: number }
+	| { kind: 'database'; id: number }
 	| {
 			kind: 'taskList';
 			id: {
@@ -2770,10 +3056,18 @@ export interface LinkBlock {
  * What kind of item a `cohesion://` link names, one per kind of link; stored
  * as text.
  *
- * - `"task"`, `"document"` (a journal entry too), `"resource"`, `"agent"`,
- *   `"actorSession"`, `"article"`.
+ * - `"task"`, `"document"` (a journal entry too), `"resource"`,
+ *   `"database"`, `"databaseRow"`, `"agent"`, `"actorSession"`, `"article"`.
  */
-export type LinkKind = 'task' | 'document' | 'resource' | 'agent' | 'actorSession' | 'article';
+export type LinkKind =
+	| 'task'
+	| 'document'
+	| 'resource'
+	| 'database'
+	| 'databaseRow'
+	| 'agent'
+	| 'actorSession'
+	| 'article';
 
 /**
  * An item as a link names it, by kind and id alone: ids are unique within
@@ -2893,6 +3187,28 @@ export interface ListConnectorOrganizationUnitsRequest {
  * first name, ignoring case.
  */
 export interface ListContactsRequest {
+	workspace_id: number;
+}
+
+/** Lists a database's properties in their order. */
+export interface ListDatabasePropertiesRequest {
+	workspace_id: number;
+	database_id: number;
+}
+
+/**
+ * Lists a database's rows with their values: those meeting every filter,
+ * in `sort`'s order, or the order they were added when absent.
+ */
+export interface ListDatabaseRowsRequest {
+	workspace_id: number;
+	database_id: number;
+	filters: DatabaseFilter[];
+	sort?: DatabaseSort | null;
+}
+
+/** Lists the databases in a workspace, by title. */
+export interface ListDatabasesRequest {
 	workspace_id: number;
 }
 
@@ -3184,6 +3500,17 @@ export interface ModelPrices {
 	output_token_cost: number;
 	cache_read_token_cost?: number | null;
 	cache_write_token_cost?: number | null;
+}
+
+/**
+ * Moves property `property_id` of a database just before its property
+ * `before_id`, or last when absent.
+ */
+export interface MoveDatabasePropertyRequest {
+	workspace_id: number;
+	database_id: number;
+	property_id: number;
+	before_id?: number | null;
 }
 
 /**
@@ -3524,6 +3851,21 @@ export interface RenameClientRequest {
 	client_name: string;
 }
 
+/** Renames property `property_id` of a database. */
+export interface RenameDatabasePropertyRequest {
+	workspace_id: number;
+	database_id: number;
+	property_id: number;
+	name: string;
+}
+
+/** Retitles database `database_id` in a workspace. */
+export interface RenameDatabaseRequest {
+	workspace_id: number;
+	database_id: number;
+	title: string;
+}
+
 /** Retitles document folder `folder_id` in a workspace. */
 export interface RenameDocumentFolderRequest {
 	workspace_id: number;
@@ -3692,9 +4034,10 @@ export interface ResolveEmbedsRequest {
 
 /**
  * Resolves `link`, a `cohesion://` link to a task, document or journal
- * entry, resource, agent, actor session or article, to the item it names
- * as an `Embed`. A link to an item deleted or never made is `notFound`;
- * text that isn't such a link fails validation on `link`.
+ * entry, resource, database, database row, agent, actor session or
+ * article, to the item it names as an `Embed`. A link to an item deleted
+ * or never made is `notFound`; text that isn't such a link fails
+ * validation on `link`.
  */
 export interface ResolveLinkRequest {
 	/** As written in Markdown: `cohesion://task/3/42`. */
@@ -4147,6 +4490,44 @@ export interface SetContactPhotoRequest {
 	workspace_id: number;
 	contact_id: number;
 	photo: ImageUpload | null;
+}
+
+/**
+ * Makes property `property_id` of a database a formula computing its
+ * values from `formula`'s source, or changes its source; with `formula`
+ * absent, makes it a property set by hand again, keeping its last outputs
+ * as values. A property becoming a formula loses the values set by hand.
+ */
+export interface SetDatabasePropertyFormulaRequest {
+	workspace_id: number;
+	database_id: number;
+	property_id: number;
+	formula?: string | null;
+}
+
+/**
+ * Changes the type of property `property_id` of a database. Each value
+ * whose text reads as the new type is kept as one (`"42"` becomes the
+ * number 42); every other value is emptied.
+ */
+export interface SetDatabasePropertyTypeRequest {
+	workspace_id: number;
+	database_id: number;
+	property_id: number;
+	data_type: DatabaseDataType;
+}
+
+/**
+ * Sets row `row_id`'s value for property `property_id`, which must be of
+ * the property's type, or empties it when `value` is absent; refused for a
+ * formula, whose values are computed.
+ */
+export interface SetDatabaseValueRequest {
+	workspace_id: number;
+	database_id: number;
+	row_id: number;
+	property_id: number;
+	value?: DatabaseValue | null;
 }
 
 /**
@@ -4689,6 +5070,16 @@ export type ThreadOrigin =
 	  };
 
 /**
+ * Has agent `agent_id` stop following actor session `session_id`: it no
+ * longer wakes when the session stops on its own. A session another agent
+ * follows, or none does, is left as it is.
+ */
+export interface UnfollowActorSessionRequest {
+	session_id: number;
+	agent_id: number;
+}
+
+/**
  * Removes extension `extension_id`, stopping its sandbox and timers and
  * dropping its permission and hook grants.
  */
@@ -4921,6 +5312,8 @@ export interface Vocabulary {
 	security_events: { kind: SecurityEventKind; label: string }[];
 	/** What each kind of item a `cohesion://` link names is called. */
 	embed_kinds: { kind: EmbedKind; label: string }[];
+	/** What each type of value a database property holds is called. */
+	database_data_types: { kind: DatabaseDataType; label: string }[];
 }
 
 /** The web UI's static build, for a client to serve. */
@@ -5067,6 +5460,45 @@ export interface Requests {
 	moveDocumentFolder: MoveDocumentFolderRequest;
 	/** Deletes a document folder and the folders inside it. */
 	deleteDocumentFolder: DeleteDocumentFolderRequest;
+	/** Lists a workspace's databases. */
+	listDatabases: ListDatabasesRequest;
+	/** Fetches a database. */
+	getDatabase: GetDatabaseRequest;
+	/** Creates an empty database in a workspace. */
+	createDatabase: CreateDatabaseRequest;
+	/** Retitles a database. */
+	renameDatabase: RenameDatabaseRequest;
+	/** Deletes a database for good, with everything in it. */
+	deleteDatabase: DeleteDatabaseRequest;
+	/** Lists a database's properties in their order. */
+	listDatabaseProperties: ListDatabasePropertiesRequest;
+	/** Adds a property to a database, last, set by hand or a formula. */
+	createDatabaseProperty: CreateDatabasePropertyRequest;
+	/** Renames a database property. */
+	renameDatabaseProperty: RenameDatabasePropertyRequest;
+	/** Changes a database property's type, keeping the values that fit it. */
+	setDatabasePropertyType: SetDatabasePropertyTypeRequest;
+	/**
+	 * Makes a database property a formula, changes its source, or makes it
+	 * a property set by hand again.
+	 */
+	setDatabasePropertyFormula: SetDatabasePropertyFormulaRequest;
+	/** Moves a database property among the others; replies with them all. */
+	moveDatabaseProperty: MoveDatabasePropertyRequest;
+	/** Deletes a database property with its values. */
+	deleteDatabaseProperty: DeleteDatabasePropertyRequest;
+	/** Lists a database's rows with their values, filtered and sorted. */
+	listDatabaseRows: ListDatabaseRowsRequest;
+	/** Fetches a database row with its values. */
+	getDatabaseRow: GetDatabaseRowRequest;
+	/** Adds an empty row to a database. */
+	createDatabaseRow: CreateDatabaseRowRequest;
+	/** Deletes a database row for good, with its values and document. */
+	deleteDatabaseRow: DeleteDatabaseRowRequest;
+	/** Sets or empties one value of a database row. */
+	setDatabaseValue: SetDatabaseValueRequest;
+	/** Gives a database row a document of its own. */
+	createDatabaseRowDocument: CreateDatabaseRowDocumentRequest;
 	/** Lists an item's kept versions, newest first, without their text. */
 	listVersions: ListVersionsRequest;
 	/** Fetches one kept version. */
@@ -5409,6 +5841,11 @@ export interface Requests {
 	stopActorSession: StopActorSessionRequest;
 	/** Resolves an actor session, stopping it first if it is going on. */
 	resolveActorSession: ResolveActorSessionRequest;
+	/**
+	 * Has an agent stop following an actor session, so it no longer wakes
+	 * when the session stops.
+	 */
+	unfollowActorSession: UnfollowActorSessionRequest;
 	/** Switches an actor session's mode, through its client. */
 	setActorSessionMode: SetActorSessionModeRequest;
 	/** Lists every service a `connector`-granted extension reaches. */
@@ -5568,6 +6005,45 @@ export interface Replies {
 	moveDocumentFolder: DocumentFolder[];
 	/** Deletes a document folder and the folders inside it. */
 	deleteDocumentFolder: DocumentFolder;
+	/** Lists a workspace's databases. */
+	listDatabases: Database[];
+	/** Fetches a database. */
+	getDatabase: Database;
+	/** Creates an empty database in a workspace. */
+	createDatabase: Database;
+	/** Retitles a database. */
+	renameDatabase: Database;
+	/** Deletes a database for good, with everything in it. */
+	deleteDatabase: Database;
+	/** Lists a database's properties in their order. */
+	listDatabaseProperties: DatabaseProperty[];
+	/** Adds a property to a database, last, set by hand or a formula. */
+	createDatabaseProperty: DatabaseProperty;
+	/** Renames a database property. */
+	renameDatabaseProperty: DatabaseProperty;
+	/** Changes a database property's type, keeping the values that fit it. */
+	setDatabasePropertyType: DatabaseProperty;
+	/**
+	 * Makes a database property a formula, changes its source, or makes it
+	 * a property set by hand again.
+	 */
+	setDatabasePropertyFormula: DatabaseProperty;
+	/** Moves a database property among the others; replies with them all. */
+	moveDatabaseProperty: DatabaseProperty[];
+	/** Deletes a database property with its values. */
+	deleteDatabaseProperty: DatabaseProperty;
+	/** Lists a database's rows with their values, filtered and sorted. */
+	listDatabaseRows: DatabaseRowEntry[];
+	/** Fetches a database row with its values. */
+	getDatabaseRow: DatabaseRowEntry;
+	/** Adds an empty row to a database. */
+	createDatabaseRow: DatabaseRowEntry;
+	/** Deletes a database row for good, with its values and document. */
+	deleteDatabaseRow: DatabaseRow;
+	/** Sets or empties one value of a database row. */
+	setDatabaseValue: DatabaseRowEntry;
+	/** Gives a database row a document of its own. */
+	createDatabaseRowDocument: Document;
 	/** Lists an item's kept versions, newest first, without their text. */
 	listVersions: VersionSummary[];
 	/** Fetches one kept version. */
@@ -5910,6 +6386,11 @@ export interface Replies {
 	stopActorSession: ActorSession;
 	/** Resolves an actor session, stopping it first if it is going on. */
 	resolveActorSession: ActorSession;
+	/**
+	 * Has an agent stop following an actor session, so it no longer wakes
+	 * when the session stops.
+	 */
+	unfollowActorSession: ActorSession;
 	/** Switches an actor session's mode, through its client. */
 	setActorSessionMode: ActorSession;
 	/** Lists every service a `connector`-granted extension reaches. */

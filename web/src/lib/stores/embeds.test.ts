@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createMock } from '$lib/protocol/mock';
+import type { Embed } from '$lib/protocol/types';
 import { createEmbedsStore, touches } from './embeds.svelte';
 import { refreshInvalidated } from './resource.svelte';
 
@@ -34,8 +35,49 @@ describe('embeds store', () => {
 		release();
 	});
 
+	it('asks again about a database row when its database changes', () => {
+		const row: Embed = {
+			link: 'cohesion://database-row/1/5/21',
+			kind: 'databaseRow',
+			workspace_id: 1,
+			title: 'Dune',
+			excerpt: '',
+			item: {
+				kind: 'databaseRow',
+				row: { id: 21, database_id: 5, document_id: null, cells: [] },
+				database_title: 'Books',
+				properties: []
+			}
+		};
+		const link = 'cohesion://document/1/9';
+		expect(touches({ kind: 'database', id: 5 }, link, row)).toBe(true);
+		expect(touches({ kind: 'database', id: 6 }, link, row)).toBe(false);
+		expect(touches({ kind: 'documents', id: 1 }, link, row)).toBe(false);
+	});
+
+	it('resolves a database, a row, and a row’s document as its row', async () => {
+		const mock = createMock();
+		const database = await mock.send('resolveLink', { link: 'cohesion://database/1/1' });
+		expect(database.title).toBe('Reading list');
+		expect(database.item.kind === 'database' && database.item.rows).toHaveLength(5);
+		expect(database.item.kind === 'database' && database.item.row_count).toBe(6);
+		const row = await mock.send('resolveLink', { link: 'cohesion://database-row/1/1/1' });
+		expect(row).toMatchObject({ kind: 'databaseRow', title: 'Dune' });
+		expect(row.excerpt).toMatch(/train/);
+		const document = row.item.kind === 'databaseRow' ? row.item.row.document_id : null;
+		const viaDocument = await mock.send('resolveLink', {
+			link: `cohesion://document/1/${document}`
+		});
+		expect(viaDocument.link).toBe('cohesion://database-row/1/1/1');
+		await expect(
+			mock.send('resolveLink', { link: 'cohesion://database-row/1/2/1' })
+		).rejects.toMatchObject({ code: 'notFound' });
+	});
+
 	it('lets a missing item come back on any change of its kind', () => {
 		expect(touches({ kind: 'documents', id: 4 }, 'cohesion://document/1/9', null)).toBe(true);
 		expect(touches({ kind: 'taskFolders', id: 1 }, 'cohesion://task/1/9', null)).toBe(false);
+		expect(touches({ kind: 'database', id: 2 }, 'cohesion://database-row/1/2/9', null)).toBe(true);
+		expect(touches({ kind: 'databases', id: 1 }, 'cohesion://database/1/2', null)).toBe(true);
 	});
 });

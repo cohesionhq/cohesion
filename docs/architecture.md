@@ -68,7 +68,7 @@ package, the web UI in `web/`. No crate declares cargo `[features]`.
 | `cohesion-internet-harness` | bin, `publish = false` | A tool: `cargo run -p cohesion-internet-harness -- page <url>` or `feed <url>` prints the Markdown the daemon would store, for building Coherence's rules. Nothing depends on it. | cohesion-core, cohesion-internet |
 | `cohesion-js` | lib | The QuickJS script runtime (rquickjs): `ScriptEngine` and its worker pools, `Sandbox`, globals and `Mount`, JS entities, `script_api` (which yields the `.d.ts`), `service_declarations`, `AgentRole`, and the traits a higher crate implements: `ConnectorAccess`, `ServiceAccess`, `ActorAccess`. Strips TypeScript with `swc_ts_fast_strip`; vendors the Pele diagram renderer in `vendor/pele`. | cohesion-core, cohesion-db, cohesion-internet, cohesion-macros |
 | `cohesion-intelligence` | lib | LLM conversations: provider backends (`providers/`), the models.dev catalog (`catalog/`), `Session` and its tools, `AgentCoordinator` and the agent machinery (`agents/`), `SpendLimits`, and the `AccountCredentials` trait. | cohesion-core, cohesion-db, cohesion-js |
-| `cohesionkit` | lib (+ `build.rs`) | The facade the daemon builds on: `CohesionContext`, the `Route` impls (`routes/`), hooks (`hooks/`), `ExtensionManager`, connectors, feeds, periodic cleanup, `Security`, `Presence`, `CapabilityClients`, `ActorSessions`, `EndpointRelay`, `PendingImport`, and `web_bundle` (the web UI compiled into the binary). | all of the above but the harness |
+| `cohesionkit` | lib (+ `build.rs`) | The facade the daemon builds on: `CohesionContext`, the `Route` impls (`routes/`), hooks (`hooks/`), database formula passes (`database_formulas.rs`), `ExtensionManager`, connectors, feeds, periodic cleanup, `Security`, `Presence`, `CapabilityClients`, `ActorSessions`, `EndpointRelay`, `PendingImport`, and `web_bundle` (the web UI compiled into the binary). | all of the above but the harness |
 | `cohesiond` | bin | The daemon: opens the database, builds `CohesionContext`, prints the first setup code, serves HTTPS with client certificates and a Unix socket until a signal. Also `examples/fake_actor.rs`, a minimal actor client. | cohesionkit |
 | `cohesion` | bin | The CLI: `setup`, `api`, the noun commands (`cli/`), and `open`, the loopback proxy that serves the web UI (`web_proxy/`). Never links rusqlite, rquickjs or cohesion-intelligence. | cohesion-core |
 
@@ -400,7 +400,7 @@ A session reads up to 64 requests ahead (`QUEUED_REQUESTS`) and runs them side
 by side, so replies come back in the order they finish; match them by `id`.
 
 **Requests, replies and routes.** `Command` (`cohesion-core/src/protocol/command.rs`)
-is one enum with a variant per request, 203 of them, each tagged
+is one enum with a variant per request, 220 of them, each tagged
 `#[reply(ReplyType, via = Kind)]`. `#[derive(Commands)]` generates the
 dispatch; the request structs live in the `*_requests.rs` modules beside it,
 and `ReplyData` (`reply_data.rs`) is the enum of reply payloads. Each
@@ -445,8 +445,9 @@ the time the client hears back.
 clients refetch. `Invalidation` (`cohesion-core/src/invalidation.rs`, tagged
 `{kind, id}`) has the keys `workspace(id)`, `intelligenceCostEvents`,
 `agent(id)`, `agentTeams`, `taskFolders(ws)`, `documents(ws)`,
-`documentFolders(ws)`,
-`taskList{workspace_id, folder_id}` (null folder is the inbox),
+`documentFolders(ws)`, `databases(ws)` (one was created, renamed or deleted),
+`database(id)` (anything in it: its title, a property, a row, a value, which
+rows have a document), `taskList{workspace_id, folder_id}` (null folder is the inbox),
 `connectorAccounts`, `resources(ws)`, `resourceKinds(ws)`, `feeds`,
 `feedArticles`, `intelligence`, `clients`, `security`, `storage`, `profile`,
 `tags(ws)`, `contacts(ws)`, `savedTaskViews(ws)`, `extensionUpdates`,
@@ -463,7 +464,8 @@ agent's turn.
 **Links and embeds.** Text names an item with a `cohesion://` link
 (`ItemLink`, `cohesion-core/src/model/item_link.rs`):
 `cohesion://task/<ws>/<id>`, `cohesion://document/<ws>/<id>` (journal entries
-too), `cohesion://resource/<ws>/<id>`, `cohesion://agent/<id>`,
+too), `cohesion://resource/<ws>/<id>`, `cohesion://database/<ws>/<id>`,
+`cohesion://database-row/<ws>/<database>/<id>`, `cohesion://agent/<id>`,
 `cohesion://actor-session/<id>` and `cohesion://article/<id>`. A task or
 document link without its workspace, as links were first written, still names
 one, since those ids are unique across workspaces. `ResolveLink{link}`
@@ -473,12 +475,21 @@ one, since those ids are unique across workspaces. `ResolveLink{link}`
 `workspace_id`, `title`, `excerpt` (the first paragraph of the item's text as
 plain text, about 200 characters) and `item`, the item's model tagged by kind
 (an actor session with its actor's title, an article as an `ArticleSummary`
-with its feed's title). A client that doesn't know a kind shows the title, the
-excerpt and the kind's word. An item deleted, in a deleted workspace or never
-made is `notFound`; text that isn't such a link fails validation on `link`.
-Nothing pushes an embed: a client asks again on the item's invalidation,
-`taskList` of the task's workspace, `documents(ws)`, `resources(ws)`,
-`agent(id)`, `actorSession(id)` or `feedArticles`. A link shows as a card
+with its feed's title). A database comes with its properties, its first
+`DATABASE_PREVIEW_ROWS` (5) rows in the order they were added and its
+`row_count`, enough to preview it as a table, and an empty excerpt. A row
+comes as its `DatabaseRowEntry` (cells and `document_id`) with its database's
+title and properties, so its cells read as name and value; its title is its
+label (`DatabaseRowEntry::label`: its value for the database's first text
+property, or "Untitled") and its excerpt its document's. A database row's
+document is part of its row, so a link to it resolves as the row. A client
+that doesn't know a kind shows the title, the excerpt and the kind's word. An
+item deleted, in a deleted workspace or never made is `notFound`, as is a row
+asked for in another database or workspace than its own; text that isn't
+such a link fails validation on `link`. Nothing pushes an embed: a client
+asks again on the item's invalidation, `taskList` of the task's workspace,
+`documents(ws)`, `resources(ws)`, `database(id)` for a database or a row of
+it, `agent(id)`, `actorSession(id)` or `feedArticles`. A link shows as a card
 where it is alone on its line, outside a fenced or indented code block
 (`text_pieces`, `model/text_section.rs`): the line is exactly one link, whose
 label ends at its first unescaped `]` (`\]` is a bracket in it) and whose
@@ -493,19 +504,136 @@ tested on the same texts) and resolves each card with `ResolveLink`.
 **Backlinks.** `BacklinksOf{link}` (`cohesion-db/src/commands/backlink.rs`)
 answers what links to the item `link` names: an `Embed` of each live item
 whose text links to it, by title, whether or not the item named exists, and
-fails validation on `link` as `ResolveLink` does. Only documents (journal
-entries too) are followed so far. A link counts wherever it is in the text,
+fails validation on `link` as `ResolveLink` does. Documents (journal
+entries too) and tasks' descriptions are followed so far. A link counts wherever it is in the text,
 alone on its line or in a sentence: an inline link's target, an autolink
 `<cohesion://…>` or a reference definition, outside a fenced block or code
 span (`item_links`, `model/backlink.rs`); an item's links to itself don't
 count. The `backlinks` table keeps them: one row per item a source links to,
 the source and the target each a `LinkKind` (`task`, `document`, `resource`,
-`agent`, `actorSession`, `article`) and an id, with the link as first written.
+`database`, `databaseRow`, `agent`, `actorSession`, `article`) and an id,
+with the link as first written.
 An item says what it is and what its text is (`LinkSource`), and every
-command that writes a document ends in `FollowLinksCommand`, which rewrites
-its rows from its text, or removes them once it is deleted, and invalidates
-`backlinks` of each item it linked to before or links to now, so a rename
-reaches every list showing it. Documents themselves never touch the table.
+command that writes a document or a task ends in `FollowLinksCommand`
+(`document::changed`, `task::followed`), which rewrites its rows from its
+text, or removes them once it is deleted, and invalidates `backlinks` of each
+item it linked to before or links to now, so a rename reaches every list
+showing it. Documents and tasks themselves never touch the table.
+A database row's document keeps its rows like any document, and
+`BacklinksOf` lists it as its row, as `ResolveLink` resolves it; deleting a
+row or a database lets go of its documents' links first, so the items they
+linked to hear of it. A row's label changing doesn't invalidate `backlinks`.
+
+**Databases** (`cohesion-db/src/commands/database.rs` and
+`database_row.rs`, models in `cohesion-core/src/model/database.rs`). A
+`Database` in a workspace has ordered `DatabaseProperty`s, each a `name` and
+a `data_type` (`DatabaseDataType`: `text`, `integer`, `decimal`, `currency`,
+`checkbox`, `date`, worded by `hello.vocabulary.database_data_types`), and
+`DatabaseRow`s, each an id with an optional `document_id`. Every command
+takes the `workspace_id` and `database_id`: `ListDatabases`, `GetDatabase`,
+`CreateDatabase`, `RenameDatabase`, `DeleteDatabase`;
+`ListDatabaseProperties`, `CreateDatabaseProperty` (last, with an optional
+`formula`), `RenameDatabaseProperty`, `SetDatabasePropertyType`,
+`SetDatabasePropertyFormula`, `MoveDatabaseProperty` (before `before_id`, or
+last), `DeleteDatabaseProperty`; `ListDatabaseRows`,
+`GetDatabaseRow`, `CreateDatabaseRow`, `DeleteDatabaseRow`,
+`SetDatabaseValue` and `CreateDatabaseRowDocument`. A row comes as a
+`DatabaseRowEntry` (`id`, `database_id`, `document_id`, `cells`: a
+`DatabaseCell{property_id, value}` per property it holds a value in, in the
+properties' order). A value is a `DatabaseValue` tagged with its type,
+`{"type": "integer", "value": 42}`, and must be of its property's type;
+`null` or empty text empties it, a decimal or amount must be finite and a
+date a real `YYYY-MM-DD`. Deletes are for good: a database takes its
+properties, rows and values, a property its values, a row its values and
+document. Changing a property's type reads each value's text as the new type
+(`DatabaseValue::parse`: `"42"` is an integer, `"3.5"` no integer, `"true"`
+only a checkbox) and empties the values that aren't one.
+
+**Formulas** (`cohesion-db/src/commands/database_formula.rs`,
+`cohesion-js/src/formula.rs`, `cohesionkit/src/database_formulas.rs`). A
+property whose `formula` is a `DatabaseFormula{source, error}` has its values
+computed: `source` is a JavaScript (or TypeScript) function expression of the
+row, `(row) => row.Price * row.Quantity`, and its `data_type` is the type of
+its outputs. `CreateDatabaseProperty{formula}` makes one;
+`SetDatabasePropertyFormula{property_id, formula?}` makes a property a formula
+(dropping its hand-set values), changes the source (clearing `error`), or with
+no `formula` makes it a property set by hand again, keeping its last outputs.
+An empty source fails validation on `formula`, and `SetDatabaseValue` on a
+formula fails validation on `property_id`.
+
+- **The row** a formula reads is a plain object of the database's properties
+  that aren't formulas, keyed by name (of two with one name, the one created
+  first): text and dates as strings (`"YYYY-MM-DD"`), whole numbers, decimals
+  and currency as numbers, a checkbox as a boolean, and an empty value as
+  `null`. `{"Title": "Dune", "Price": 9.99, "Quantity": 2, "Read": null}`.
+  Formulas never read each other, so their order doesn't matter and there are
+  no cycles. Renaming a property changes the key, so a formula reading the old
+  name reads `undefined` until its source is changed.
+- **The output** must be of the property's type, in the same shapes (a whole
+  number for `integer`, any finite number for `decimal` and `currency`, a
+  string for `text`, a real `YYYY-MM-DD` string for `date`, a boolean for
+  `checkbox`, through `DatabaseValue::checked`); `null`, `undefined` and empty
+  text are an empty cell. A row whose call throws, runs past its time limit,
+  runs out of memory or returns anything else gets an empty cell, and the
+  pass records the first such message (at most 300 characters) as the
+  formula's `error`. A pass with no failure clears it if it covered every row;
+  a pass over some rows that leaves an error marks every row, so the next pass
+  finds whether another row still fails. A source that doesn't evaluate to a
+  function fails every row, so an empty database shows no error yet.
+- **Outputs are stored** with `store_value` in `database_row_values` like any
+  value, so `ListDatabaseRows` filters and sorts on them in SQL.
+- **When.** Every change to what a formula reads marks the rows it outdates
+  (`database_rows.formula_stale`, raised by one) and raises
+  `DatabaseFormulasStale{database_id}`: a value set (that row), a row created
+  (that row), and a property created, renamed, retyped, deleted or made a
+  formula or not, or a source changed (every row). A database with no formula
+  marks nothing. The event is no hook: `HookManager` hands it to the
+  `FormulaQueue`, and the `FormulaRunner` runs one pass at a time per
+  database, passes of different databases side by side, counted as work. A
+  pass (`evaluate_formulas`) reads the marked rows
+  (`ListStaleDatabaseRowsCommand`), computes each formula for them
+  (`ScriptEngine::evaluate_formula`), and stores the outputs
+  (`StoreDatabaseFormulaOutputsCommand`), which clears each mark no change
+  raised again meanwhile, drops the outputs of a source or type that changed
+  since and of a row that went, and invalidates `database(id)` again. So a
+  write returns before its outputs land, a moment later. An event arriving
+  during a pass runs the pass once more. The marks outlive a restart:
+  `CohesionContext::start` queues every database that has some
+  (`ListDatabasesWithStaleFormulasCommand`).
+- **Where it runs.** Not in a sandbox: on the engine's two formula workers
+  ([12](#12-how-a-turn-runs)), each with one QuickJS runtime with nothing
+  mounted (only the language's built-ins), under `SandboxOptions::FORMULA`
+  (16 MB a runtime, a second a row). A pass computes up to 64 rows a job
+  (`ROWS_PER_JOB`), so passes of several databases take turns; once a row
+  runs out of time or memory, that row and the rest of the pass fail with
+  it, and the runtime is replaced. Each runtime keeps the last 32 formulas it
+  compiled (`CACHE_SIZE`), each in a context of its own, keyed by property
+  and exact source, most recently used kept: a formula compiles once for a
+  whole pass and the edits after it, a new source replaces the property's
+  old one, and the least recently used goes past 32.
+
+`ListDatabaseRows{filters, sort?}` filters and sorts in SQL. A
+`DatabaseFilter{property_id, condition}` keeps the rows whose value meets the
+`DatabaseCondition` (tagged `kind`): `isEmpty` and `isNotEmpty` for every
+type, `equals` and `notEquals` with a `value` of the property's type,
+`contains` and `notContains` with `text` for text, and `greaterThan`,
+`greaterOrEqual`, `lessThan` and `lessOrEqual` for integers, decimals,
+currency and dates; another condition, or a value of another type, fails
+validation on `filters`. Text compares ignoring case. An empty value meets
+only `isEmpty`, `notEquals` and `notContains`. Filters all hold.
+`DatabaseSort{property_id, descending}` orders by the property's values,
+empty ones last either way, ties and no sort by when the row was added. Each
+condition is `id IN` (or `NOT IN`) the row ids of the matching values; the
+column and operator are fixed text the type and condition pick, and the
+property id and value are bound (`order_bound` binds the sort's).
+
+A row's document (`CreateDatabaseRowDocument`) is a `Document` of type
+`databaseRow` in the database's workspace, empty and untitled, opened and
+edited with the document commands. It never shows in `ListDocuments`,
+`SearchDocuments`, workspace search or folders (it can't be filed), raises no
+`document:saved` hook, and is never soft-deleted: `DeleteDocument` removes it
+for good, taking it off its row, and deleting its row removes it (trigger
+`database_rows_document_ad`).
 
 **Versioning.** `PROTOCOL_VERSION` is `1` and stays 1 while Cohesion is in
 active development. There is no negotiation: the web UI compares the number in
@@ -515,7 +643,8 @@ the daemon and its clients. `hello.vocabulary` (`protocol/vocabulary.rs`) holds
 the daemon's words for its kinds, in display order: permissions, hooks, task
 priorities and sizes, version changes, activity and actor session statuses
 and stops, agent colours, personalities and verbosities, tiers, spend periods,
-providers, dialects, reactions, pairing openers and security events. A new
+providers, dialects, reactions, pairing openers, security events, embed kinds
+and database data types. A new
 variant of one of those enums doesn't compile until it has its words.
 
 **Limits.**
@@ -651,7 +780,7 @@ flowchart LR
 
 **The pipeline** (`cohesionkit/src/hooks/`):
 
-1. **Raise.** A command sends a `DatabaseEvent{kind, trace}` (`cohesion-db/src/database_event.rs`). After it commits, the database thread hands the events to the `HookManager` before replying. The clock, launch and update hooks are queued directly.
+1. **Raise.** A command sends a `DatabaseEvent{kind, trace}` (`cohesion-db/src/database_event.rs`). After it commits, the database thread hands the events to the `HookManager` before replying. The clock, launch and update hooks are queued directly. One event is no hook: `DatabaseFormulasStale` goes to the database formulas' queue instead ([5](#5-the-wire-protocol), "Formulas").
 2. **Queue.** `HookManager::queue` wraps each in a `HookInstance` on an unbounded channel, in order, counted as work so shutdown waits for it.
 3. **Settle.** `journal:settled` and `document:settled` wait for quiet: one timer per document (`DOCUMENT_SETTLE`, 120 s) that each save restarts; when it runs out, the hook is queued with the last save's trace. During shutdown they're queued at once, and `settle_all` flushes the waiting ones. A new settled hook adds its case to `settle_all`, never a shutdown step of its own.
 4. **Receive** (`HookReceiver::start`, one task):
@@ -791,7 +920,7 @@ script's own key-value store (`set_storage_blocking`) and `credentials()`.
 and no other permission to any area.
 
 **Migrations** (`cohesion-db/src/migrations.rs`). `MIGRATIONS` is a list of
-`Migration{name, sql}`, 89 at the time of writing; the first seven are the
+`Migration{name, sql}`, 96 at the time of writing; the first seven are the
 squashed schema of the 68 that came before them. `PRAGMA user_version` is how
 many have been applied. `Container::migrate()`, called by the daemon right
 after opening the file:
@@ -831,15 +960,19 @@ deleting sets `deleted`, and client reads use `select_live`.
 | Table | Holds |
 |---|---|
 | `workspaces` (soft) | `title`, `emoji`. |
-| `documents` (soft) | `workspace_id`, `document_type` (`normal` or `journal`), `title`, `contents` (Markdown), `modified`, `journal_date`, `deleted_at`, `folder_id` (null is the Inbox; never set on a journal). A journal entry is a document of type `journal`; a unique index allows one live entry per workspace per day. |
+| `documents` (soft) | `workspace_id`, `document_type` (`normal`, `journal` or `databaseRow`, a database row's own document, never soft-deleted), `title`, `contents` (Markdown), `modified`, `journal_date`, `deleted_at`, `folder_id` (null is the Inbox; never set on a journal). A journal entry is a document of type `journal`; a unique index allows one live entry per workspace per day. |
 | `document_folders` (soft) | `workspace_id`, `parent_id` (null at the top level; a composite key keeps it in the same workspace), `title`, `sort_order` (among its siblings). Folders nest without limit; deleting one deletes those inside it and moves their documents to the Inbox. |
 | `task_folders` (soft) | `workspace_id`, `title`, `sort_order`. |
 | `tasks` (soft) | `workspace_id`, `task_folder_id` (null is the inbox; a composite key keeps it in the same workspace), `title`, `status` (`incomplete`, `completed`, `cancelled`), `priority` 0–4, `size` 1–5, `description`, `start_date`, `due_date`, and one assignee at most: `assigned_to_user`, `assignee_agent_id` or `assignee_contact_id` (the contact must be live and in the same workspace). |
 | `tags`, `task_tags` | Per-workspace tags (names unique ignoring case) and which tasks carry them; composite keys keep both in one workspace. |
 | `saved_task_views` and `saved_task_view_priorities`, `_sizes`, `_tags` | Saved task filters: a list or a folder, a sort, and filter sets. |
 | `contacts` (soft), `contact_methods` | People in a workspace, and their emails and phone numbers. A deleted contact is unassigned from tasks. |
+| `databases` | `workspace_id`, `title`. Deleted for good, with everything in it. |
+| `database_properties` | A database's columns: `database_id`, `name`, `data_type` (`text`, `integer`, `decimal`, `currency`, `checkbox`, `date`), `sort_order`, and for a formula `formula_source` and `formula_error` (its last failure; a check keeps it from outliving the source). |
+| `database_rows` | `database_id`, `document_id`, the row's own document (unique; set null if the document goes, which removes it when the row goes), and `formula_stale`, how many changes its formula outputs are behind (0 when current; a partial index finds the nonzero ones). |
+| `database_row_values` | One per row and property at most, composite keys keeping both in one database: `text_value` (always), `integer_value` (an integer, a checkbox as 1 or 0) and `real_value` (a decimal, an amount, an integer). A missing row is an empty value. |
 | `metadata` | Key-value pairs on exactly one workspace, document, task, folder or resource. Scripts only: a request can't carry metadata filters. |
-| `backlinks` | What links to what: `source_kind` and `source_id` (only documents so far), `target_kind` and `target_id` (a `LinkKind` and an id), and `link` as first written; one row per source and target, never a source to itself. Rewritten by `FollowLinksCommand` on every document write; a document removed for good takes its rows (trigger `documents_backlinks_ad`). The `backlinks` migration filled it from every live document through the SQL function `outgoing_links`, which runs the same Rust rule. |
+| `backlinks` | What links to what: `source_kind` and `source_id` (a document, a database row's too, or a task so far), `target_kind` and `target_id` (a `LinkKind` and an id), and `link` as first written; one row per source and target, never a source to itself. Rewritten by `FollowLinksCommand` on every document and task write; a document or task removed for good takes its rows (triggers `documents_backlinks_ad`, `tasks_backlinks_ad`). The `backlinks` migration filled it from every live document, and `task_backlinks` from every live task's description, through the SQL function `outgoing_links`, which runs the same Rust rule; the `databases` migration rebuilt it, with those two triggers, to admit `database` and `databaseRow`. |
 | `versions` | Rewind: past versions of tasks and documents, with `change` (`created`, `edited`, `deleted`, `restored`, `earlier`), `author` and `author_name`. Written by triggers through the `version_writes` view, which folds edits within 120 s into one version. |
 | `rewind_writer` | One row: who is writing now (see above). |
 
@@ -917,6 +1050,12 @@ erDiagram
   document_folders |o--o{ documents : N
   workspaces ||--o{ task_folders : C
   workspaces ||--o{ tasks : C
+  workspaces ||--o{ databases : C
+  databases ||--o{ database_properties : C
+  databases ||--o{ database_rows : C
+  database_rows ||--o{ database_row_values : C
+  database_properties ||--o{ database_row_values : C
+  documents |o--o| database_rows : N
   task_folders ||--o{ tasks : C
   workspaces ||--o{ tags : C
   tasks ||--o{ task_tags : C
@@ -967,7 +1106,8 @@ erDiagram
 `actor_sessions_status_changed`, `activities_actor_session_unread`,
 `intelligence_agent_messages_reply_to`, `intelligence_agent_messages_unread`,
 `resources_same_connector`, `saved_task_views_folder_in_workspace`,
-`documents_folder_in_workspace*`,
+`documents_folder_in_workspace*`, `database_rows_document_ad`,
+`documents_database_row_never_soft_deleted`,
 `tasks_assignee_contact_*`, `contacts_deleted_assign_nothing`,
 `task_folders_saved_views_deleted`, `clients_deleted_own_nothing`,
 `extensions_orphan_accounts`, `connector_accounts_orphaned_endpoints`).
@@ -1016,12 +1156,13 @@ English stemming, case-insensitive, accents ignored.
 
 | Index | Columns | Covers | Kept by |
 |---|---|---|---|
-| `search_fts` (rows mapped by `search_entries`: `entity_kind`, `entity_id`, `workspace_id`) | `title`, `contents` | Live documents (journal entries included), live tasks (the description as contents), resources (contents only if not JSON) | `documents_search_*`, `tasks_search_*`, `resources_search_*` |
+| `search_fts` (rows mapped by `search_entries`: `entity_kind`, `entity_id`, `workspace_id`) | `title`, `contents` | Live documents (journal entries included, database rows' left out), live tasks (the description as contents), resources (contents only if not JSON) | `documents_search_*`, `tasks_search_*`, `resources_search_*` |
 | `feed_corpus_fts` | `title`, `author`, `contents` | Live articles | `articles_feed_corpus_*` |
 | `actor_sessions_fts` | `title` | Actor sessions | `actor_sessions_search_*` |
 | `actor_session_messages_fts` | `text` | Actor session messages of kind `text`, from either side | `actor_session_messages_search_*` |
 
-Agent chats, model threads, contacts, tags and metadata aren't indexed.
+Agent chats, model threads, contacts, tags, metadata, databases and database
+rows' documents aren't indexed.
 
 **Query syntax.** The user's text is bound unchanged as the `MATCH` operand,
 so FTS5's syntax applies as is: words separated by spaces must all match,
@@ -1328,12 +1469,18 @@ the turn's work ends the turn once every call in that response succeeded.
 **The sandbox** (`cohesion-js`). `ScriptEngine` keeps pools of worker threads,
 each job on a fresh QuickJS runtime: `general_purpose` (`cohesion run` and
 `RunScript`), `turns` (agents' scripts), `cues` (cue functions), `isolated`
-(reading extension manifests), `mermaid`, and one persistent worker per
-extension. Limits (`SandboxOptions`): `STANDARD` 20 MiB and 60 s a job (users',
-agents', cues' and extensions' scripts), `MERMAID` 64 MiB and 15 s, `ISOLATED`
-4 MiB and 1 s. The deadline also caps blocking calls a script makes (fetches,
-services, connectors). `cohesion.sleep(seconds)` waits at most 30 s. The
-mounts a script gets come from its `AgentRole` ([13](#13-what-an-agent-can-read-and-write)).
+(reading extension manifests), `mermaid`, `formulas`, and one persistent
+worker per extension. `mermaid` and `formulas` aren't sandboxes: each worker
+keeps one runtime with nothing mounted and no database handle, Pele's for
+diagrams, and for database formulas one holding the last 32 it compiled
+([5](#5-the-wire-protocol), "Formulas"). Limits (`SandboxOptions`):
+`STANDARD` 20 MiB and 60 s a job (users', agents', cues' and extensions'
+scripts), `MERMAID` 64 MiB and 15 s, `ISOLATED` 4 MiB and 1 s, `FORMULA`
+16 MiB a runtime and 1 s a row. The deadline also caps blocking calls a
+script makes (fetches, services, connectors). `cohesion.sleep(seconds)` waits
+at most 30 s. The mounts a script gets come from its `AgentRole`
+([13](#13-what-an-agent-can-read-and-write)); a formula has no role, since it
+mounts nothing.
 
 **Read-only background runs.** A turn whose chain was started by an event (a
 cue run, and whatever it asks or follows) runs as `Turn(Initiative::Event)`:
@@ -1448,6 +1595,10 @@ something, replacing any earlier follower. When the session stops on its own
 (it needs the user, finishes, fails, or its device goes away), a follow-up
 fork wakes with the actor's latest reply and the prompt it was given (cut at
 800 characters), and the follow's initiative ([14](#14-actor-clients-and-actor-sessions)).
+The user ends a follow with `UnfollowActorSession` (`session_id`, `agent_id`;
+Stop following in the agent's Monitoring list), which clears the follower only
+when it is that agent, so an agent that took the session over since keeps it;
+the agent follows again the next time it tells the session something.
 
 ### 13. What an agent can read and write
 
@@ -1766,7 +1917,7 @@ and `src/routes/+layout.ts` turns off server rendering and prerendering.
 | Route | Page |
 |---|---|
 | `/` | Home |
-| `/w/[ws]/` | A workspace: `dashboard` (the default), `today`, `journal` (and `[id]`), `documents` (and `[id]`), `tasks`, `contacts`, `articles` (and `[id]`, `research`), `rewind`, `resources/[kind]` (and `[id]`) |
+| `/w/[ws]/` | A workspace: `dashboard` (the default), `today`, `journal` (and `[id]`), `documents` (and `[id]`), `tasks`, `databases` (and `[id]`, one database's table), `contacts`, `articles` (and `[id]`, `research`), `rewind`, `resources/[kind]` (and `[id]`) |
 | `/agents`, `/agents/[agent]` | Agents and an agent's chat |
 | `/actors`, `/actors/[session]` | Actor sessions and a session's transcript, or a subagent's thread |
 | `/threads/[thread]` | A model thread's transcript, read-only |
@@ -1784,7 +1935,7 @@ history; Alt-click opens a link in the second half, and the split closes below
 
 - `protocol/`: the connection, the session API, generated types, the mock.
 - `stores/`: state, one `create…Store(send)` factory per area, built on `Resource<T, K>` (`resource.svelte.ts`), which loads, refetches when an invalidation touches it, and marks itself stale when no page is using it. Page stores are made once per split half (`pageStores.svelte.ts`); workspaces, feeds, connectors and extensions are app-wide.
-- `features/<area>/`: components for one area (actors, agents, articles, connectors, contacts, dashboard, documents, extensions, folders, rewind, settings, tags, tasks, threads).
+- `features/<area>/`: components for one area (actors, agents, articles, connectors, contacts, dashboard, databases, documents, extensions, folders, rewind, settings, tags, tasks, threads).
 - `ui/`: about 70 shared components (buttons, dialogs, side panels, menus, pickers, fields, `Markdown`, `Editor`, avatars, toasts, status pills) and `motion.ts`.
 - `shell/`: the app frame: sidebar, palette, shortcuts, linked items, split view, notices.
 - `format/`: bytes, dates (`shortTime`, a 12-hour clock everywhere), money, search, usage.
@@ -1796,8 +1947,10 @@ requests are numbered and held until `hello`; on `hello` it checks
 vocabulary, sends `subscribe`, then flushes. It reconnects with a backoff from
 500 ms to 10 s. `evicted` is fatal ("This client was revoked…"). The root
 layout wires `invalidate` to `refreshInvalidated`, and `reset`, reconnects and
-window focus to `refreshAll`; a `notification` invalidation is shown as a
-toast.
+window focus to `refreshAll`. A `notification` invalidation and an agent's
+new message are notifications, which `notify` (`ui/notify.ts`) presents: a
+toast, unless a WebUI harness presents them itself (below). A toast that
+confirms what the user just did stays a toast.
 
 **Theming.** `lib/tokens.css` holds the design tokens and Tailwind's theme
 layers. It follows the system: light by default, dark under
@@ -1817,6 +1970,55 @@ an in-memory daemon that implements every request with seed data, instead of a
 socket. Vitest uses the same mock. With `npm run dev`, `.env.development` sets
 `VITE_DEV_PROXY=1`, so the page doesn't ask for a token.
 
+**Databases** (`routes/w/[ws]/databases/`, `features/databases/`,
+`stores/databases.svelte.ts`). The Databases page lists a workspace's
+databases by title, with New database and each one's Rename and Delete. A
+database opens as a table (`DatabaseTable.svelte`): a column per property in
+its order, its header a menu to sort (the type's two directions or none),
+filter, rename, change type (a dialog warning that values that don't fit are
+cleared), its formula, move left or right (`moveDatabaseProperty`) and delete;
+the last column, which stays in view as a wide table scrolls, adds a property
+and holds each row's ⋯ (Open, Copy link, Copy plain link, Delete). A cell edits
+in place with an editor for its type (`ValueCell.svelte`: text, a number, a
+date picker; a checkbox toggles), read by `features/databases/values.ts`; ↩
+saves, Esc cancels, ⇥ and ⇧⇥ save and move along the row, and the daemon's
+refusal shows under the editor. A formula's column wears a function icon and
+its cells only read; a formula's `error` shows above the table. A new property
+is set by hand or a formula (`PropertyDialog.svelte`), and a column's menu
+edits a formula ("Edit formula…"), turns a property set by hand into one
+("Change to formula…", warning that its values will be deleted) and back
+("Change to set by hand", which keeps the last outputs). The formula is
+written in the code editor (`FormulaField.svelte`) under a short account of
+the contract, starting from an example made of the database's own properties
+(`formulaStarter`, `features/databases/formulas.ts`), with its last `error`
+under it. Filters (Add filter…, or a column's Filter…) offer the
+conditions the property's type allows and are ANDed; they and the sort show as
+pills above the table, each removable. **The daemon filters and sorts**: the
+page sends them with `listDatabaseRows` and shows what comes back. They are
+the page's own, kept in the rows resource's key, so they last while the half
+keeps that database open and are never stored. A value reads in the browser's
+locale (`formatValue`): numbers grouped, an amount to two places with no
+currency sign, since a database names no currency, a date as `shortDay`. A
+row's leading button, its Open, a link to it and `?row=` on the table's address
+open it in the item panel (`DatabaseRowPanel.svelte`): its value for each of
+the database's properties as its details, each edited in place with the
+table's `ValueCell` (a formula's only reads), then its document, read or
+written as a task's description is (`DocumentBody`, Edit and Done, saving as it
+goes). The row's label stands for a title. Opening a row makes no document: the
+first save of something written makes one (`createDatabaseRowDocument`, in
+`DatabasesStore.writeRowDocument`). A row's document gets none of a document's
+own affordances: no title of its own, no folder, no page of its own, no Rewind
+and no Delete; Open goes to the table, Copy link copies the row's link and
+Backlinks lists what links to the row. The panel keeps the row in the store's
+`row`, `rowProperties`, `rowDatabase` and `rowDocument`, refetched on the
+database's invalidation, and a write in either the panel or the table updates
+the other from its reply when both are in the main half; it closes once the row
+is gone. A database's link and its card go to its table (`embedRoute`); its ⋯
+menu copies its link. The mock filters, sorts and runs formulas in JS, by the
+daemon's rules; it reads only a small part of JavaScript for a formula
+(`protocol/mockFormula.ts`: arithmetic, comparisons, `??`, `?:`, a few methods
+and `Math` functions over `row`), and anything else fails every row.
+
 **Subagents** (`features/actors/SessionView.svelte`, `SubagentRow.svelte`).
 In a session's transcript, the tool use that launched a subagent shows as the
 subagent's line instead (its status, kind, title and status in words, "In the
@@ -1835,6 +2037,7 @@ started, where they are answered. The store holds them in `subagents`,
 
 **Links.** Items link as `cohesion://task/<ws>/<id>`,
 `cohesion://document/<ws>/<id>`, `cohesion://resource/<ws>/<id>`,
+`cohesion://database/<ws>/<id>`, `cohesion://database-row/<ws>/<database>/<id>`,
 `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and
 `cohesion://article/<id>` (`parseItemLink`, `lib/format/itemLinks.ts`, which
 `shell/routes.ts` re-exports; a task or document link without a workspace
@@ -1844,8 +2047,10 @@ themselves. Following one in the web UI (`ui/Markdown.svelte`,
 `linkedItem.follow`) opens the item over the current page in one side panel,
 `ItemPanel`, the same for every kind but its content
 (`shell/linkedItem.svelte.ts`, `shell/LinkedItem.svelte`): a task with its
-folder, tags and contacts; a document; a resource; an agent; an actor session
-with its actor and messages; an article with its feed. Full-page content has
+folder, tags and contacts; a document; a resource; a database row with its
+values and document; an agent; an actor session with its actor and messages;
+an article with its feed. A database has no panel: its link goes to its table.
+Full-page content has
 an Open link (an article's opens in the current workspace). A modified click
 falls through to the `/open/…` page. The panel can be expanded: a button
 beside Close (`SidePanel`) floats it at the middle of the window, up to 80rem
@@ -1864,7 +2069,8 @@ becomes a card; "Copy plain link" puts the bare `cohesion://` address. Both are
 items in the menus that already hold an item's actions (`copyLinkItems`,
 `lib/ui/copyLink.ts`): a task row's (`l` chooses Copy link), the document and
 journal pages' (`DocumentMenu`), an agent's, an article's in a list and on its
-page, and the ⋯ menus a resource's and an actor session's page have for them
+page, a database row's ⋯ in its table, and the ⋯ menus a resource's, a
+database's and an actor session's page have for them
 (`ui/MoreActions.svelte`). An item panel has one "Copy link" button before Open
 (`ItemPanel`'s `link`), which copies the Markdown link; the `/open/…` pages
 only redirect, so they have none.
@@ -1890,7 +2096,12 @@ embeds"). Each card resolves its link through `stores/embeds.svelte.ts`, once
 for every card showing it, and asks again on its item's invalidation. While it
 resolves, the link's text shimmers; an item gone shows its text quietly with
 "Task not found"; a link that can't be resolved stays a plain link. A click
-opens the panel, as the link does.
+opens the panel, as the link does. A database's card adds its first rows as a
+small table under its row count, and a click goes to its table; a row's adds a
+few of its values before its document's excerpt and opens the row's panel. A
+link to a row's document resolves as its row, and Backlinks lists a row
+linking through its document as the row. `@` doesn't offer databases or rows,
+since `searchWorkspace` doesn't search them: their Copy link does.
 
 **`@`.** In the same editors, `@` at a word's start looks items up to link
 (`shell/mentions.ts`, on `@codemirror/autocomplete`). `[[` at a word's start
@@ -1937,6 +2148,7 @@ Whatever hosts it, the page speaks only this (`web/src/lib/protocol/session.ts`)
 - A WebSocket to `/connect?token=<token>` (browsers can't set headers on a WebSocket), carrying the protocol of [5](#5-the-wire-protocol) unchanged.
 - The parts of `WebSocket` the connection uses.
 - The CSS variable `--titlebar-inset` (`lib/tokens.css`, `0px` by default), which a WebUI harness sets for what it draws over the page, such as the Mac's window controls.
+- `window.cohesionNotify(notification)`, which a WebUI harness may set before the page loads to show notifications as the system's local notifications instead of toasts. `notification` is `{message, title?, href?, avatar?}` (`AppNotification` in `lib/ui/notify.ts`); if the function throws, the page shows a toast. To open a clicked one, the harness calls `window.cohesionOpen(href)`, which the page sets and which opens only the page's own paths.
 
 `cohesion open` and the WebUI harnesses' bridge stand in for these, so the
 three change together or not at all.
@@ -2405,9 +2617,9 @@ Settings › Security lists the security events.
 | Where | What | How |
 |---|---|---|
 | `cohesion-db` | Commands, migrations, triggers, transactions, `CredentialManager`, `Secrets`, transfers and backups; `every_model_matches_the_schema` (`migrations/tests.rs`) | `test_support.rs`: `context()` (a migrated in-memory database, `Container::in_memory()`), `recording_context()` (also collects the events commands raise), `actor_session(db)` |
-| `cohesion-js` (`src/tests.rs`) | The runtime end to end: sandbox isolation, worker survival, deadlines, hooks calling into scripts, read-only enforcement, roles and mounts | Real scripts against an in-memory database: `database()`, `run(db, script)`, `json(db, script)`, `extension(id)`, with fakes for the access traits |
+| `cohesion-js` (`src/tests.rs`) | The runtime end to end: sandbox isolation, worker survival, deadlines, hooks calling into scripts, read-only enforcement, roles and mounts; the Mermaid and formula workers in their own `tests.rs` | Real scripts against an in-memory database: `database()`, `run(db, script)`, `json(db, script)`, `extension(id)`, with fakes for the access traits |
 | `cohesion-intelligence` | Sessions, agents, forks, caching | `test_model.rs`: a local server speaking Chat Completions that gives scripted answers and records each request; no network |
-| `cohesionkit` | Routes, hooks (`hook_events`, `day_clock`), connectors, the extension manager | In-memory contexts |
+| `cohesionkit` | Routes, hooks (`hook_events`, `day_clock`), database formula passes (`database_formulas`), connectors, the extension manager | In-memory contexts |
 | `cohesiond` | Sessions (`session/tests.rs`, with a `FakeExchange` in place of a socket), the first-byte timeout, PROXY headers, the unknown-peer cache, the local handshake | tokio's paused time |
 | `cohesion` | Argument definitions, `cohesion open`'s guard, launch link and token | tower's `ServiceExt` |
 | `cohesion-core` | Models (`tests/model.rs`) and core helpers | |

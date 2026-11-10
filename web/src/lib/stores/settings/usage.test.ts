@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createMock } from '$lib/protocol/mock';
 import { refreshInvalidated } from '../resource.svelte';
-import { createUsageStore } from './usage.svelte';
+import { USAGE_LIMIT, createUsageStore } from './usage.svelte';
 
 describe('usage store', () => {
 	it('lists cost events newest first, including a new message’s', async () => {
@@ -40,5 +40,18 @@ describe('usage store', () => {
 		await store.load();
 		expect(store.events.value).toHaveLength(before + 1);
 		store.events.release();
+	});
+
+	it('exports every cost event, not only the most recent the section lists', async () => {
+		const mock = createMock();
+		const first = mock.state.costEvents[0];
+		for (let i = 0; i < USAGE_LIMIT; i++) {
+			mock.state.costEvents.push({ ...first, id: 10_000 + i });
+		}
+		const store = createUsageStore(mock.send);
+		const rows = (await store.exportCsv()).trimEnd().split('\r\n');
+		expect(rows).toHaveLength(1 + mock.state.costEvents.length);
+		expect(mock.state.costEvents.length).toBeGreaterThan(USAGE_LIMIT);
+		expect(store.exporting).toBe(false);
 	});
 });

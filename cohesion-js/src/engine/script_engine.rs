@@ -7,6 +7,7 @@ use std::thread;
 
 use super::agent_role::AgentRole;
 use super::cue_evaluation::CueEvaluation;
+use super::formula_pool::FormulaPool;
 use super::hosts::Hosts;
 use super::mermaid_pool::MermaidPool;
 use super::scope_handle::ScopeHandle;
@@ -14,6 +15,7 @@ use super::script_job::replying;
 use super::script_worker::{FreshJob, SandboxSpec, ScriptWorker};
 use crate::actor_access::ActorAccess;
 use crate::connector_access::ConnectorAccess;
+use crate::formula::{Formula, FormulaOutput, FormulaRow};
 use crate::globals::{Effects, ForegroundEffect, Mount};
 use crate::sandbox::{Sandbox, SandboxOptions, ScriptArgument};
 use crate::script_error::ScriptError;
@@ -48,6 +50,9 @@ pub struct ScriptEngine {
     isolated: Pool,
     /// Draws Mermaid diagrams, which reach neither the database nor a mount.
     mermaid: MermaidPool,
+    /// Computes database formulas, which reach neither the database nor a
+    /// mount either.
+    formulas: FormulaPool,
     /// Keyed by their sandbox, such as `extension:com.example.mailer`.
     /// These workers are persistent and are not re-created.
     scoped: Arc<Mutex<HashMap<SandboxKey, Scope>>>,
@@ -178,6 +183,7 @@ impl ScriptEngine {
             // each minute.
             cues: role(AgentRole::Cue, workers * 2),
             mermaid: MermaidPool::new(),
+            formulas: FormulaPool::new(),
             database,
             scoped: Arc::new(Mutex::new(HashMap::new())),
             connectors: Arc::default(),
@@ -222,6 +228,19 @@ impl ScriptEngine {
     /// Draws a Mermaid diagram laid out for `width`, or says why it won't draw.
     pub async fn render_mermaid(&self, source: String, width: Option<u32>) -> RenderedMermaid {
         self.mermaid.render(source, width).await
+    }
+
+    /// Computes database formula `formula` for each of `rows`, one output
+    /// per row in order, in a runtime with nothing mounted: the row in, a
+    /// value of the formula's type out, under [`SandboxOptions::FORMULA`]'s
+    /// limits. A row whose call throws, runs too long or returns another
+    /// type gets why, in words for the user.
+    pub async fn evaluate_formula(
+        &self,
+        formula: Formula,
+        rows: Vec<FormulaRow>,
+    ) -> Vec<FormulaOutput> {
+        self.formulas.evaluate(formula, rows).await
     }
 
     /// Starts a persistent worker for `scope` with `mounts`, reaching the

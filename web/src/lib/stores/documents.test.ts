@@ -80,7 +80,8 @@ describe('documents store', () => {
 			'Extensions Registry',
 			'JS script engine pool sizes',
 			'Rewind: storage and lifecycle',
-			'Launch plan'
+			'Launch plan',
+			'Winter reading'
 		]);
 		expect(store.archive.value.map((d) => d.id)).toEqual([1, 2, 3, 4]);
 	});

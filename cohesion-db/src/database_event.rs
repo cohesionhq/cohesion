@@ -160,6 +160,12 @@ pub enum DatabaseEventKind {
         client_id: i64,
         name: String,
     },
+    /// Rows of a database hold formula outputs that what they read has
+    /// changed since; the rows are marked, so the outputs are computed again
+    /// even after a restart. Not a hook: no extension or cue sees it.
+    DatabaseFormulasStale {
+        database_id: i64,
+    },
 }
 /// Who wrote the changes a trace follows from, so a listener can skip the
 /// events its own writes caused.

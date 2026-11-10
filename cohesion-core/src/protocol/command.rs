@@ -26,6 +26,7 @@ use super::article_requests::*;
 use super::client_requests::*;
 use super::connector_requests::*;
 use super::contact_requests::*;
+use super::database_requests::*;
 use super::document_requests::*;
 use super::embed_requests::*;
 use super::extension_requests::*;
@@ -44,13 +45,13 @@ use super::task_requests::*;
 use super::workspace_requests::*;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, Article, Attachment,
-    CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
-    Embed, EndpointModel, ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent,
-    IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
-    IntelligenceCostEvent, IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit,
-    Profile, Resource, RestoredItem, SavedTaskView, SearchResult, SecuritySettings,
-    StorageSettings, Tag, Task, TaskFolder, TextSection, Version, VersionSummary, Workspace,
-    WorkspaceResourceKind,
+    CatalogModel, Client, Component, Contact, ContactMethod, Database, DatabaseProperty,
+    DatabaseRow, DatabaseRowEntry, DeletedItem, Document, DocumentFolder, Embed, EndpointModel,
+    ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
+    IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
+    IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
+    RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings, Tag, Task,
+    TaskFolder, TextSection, Version, VersionSummary, Workspace, WorkspaceResourceKind,
 };
 
 /// Every request a client can send; the `args` of a [`Request`](super::Request).
@@ -144,6 +145,61 @@ pub enum Command {
     /// Deletes a document folder and the folders inside it.
     #[reply(DocumentFolder)]
     DeleteDocumentFolder(DeleteDocumentFolderRequest),
+    /// Lists a workspace's databases.
+    #[reply(Vec<Database>)]
+    ListDatabases(ListDatabasesRequest),
+    /// Fetches a database.
+    #[reply(Database)]
+    GetDatabase(GetDatabaseRequest),
+    /// Creates an empty database in a workspace.
+    #[reply(Database)]
+    CreateDatabase(CreateDatabaseRequest),
+    /// Retitles a database.
+    #[reply(Database)]
+    RenameDatabase(RenameDatabaseRequest),
+    /// Deletes a database for good, with everything in it.
+    #[reply(Database)]
+    DeleteDatabase(DeleteDatabaseRequest),
+    /// Lists a database's properties in their order.
+    #[reply(Vec<DatabaseProperty>)]
+    ListDatabaseProperties(ListDatabasePropertiesRequest),
+    /// Adds a property to a database, last, set by hand or a formula.
+    #[reply(DatabaseProperty)]
+    CreateDatabaseProperty(CreateDatabasePropertyRequest),
+    /// Renames a database property.
+    #[reply(DatabaseProperty)]
+    RenameDatabaseProperty(RenameDatabasePropertyRequest),
+    /// Changes a database property's type, keeping the values that fit it.
+    #[reply(DatabaseProperty)]
+    SetDatabasePropertyType(SetDatabasePropertyTypeRequest),
+    /// Makes a database property a formula, changes its source, or makes it
+    /// a property set by hand again.
+    #[reply(DatabaseProperty)]
+    SetDatabasePropertyFormula(SetDatabasePropertyFormulaRequest),
+    /// Moves a database property among the others; replies with them all.
+    #[reply(Vec<DatabaseProperty>)]
+    MoveDatabaseProperty(MoveDatabasePropertyRequest),
+    /// Deletes a database property with its values.
+    #[reply(DatabaseProperty)]
+    DeleteDatabaseProperty(DeleteDatabasePropertyRequest),
+    /// Lists a database's rows with their values, filtered and sorted.
+    #[reply(Vec<DatabaseRowEntry>)]
+    ListDatabaseRows(ListDatabaseRowsRequest),
+    /// Fetches a database row with its values.
+    #[reply(DatabaseRowEntry)]
+    GetDatabaseRow(GetDatabaseRowRequest),
+    /// Adds an empty row to a database.
+    #[reply(DatabaseRowEntry)]
+    CreateDatabaseRow(CreateDatabaseRowRequest),
+    /// Deletes a database row for good, with its values and document.
+    #[reply(DatabaseRow)]
+    DeleteDatabaseRow(DeleteDatabaseRowRequest),
+    /// Sets or empties one value of a database row.
+    #[reply(DatabaseRowEntry)]
+    SetDatabaseValue(SetDatabaseValueRequest),
+    /// Gives a database row a document of its own.
+    #[reply(Document)]
+    CreateDatabaseRowDocument(CreateDatabaseRowDocumentRequest),
     /// Lists an item's kept versions, newest first, without their text.
     #[reply(Vec<VersionSummary>)]
     ListVersions(ListVersionsRequest),
@@ -568,6 +624,10 @@ pub enum Command {
     /// Resolves an actor session, stopping it first if it is going on.
     #[reply(ActorSession, via = Local)]
     ResolveActorSession(ResolveActorSessionRequest),
+    /// Has an agent stop following an actor session, so it no longer wakes
+    /// when the session stops.
+    #[reply(ActorSession)]
+    UnfollowActorSession(UnfollowActorSessionRequest),
     /// Switches an actor session's mode, through its client.
     #[reply(ActorSession, via = Local)]
     SetActorSessionMode(SetActorSessionModeRequest),

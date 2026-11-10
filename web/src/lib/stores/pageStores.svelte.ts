@@ -1,5 +1,5 @@
 // The stores that hold what a page shows (an open task list, document,
-// conversation or actor session, a workspace's tags or contacts), one set for each half of
+// database, conversation or actor session, a workspace's tags or contacts), one set for each half of
 // the sheet, so two pages of the same kind side by side each have their own.
 // A component takes its half's with `pageStores()`; the shell (sidebar, ⌘K,
 // the linked-item panel), drawn outside both halves, gets the main half's.
@@ -13,6 +13,7 @@ import { createActorsStore, type ActorsStore } from './actors.svelte';
 import { createAgentsStore, type AgentsStore } from './agents.svelte';
 import { createArticlesStore, type ArticlesStore } from './articles.svelte';
 import { createContactsStore, type ContactsStore } from './contacts.svelte';
+import { createDatabasesStore, type DatabasesStore } from './databases.svelte';
 import { createDocumentsStore, type DocumentsStore } from './documents.svelte';
 import { createJournalStore, type JournalStore } from './journal.svelte';
 import { Resource } from './resource.svelte';
@@ -27,6 +28,7 @@ export interface PageStores {
 	agents: AgentsStore;
 	articles: ArticlesStore;
 	contacts: ContactsStore;
+	databases: DatabasesStore;
 	documents: DocumentsStore;
 	journal: JournalStore;
 	resources: ResourcesStore;
@@ -42,6 +44,7 @@ export function createPageStores(send: Send = defaultSend): PageStores {
 		agents: createAgentsStore(send),
 		articles: createArticlesStore(send),
 		contacts: createContactsStore(send),
+		databases: createDatabasesStore(send),
 		documents: createDocumentsStore(send),
 		journal: createJournalStore(send),
 		resources: createResourcesStore(send),

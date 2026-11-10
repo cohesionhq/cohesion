@@ -1,11 +1,17 @@
-use cohesion_core::model::{Document, Embed, Task, VersionChange, VersionTarget};
+use cohesion_core::model::{
+    DatabaseDataType, DatabaseValue, Document, Embed, EmbedKind, Task, VersionChange, VersionTarget,
+};
 
 use super::*;
+use crate::commands::database::tests::Fixture;
 use crate::test_support::context;
 use crate::{
-    AppendToJournalCommand, CommandError, CreateDocumentCommand, CreateTaskCommand,
-    CreateWorkspaceCommand, DatabaseContext, DeleteDocumentCommand, DeleteWorkspaceCommand,
-    EditDocumentCommand, ListVersionsCommand, RenameDocumentCommand, RestoreVersionCommand,
+    AppendToJournalCommand, ChangeTaskDescriptionCommand, ChangeTaskTitleCommand, CommandError,
+    CreateDatabaseRowDocumentCommand, CreateDocumentCommand, CreateTaskCommand,
+    CreateTaskFolderCommand, CreateWorkspaceCommand, DatabaseContext, DeleteDatabaseCommand,
+    DeleteDatabaseRowCommand, DeleteDocumentCommand, DeleteTaskCommand, DeleteTaskFolderCommand,
+    DeleteWorkspaceCommand, EditDocumentCommand, ListVersionsCommand, MoveTaskToFolderCommand,
+    RenameDocumentCommand, RestoreVersionCommand,
 };
 
 fn workspace(db: &DatabaseContext) -> i64 {
@@ -242,4 +248,201 @@ fn a_document_brought_back_by_rewind_links_again() {
     })
     .unwrap();
     assert_eq!(titles(&db, &link), ["Notes"]);
+}
+
+fn describe(db: &DatabaseContext, task: &Task, description: &str) {
+    db.send_blocking(ChangeTaskDescriptionCommand {
+        workspace_id: task.workspace_id,
+        task_id: task.id,
+        description: description.to_string(),
+    })
+    .unwrap();
+}
+
+#[test]
+fn a_tasks_description_links_as_a_documents_contents_do() {
+    let db = context();
+    let ws = workspace(&db);
+    let plan = document(&db, ws, "Plan", "");
+    let other = task(&db, ws);
+    let plan_link = format!("cohesion://document/{ws}/{}", plan.id);
+    let other_link = format!("cohesion://task/{ws}/{}", other.id);
+    let fixing = db
+        .send_blocking(CreateTaskCommand {
+            workspace_id: ws,
+            title: "Write the plan".to_string(),
+            folder_id: None,
+            priority: None,
+            size: None,
+            assignee: None,
+            description: Some(format!("[Plan]({plan_link})")),
+            start_date: None,
+            due_date: None,
+            tag_ids: Vec::new(),
+        })
+        .unwrap();
+    assert_eq!(titles(&db, &plan_link), ["Write the plan"]);
+    let linking = backlinks(&db, &plan_link);
+    assert_eq!(
+        linking[0].link,
+        format!("cohesion://task/{ws}/{}", fixing.id)
+    );
+
+    let mut batches = db.subscribe();
+    describe(&db, &fixing, &format!("Blocked on [this]({other_link})."));
+    assert!(titles(&db, &plan_link).is_empty());
+    assert_eq!(titles(&db, &other_link), ["Write the plan"]);
+    let keys = published(&mut batches);
+    assert!(keys.contains(&key(LinkKind::Document, plan.id)));
+    assert!(keys.contains(&key(LinkKind::Task, other.id)));
+
+    // A rename changes what the other task's backlinks show, so it says so too.
+    db.send_blocking(ChangeTaskTitleCommand {
+        workspace_id: ws,
+        task_id: fixing.id,
+        title: "Unblock".to_string(),
+    })
+    .unwrap();
+    assert_eq!(titles(&db, &other_link), ["Unblock"]);
+    assert!(published(&mut batches).contains(&key(LinkKind::Task, other.id)));
+
+    // A task linking to itself is not its own backlink.
+    let own = format!("cohesion://task/{ws}/{}", fixing.id);
+    describe(&db, &fixing, &format!("[Me]({own})"));
+    assert!(titles(&db, &own).is_empty());
+}
+
+#[test]
+fn a_deleted_task_links_to_nothing_until_rewind_brings_it_back() {
+    let db = context();
+    let ws = workspace(&db);
+    let plan = document(&db, ws, "Plan", "");
+    let link = format!("cohesion://document/{ws}/{}", plan.id);
+    let fixing = task(&db, ws);
+    describe(&db, &fixing, &format!("[Plan]({link})"));
+    let mut batches = db.subscribe();
+    db.send_blocking(DeleteTaskCommand {
+        workspace_id: ws,
+        task_id: fixing.id,
+    })
+    .unwrap();
+    assert!(titles(&db, &link).is_empty());
+    assert!(published(&mut batches).contains(&key(LinkKind::Document, plan.id)));
+
+    let versions = db
+        .send_blocking(ListVersionsCommand {
+            workspace_id: ws,
+            item: VersionTarget::Task { task_id: fixing.id },
+        })
+        .unwrap();
+    assert_eq!(versions[0].change, VersionChange::Deleted);
+    db.send_blocking(RestoreVersionCommand {
+        workspace_id: ws,
+        version_id: versions[0].id,
+    })
+    .unwrap();
+    assert_eq!(titles(&db, &link), ["Fix login"]);
+}
+
+#[test]
+fn deleting_a_task_folder_takes_its_tasks_links() {
+    let db = context();
+    let ws = workspace(&db);
+    let plan = document(&db, ws, "Plan", "");
+    let link = format!("cohesion://document/{ws}/{}", plan.id);
+    let folder = db
+        .send_blocking(CreateTaskFolderCommand {
+            workspace_id: ws,
+            title: "Later".to_string(),
+        })
+        .unwrap();
+    let fixing = task(&db, ws);
+    describe(&db, &fixing, &format!("[Plan]({link})"));
+    db.send_blocking(MoveTaskToFolderCommand {
+        workspace_id: ws,
+        task_id: fixing.id,
+        folder_id: Some(folder.id),
+    })
+    .unwrap();
+    assert_eq!(titles(&db, &link), ["Fix login"]);
+
+    let mut batches = db.subscribe();
+    db.send_blocking(DeleteTaskFolderCommand {
+        workspace_id: ws,
+        folder_id: folder.id,
+    })
+    .unwrap();
+    assert!(titles(&db, &link).is_empty());
+    assert!(published(&mut batches).contains(&key(LinkKind::Document, plan.id)));
+}
+
+#[test]
+fn a_database_and_its_row_have_backlinks_and_a_rows_document_links_as_its_row() {
+    let f = Fixture::new();
+    let (db, ws) = (&f.db, f.ws);
+    let title = f.property("Title", DatabaseDataType::Text);
+    let row = f.row();
+    f.set(row, &title, Some(DatabaseValue::Text("Dune".into())))
+        .unwrap();
+    let database_link = format!("cohesion://database/{ws}/{}", f.database.id);
+    let row_link = format!("cohesion://database-row/{ws}/{}/{row}", f.database.id);
+    document(
+        db,
+        ws,
+        "Plan",
+        &format!("[Books]({database_link})\n\nRead [Dune]({row_link})."),
+    );
+    assert_eq!(titles(db, &database_link), ["Plan"]);
+    assert_eq!(titles(db, &row_link), ["Plan"]);
+
+    // What a row's document links to lists the row, not the document.
+    let task = task(db, ws);
+    let task_link = format!("cohesion://task/{ws}/{}", task.id);
+    let row_document = db
+        .send_blocking(CreateDatabaseRowDocumentCommand {
+            workspace_id: ws,
+            database_id: f.database.id,
+            row_id: row,
+        })
+        .unwrap();
+    edit(
+        db,
+        &row_document,
+        &format!("Before [Fix login]({task_link})"),
+    );
+    let linking = backlinks(db, &task_link);
+    assert_eq!(linking.len(), 1);
+    assert_eq!(linking[0].kind, EmbedKind::DatabaseRow);
+    assert_eq!(linking[0].title, "Dune");
+    assert_eq!(linking[0].link, row_link);
+
+    // Deleting the row lets go of its document's links, and says so.
+    let mut batches = db.subscribe();
+    db.send_blocking(DeleteDatabaseRowCommand {
+        workspace_id: ws,
+        database_id: f.database.id,
+        row_id: row,
+    })
+    .unwrap();
+    assert!(titles(db, &task_link).is_empty());
+    assert!(published(&mut batches).contains(&key(LinkKind::Task, task.id)));
+
+    // As does deleting a database with a row whose document links.
+    let row = f.row();
+    let row_document = db
+        .send_blocking(CreateDatabaseRowDocumentCommand {
+            workspace_id: ws,
+            database_id: f.database.id,
+            row_id: row,
+        })
+        .unwrap();
+    edit(db, &row_document, &format!("[Fix login]({task_link})"));
+    assert_eq!(titles(db, &task_link), ["Untitled"]);
+    db.send_blocking(DeleteDatabaseCommand {
+        workspace_id: ws,
+        database_id: f.database.id,
+    })
+    .unwrap();
+    assert!(titles(db, &task_link).is_empty());
+    assert!(published(&mut batches).contains(&key(LinkKind::Task, task.id)));
 }

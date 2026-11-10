@@ -60,9 +60,12 @@ VITE_MOCK=1 npm run dev
 
 Swaps the transport for `src/lib/protocol/mock.ts`, an in-memory daemon with
 seed data modelled on a real daemon's, with people's names made up (three workspaces, journals,
-tasks and tags, documents, contacts, feeds and their articles, agents and their threads, actors,
+tasks and tags, documents, databases, contacts, feeds and their articles, agents and their threads, actors,
 settings).
-No daemon or CLI needed. The tests use the same mock.
+No daemon or CLI needed. The tests use the same mock. It has no JavaScript
+engine, so a database formula runs only if it is written in the small part of
+the language `src/lib/protocol/mockFormula.ts` reads (arithmetic, comparisons,
+`??`, `?:` and a few methods over `row`); the formula editor's examples are.
 
 ## Checks
 
@@ -238,8 +241,8 @@ only these exist:
   right of the sheet (`shell/ConversationGutter.svelte`) and takes what the
   conversation's header would otherwise carry, in a summary row as tall as that header over flat groups, all ruled by
   hairlines and inset a little from its edges (`ui/GutterCard.svelte`, `ui/GutterGroup.svelte`): for an agent its context size and what it is doing, its
-  actor sessions not yet resolved, each with the sidebar's archive icon to resolve it on hover or
-  focus (always on touch), and its cues (`AgentGutter`), for a session where
+  actor sessions not yet resolved, each with an eye-off icon to stop following it and the sidebar's archive
+  icon to resolve it on hover or focus (always on touch), and its cues (`AgentGutter`), for a session where
   its actor, where it works and its model, then its usage as bars (`SessionGutter`); where it
   stands and Resolve stay in the header at every width. It speaks
   for the main half only; a second half's header keeps all of it, as does every
@@ -288,7 +291,13 @@ only these exist:
   from `ui/motion.ts`, 200ms, longer because they move or resize content.
   A column sliding in beside the page takes `motion.slideIn` and
   `motion.slideOut` instead, 180ms in and 140ms out, as the side panel
-  slides. Reduced motion zeroes them all. A short changing value (the
+  slides. Reduced motion zeroes them all. A page navigation cross-fades
+  (`shell/fade.ts`): the old page and the new dissolve over the same 120ms
+  on the same curve, so what they share holds still, and nothing moves or
+  resizes. The column beside a conversation doesn't slide in a navigation:
+  it opens or shuts at once and fades with the page, and between two
+  conversations it stays open while its contents fade. Data that lands
+  after the fade has stopped waiting fades in rather than popping in. A short changing value (the
   agent header's token count, a fork's step count) is drawn with
   `ui/RollingText.svelte`, which rolls only the characters that change.
   Text in progress shimmers, drawn with `ui/Shimmer.svelte`: an agent's name
@@ -360,7 +369,7 @@ doing, not by how it looks.
   the workspace picker, or ⌘K.
 - **SidePanel** (`ui/SidePanel.svelte`) is for reading or writing
   something longer without leaving the page; `ItemPanel` on top of it opens
-  every linked item (`cohesion://…`). An Expand button beside Close floats it
+  every linked item (`cohesion://…`) but a database, which opens its table. An Expand button beside Close floats it
   wider and nearly full height at the middle of the window (Minimize returns it),
   with an item's details in a column beside its text, each scrolling on its own;
   it is gone below 900px and forgotten when the panel closes.
