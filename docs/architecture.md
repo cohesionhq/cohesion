@@ -2025,7 +2025,7 @@ on Linux):
 
 **`cohesion open`** (`cohesion/src/cli/open.rs`, `cohesion/src/web_proxy/`):
 
-1. Reads `About` and the current workspace for `/client`, and takes a token: from `COHESION_DEV_TOKEN` with `--dev`, else the saved `web-token` (32 random letters and digits), made once and kept until `--reset-token`.
+1. Reads `About` and the current workspace for `/client`, and takes a token: from `COHESION_DEV_TOKEN` with `--dev`, else the saved `web-token` (32 random letters and digits), made once and kept until `--reset-token`; a file holding anything else, such as one a failed write left empty, is replaced.
 2. Fetches the bundle with `WebBundle` and inflates it into memory (`static_assets.rs`). With `--dev` it serves only `/client` and `/connect`, for Vite.
 3. Binds `127.0.0.1` on `--port` or 7343, falling back to a free port, prints the address, and opens a browser unless `--no-browser`.
 4. Serves `GET /launch/<nonce>` (one use, within 30 s, answering `303` to `/#token=<token>` with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`, so the token never sits on a command line), `GET /client`, `/connect` (a WebSocket relayed unchanged to a new session over the CLI's own connection, up to 64 MiB a message), and the files (anything unknown is `index.html`; `_app/immutable/` is cached for a year).
