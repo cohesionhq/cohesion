@@ -51,22 +51,42 @@ export type TextPiece =
 	| { kind: 'embed'; link: ItemLink; href: string; label: string };
 
 const FENCE = /^\s*(```|~~~)/;
+const ASCII_PUNCTUATION = /^[!-/:-@[-`{-~]$/;
 
 /**
- * The label, href and link of `line` when it is only a link to an item
+ * The label, href and link of `line` when it is exactly one link to an item
  * (spaces around it aside, but not a code block's indent of four), or null.
+ * The label ends at its first unescaped `]`, which must be followed by `(`,
+ * and the link at the line's last `)`: so `[A](https://a.dev) and
+ * [B](cohesion://…)`, whose first link isn't an item's, and two links on one
+ * line are not embeds. A `\` before punctuation in the label is Markdown's
+ * escape and is dropped.
+ *
+ * `embed_line` in cohesion-core (model/text_section.rs) reads a line the same
+ * way; change them together.
  */
 export function embedLine(line: string): { label: string; href: string; link: ItemLink } | null {
 	const indent = line.slice(0, line.length - line.trimStart().length);
 	if (indent.includes('\t') || indent.length >= 4) return null;
 	const trimmed = line.trim();
-	if (!trimmed.startsWith('[') || !trimmed.endsWith(')')) return null;
-	const inner = trimmed.slice(1, -1);
-	const middle = inner.lastIndexOf('](');
-	if (middle < 0) return null;
-	const href = inner.slice(middle + 2);
+	if (!trimmed.startsWith('[')) return null;
+	let label = '';
+	let close = -1;
+	for (let i = 1; i < trimmed.length; i++) {
+		const c = trimmed[i];
+		if (c === '\\') {
+			const next = trimmed[++i];
+			if (next === undefined) return null;
+			label += ASCII_PUNCTUATION.test(next) ? next : c + next;
+		} else if (c === ']') {
+			close = i;
+			break;
+		} else label += c;
+	}
+	if (close < 0 || trimmed[close + 1] !== '(' || !trimmed.endsWith(')')) return null;
+	const href = trimmed.slice(close + 2, -1);
 	const link = parseItemLink(href);
-	return link && { label: inner.slice(0, middle), href, link };
+	return link && { label, href, link };
 }
 
 /**

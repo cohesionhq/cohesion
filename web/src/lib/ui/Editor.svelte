@@ -4,14 +4,14 @@
 	that differs from the document replaces it (e.g. a refetch), so callers
 	should feed back what `onchange` gave them. Markdown can show a
 	`cohesion://` link alone on its line as a card (`embed`) and look items up
-	after `@` to link them (`mentions`); the caller draws the card and does
+	after `@` or `[[` to link them (`mentions`); the caller draws the card and does
 	the search, so this stays a primitive.
 -->
 <script lang="ts" module>
 	/** Draws link `href`, with text `label`, as a card in `host`; returns what takes it down. */
 	export type EmbedMount = (host: HTMLElement, href: string, label: string) => () => void;
 
-	/** An item `@` found, linked as `[label](href)` when picked. */
+	/** An item `@` or `[[` found, linked as `[label](href)` when picked. */
 	export interface Mention {
 		label: string;
 		/** What it is, shown quietly beside it: `Task #42`. */
@@ -49,6 +49,7 @@
 	import { tags } from '@lezer/highlight';
 	import { onDestroy, onMount } from 'svelte';
 	import { embedLine } from '$lib/format/itemLinks';
+	import { mentionTrigger } from '$lib/format/mentionTrigger';
 	import { SEARCH_DEBOUNCE_MS } from '$lib/format/search';
 
 	interface Props {
@@ -73,7 +74,7 @@
 		title?: string;
 		/** Markdown only: shows a `cohesion://` link alone on a line the caret isn't on as a card. */
 		embed?: EmbedMount;
-		/** Markdown only: after `@` typed at a word's start, looks items up to link. */
+		/** Markdown only: after `@` or `[[` typed at a word's start, looks items up to link. */
 		mentions?: MentionSearch;
 	}
 
@@ -149,7 +150,7 @@
 			lineHeight: 'normal',
 			cursor: 'default'
 		},
-		// The `@` list, as the app's menus look.
+		// The picker's list, as the app's menus look.
 		'.cm-tooltip.cm-tooltip-autocomplete': {
 			minWidth: '18rem',
 			maxWidth: '28rem',
@@ -407,17 +408,19 @@
 		`[${label.replace(/[[\]\\]/g, (c) => `\\${c}`)}](${href})`;
 
 	/**
-	 * Items to link after an `@` that starts a word, once a character follows it,
-	 * outside code. Picking one puts its Markdown link in place of the `@` and what
+	 * Items to link after an `@` or a `[[` that starts a word, once a character follows
+	 * it, outside code. Picking one puts its Markdown link in place of the opener and what
 	 * was typed; on a line of its own, that link shows as its card.
 	 */
 	async function mentionSource(context: CompletionContext): Promise<CompletionResult | null> {
 		const search = mentions;
-		const typed = context.matchBefore(/(?:^|\s)@[^\s@][^@\n]{0,60}/);
-		if (!search || !typed) return null;
-		const at = typed.from + typed.text.indexOf('@');
+		if (!search) return null;
+		const line = context.state.doc.lineAt(context.pos);
+		const trigger = mentionTrigger(context.state.sliceDoc(line.from, context.pos));
+		if (!trigger) return null;
+		const at = line.from + trigger.at;
 		if (inCode(context.state, at)) return null;
-		const query = context.state.sliceDoc(at + 1, context.pos);
+		const query = trigger.query;
 		await pause(SEARCH_DEBOUNCE_MS);
 		if (context.aborted) return null;
 		const found = await search(query).catch(() => []);

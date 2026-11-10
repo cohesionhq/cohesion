@@ -67,6 +67,33 @@ describe('text pieces', () => {
 			expect(textPieces(text)).toEqual([markdown(text)]);
 	});
 
+	it('leaves a sentence whose last link ends the line as Markdown', () => {
+		const text = '[Spec](https://example.com) blocks [Fix login](cohesion://task/5/42)';
+		expect(textPieces(text)).toEqual([markdown(text)]);
+	});
+
+	it('leaves two links on one line as Markdown', () => {
+		for (const text of [
+			'[A](cohesion://task/3/1) [B](cohesion://task/3/2)',
+			'[A](cohesion://task/3/1)[B](cohesion://task/3/2)'
+		])
+			expect(textPieces(text)).toEqual([markdown(text)]);
+	});
+
+	it('keeps an escaped bracket in the label', () => {
+		expect(textPieces('[Fix \\] login \\[2\\]](cohesion://task/3/42)')).toEqual([
+			task('Fix ] login [2]', 3, 42)
+		]);
+		// The same label unescaped ends at its first `]`, and what follows is text.
+		const text = '[Fix ] login](cohesion://task/3/42)';
+		expect(textPieces(text)).toEqual([markdown(text)]);
+	});
+
+	it('leaves a bare link as Markdown', () => {
+		for (const text of ['cohesion://task/3/42', '<cohesion://task/3/42>', '(cohesion://task/3/42)'])
+			expect(textPieces(text)).toEqual([markdown(text)]);
+	});
+
 	it('needs no Markdown between embeds side by side', () => {
 		expect(textPieces('  [A](cohesion://task/3/1)  \n[B](cohesion://task/3/2)\n\n')).toEqual([
 			task('A', 3, 1),

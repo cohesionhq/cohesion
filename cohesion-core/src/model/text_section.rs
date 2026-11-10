@@ -58,7 +58,7 @@ pub fn text_pieces(text: &str) -> Vec<TextPiece> {
                 pieces.push(TextPiece::Embed {
                     link,
                     href: href.to_string(),
-                    label: label.to_string(),
+                    label,
                 });
             }
             None => markdown.push(line),
@@ -78,16 +78,37 @@ fn push_markdown(pieces: &mut Vec<TextPiece>, lines: &mut Vec<&str>) {
     lines.clear();
 }
 
-/// The label, href and link of `line` when it is only a link to an item
-/// (spaces around it aside, but not a code block's indent of four).
-fn embed_line(line: &str) -> Option<(&str, &str, ItemLink)> {
+/// The label, href and link of `line` when it is exactly one link to an item
+/// (spaces around it aside, but not a code block's indent of four). The label
+/// ends at its first unescaped `]`, which must be followed by `(`, and the
+/// link at the line's last `)`: so `[A](https://a.dev) and [B](cohesion://…)`,
+/// whose first link isn't an item's, and two links on one line are not embeds.
+/// A `\` before punctuation in the label is Markdown's escape and is dropped.
+///
+/// The web UI's `embedLine` (web/src/lib/format/itemLinks.ts) reads a line the
+/// same way; change them together.
+fn embed_line(line: &str) -> Option<(String, &str, ItemLink)> {
     let indent = &line[..line.len() - line.trim_start().len()];
     if indent.contains('\t') || indent.len() >= 4 {
         return None;
     }
-    let link = line.trim().strip_prefix('[')?.strip_suffix(')')?;
-    let middle = link.rfind("](")?;
-    let (label, href) = (&link[..middle], &link[middle + 2..]);
+    let rest = line.trim().strip_prefix('[')?;
+    let mut label = String::new();
+    let mut chars = rest.char_indices();
+    let close = loop {
+        match chars.next()? {
+            (_, '\\') => match chars.next()? {
+                (_, escaped) if escaped.is_ascii_punctuation() => label.push(escaped),
+                (_, other) => {
+                    label.push('\\');
+                    label.push(other);
+                }
+            },
+            (at, ']') => break at,
+            (_, c) => label.push(c),
+        }
+    };
+    let href = rest[close + 1..].strip_prefix('(')?.strip_suffix(')')?;
     Some((label, href, href.parse().ok()?))
 }
 

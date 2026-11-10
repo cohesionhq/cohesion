@@ -479,8 +479,10 @@ Nothing pushes an embed: a client asks again on the item's invalidation,
 `taskList` of the task's workspace, `documents(ws)`, `resources(ws)`,
 `agent(id)`, `actorSession(id)` or `feedArticles`. A link shows as a card
 where it is alone on its line, outside a fenced or indented code block
-(`text_pieces`, `model/text_section.rs`); a link in a sentence or a list item
-stays a link. `ResolveEmbeds{text}` splits any Markdown by that rule and
+(`text_pieces`, `model/text_section.rs`): the line is exactly one link, whose
+label ends at its first unescaped `]` (`\]` is a bracket in it) and whose
+`)` ends the line. A link in a sentence or a list item, and two links on one
+line, stay links. `ResolveEmbeds{text}` splits any Markdown by that rule and
 resolves each card, answering `TextSection`s in order: `markdown` (`text`, to
 render as it is) or `embed` (`link`, `label`, and `embed`, `null` once its item
 is gone), so a client shows cards without reading links itself. The web UI
@@ -1803,11 +1805,14 @@ resolves, the link's text shimmers; an item gone shows its text quietly with
 opens the panel, as the link does.
 
 **`@`.** In the same editors, `@` at a word's start looks items up to link
-(`shell/mentions.ts`, on `@codemirror/autocomplete`): agents by name, then the
+(`shell/mentions.ts`, on `@codemirror/autocomplete`). `[[` at a word's start
+opens the same picker, with the same rows and keys, and writes the same
+`[title](cohesion://…)`; both are read by `lib/format/mentionTrigger.ts`. It
+offers agents by name, then the
 workspace's documents, journal entries, tasks and resources
 (`searchWorkspace`), then actor sessions (`searchActorSessions`), at most 8
 rows; articles (`searchFeedCorpus`) only fill the rows left. ↑ and ↓ choose,
-↩ or ⇥ inserts `[title](cohesion://…)` in place of `@` and what was typed, and
+↩ or ⇥ inserts `[title](cohesion://…)` in place of the `@` or `[[` and what was typed, and
 Esc closes, leaving the text. On a line of its own the link becomes a card.
 
 **Building and serving.** `npm run build` writes `web/build/`, which

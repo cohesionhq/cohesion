@@ -108,7 +108,7 @@ are in the `web-ui-change` skill.
   or `features/`, but for `Markdown.svelte`, which opens links and draws
   cards from `shell/`. Only `Editor.svelte` imports CodeMirror; it draws a
   link alone on its line as the card its caller hands it (`embed`) and looks
-  items up after `@` with its caller's search (`mentions`). Only
+  items up after `@` or `[[` with its caller's search (`mentions`). Only
   `Markdown.svelte` renders HTML (with `embeds`, a link alone on its line is
   a card, split by `textPieces` as the daemon splits it; with `diagrams`, which agent replies, plans and documents turn on, a `mermaid` fenced block
   becomes an SVG through `diagram.ts`, which asks the daemon (`renderMermaid`) once its fence has closed, once per source and width, and keeps the reply;

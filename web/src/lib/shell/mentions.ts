@@ -1,4 +1,4 @@
-// What `@` finds in the editor: items to link by title, in the order they're
+// What `@` or `[[` finds in the editor: items to link by title, in the order they're
 // offered. Articles, shared by every workspace and far more numerous, rank
 // last: they fill only the rows nothing else took.
 
@@ -7,7 +7,7 @@ import type { IntelligenceAgent, Send } from '$lib/protocol/types';
 import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 import type { Mention } from '$lib/ui/Editor.svelte';
 
-/** The most rows `@` offers. */
+/** The most rows `@` and `[[` offer. */
 export const MENTION_ROWS = 8;
 
 /**

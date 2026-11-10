@@ -1,6 +1,6 @@
 // Cards mounted into markup Svelte doesn't draw, the editor's lines, which
 // hand each card a host element and unmount it with the function this
-// returns; and what the editor looks up after `@`.
+// returns; and what the editor looks up after `@` or `[[`.
 
 import { mount, unmount } from 'svelte';
 import { send } from '$lib/protocol/api';
@@ -18,7 +18,7 @@ export function mountEmbedCard(host: HTMLElement, href: string, label: string): 
 }
 
 /**
- * What the editor needs to show cards and look items up after `@` in
+ * What the editor needs to show cards and look items up after `@` or `[[` in
  * workspace `ws`'s text: the card, and the search (`searchMentions`).
  */
 export function editorLinks(ws: number): { embed: EmbedMount; mentions: MentionSearch } {
