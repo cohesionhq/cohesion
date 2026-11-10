@@ -79,6 +79,13 @@
 			]
 		},
 		{
+			title: 'Documents, journal and task descriptions',
+			rows: [
+				{ keys: ['@'], label: 'Look up an item to link' },
+				{ keys: [keyLabel('enter'), keyLabel('tab')], label: 'Link the item chosen' }
+			]
+		},
+		{
 			title: 'Forward',
 			rows: [
 				{ keys: [keyLabel('enter')], label: 'Forward' },

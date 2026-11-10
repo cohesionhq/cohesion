@@ -7,6 +7,13 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- In a document, a journal entry, Today or a task's description, a link to
+  an item alone on its line shows as a card of it: a task with its status and
+  due day, a document, a resource, an agent, an actor session with where it
+  stands, an article with its feed, each with the start of its text. Click it
+  to open the item over the page. Type `@` to look up a task, document,
+  resource, agent, session or article and link it; on an empty line it
+  becomes a card. Articles come last in the list.
 - Any `cohesion://` link resolves to the item it names in one shape,
   `Embed`: `resolveLink` returns its title, the start of its text, what kind
   it is (worded in `hello.vocabulary.embed_kinds`) and the item itself, or

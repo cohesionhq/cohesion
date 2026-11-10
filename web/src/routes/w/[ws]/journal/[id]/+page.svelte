@@ -95,6 +95,7 @@
 				<div class="mx-auto flex w-full max-w-170 flex-1 flex-col pt-6">
 					<DocumentBody
 						draft={documents.text}
+						workspace={ws}
 						{preview}
 						label="Journal entry"
 						placeholder="Write about this day…"

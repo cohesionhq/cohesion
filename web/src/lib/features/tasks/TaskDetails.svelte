@@ -389,6 +389,7 @@
 		<DocumentBody
 			bind:this={body}
 			{draft}
+			workspace={task?.workspace_id ?? 0}
 			{preview}
 			label="Description"
 			placeholder="Notes, links, steps…"

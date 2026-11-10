@@ -1727,7 +1727,7 @@ and `src/routes/+layout.ts` turns off server rendering and prerendering.
 | `/connectors`, `/connectors/accounts` | Connected services |
 | `/extensions` | `browse`, `installed`, `installed/[id]`, `find` |
 | `/settings`, `/settings/[section]` | Settings |
-| `/open/[kind=item]/[id]`, `/open/[kind=workspaceitem]/[ws]/[id]` | The page a `cohesion://` link opens when followed from outside the web UI |
+| `/open/[kind=item]/[id]`, `/open/[kind=workspaceitem]/[ws]/[id]` | The page a `cohesion://` link opens when followed from outside the web UI: `item` is a task, document, agent, actor session or article, `workspaceitem` a task, document or resource |
 
 Route builders are in `web/src/lib/shell/routes.ts`. The window can split in
 two (`lib/shell/pane.svelte.ts`, `SplitView.svelte`), each half with its own
@@ -1772,16 +1772,43 @@ socket. Vitest uses the same mock. With `npm run dev`, `.env.development` sets
 `VITE_DEV_PROXY=1`, so the page doesn't ask for a token.
 
 **Links.** Items link as `cohesion://task/<ws>/<id>`,
-`cohesion://document/<ws>/<id>`, `cohesion://agent/<id>` and
-`cohesion://actor-session/<id>` (`parseItemLink`, `shell/routes.ts`; a task or
-document link without a workspace still opens, looking in the current
-workspace first). Following one in the web UI (`ui/Markdown.svelte`,
+`cohesion://document/<ws>/<id>`, `cohesion://resource/<ws>/<id>`,
+`cohesion://agent/<id>`, `cohesion://actor-session/<id>` and
+`cohesion://article/<id>` (`parseItemLink`, `lib/format/itemLinks.ts`, which
+`shell/routes.ts` re-exports; a task or document link without a workspace
+still opens). The daemon finds what a link names (`resolveLink`, through
+`shell/links.ts`), so neither the panel nor the Open pages search workspaces
+themselves. Following one in the web UI (`ui/Markdown.svelte`,
 `linkedItem.follow`) opens the item over the current page in one side panel,
 `ItemPanel`, the same for every kind but its content
 (`shell/linkedItem.svelte.ts`, `shell/LinkedItem.svelte`): a task with its
-folder, tags and contacts; a document; an agent; an actor session with its
-actor and messages. Full-page content has an Open link. A modified click falls
-through to the `/open/…` page.
+folder, tags and contacts; a document; a resource; an agent; an actor session
+with its actor and messages; an article with its feed. Full-page content has
+an Open link (an article's opens in the current workspace). A modified click
+falls through to the `/open/…` page.
+
+**Embeds.** In a document, a journal entry, Today and a task's description, a
+link alone on its line shows as a card of its item (`shell/EmbedCard.svelte`):
+its icon (a task's box, an agent's avatar, a session's status), title, kind
+and a detail, and the start of its text. The editor (`ui/Editor.svelte`, given
+`embed` by `shell/embedCards.ts`) draws the card in place of the line while the
+caret is elsewhere, and the line as typed while the caret is on it; the
+read-only preview and the document panel draw it too (`Markdown`'s `embeds`).
+Which lines are cards is `textPieces` (`lib/format/itemLinks.ts`), the same rule
+as the daemon's `resolveEmbeds` ([5](#5-the-wire-protocol), "Links and
+embeds"). Each card resolves its link through `stores/embeds.svelte.ts`, once
+for every card showing it, and asks again on its item's invalidation. While it
+resolves, the link's text shimmers; an item gone shows its text quietly with
+"Task not found"; a link that can't be resolved stays a plain link. A click
+opens the panel, as the link does.
+
+**`@`.** In the same editors, `@` at a word's start looks items up to link
+(`shell/mentions.ts`, on `@codemirror/autocomplete`): agents by name, then the
+workspace's documents, journal entries, tasks and resources
+(`searchWorkspace`), then actor sessions (`searchActorSessions`), at most 8
+rows; articles (`searchFeedCorpus`) only fill the rows left. ↑ and ↓ choose,
+↩ or ⇥ inserts `[title](cohesion://…)` in place of `@` and what was typed, and
+Esc closes, leaving the text. On a line of its own the link becomes a card.
 
 **Building and serving.** `npm run build` writes `web/build/`, which
 `cohesionkit/build.rs` compresses into `cohesiond` ([2](#2-building-running-and-testing)).

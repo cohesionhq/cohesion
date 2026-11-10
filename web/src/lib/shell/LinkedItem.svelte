@@ -2,6 +2,8 @@
 <script lang="ts">
 	import ActorSessionPanel from '$lib/features/actors/ActorSessionPanel.svelte';
 	import AgentPanel from '$lib/features/agents/AgentPanel.svelte';
+	import ArticlePanel from '$lib/features/articles/ArticlePanel.svelte';
+	import ResourcePanel from '$lib/features/connectors/ResourcePanel.svelte';
 	import DocumentPanel from '$lib/features/documents/DocumentPanel.svelte';
 	import TaskDetails from '$lib/features/tasks/TaskDetails.svelte';
 	import { linkedItem } from './linkedItem.svelte';
@@ -19,6 +21,8 @@
 	/>
 {:else if item?.kind === 'document'}
 	<DocumentPanel bind:open={linkedItem.open} document={item.document} />
+{:else if item?.kind === 'resource'}
+	<ResourcePanel bind:open={linkedItem.open} resource={item.resource} />
 {:else if item?.kind === 'agent'}
 	<AgentPanel bind:open={linkedItem.open} agent={item.agent} />
 {:else if item?.kind === 'actor-session'}
@@ -28,4 +32,6 @@
 		actor={item.actor}
 		messages={item.messages}
 	/>
+{:else if item?.kind === 'article'}
+	<ArticlePanel bind:open={linkedItem.open} article={item.article} feedTitle={item.feedTitle} />
 {/if}

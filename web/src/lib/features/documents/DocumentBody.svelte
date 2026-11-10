@@ -1,11 +1,18 @@
-<!-- The open document's text: the Markdown editor, or a read-only preview. -->
+<!--
+	The open document's text: the Markdown editor, or a read-only preview. In
+	both, a `cohesion://` link alone on its line shows as a card, and in the
+	editor `@` looks items up in workspace `workspace` to link.
+-->
 <script lang="ts">
+	import { editorLinks } from '$lib/shell/embedCards';
 	import type { Draft } from '$lib/stores/draft.svelte';
 	import Editor from '$lib/ui/Editor.svelte';
 	import Markdown from '$lib/ui/Markdown.svelte';
 
 	interface Props {
 		draft: Draft;
+		/** The workspace the text is in, whose items `@` looks up. */
+		workspace: number;
 		preview: boolean;
 		label: string;
 		placeholder: string;
@@ -21,6 +28,7 @@
 
 	let {
 		draft,
+		workspace,
 		preview,
 		label,
 		placeholder,
@@ -32,6 +40,7 @@
 	}: Props = $props();
 
 	let editor = $state<Editor>();
+	const links = $derived(editorLinks(workspace));
 
 	/** Moves keyboard focus into the editor, when it is showing. */
 	export function focus(): void {
@@ -44,7 +53,7 @@
 		{#if draft.draft.trim() === ''}
 			<p class="text-fg-subtle">Nothing written yet.</p>
 		{:else}
-			<Markdown source={draft.draft} diagrams />
+			<Markdown source={draft.draft} diagrams embeds />
 		{/if}
 	</div>
 {:else}
@@ -57,6 +66,8 @@
 		{fill}
 		{size}
 		{title}
+		embed={links.embed}
+		mentions={links.mentions}
 		onchange={(text) => draft.edit(text)}
 		{onblur}
 		{onsubmit}

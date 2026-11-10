@@ -881,6 +881,12 @@ function seed(): MockState {
 				1,
 				'Rewind: storage and lifecycle',
 				'# Rewind: storage and lifecycle\n\n- Rewind stores full snapshots, not diffs: `task_versions` and `document_versions` (including journals).\n- A plain edit within 120 seconds of the newest version overwrites that version. Deletion and restore each create a separate version.\n- Retention is the "Rewind versions" row under Retention in Settings › Storage, seven days by default. Cleanup runs at startup and hourly.\n- Restore copies the tracked fields back and undeletes the record. A task whose folder is gone returns to Inbox.\n'
+			),
+			doc(
+				10,
+				1,
+				'Launch plan',
+				'# Launch plan\n\nWhat has to land before the beta, as cards. A link in a sentence, such as [the search notes](cohesion://document/1/5), stays a link.\n\n[Install extension from URL](cohesion://task/1/4)\n[Cohesion-bench](cohesion://task/1/2)\n\n## Who is on it\n\n[Secretary](cohesion://agent/2)\n[the install session](cohesion://actor-session/1)\n\n## Reading\n\n[Notion page](cohesion://resource/1/1)\n[Article](cohesion://article/1)\n\n## Dropped\n\n[Old migration task](cohesion://task/1/999)\n'
 			)
 		],
 		documentFolders: [
@@ -3238,17 +3244,24 @@ export function createMock(): Mock {
 		(filter: ArticleFilter) =>
 		(l: Article): boolean =>
 			filter === 'feeds' || l.feed_id === filter.feed;
-	/** As the daemon's `excerpt`, roughly: the first line of body text, its marks dropped. */
-	const excerptOf = (text: string): string => {
-		const line = text
+	/**
+	 * As the daemon's `excerpt`, roughly: the first line of body text, its marks
+	 * dropped, passing over one that only repeats `title`.
+	 */
+	const words = (text: string) => (text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).join(' ');
+	const excerptOf = (text: string, title = ''): string => {
+		const plain = text
 			.split('\n')
 			.map((l) => l.trim())
-			.find((l) => l !== '' && !/^(#|\||```|---)/.test(l));
-		const plain = (line ?? '')
-			.replace(/^(>\s*)?([-*+]\s|\d+[.)]\s)?(\[[ xX]\]\s)?/, '')
-			.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-			.replace(/\*\*|__|~~|[*`]/g, '');
-		return plain.length > 200 ? `${plain.slice(0, 199)}…` : plain;
+			.filter((l) => l !== '' && !/^(#|\||```|---)/.test(l))
+			.map((l) =>
+				l
+					.replace(/^(>\s*)?([-*+]\s|\d+[.)]\s)?(\[[ xX]\]\s)?/, '')
+					.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+					.replace(/\*\*|__|~~|[*`]/g, '')
+			)
+			.find((l) => title === '' || words(l) !== words(title));
+		return (plain ?? '').length > 200 ? `${plain!.slice(0, 199)}…` : (plain ?? '');
 	};
 	/** The live item a `cohesion://` link names, as the daemon's `ResolveLinkCommand` finds it. */
 	const resolveLink = (link: string): Embed => {
@@ -3281,7 +3294,7 @@ export function createMock(): Mock {
 					kind: 'task',
 					workspace_id: found.workspace_id,
 					title: found.title,
-					excerpt: excerptOf(found.description),
+					excerpt: excerptOf(found.description, found.title),
 					item: { kind: 'task', task: withTags(found) }
 				};
 			}
@@ -3296,7 +3309,7 @@ export function createMock(): Mock {
 					kind: found.document_type === 'journal' ? 'journalEntry' : 'document',
 					workspace_id: found.workspace_id,
 					title: found.title,
-					excerpt: excerptOf(found.contents),
+					excerpt: excerptOf(found.contents, found.title),
 					item: { kind: 'document', document: found }
 				};
 			}
@@ -3307,7 +3320,7 @@ export function createMock(): Mock {
 					kind: 'resource',
 					workspace_id: ws,
 					title: found.title,
-					excerpt: found.content_kind === 'json' ? '' : excerptOf(found.contents),
+					excerpt: found.content_kind === 'json' ? '' : excerptOf(found.contents, found.title),
 					item: { kind: 'resource', resource: found }
 				};
 			}
@@ -3344,7 +3357,7 @@ export function createMock(): Mock {
 					kind: 'article',
 					workspace_id: null,
 					title: found.title,
-					excerpt: excerptOf(found.contents),
+					excerpt: excerptOf(found.contents, found.title),
 					item: { kind: 'article', article: summary(found), feed_title: feed(found.feed_id).title }
 				};
 			}

@@ -45,7 +45,7 @@
 		</ItemDetail>
 	{/snippet}
 	{#if shown.contents.trim()}
-		<div class="text-md"><Markdown source={shown.contents} diagrams /></div>
+		<div class="text-md"><Markdown source={shown.contents} diagrams embeds /></div>
 	{:else}
 		<p class="text-fg-subtle">Nothing written yet.</p>
 	{/if}

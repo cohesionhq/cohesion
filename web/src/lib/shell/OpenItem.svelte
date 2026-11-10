@@ -20,7 +20,9 @@
 		task: 'Task not found.',
 		document: 'Document not found.',
 		agent: 'Agent not found.',
-		'actor-session': 'Session not found.'
+		resource: 'Resource not found.',
+		'actor-session': 'Session not found.',
+		article: 'Article not found.'
 	};
 
 	let failure = $state<{ message: string; retry: boolean } | null>(null);

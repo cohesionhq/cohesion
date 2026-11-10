@@ -105,8 +105,12 @@ are in the `web-ui-change` skill.
   tasks, documents, actors, settings…).
 - `src/lib/stores/`: rune stores; see its README for the pattern.
 - `src/lib/ui/`: primitives, which import nothing from `stores/`, `shell/`
-  or `features/`. Only `Editor.svelte` imports CodeMirror; only
-  `Markdown.svelte` renders HTML (with `diagrams`, which agent replies, plans and documents turn on, a `mermaid` fenced block
+  or `features/`, but for `Markdown.svelte`, which opens links and draws
+  cards from `shell/`. Only `Editor.svelte` imports CodeMirror; it draws a
+  link alone on its line as the card its caller hands it (`embed`) and looks
+  items up after `@` with its caller's search (`mentions`). Only
+  `Markdown.svelte` renders HTML (with `embeds`, a link alone on its line is
+  a card, split by `textPieces` as the daemon splits it; with `diagrams`, which agent replies, plans and documents turn on, a `mermaid` fenced block
   becomes an SVG through `diagram.ts`, which asks the daemon (`renderMermaid`) once its fence has closed, once per source and width, and keeps the reply;
   a block that won't draw stays code, as it does until the reply comes, and a drawn one opens in
   `ImageViewer.svelte` over the page, drawn again for the larger canvas and enlarged to fill it, from a click or its expand icon. The SVG is inlined so the `.diagram` tokens reach it, and a theme change or a resize needs no request); `colors.ts` is the one place an agent
@@ -123,9 +127,9 @@ are in the `web-ui-change` skill.
   (`routes.workspace`, the one place that says so; Today stays in the
   sidebar and ⌘K); `/agents`, `/actors` (and `/actors/[session]`, one
   actor session), `/threads/[thread]` (a read-only transcript), `/settings` and
-  `/open/…` (where a `cohesion://task/3/42` link lands, or a document's, an
-  agent's or an actor session's; see "The web UI" in `docs/architecture.md`)
-  are global.
+  `/open/…` (where a `cohesion://task/3/42` link lands, or a document's, a
+  resource's, an agent's, an actor session's or an article's; see "The web
+  UI" in `docs/architecture.md`) are global.
 
 ## Split view
 

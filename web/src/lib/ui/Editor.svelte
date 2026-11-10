@@ -2,9 +2,35 @@
 	The one CodeMirror wrapper. Nothing else imports CodeMirror.
 	`value` flows in; edits flow out through `onchange`. An incoming `value`
 	that differs from the document replaces it (e.g. a refetch), so callers
-	should feed back what `onchange` gave them.
+	should feed back what `onchange` gave them. Markdown can show a
+	`cohesion://` link alone on its line as a card (`embed`) and look items up
+	after `@` to link them (`mentions`); the caller draws the card and does
+	the search, so this stays a primitive.
 -->
+<script lang="ts" module>
+	/** Draws link `href`, with text `label`, as a card in `host`; returns what takes it down. */
+	export type EmbedMount = (host: HTMLElement, href: string, label: string) => () => void;
+
+	/** An item `@` found, linked as `[label](href)` when picked. */
+	export interface Mention {
+		label: string;
+		/** What it is, shown quietly beside it: `Task #42`. */
+		detail: string;
+		/** Its `cohesion://` link. */
+		href: string;
+	}
+
+	/** The items whose title matches `query`, best first, at most 8. */
+	export type MentionSearch = (query: string) => Promise<Mention[]>;
+</script>
+
 <script lang="ts">
+	import {
+		acceptCompletion,
+		autocompletion,
+		type CompletionContext,
+		type CompletionResult
+	} from '@codemirror/autocomplete';
 	import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 	import { javascript } from '@codemirror/lang-javascript';
 	import { markdown } from '@codemirror/lang-markdown';
@@ -22,6 +48,8 @@
 	} from '@codemirror/view';
 	import { tags } from '@lezer/highlight';
 	import { onDestroy, onMount } from 'svelte';
+	import { embedLine } from '$lib/format/itemLinks';
+	import { SEARCH_DEBOUNCE_MS } from '$lib/format/search';
 
 	interface Props {
 		value: string;
@@ -43,6 +71,10 @@
 		size?: 'sm' | 'md';
 		/** The document's own title, drawn above: a first-line heading saying only it is hidden, as the title shows it. */
 		title?: string;
+		/** Markdown only: shows a `cohesion://` link alone on a line the caret isn't on as a card. */
+		embed?: EmbedMount;
+		/** Markdown only: after `@` typed at a word's start, looks items up to link. */
+		mentions?: MentionSearch;
 	}
 
 	let {
@@ -57,7 +89,9 @@
 		minHeight = '50vh',
 		fill = false,
 		size = 'md',
-		title = ''
+		title = '',
+		embed,
+		mentions
 	}: Props = $props();
 
 	let host: HTMLDivElement;
@@ -102,7 +136,59 @@
 			backgroundColor: 'var(--bg-hover)',
 			borderRadius: '4px',
 			padding: '0.1em 0.3em'
-		}
+		},
+		// A card stands in for its line's text, the line's own gap below it.
+		// Inline-block, so the line holds only the card and no empty line box beside it;
+		// contained, so a long title is cut rather than widening every line.
+		'.cm-embed': {
+			display: 'inline-block',
+			width: '100%',
+			contain: 'inline-size',
+			verticalAlign: 'top',
+			padding: 'var(--s1) 0',
+			lineHeight: 'normal',
+			cursor: 'default'
+		},
+		// The `@` list, as the app's menus look.
+		'.cm-tooltip.cm-tooltip-autocomplete': {
+			minWidth: '18rem',
+			maxWidth: '28rem',
+			padding: 'var(--s1)',
+			border: '1px solid var(--border)',
+			borderRadius: 'var(--radius-sm)',
+			backgroundColor: 'var(--bg-raised)',
+			boxShadow: 'var(--shadow-floating)',
+			fontFamily: 'var(--font-sans)'
+		},
+		'.cm-tooltip.cm-tooltip-autocomplete > ul': { maxHeight: 'none', fontFamily: 'inherit' },
+		'.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
+			display: 'flex',
+			alignItems: 'baseline',
+			gap: 'var(--s3)',
+			padding: 'var(--s1) var(--s2)',
+			borderRadius: 'var(--radius-sm)',
+			fontSize: 'var(--text-sm)',
+			lineHeight: '1.5',
+			color: 'var(--fg)'
+		},
+		'.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+			backgroundColor: 'var(--bg-hover)',
+			color: 'var(--fg)'
+		},
+		'.cm-completionLabel': {
+			minWidth: '0',
+			overflow: 'hidden',
+			textOverflow: 'ellipsis',
+			whiteSpace: 'nowrap'
+		},
+		'.cm-completionDetail': {
+			marginLeft: 'auto',
+			flex: 'none',
+			fontStyle: 'normal',
+			fontSize: 'var(--text-xs)',
+			color: 'var(--fg-subtle)'
+		},
+		'.cm-completionMatchedText': { textDecoration: 'none' }
 	});
 
 	const monoTheme = EditorView.theme({
@@ -155,6 +241,52 @@
 	// Inline code, backticks and all, on a quiet tint, as rendered Markdown draws it.
 	const inlineCode = Decoration.mark({ class: 'cm-inline-code' });
 	const hidden = Decoration.replace({});
+
+	// A link alone on its line, as a card the caller draws (`embed`). The card keeps the
+	// clicks it gets; the editor re-measures when it resizes, as it resolves.
+	class EmbedWidget extends WidgetType {
+		#takeDown = new WeakMap<HTMLElement, () => void>();
+		readonly href: string;
+		readonly label: string;
+		readonly mount: EmbedMount;
+		constructor(href: string, label: string, mount: EmbedMount) {
+			super();
+			this.href = href;
+			this.label = label;
+			this.mount = mount;
+		}
+		eq(other: EmbedWidget) {
+			return other.href === this.href && other.label === this.label;
+		}
+		get estimatedHeight() {
+			return 64;
+		}
+		toDOM(view: EditorView) {
+			const host = document.createElement('div');
+			host.className = 'cm-embed';
+			const unmount = this.mount(host, this.href, this.label);
+			const resized = new ResizeObserver(() => view.requestMeasure());
+			resized.observe(host);
+			this.#takeDown.set(host, () => {
+				resized.disconnect();
+				unmount();
+			});
+			return host;
+		}
+		destroy(dom: HTMLElement) {
+			this.#takeDown.get(dom)?.();
+		}
+	}
+
+	/** Whether `pos` is in code, where a link is text and `@` is just a character. */
+	function inCode(state: EditorState, pos: number): boolean {
+		const code = ['FencedCode', 'CodeBlock', 'InlineCode', 'CodeText'];
+		for (let node = syntaxTree(state).resolveInner(pos, -1); ;) {
+			if (code.includes(node.name)) return true;
+			if (!node.parent) return false;
+			node = node.parent;
+		}
+	}
 
 	/** The lines the selection touches, where the source shows as typed so it can be edited. */
 	function editingLines(view: EditorView): (line: number) => boolean {
@@ -210,6 +342,32 @@
 				}
 			});
 		}
+		// A link alone on a line the caret isn't on shows as its card, over the line's other marks.
+		if (embed) {
+			const cards: { from: number; to: number }[] = [];
+			for (const { from, to } of view.visibleRanges) {
+				for (let pos = from; pos <= to;) {
+					const line = doc.lineAt(pos);
+					const found = embedLine(line.text);
+					if (found && !editing(line.number) && !inCode(view.state, line.from + 1)) {
+						cards.push(line);
+						marks.push({
+							from: line.from,
+							to: line.to,
+							deco: Decoration.replace({
+								widget: new EmbedWidget(found.href, found.label, embed)
+							})
+						});
+					}
+					pos = line.to + 1;
+				}
+			}
+			const covered = (m: { from: number; to: number; deco: Decoration }) =>
+				cards.some(
+					(c) => m.from >= c.from && m.to <= c.to && !(m.deco.spec.widget instanceof EmbedWidget)
+				);
+			for (let i = marks.length - 1; i >= 0; i--) if (covered(marks[i])) marks.splice(i, 1);
+		}
 		// A mark decoration and a replace inside it may start at one place; the builder wants them sorted.
 		marks.sort((x, y) => x.from - y.from || x.deco.startSide - y.deco.startSide);
 		const set = new RangeSetBuilder<Decoration>();
@@ -241,9 +399,53 @@
 		{ decorations: (plugin) => plugin.decorations }
 	);
 
+	/** Waits `ms`, so a search starts only once typing pauses. */
+	const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+	/** `[label](href)`, with the brackets in `label` kept as text. */
+	const markdownLink = (label: string, href: string) =>
+		`[${label.replace(/[[\]\\]/g, (c) => `\\${c}`)}](${href})`;
+
+	/**
+	 * Items to link after an `@` that starts a word, once a character follows it,
+	 * outside code. Picking one puts its Markdown link in place of the `@` and what
+	 * was typed; on a line of its own, that link shows as its card.
+	 */
+	async function mentionSource(context: CompletionContext): Promise<CompletionResult | null> {
+		const search = mentions;
+		const typed = context.matchBefore(/(?:^|\s)@[^\s@][^@\n]{0,60}/);
+		if (!search || !typed) return null;
+		const at = typed.from + typed.text.indexOf('@');
+		if (inCode(context.state, at)) return null;
+		const query = context.state.sliceDoc(at + 1, context.pos);
+		await pause(SEARCH_DEBOUNCE_MS);
+		if (context.aborted) return null;
+		const found = await search(query).catch(() => []);
+		if (context.aborted || found.length === 0) return null;
+		return {
+			from: at,
+			filter: false,
+			options: found.map((mention) => ({
+				label: mention.label,
+				detail: mention.detail,
+				apply: markdownLink(mention.label, mention.href)
+			}))
+		};
+	}
+
+	const mentionCompletion = [
+		autocompletion({
+			override: [mentionSource],
+			icons: false,
+			maxRenderedOptions: 8,
+			closeOnBlur: true
+		}),
+		Prec.high(keymap.of([{ key: 'Tab', run: acceptCompletion }]))
+	];
+
 	function languageExtension(lang: 'markdown' | 'javascript') {
 		return lang === 'markdown'
-			? [markdown(), proseAttributes, livePreview]
+			? [markdown(), proseAttributes, livePreview, mentions ? mentionCompletion : []]
 			: [javascript({ typescript: true }), monoTheme];
 	}
 

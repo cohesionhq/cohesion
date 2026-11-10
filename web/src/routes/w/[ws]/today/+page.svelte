@@ -3,6 +3,7 @@
 	import { untrack } from 'svelte';
 	import { localDay, longDay, shortTime } from '$lib/format/dates';
 	import { send } from '$lib/protocol/api';
+	import { editorLinks } from '$lib/shell/embedCards';
 	import { routes } from '$lib/shell/routes';
 	import { workspaceLoadError } from '$lib/shell/loadError';
 	import PageFooter from '$lib/ui/PageFooter.svelte';
@@ -19,6 +20,8 @@
 	const page = pane();
 
 	const ws = $derived(Number(page.params.ws));
+	/** Cards for links alone on their lines, and `@` to link this workspace's items. */
+	const links = $derived(editorLinks(ws));
 	const today = localDay();
 	let yesterdayId = $state<number | null>(null);
 
@@ -102,6 +105,8 @@
 				placeholder="Write about today…"
 				fill
 				size="sm"
+				embed={links.embed}
+				mentions={links.mentions}
 				onchange={(text) => journal.edit(text)}
 				onblur={save}
 			/>
