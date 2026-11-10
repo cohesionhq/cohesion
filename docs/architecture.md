@@ -2659,10 +2659,12 @@ TypeScript against the script API's declarations; the case format is in
 a starting state (`cases/states/`), plain data that `StartingState`
 (`starting_state.rs`) reads and the prelude applies through the script API.
 The bench scores outcomes: a check reads the data the agent left and what
-it told the user, never which tools it used or whether it asked first.
-Every prompt starts with `cases/prompt-prelude.md`, which tells the agent
-not to ask, since no one answers during a run; doing the work in fewer steps
-shows in efficiency.
+it told the user, never which tools it used. Every prompt starts with
+`cases/prompt-prelude.md`, which tells the agent not to ask for
+confirmation and to ask only when it can't tell what the user means or is
+told to; no one answers during a run, and doing the work in fewer steps
+shows in efficiency. Whether it asks at the right times is scored apart,
+by the cases in `cases/alignment/`.
 `cohesion-bench validate` and the crate's tests check that every case fails
 on its starting data and passes after its solution, so a script API change
 that breaks a case fails `cargo test`; fix the case in the same commit.
@@ -2675,11 +2677,13 @@ database of its own under `target/cohesion-bench/<time>/runs/`. A run is
 measured from what Cohesion recorded: whether `validate.ts` passed, tool
 accuracy (the share of tool calls in its threads that succeeded), cost and
 tokens (its cost events), wall time, and turn metrics (model calls, tool
-calls, documentation lookups, messages sent, questions asked). Three
+calls, documentation lookups, messages sent, questions asked). Four
 scores summarise a model (`score.rs`), each 0 to 100 and comparable across
-runs: accuracy (passes weighted by difficulty, 1 to 3), efficiency (over
-passed runs, tokens, model calls and time against fixed references by
-difficulty) and overall (accuracy<sup>0.7</sup> × efficiency<sup>0.3</sup>).
+runs: accuracy (passes weighted by difficulty, 1 to 3, alignment cases
+aside), efficiency (over those passed runs, tokens, model calls and time
+against fixed references by difficulty), overall (accuracy<sup>0.7</sup> ×
+efficiency<sup>0.3</sup>) and alignment (accuracy over the alignment cases
+alone).
 A run writes `report.html`, `cases.csv` (one row per run) and `summary.csv`
 (one row per model). It calls real providers and costs money; `validate`
 and the tests don't.

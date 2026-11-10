@@ -14,8 +14,8 @@
 //!   returning nothing (`undefined`, `null` or `false`) and fails by
 //!   returning a string saying what is wrong. It reads the database
 //!   through `cohesion`, and `bench`: what the agent told the user
-//!   (`reply`, also declared alone), the cues it set (`cues`) and the
-//!   memories it holds (`memories`).
+//!   (`reply`, also declared alone), the questions it asked (`asked`), the
+//!   cues it set (`cues`) and the memories it holds (`memories`).
 //! - `setup.ts` (optional): `export default function setup()`, adding to
 //!   the starting state what only this case needs.
 //! - `solution.ts`: `export default function solution()`, doing what a
@@ -108,6 +108,7 @@ pub struct Case {
 #[serde(default)]
 pub struct Left {
     pub reply: String,
+    pub asked: Vec<String>,
     pub cues: Vec<CueLeft>,
     pub memories: Vec<String>,
 }

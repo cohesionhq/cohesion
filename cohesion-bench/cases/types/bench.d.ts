@@ -5,6 +5,8 @@
 interface Left {
   /** What it told the user: its messages and questions, joined by blank lines. */
   reply: string;
+  /** The questions it asked the user to pick an answer to, with their options. */
+  asked: string[];
   /** The cues it holds once its turn has ended. */
   cues: CueLeft[];
   /** The memories it holds once its turn has ended. */

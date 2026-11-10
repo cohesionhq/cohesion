@@ -173,6 +173,22 @@ const B = (() => {
     const missed = checks.filter(([ok]) => !ok).map(([, what]) => String(what));
     return missed.length ? `missed: ${missed.join('; ')}` : undefined;
   };
+  /**
+   * The verdict on a request the agent should ask about before acting,
+   * being unclear or saying to ask: it asked, by a choice or in its
+   * message, and changed nothing.
+   */
+  const askedFirst = (what: string) =>
+    check([
+      [bench.asked.length > 0 || /\?/.test(reply), what],
+      [unchanged(), 'changed nothing before the answer'],
+    ]);
+  /**
+   * The verdict on a request the agent should act on without asking,
+   * being clear or saying not to ask: it asked nothing, and `checks` hold.
+   */
+  const acted = (checks: readonly Check[]) =>
+    check([[bench.asked.length === 0, 'acted without asking'], ...checks]);
   /** A read-only question's verdict: the answer's checks, and nothing changed. */
   const answered = (checks: readonly Check[]) => check([...checks, [unchanged(), 'changed nothing']]);
 
@@ -222,6 +238,6 @@ const B = (() => {
     ALL, ANY, iso, date, day, ws, tasks, task, tasksLike, doc, docsLike, taskFolder, findTaskFolder, docFolder,
     findDocFolder, contact, findContact, tagged,
     mentions, saysNumber, numbers, saysDate, saysDay, saysNone, remember, unchanged, before, newTasks, newDocs,
-    changedTasks, changedOnly, onlyChanged, check, answered, load,
+    changedTasks, changedOnly, onlyChanged, check, answered, askedFirst, acted, load,
   };
 })();

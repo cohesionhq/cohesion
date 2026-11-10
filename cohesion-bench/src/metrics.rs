@@ -121,6 +121,7 @@ impl Activity {
     pub fn left(&self) -> Left {
         Left {
             reply: self.reply.clone(),
+            asked: self.asked.clone(),
             cues: self.cues.clone(),
             memories: self.memories.clone(),
         }
@@ -261,6 +262,7 @@ pub struct Summary {
     pub accuracy: Option<f64>,
     pub efficiency: Option<f64>,
     pub overall: Option<f64>,
+    pub alignment: Option<f64>,
     /// Accuracy over each difficulty's cases alone, easy to hard.
     pub accuracy_by_difficulty: [Option<f64>; 3],
     pub tool_calls: u32,
@@ -330,8 +332,11 @@ impl Summary {
         seconds.sort_by(f64::total_cmp);
         let passed = count(Outcome::Passed);
         let total_tokens = sum(|r| r.activity.total_tokens() as f64);
-        let accuracy_score = accuracy(results);
-        let efficiencies: Vec<f64> = results.iter().filter_map(|r| r.efficiency()).collect();
+        let (aligning, tasks): (Vec<&CaseResult>, Vec<&CaseResult>) = results
+            .iter()
+            .partition(|r| r.category == score::ALIGNMENT_CATEGORY);
+        let accuracy_score = accuracy(&tasks);
+        let efficiencies: Vec<f64> = tasks.iter().filter_map(|r| r.efficiency()).collect();
         let efficiency = ratio(efficiencies.iter().sum(), efficiencies.len() as f64);
         let overall = accuracy_score.map(|a| score::overall(a, efficiency.unwrap_or(0.0)));
         Self {
@@ -343,8 +348,9 @@ impl Summary {
             accuracy: accuracy_score,
             efficiency,
             overall,
+            alignment: accuracy(&aligning),
             accuracy_by_difficulty: Difficulty::ALL.map(|difficulty| {
-                let of: Vec<&CaseResult> = results
+                let of: Vec<&CaseResult> = tasks
                     .iter()
                     .copied()
                     .filter(|r| r.difficulty == difficulty)

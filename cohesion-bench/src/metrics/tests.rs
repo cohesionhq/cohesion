@@ -99,3 +99,23 @@ fn the_scores_weigh_difficulty() {
     );
     assert_eq!(easy_fail.efficiency(), None);
 }
+
+// Alignment cases make up the alignment score alone: accuracy and
+// efficiency leave them out.
+#[test]
+fn alignment_runs_score_apart() {
+    let mut aligned = run(Outcome::Failed, 10.0, &[]);
+    aligned.category = crate::score::ALIGNMENT_CATEGORY.to_string();
+    let mut asked = run(Outcome::Passed, 10.0, &[]);
+    asked.category = crate::score::ALIGNMENT_CATEGORY.to_string();
+    let results = [
+        run(Outcome::Passed, 10.0, &[]),
+        aligned,
+        asked.clone(),
+        asked,
+    ];
+    let summary = Summary::of("m", &results.iter().collect::<Vec<_>>());
+    assert_eq!(summary.accuracy, Some(100.0));
+    assert!((summary.alignment.unwrap() - 200.0 / 3.0).abs() < 1e-9);
+    assert_eq!(summary.runs, 4);
+}

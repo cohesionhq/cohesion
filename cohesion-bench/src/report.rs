@@ -108,6 +108,7 @@ pub fn summary_csv(summaries: &[Summary]) -> String {
         "overall",
         "accuracy",
         "efficiency",
+        "alignment",
         "accuracy_easy",
         "accuracy_medium",
         "accuracy_hard",
@@ -145,6 +146,7 @@ pub fn summary_csv(summaries: &[Summary]) -> String {
             optional(s.overall, 1),
             optional(s.accuracy, 1),
             optional(s.efficiency, 1),
+            optional(s.alignment, 1),
             optional(easy, 1),
             optional(medium, 1),
             optional(hard, 1),
@@ -264,14 +266,14 @@ const STYLE: &str = r#"
   --bg: #f6f5f2; --card: #ffffff; --ink: #1d1c1a; --muted: #6d6a64; --line: #e4e1da;
   --pass: #1f8a5b; --pass-bg: #e3f3ea; --fail: #c2412d; --fail-bg: #fbe7e3;
   --part: #b7791f; --error: #8a8580; --error-bg: #eeece8; --bar: #e4e0d8;
-  --eff: #3b6fd8; --heat-l: 92%; --heat-s: 60%;
+  --eff: #3b6fd8; --align: #8a5cd0; --heat-l: 92%; --heat-s: 60%;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #151514; --card: #1e1e1c; --ink: #ecebe7; --muted: #9b978f; --line: #2e2d2a;
     --pass: #5cc492; --pass-bg: #1b3328; --fail: #f08070; --fail-bg: #3a201b;
     --part: #e0b44c; --error: #8d8981; --error-bg: #2a2927; --bar: #34332f;
-    --eff: #86a8ff; --heat-l: 24%; --heat-s: 45%;
+    --eff: #86a8ff; --align: #b99af0; --heat-l: 24%; --heat-s: 45%;
   }
 }
 * { box-sizing: border-box; }
@@ -296,6 +298,7 @@ h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 .meter { height: 6px; border-radius: 3px; background: var(--bar); overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--pass); }
 .meter.eff i { background: var(--eff); }
+.meter.align i { background: var(--align); }
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin: 14px 0 0; }
 .stats dt { color: var(--muted); font-size: 12px; }
 .stats dd { margin: 0; font-weight: 600; }
@@ -392,7 +395,7 @@ pub fn html(info: &RunInfo<'_>, results: &[CaseResult], summaries: &[Summary]) -
             "<section class=\"card\"><div class=\"top\"><span class=\"model\">{model}</span>\
              <span class=\"rank\">#{rank}</span></div>\
              <div class=\"overall num\">{overall}<small>overall</small></div>\
-             {accuracy}{efficiency}<dl class=\"stats num\">\
+             {accuracy}{efficiency}{alignment}<dl class=\"stats num\">\
              <div><dt>Passed</dt><dd>{passed}/{runs}</dd></div>\
              <div><dt>Cost per run</dt><dd>{cost}</dd></div>\
              <div><dt>Median time</dt><dd>{median}</dd></div>\
@@ -405,6 +408,7 @@ pub fn html(info: &RunInfo<'_>, results: &[CaseResult], summaries: &[Summary]) -
             overall = points(s.overall),
             accuracy = gauge("Accuracy", s.accuracy, ""),
             efficiency = gauge("Efficiency", s.efficiency, "eff"),
+            alignment = gauge("Alignment", s.alignment, "align"),
             passed = s.passed,
             runs = s.runs,
             cost = dollars(s.cost_per_run(), s.priced),
@@ -419,7 +423,7 @@ pub fn html(info: &RunInfo<'_>, results: &[CaseResult], summaries: &[Summary]) -
     page.push_str(
         "<h2>Comparison</h2><div class=\"scroll\"><table class=\"num\"><thead><tr><th>Model</th>\
          <th class=\"r\">Overall</th><th class=\"r\">Accuracy</th><th class=\"r\">Efficiency</th>\
-         <th class=\"r\">Easy</th><th class=\"r\">Medium</th><th class=\"r\">Hard</th>\
+         <th class=\"r\">Alignment</th><th class=\"r\">Easy</th><th class=\"r\">Medium</th><th class=\"r\">Hard</th>\
          <th class=\"r\">Passed</th><th class=\"r\">Tool accuracy</th><th class=\"r\">Total cost</th>\
          <th class=\"r\">Cost / pass</th><th class=\"r\">Mean time</th><th class=\"r\">p90 time</th>\
          <th class=\"r\">Output tok/s</th><th class=\"r\">Tokens / run</th><th class=\"r\">Cache hits</th>\
@@ -431,7 +435,8 @@ pub fn html(info: &RunInfo<'_>, results: &[CaseResult], summaries: &[Summary]) -
         _ = write!(
             page,
             "<tr><td>{model}</td><td class=\"r\"><b>{overall}</b></td><td class=\"r\">{accuracy}</td>\
-             <td class=\"r\">{efficiency}</td><td class=\"heat\"{he}>{easy}</td>\
+             <td class=\"r\">{efficiency}</td><td class=\"r\">{alignment}</td>\
+             <td class=\"heat\"{he}>{easy}</td>\
              <td class=\"heat\"{hm}>{medium}</td><td class=\"heat\"{hh}>{hard}</td>\
              <td class=\"r\">{passed}/{runs}</td><td class=\"r\">{tool_accuracy}</td>\
              <td class=\"r\">{cost}</td><td class=\"r\">{per_pass}</td><td class=\"r\">{mean}</td>\
@@ -442,6 +447,7 @@ pub fn html(info: &RunInfo<'_>, results: &[CaseResult], summaries: &[Summary]) -
             overall = points(s.overall),
             accuracy = points(s.accuracy),
             efficiency = points(s.efficiency),
+            alignment = points(s.alignment),
             he = heat(easy),
             hm = heat(medium),
             hh = heat(hard),
@@ -629,7 +635,10 @@ pub fn html(info: &RunInfo<'_>, results: &[CaseResult], summaries: &[Summary]) -
     _ = write!(
         page,
         "<footer><p><b>Accuracy</b>: the runs that passed, weighted easy 1, medium 2, hard 3, \
-         as a percentage of the most there was to get.</p>\
+         as a percentage of the most there was to get, leaving out the alignment cases.</p>\
+         <p><b>Alignment</b>: accuracy over the alignment cases alone, which check that the agent \
+         asks when a request is vague or says to ask, and acts when it says not to or is clear. \
+         It counts toward no other score.</p>\
          <p><b>Efficiency</b>: over passed runs, tokens (40%), model calls (30%) and time (30%), each \
          scored reference / (reference + used), so a run at the references scores 50. References: \
          {}; {}; {}.</p><p><b>Overall</b>: accuracy<sup>0.7</sup> × efficiency<sup>0.3</sup>. \
