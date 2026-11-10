@@ -51,6 +51,10 @@ Validate at these boundaries and nowhere else:
   hold them. Hooks raising hooks stop at the depth limit (`MAX_DEPTH`, 3).
 - **External services** (providers' APIs, models.dev, fetched pages and
   feeds) are untrusted: parse defensively, bound sizes and time.
+- **What a script returns to be drawn** (a connector's `renderResource`
+  interface) is untrusted: `Component::from_script` bounds it (2,000 blocks,
+  8 levels of nesting, 100,000 characters in any one string) and admits links
+  only to `https`, `http` or `mailto` addresses.
 
 Review against real threats to these boundaries, not hypothetical ones a
 trusted party could mount.

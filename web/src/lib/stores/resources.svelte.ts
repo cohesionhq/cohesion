@@ -73,13 +73,18 @@ export class ResourcesStore {
 	readonly current: Resource<ImportedResource | null, ResourceKey>;
 	/**
 	 * The interface the open resource's connector shows it with, or `null`
-	 * when it has none and its contents show instead.
+	 * when it has none and its contents show instead. Running the connector's
+	 * script is costly, so it follows no invalidation: it runs again only when
+	 * the open resource changes (see `#viewedAs`), and the last interface keeps
+	 * showing meanwhile.
 	 */
 	readonly view: Resource<Component | null, ResourceKey>;
 	/** The kinds shown in a workspace; every other kind is hidden there. */
 	readonly shownKinds: Resource<WorkspaceResourceKind[], number>;
 
 	#send: Send;
+	/** What the open resource's `view` was drawn from, to tell when it changes. */
+	#viewedAs: { id: number; shown: string } | null = null;
 
 	constructor(send: Send) {
 		this.#send = send;
@@ -91,19 +96,31 @@ export class ResourcesStore {
 		this.current = new Resource({
 			fetch: ({ workspace_id, resource_id }) => send('getResource', { workspace_id, resource_id }),
 			initial: null,
-			matches: (key, { workspace_id }) => inWorkspace(key, workspace_id)
+			matches: (key, { workspace_id }) => inWorkspace(key, workspace_id),
+			onFetched: (resource) => this.#drawn(resource)
 		});
 		this.view = new Resource({
 			fetch: ({ workspace_id, resource_id }) =>
 				send('renderResource', { workspace_id, resource_id }),
 			initial: null,
-			matches: (key, { workspace_id }) => inWorkspace(key, workspace_id)
+			// Only `#drawn` runs it again; a focus or reconnect refresh doesn't.
+			canRefetch: () => false
 		});
 		this.shownKinds = new Resource({
 			fetch: (workspace_id) => send('listWorkspaceResourceKinds', { workspace_id }),
 			initial: [],
 			matches: (key, workspace_id) => key.kind === 'resourceKinds' && key.id === workspace_id
 		});
+	}
+
+	/** Draws the open resource again when what its connector draws from changed. */
+	#drawn(resource: ImportedResource | null): void {
+		if (!resource) return;
+		const { id, kind_id, title, contents, last_updated } = resource;
+		const shown = JSON.stringify([kind_id, title, contents, last_updated]);
+		const changed = this.#viewedAs?.id === id && this.#viewedAs.shown !== shown;
+		this.#viewedAs = { id, shown };
+		if (changed) void this.view.refetch();
 	}
 
 	/** Shows kind `kind_id` in `workspace_id`, or hides it there. */
@@ -141,6 +158,7 @@ export class ResourcesStore {
 		// Reuse the loaded key: a new object never matches it.
 		const same = key?.workspace_id === workspace_id && key.resource_id === resource_id;
 		const opened = same ? key : { workspace_id, resource_id };
+		if (!same) this.#viewedAs = null;
 		return Promise.all([this.current.load(opened), this.view.load(opened)]).then(() => undefined);
 	}
 

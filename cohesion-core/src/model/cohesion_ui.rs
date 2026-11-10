@@ -128,23 +128,76 @@ impl TsDocumentation for HeadingLevel {
 /// The schemes a link may open.
 const LINK_SCHEMES: [&str; 3] = ["https://", "http://", "mailto:"];
 
+/// The most blocks an interface may hold in all, counting those inside an
+/// overview.
+pub const MAX_BLOCKS: usize = 2_000;
+/// The deepest blocks may nest: a top-level block is 1, an overview's
+/// child 2.
+pub const MAX_DEPTH: usize = 8;
+/// The most characters one piece of text, title or link address may hold.
+pub const MAX_TEXT_CHARS: usize = 100_000;
+
 impl Component {
     /// Reads what a script returned as an interface, or says why it isn't
-    /// one: the wrong shape, or a link to anything but a web or mail
-    /// address.
+    /// one: the wrong shape, more than [`MAX_BLOCKS`] blocks, nesting past
+    /// [`MAX_DEPTH`], a string over [`MAX_TEXT_CHARS`], or a link to
+    /// anything but a web or mail address.
     pub fn from_script(value: serde_json::Value) -> Result<Self, String> {
+        // Refuse a deep value before reading it, which recurses as deep.
+        if !within_depth(&value, MAX_DEPTH * 2 + 2) {
+            return Err(format!("blocks may nest at most {MAX_DEPTH} deep"));
+        }
         let component: Self = serde_json::from_value(value).map_err(|e| e.to_string())?;
-        component.blocks.iter().try_for_each(Block::check)?;
+        let mut blocks = 0;
+        component
+            .blocks
+            .iter()
+            .try_for_each(|block| block.check(1, &mut blocks))?;
         Ok(component)
     }
 }
 
+/// Whether `value` nests no deeper than `limit`, looking no deeper than that.
+fn within_depth(value: &serde_json::Value, limit: usize) -> bool {
+    match value {
+        serde_json::Value::Array(items) => {
+            limit > 0 && items.iter().all(|v| within_depth(v, limit - 1))
+        }
+        serde_json::Value::Object(fields) => {
+            limit > 0 && fields.values().all(|v| within_depth(v, limit - 1))
+        }
+        _ => true,
+    }
+}
+
+fn check_text(text: &str) -> Result<(), String> {
+    if text.chars().count() > MAX_TEXT_CHARS {
+        return Err(format!(
+            "a block's text may hold at most {MAX_TEXT_CHARS} characters"
+        ));
+    }
+    Ok(())
+}
+
 impl Block {
-    /// Whether this block, and any it holds, may be shown.
-    fn check(&self) -> Result<(), String> {
+    /// Whether this block, and any it holds, may be shown. `depth` is its
+    /// nesting; `count` the blocks seen so far in the interface.
+    fn check(&self, depth: usize, count: &mut usize) -> Result<(), String> {
+        *count += 1;
+        if *count > MAX_BLOCKS {
+            return Err(format!("an interface may hold at most {MAX_BLOCKS} blocks"));
+        }
+        if depth > MAX_DEPTH {
+            return Err(format!("blocks may nest at most {MAX_DEPTH} deep"));
+        }
         match self {
-            Self::Overview(overview) => overview.child.check(),
+            Self::Overview(overview) => {
+                check_text(&overview.title)?;
+                overview.child.check(depth + 1, count)
+            }
             Self::Link(link) => {
+                check_text(&link.text)?;
+                check_text(&link.destination)?;
                 let destination = link.destination.to_ascii_lowercase();
                 if LINK_SCHEMES.iter().any(|s| destination.starts_with(s)) {
                     Ok(())
@@ -155,7 +208,9 @@ impl Block {
                     ))
                 }
             }
-            Self::Text(_) | Self::Checkbox(_) | Self::Heading(_) => Ok(()),
+            Self::Text(block) => check_text(&block.text),
+            Self::Heading(block) => check_text(&block.text),
+            Self::Checkbox(block) => block.text.as_deref().map_or(Ok(()), check_text),
         }
     }
 }

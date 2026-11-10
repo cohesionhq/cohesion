@@ -2190,7 +2190,8 @@ apart by `kind`: `text{text}`, `checkbox{checked, text?}`,
 draws each its own way but keeps its meaning: a heading is a heading, an
 overview a key and its value. What the script returns is untrusted:
 `Component::from_script` reads it and refuses a link to anything but an
-`https`, `http` or `mailto` address. The reply is `null`, and the client
+`https`, `http` or `mailto` address, more than 2,000 blocks, nesting past 8
+levels, or a string over 100,000 characters. The reply is `null`, and the client
 shows the contents, when the account is orphaned, the extension is gone,
 lacks `connector` or doesn't define `renderResource`, or the result isn't a
 valid interface (logged as a warning for the extension's author). What the
