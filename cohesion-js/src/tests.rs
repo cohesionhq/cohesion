@@ -2960,6 +2960,57 @@ fn a_script_brings_back_a_deleted_item_but_a_read_only_one_only_looks() {
 }
 
 #[test]
+fn a_script_renames_and_deletes_documents_but_a_read_only_one_cannot() {
+    let db = database();
+    create_workspace(&db, "Home");
+    let result = json(
+        &db,
+        r#"
+        const home = cohesion.workspace("Home");
+        const draft = home.createDocument("Draft", "Eggs");
+        const kept = home.createDocument("Kept");
+        draft.rename("Groceries");
+        let emptyRefused = false;
+        try { draft.rename(""); } catch (e) { emptyRefused = true; }
+        const renamed = [draft.title, home.document(draft.id).title];
+        kept.delete();
+        [renamed, emptyRefused, kept.deleted,
+         home.documents().map((d) => d.title),
+         home.deletedDocuments().map((d) => d.title)]
+        "#,
+    );
+    assert_eq!(
+        result,
+        serde_json::json!([
+            ["Groceries", "Groceries"],
+            true,
+            true,
+            ["Groceries"],
+            ["Kept"]
+        ])
+    );
+
+    let sandbox = Sandbox::new(
+        SandboxOptions::STANDARD,
+        db.read_only(),
+        &[Mount::Cohesion],
+        None,
+    )
+    .unwrap();
+    let ScriptOutput(text) = sandbox
+        .evaluate(
+            "const doc = cohesion.workspace('Home').documents()[0];\n\
+             [() => doc.rename('Shopping'), () => doc.delete()].map(write => {\n\
+                 try { write(); return 'wrote'; }\n\
+                 catch (e) { return e instanceof Error && e.message.includes('read-only access'); }\n\
+             })"
+            .to_string(),
+        )
+        .unwrap();
+    assert_eq!(text, "[true,true]");
+}
+
+#[test]
 fn documents_file_into_nested_folders_and_the_inbox() {
     let db = database();
     create_workspace(&db, "Home");
