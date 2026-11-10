@@ -1,6 +1,5 @@
 // What `@` or `[[` finds in the editor: items to link by title, in the order they're
-// offered. Articles, shared by every workspace and far more numerous, rank
-// last: they fill only the rows nothing else took.
+// offered. Articles are not offered: copy an article's link and paste it.
 
 import { prefixQuery } from '$lib/format/search';
 import type { IntelligenceAgent, Send } from '$lib/protocol/types';
@@ -13,8 +12,7 @@ export const MENTION_ROWS = 8;
 /**
  * The items in workspace `ws` (documents and journal entries, tasks,
  * resources), the agents among `agents` and the actor sessions matching
- * `text`, then articles to fill the rows left. A search that fails offers
- * nothing of its kind.
+ * `text`. A search that fails offers nothing of its kind.
  */
 export async function searchMentions(
 	send: Send,
@@ -29,7 +27,7 @@ export async function searchMentions(
 		send('searchWorkspace', { workspace_id: ws, query }).catch(() => []),
 		send('searchActorSessions', { query }).catch(() => [])
 	]);
-	const found: Mention[] = [
+	return [
 		...agents
 			.filter((agent) => namedBy(agent.agent_name, text))
 			.map((agent) => ({
@@ -51,19 +49,6 @@ export async function searchMentions(
 	]
 		.filter((mention) => mention.label.trim() !== '')
 		.slice(0, MENTION_ROWS);
-	const left = MENTION_ROWS - found.length;
-	if (left === 0) return found;
-	const articles = await send('searchFeedCorpus', { query, limit: left }).catch(() => ({
-		hits: []
-	}));
-	return [
-		...found,
-		...articles.hits.slice(0, left).map((hit) => ({
-			label: hit.title,
-			detail: word('article'),
-			href: `cohesion://article/${hit.id}`
-		}))
-	];
 }
 
 /** Whether every word of `text` starts a word of `name`, as the search matches titles. */

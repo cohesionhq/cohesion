@@ -3,7 +3,7 @@ import { createMock } from '$lib/protocol/mock';
 import type { IntelligenceAgent, SearchResult, Send } from '$lib/protocol/types';
 import { MENTION_ROWS, namedBy, searchMentions } from './mentions';
 
-/** A daemon whose workspace search finds `count` tasks, with articles to spare. */
+/** A daemon whose workspace search finds `count` tasks. */
 function daemon(count: number, asked: string[]): Send {
 	const tasks: SearchResult[] = Array.from({ length: count }, (_, i) => ({
 		id: i,
@@ -13,39 +13,27 @@ function daemon(count: number, asked: string[]): Send {
 		title: `Plan ${i + 1}`,
 		contents: ''
 	}));
-	return (async (type: string, args: { limit?: number }) => {
+	return (async (type: string) => {
 		asked.push(type);
 		if (type === 'searchWorkspace') return tasks;
 		if (type === 'searchActorSessions') return [];
-		if (type === 'searchFeedCorpus')
-			return {
-				hits: Array.from({ length: args.limit ?? 50 }, (_, i) => ({
-					id: 100 + i,
-					title: `Post ${i}`
-				})),
-				total: 50
-			};
 		throw new Error(type);
 	}) as unknown as Send;
 }
 
 describe('@ mentions', () => {
-	it('fills only the rows left with articles, after everything else', async () => {
+	it('offers the items and never articles', async () => {
 		const asked: string[] = [];
 		const found = await searchMentions(daemon(6, asked), 1, 'pla', []);
-		expect(found).toHaveLength(MENTION_ROWS);
-		expect(found.slice(0, 6).every((m) => m.href.startsWith('cohesion://task/1/'))).toBe(true);
-		expect(found.slice(6).map((m) => m.href)).toEqual([
-			'cohesion://article/100',
-			'cohesion://article/101'
-		]);
+		expect(found).toHaveLength(6);
+		expect(found.every((m) => m.href.startsWith('cohesion://task/1/'))).toBe(true);
 		expect(found[0]).toMatchObject({ label: 'Plan 1', detail: 'Task #1' });
+		expect(asked).not.toContain('searchFeedCorpus');
 	});
 
-	it('asks for no articles when the rows are full', async () => {
-		const asked: string[] = [];
-		await searchMentions(daemon(MENTION_ROWS + 2, asked), 1, 'pla', []);
-		expect(asked).not.toContain('searchFeedCorpus');
+	it('stops at the most rows', async () => {
+		const found = await searchMentions(daemon(MENTION_ROWS + 2, []), 1, 'pla', []);
+		expect(found).toHaveLength(MENTION_ROWS);
 	});
 
 	it('puts agents named by the text first', async () => {
