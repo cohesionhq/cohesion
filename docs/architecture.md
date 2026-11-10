@@ -2033,14 +2033,15 @@ background" while one is still going), which opens its thread at
 `/actors/<id>`; subagents launched from no tool use shown follow the
 transcript. What a session's subagents ask waits at the transcript's foot,
 answerable there, under a link to the one asking. The column beside the sheet
-shows, under the usage meters, the open session's family whenever it has
-subagents or is one: the session Cohesion started and every subagent beneath
-it, set in by depth, the open one marked, each opening its thread. A subagent's thread is the same view, read-only:
+shows, above the usage meters, the open session's own relations whenever it
+has subagents or is one: the session it runs under behind an up-left corner
+arrow, then its subagents one level down behind down-right ones, each opening
+its thread; the rest of the tree stays out of it. A subagent's thread is the same view, read-only:
 its header leads with a chevron up to the session it runs under (`BackLink`
 with `up`) and says what kind it is and whose, it has no composer or Resolve,
 and its requests show without their buttons, linking to the session Cohesion
 started, where they are answered. The store holds them in `subagents`,
-`waiting`, `above` and `family` (`stores/actors.svelte.ts`).
+`waiting` and `above` (`stores/actors.svelte.ts`).
 
 **Links.** Items link as `cohesion://task/<ws>/<id>`,
 `cohesion://document/<ws>/<id>`, `cohesion://resource/<ws>/<id>`,
