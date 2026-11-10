@@ -40,6 +40,7 @@
 	import { workspaces } from '$lib/stores/workspaces.svelte';
 	import Toast from '$lib/ui/Toast.svelte';
 	import { UNREACHABLE_MESSAGE, toasts } from '$lib/ui/toasts.svelte';
+	import { notify, openNotificationsWith } from '$lib/ui/notify';
 	import { planOf } from '$lib/features/actors/plan';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 
@@ -130,10 +131,11 @@
 			connection.onInvalidate((keys) => {
 				for (const key of keys) {
 					if (key.kind === 'notification') {
-						toasts.show(key.id.message, 'info', { title: key.id.title });
+						notify({ message: key.id.message, title: key.id.title });
 					}
 				}
 			}),
+			openNotificationsWith((href) => void goto(href)),
 			connection.onReset(() => void refreshAll()),
 			connection.onReconnected(() => void refreshAll())
 		];
@@ -142,7 +144,8 @@
 		void workspaces.load();
 		// Loaded app-wide so the sidebar's agents and new-message toasts work on every page.
 		agents.onNewMessage = (agent) =>
-			toasts.show(`${agent.agent_name} sent you a message.`, 'info', {
+			notify({
+				message: `${agent.agent_name} sent you a message.`,
 				href: routes.agent(agent.id),
 				avatar: { name: agent.agent_name, color: agent.agent_color, emoji: agent.agent_emoji }
 			});
