@@ -77,6 +77,17 @@ export class ActorsStore {
 	readonly session: Resource<ActorSession | null, number>;
 	/** What was said in one session, by its id, oldest first. */
 	readonly messages: Resource<ActorSessionMessage[], number>;
+	/** The subagents one session's actor launched from it, one level down, by its id, first launched first. */
+	readonly subagents: Resource<ActorSession[], number>;
+	/** The requests waiting on the user in one session's subagents, at any depth, by its id, oldest first. */
+	readonly waiting: Resource<ActorSessionMessage[], number>;
+	/** The session one level above a subagent, by its id, for the way back up. */
+	readonly above: Resource<ActorSession | null, number>;
+	/**
+	 * One session's family, by its id: the session Cohesion started, then every
+	 * subagent beneath it, each after the one it runs under.
+	 */
+	readonly family: Resource<ActorSession[], number>;
 	/** How much of its limits each actor whose client is connected has used, as the client said. */
 	readonly usage: Resource<ListedActorUsage[]>;
 	/**
@@ -112,6 +123,29 @@ export class ActorsStore {
 			fetch: (session_id) => send('listActorSessionMessages', { session_id }),
 			initial: [],
 			matches: (key, id) => key.kind === 'actorSession' && key.id === id
+		});
+		this.subagents = new Resource({
+			fetch: (session_id) => send('listActorSubagents', { session_id }),
+			initial: [],
+			matches: (key, id) => key.kind === 'actorSession' && key.id === id
+		});
+		this.waiting = new Resource({
+			fetch: (session_id) => send('listUnansweredSubagentRequests', { session_id }),
+			initial: [],
+			matches: (key, id) => key.kind === 'actorSession' && key.id === id
+		});
+		this.above = new Resource({
+			fetch: (id) => send('getActorSession', { id }),
+			initial: null,
+			matches: (key, id) =>
+				key.kind === 'actorSessions' || (key.kind === 'actorSession' && key.id === id)
+		});
+		this.family = new Resource({
+			fetch: (session_id) => send('listActorSessionFamily', { session_id }),
+			initial: [],
+			// Any member's change touches the session above it, so a member's key covers a launch too.
+			matches: (key) =>
+				key.kind === 'actorSession' && this.family.value.some((member) => member.id === key.id)
 		});
 		this.usage = new Resource({
 			fetch: () => send('listActorUsage'),
@@ -157,6 +191,14 @@ export class ActorsStore {
 		await this.#send('markActorSessionRead', { session_id });
 	}
 
+	/** The session Cohesion started that `session` is, or runs under as a subagent at any depth. */
+	async topOf(session: ActorSession): Promise<ActorSession> {
+		let top = session;
+		while (top.subagent)
+			top = await this.#send('getActorSession', { id: top.subagent.parent_session_id });
+		return top;
+	}
+
 	/** Hands an actor a new session, with any images attached to its prompt; its client must be online. */
 	async start(request: StartActorSessionRequest): Promise<ActorSession> {
 		const session = await this.#send('startActorSession', request);
@@ -196,13 +238,16 @@ export class ActorsStore {
 			attachments: images.length > 0 ? images : null
 		});
 		this.#keep(message.id, images);
+		const request = 'request_id' in content ? content.request_id : null;
 		if (this.messages.key === session_id) {
-			const request = 'request_id' in content ? content.request_id : null;
 			this.messages.update((list) => [
 				...list.map((m) => (m.id === request ? { ...m, answered: true } : m)),
 				message
 			]);
 		}
+		// A subagent's request answered from the session above leaves its list at once.
+		if (this.waiting.value.some((m) => m.id === request))
+			this.waiting.update((list) => list.filter((m) => m.id !== request));
 		// Saying something starts it again, ended or not.
 		if (this.session.key === session_id) void this.session.refetch();
 		void this.sessions.refetch();

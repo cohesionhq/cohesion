@@ -50,9 +50,16 @@ pub enum ClientCall {
     /// `message_id`, and the `images` sent with it: more to do, or a
     /// response to one of its requests, answered with
     /// [`ClientResult::Accepted`].
+    ///
+    /// `subagent`, when set, is the client's key for the subagent of the
+    /// session whose request `content` responds to, as its `launch` named
+    /// it; left out for the session itself. A subagent is told only
+    /// responses.
     SendActorSessionMessage {
         actor: String,
         session_id: i64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        subagent: Option<String>,
         message_id: i64,
         content: ActorUserContent,
         images: Vec<ClientImage>,
@@ -104,11 +111,19 @@ impl ActorCall {
 /// the actor said, or where the session stands. Updates are taken in the order
 /// sent, each answered with a `Reply` carrying its `id`: the message stored,
 /// for a `message` (whose `id` a response to a request, or an `end`,
-/// names), `accepted` otherwise, or why it was refused.
+/// names), the subagent, for a `launch`, `accepted` otherwise, or why it was
+/// refused.
+///
+/// `session_id` is always a session Cohesion started. `subagent`, when set,
+/// makes the report about one of that session's subagents, at any depth,
+/// by the client's own key for it, which a `launch` names first; left out,
+/// the report is about the session itself.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ActorSessionUpdate {
     pub id: u64,
     pub session_id: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subagent: Option<String>,
     #[serde(flatten)]
     pub report: ActorSessionReport,
 }
@@ -134,9 +149,22 @@ pub struct ActorSessionUpdate {
 /// - `"title"`: what to call the session from now on, such as one the actor
 ///   generated from its first turn; its first line, cut short past 80
 ///   characters, which must not be blank.
+/// - `"launch"`: the actor launched the update's `subagent`, or says more
+///   of one it launched: what it is doing, as its `title`; under which of
+///   the session's subagents, by key, as `parent` (left out, the session
+///   itself; a launch again can't move it); the `toolUse` message one level
+///   up that launched it, as `message_id`; what kind of subagent it is, as
+///   `agent_type`; the model it runs on, as `model`; and whether it runs in
+///   the background. The first launch adds it, working; a launch again
+///   updates it as it stands, as a client catching up does. Only a
+///   subagent is launched.
+///
+/// A subagent takes every kind; `progress` only marks it working, since a
+/// subagent shows no activity.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ActorSessionReport {
+    Launch(SubagentLaunch),
     Message {
         content: ActorMessageContent,
         #[serde(default)]
@@ -157,6 +185,32 @@ pub enum ActorSessionReport {
     Title {
         title: String,
     },
+}
+
+/// What an actor says of a subagent it launched, in a `launch` report.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct SubagentLaunch {
+    /// What the subagent is doing, as the session's title is held: its first
+    /// line, cut short past 80 characters, which must not be blank.
+    pub title: String,
+    /// The subagent it runs under, by the client's key; left out, the
+    /// session itself.
+    #[serde(default)]
+    pub parent: Option<String>,
+    /// The `toolUse` message one level up that launched it. Left out, none.
+    #[serde(default)]
+    pub message_id: Option<i64>,
+    /// What kind of subagent it is, as the actor names them, such as
+    /// "Explore". Left out, none.
+    #[serde(default)]
+    pub agent_type: Option<String>,
+    /// The model it runs on, as the actor names it. Left out, the session's.
+    #[serde(default)]
+    pub model: Option<String>,
+    /// Whether it goes on after the tool use that launched it has ended.
+    /// Left out, it doesn't.
+    #[serde(default)]
+    pub background: bool,
 }
 
 /// How much of its limits one of the client's actors has used, unasked:

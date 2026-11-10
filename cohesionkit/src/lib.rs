@@ -48,7 +48,7 @@ mod script_actors;
 mod security;
 mod web_bundle;
 
-pub use actor_sessions::ActorSessions;
+pub use actor_sessions::{ActorSessions, Reported};
 pub use capability_clients::{CapabilityClients, ClientCallError, ClientSessionHandle, OfferError};
 pub use client_request::ClientRequest;
 pub use cohesion_context::CohesionContext;

@@ -8,9 +8,13 @@
 //! title, titles it by the prompt's first few words, then steps through
 //! every state a session can be in, reporting as it goes:
 //!
-//! 1. Working for 10 seconds (reading, taking a screenshot, which it shows,
-//!    then waiting on a lock; each tool it runs it reports ended), then a question, needing attention until it
-//!    is answered.
+//! 1. Working for 10 seconds (reading; launching a subagent, "Explore", which
+//!    thinks, reads, searches and answers in its own transcript before its
+//!    tool use ends; launching a second in the background, which runs the
+//!    tests for 10 more seconds while the session moves on; taking a
+//!    screenshot, which it shows, then waiting on a lock; each tool it runs
+//!    it reports ended), then a question, needing attention until it is
+//!    answered.
 //! 2. A command to allow, needing attention until decided: `abort` makes
 //!    it idle.
 //! 3. A plan to approve, needing attention until decided: not approved
@@ -37,7 +41,7 @@ use cohesionkit::model::{
 use cohesionkit::protocol::{
     ActorSessionReport, ActorSessionUpdate, ActorUsage, ActorUsageUpdate, CallResult, ClientCall,
     ClientCapabilities, ClientFrame, ClientHello, ClientImage, ClientOutcome, ClientResult, Frame,
-    Outcome, PlanUsage, Reply, ReplyData, ServerMessage,
+    Outcome, PlanUsage, Reply, ReplyData, ServerMessage, SubagentLaunch,
 };
 use cohesionkit::{LocalHandshakeReply, LocalIdentity};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -160,6 +164,20 @@ async fn main() {
                     ClientCall::SendActorSessionMessage {
                         actor,
                         session_id,
+                        subagent: Some(subagent),
+                        message_id,
+                        ..
+                    } => {
+                        // The fake's subagents ask nothing, so nothing waits on this.
+                        eprintln!(
+                            "session {session_id} on {actor}: subagent {subagent} heard message {message_id}"
+                        );
+                        ClientOutcome::Ok(ClientResult::Accepted)
+                    }
+                    ClientCall::SendActorSessionMessage {
+                        actor,
+                        session_id,
+                        subagent: None,
                         message_id,
                         content,
                         images,
@@ -317,14 +335,19 @@ impl Session {
         Reporter {
             session: self.clone(),
             session_id,
+            subagent: None,
         }
     }
 }
 
-/// Reports on one session.
+/// Reports on one session, or on one of its subagents.
+#[derive(Clone)]
 struct Reporter {
     session: Session,
     session_id: i64,
+    /// The subagent reported on, by the fake's key for it; `None` for the
+    /// session itself.
+    subagent: Option<String>,
 }
 
 impl Reporter {
@@ -337,6 +360,7 @@ impl Reporter {
             .send(&ClientFrame::ActorSessionUpdate(ActorSessionUpdate {
                 id,
                 session_id: self.session_id,
+                subagent: self.subagent.clone(),
                 report,
             }));
         let outcome = replied.await.expect("the session ended");
@@ -401,6 +425,33 @@ impl Reporter {
 
     async fn title(&self, title: String) {
         self.report(ActorSessionReport::Title { title }).await;
+    }
+
+    /// Launches subagent `key` under what this reports on, from the tool
+    /// use `message_id`, answering a reporter for it.
+    async fn launch(
+        &self,
+        key: String,
+        title: &str,
+        message_id: i64,
+        agent_type: &str,
+        background: bool,
+    ) -> Reporter {
+        let subagent = Reporter {
+            session: self.session.clone(),
+            session_id: self.session_id,
+            subagent: Some(key),
+        };
+        let launch = SubagentLaunch {
+            title: title.to_string(),
+            parent: self.subagent.clone(),
+            message_id: Some(message_id),
+            agent_type: Some(agent_type.to_string()),
+            model: Some("small".to_string()),
+            background,
+        };
+        subagent.report(ActorSessionReport::Launch(launch)).await;
+        subagent
     }
 
     async fn progress(&self, progress: Option<&str>) {
@@ -505,6 +556,8 @@ async fn first_stretch(reporter: &Reporter, scope: &str, prompt: &str, inbox: &m
     reporter.progress(Some("Reading src/lib.rs")).await;
     tokio::time::sleep(WORK * 3 / 10).await;
     reporter.end(read).await;
+    explore(reporter).await;
+    watch(reporter).await;
     let screenshot = ClientImage {
         media_type: "image/png".to_string(),
         data: SCREENSHOT.to_string(),
@@ -639,6 +692,62 @@ async fn first_stretch(reporter: &Reporter, scope: &str, prompt: &str, inbox: &m
     reporter
         .text("Done. The off-by-one is fixed and the empty case has a test. Send `fail` to see the session fail, or anything else to keep going.")
         .await;
+}
+
+/// A subagent the session waits on: launched from a tool use, it thinks,
+/// reads and searches, answers, and is done before the tool use ends.
+async fn explore(reporter: &Reporter) {
+    let task = reporter
+        .tool("Task", ActorToolKind::Agent, "Map how the build is wired")
+        .await;
+    let key = format!("explore-{}", reporter.session_id);
+    let explorer = reporter
+        .launch(key, "Map how the build is wired", task, "Explore", false)
+        .await;
+    let thinking = explorer
+        .say(ActorMessageContent::Thinking {
+            text: "Start at `build.rs`, then see who calls it.".to_string(),
+            ended_at: None,
+        })
+        .await;
+    tokio::time::sleep(STEP / 4).await;
+    explorer.end(thinking).await;
+    let read = explorer.tool("Read", ActorToolKind::Read, "build.rs").await;
+    tokio::time::sleep(STEP / 4).await;
+    explorer.end(read).await;
+    let search = explorer
+        .tool("Grep", ActorToolKind::Search, "include_bytes!")
+        .await;
+    tokio::time::sleep(STEP / 4).await;
+    explorer.end(search).await;
+    explorer
+        .text("`build.rs` compresses `web/build/` into the binary; `src/lib.rs` includes it with `include_bytes!`.")
+        .await;
+    explorer.status(ReportedActorSessionStatus::Idle).await;
+    reporter.end(task).await;
+}
+
+/// A subagent that runs in the background: launched from a tool use that
+/// ends at once, it goes on reporting while the session moves on, and is
+/// done a while later.
+async fn watch(reporter: &Reporter) {
+    let task = reporter
+        .tool("Task", ActorToolKind::Agent, "Watch the test run")
+        .await;
+    let key = format!("watch-{}", reporter.session_id);
+    let watcher = reporter
+        .launch(key, "Watch the test run", task, "general-purpose", true)
+        .await;
+    reporter.end(task).await;
+    tokio::spawn(async move {
+        let run = watcher
+            .tool("Bash", ActorToolKind::Command, "cargo test --workspace")
+            .await;
+        tokio::time::sleep(WORK).await;
+        watcher.end(run).await;
+        watcher.text("Every test passed.").await;
+        watcher.status(ReportedActorSessionStatus::Idle).await;
+    });
 }
 
 fn option(label: &str, description: &str) -> ActorQuestionOption {

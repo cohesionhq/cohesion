@@ -95,4 +95,29 @@ describe('actors store', () => {
 		await store.sessions.refetch();
 		expect(store.current.map((t) => t.id)).toEqual([1]);
 	});
+	it('lists a session’s subagents, not the sidebar, and answers one’s request from above', async () => {
+		const mock = createMock();
+		const store = createActorsStore(mock.send);
+		await Promise.all([store.sessions.load(), store.subagents.load(3), store.waiting.load(3)]);
+		expect(store.sessions.value.some((t) => t.subagent !== null)).toBe(false);
+		expect(store.subagents.value.map((t) => t.id)).toEqual([6, 7]);
+		expect(store.waiting.value.map((m) => [m.session_id, m.id])).toEqual([[7, 21]]);
+
+		await store.say(7, { kind: 'permission', request_id: 21, decision: 'allow', message: null });
+		expect(store.waiting.value).toEqual([]);
+		await store.waiting.refetch();
+		expect(store.waiting.value).toEqual([]);
+
+		// A subagent is told only responses, and goes with its session.
+		await expect(store.say(7, { kind: 'text', text: 'Hurry' })).rejects.toThrow();
+		await expect(store.stop(7)).rejects.toThrow();
+	});
+	it('lists a session’s family from any member, each after the one it runs under', async () => {
+		const mock = createMock();
+		const store = createActorsStore(mock.send);
+		await store.family.load(8);
+		expect(store.family.value.map((t) => t.id)).toEqual([3, 6, 8, 7]);
+		await store.family.load(1);
+		expect(store.family.value.map((t) => t.id)).toEqual([1]);
+	});
 });
