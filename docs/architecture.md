@@ -493,8 +493,8 @@ tested on the same texts) and resolves each card with `ResolveLink`.
 **Backlinks.** `BacklinksOf{link}` (`cohesion-db/src/commands/backlink.rs`)
 answers what links to the item `link` names: an `Embed` of each live item
 whose text links to it, by title, whether or not the item named exists, and
-fails validation on `link` as `ResolveLink` does. Only documents (journal
-entries too) are followed so far. A link counts wherever it is in the text,
+fails validation on `link` as `ResolveLink` does. Documents (journal
+entries too) and tasks' descriptions are followed so far. A link counts wherever it is in the text,
 alone on its line or in a sentence: an inline link's target, an autolink
 `<cohesion://…>` or a reference definition, outside a fenced block or code
 span (`item_links`, `model/backlink.rs`); an item's links to itself don't
@@ -502,10 +502,11 @@ count. The `backlinks` table keeps them: one row per item a source links to,
 the source and the target each a `LinkKind` (`task`, `document`, `resource`,
 `agent`, `actorSession`, `article`) and an id, with the link as first written.
 An item says what it is and what its text is (`LinkSource`), and every
-command that writes a document ends in `FollowLinksCommand`, which rewrites
-its rows from its text, or removes them once it is deleted, and invalidates
-`backlinks` of each item it linked to before or links to now, so a rename
-reaches every list showing it. Documents themselves never touch the table.
+command that writes a document or a task ends in `FollowLinksCommand`
+(`document::changed`, `task::followed`), which rewrites its rows from its
+text, or removes them once it is deleted, and invalidates `backlinks` of each
+item it linked to before or links to now, so a rename reaches every list
+showing it. Documents and tasks themselves never touch the table.
 
 **Versioning.** `PROTOCOL_VERSION` is `1` and stays 1 while Cohesion is in
 active development. There is no negotiation: the web UI compares the number in
@@ -839,7 +840,7 @@ deleting sets `deleted`, and client reads use `select_live`.
 | `saved_task_views` and `saved_task_view_priorities`, `_sizes`, `_tags` | Saved task filters: a list or a folder, a sort, and filter sets. |
 | `contacts` (soft), `contact_methods` | People in a workspace, and their emails and phone numbers. A deleted contact is unassigned from tasks. |
 | `metadata` | Key-value pairs on exactly one workspace, document, task, folder or resource. Scripts only: a request can't carry metadata filters. |
-| `backlinks` | What links to what: `source_kind` and `source_id` (only documents so far), `target_kind` and `target_id` (a `LinkKind` and an id), and `link` as first written; one row per source and target, never a source to itself. Rewritten by `FollowLinksCommand` on every document write; a document removed for good takes its rows (trigger `documents_backlinks_ad`). The `backlinks` migration filled it from every live document through the SQL function `outgoing_links`, which runs the same Rust rule. |
+| `backlinks` | What links to what: `source_kind` and `source_id` (a document or a task so far), `target_kind` and `target_id` (a `LinkKind` and an id), and `link` as first written; one row per source and target, never a source to itself. Rewritten by `FollowLinksCommand` on every document and task write; a document or task removed for good takes its rows (triggers `documents_backlinks_ad`, `tasks_backlinks_ad`). The `backlinks` migration filled it from every live document, and `task_backlinks` from every live task's description, through the SQL function `outgoing_links`, which runs the same Rust rule. |
 | `versions` | Rewind: past versions of tasks and documents, with `change` (`created`, `edited`, `deleted`, `restored`, `earlier`), `author` and `author_name`. Written by triggers through the `version_writes` view, which folds edits within 120 s into one version. |
 | `rewind_writer` | One row: who is writing now (see above). |
 

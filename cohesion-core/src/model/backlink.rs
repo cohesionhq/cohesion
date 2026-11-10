@@ -9,7 +9,7 @@ use cohesion_macros::Model;
 use serde::{Deserialize, Serialize};
 
 use super::text_section::is_fence;
-use super::{Document, ItemLink, LinkKind, LinkTarget};
+use super::{Document, ItemLink, LinkKind, LinkTarget, Task};
 
 /// One link from an item's text to an item: the source links to the target,
 /// as `link`. Kept for each item the source's text links to, once however
@@ -18,7 +18,8 @@ use super::{Document, ItemLink, LinkKind, LinkTarget};
 #[model(table = "backlinks", backup = Included)]
 pub struct Backlink {
     pub id: i64,
-    /// The item whose text holds the link: only a document so far.
+    /// The item whose text holds the link: a document (its contents) or a
+    /// task (its description) so far.
     pub source_kind: LinkKind,
     pub source_id: i64,
     /// The item the link names.
@@ -66,6 +67,19 @@ impl LinkSource for Document {
 
     fn linking_text(&self) -> Option<&str> {
         (!self.deleted).then_some(self.contents.as_str())
+    }
+}
+
+impl LinkSource for Task {
+    fn link_target(&self) -> LinkTarget {
+        LinkTarget {
+            kind: LinkKind::Task,
+            id: self.id,
+        }
+    }
+
+    fn linking_text(&self) -> Option<&str> {
+        (!self.deleted).then_some(self.description.as_str())
     }
 }
 

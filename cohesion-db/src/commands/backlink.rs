@@ -134,12 +134,12 @@ fn source_link(source: LinkTarget) -> Option<ItemLink> {
             workspace_id: None,
             id: source.id,
         }),
-        // Only documents' links are followed so far.
-        LinkKind::Task
-        | LinkKind::Resource
-        | LinkKind::Agent
-        | LinkKind::ActorSession
-        | LinkKind::Article => None,
+        LinkKind::Task => Some(ItemLink::Task {
+            workspace_id: None,
+            id: source.id,
+        }),
+        // Only documents' and tasks' links are followed so far.
+        LinkKind::Resource | LinkKind::Agent | LinkKind::ActorSession | LinkKind::Article => None,
     }
 }
 

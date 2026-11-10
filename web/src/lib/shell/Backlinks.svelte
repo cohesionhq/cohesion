@@ -6,13 +6,12 @@
 	list can't be had.
 -->
 <script lang="ts">
-	import FileText from '@lucide/svelte/icons/file-text';
-	import NotebookPen from '@lucide/svelte/icons/notebook-pen';
 	import { longDay } from '$lib/format/dates';
 	import { itemLinkHref, type ItemLink } from '$lib/format/itemLinks';
 	import type { Embed } from '$lib/protocol/types';
 	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 	import { backlinks } from '$lib/stores/backlinks.svelte';
+	import { embedIcon } from './embedIcons';
 	import { linkedItem } from './linkedItem.svelte';
 	import { itemLinkRoute, parseItemLink } from './routes';
 
@@ -29,11 +28,6 @@
 	});
 
 	const linking = $derived(shown?.backlinks.value ?? []);
-
-	/** Only documents and journal entries link so far. */
-	function icon(embed: Embed) {
-		return embed.kind === 'journalEntry' ? NotebookPen : FileText;
-	}
 
 	/** A journal entry goes by its day, as its own panel titles it. */
 	function title(embed: Embed): string {
@@ -52,7 +46,7 @@
 		<ul class="flex flex-col">
 			{#each linking as embed (embed.link)}
 				{@const target = parseItemLink(embed.link)}
-				{@const Icon = icon(embed)}
+				{@const Icon = embedIcon(embed)}
 				{#if target}
 					<li>
 						<a

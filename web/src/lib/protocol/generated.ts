@@ -952,8 +952,8 @@ export type AttachmentMessage =
 /**
  * The items whose text links to the item `link` names, as `resolveLink`
  * resolves each: a link anywhere in their text, alone on its line or in a
- * sentence, outside code. Only documents and journal entries are followed
- * so far. The item named needn't exist; text that isn't a `cohesion://`
+ * sentence, outside code. Documents, journal entries and tasks'
+ * descriptions are followed so far. The item named needn't exist; text that isn't a `cohesion://`
  * link fails validation on `link`. `backlinks` of the item's kind and id
  * says when the list changed.
  */

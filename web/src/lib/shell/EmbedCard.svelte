@@ -8,15 +8,6 @@
 	plain link.
 -->
 <script lang="ts">
-	import Bot from '@lucide/svelte/icons/bot';
-	import FileText from '@lucide/svelte/icons/file-text';
-	import Newspaper from '@lucide/svelte/icons/newspaper';
-	import NotebookPen from '@lucide/svelte/icons/notebook-pen';
-	import Package from '@lucide/svelte/icons/package';
-	import Square from '@lucide/svelte/icons/square';
-	import SquareCheck from '@lucide/svelte/icons/square-check';
-	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
-	import SquareX from '@lucide/svelte/icons/square-x';
 	import type { Component } from 'svelte';
 	import { publishedDate } from '$lib/features/articles/published';
 	import { longDay, localDay, shortDay } from '$lib/format/dates';
@@ -27,6 +18,7 @@
 	import AgentAvatar from '$lib/ui/AgentAvatar.svelte';
 	import Shimmer from '$lib/ui/Shimmer.svelte';
 	import StatusIcon from '$lib/ui/StatusIcon.svelte';
+	import { embedIcon, KIND_ICONS } from './embedIcons';
 	import { linkedItem } from './linkedItem.svelte';
 	import { itemLinkRoute, parseItemLink, type ItemKind } from './routes';
 
@@ -52,14 +44,6 @@
 	const loaded = $derived(shown?.embed.loaded ?? false);
 	const failed = $derived(shown?.embed.error !== null && shown?.embed.error !== undefined);
 
-	const KIND_ICONS: Record<ItemKind, Component> = {
-		task: Square,
-		document: FileText,
-		resource: Package,
-		agent: Bot,
-		'actor-session': SquareTerminal,
-		article: Newspaper
-	};
 	const MISSING: Record<ItemKind, string> = {
 		task: 'Task not found',
 		document: 'Document not found',
@@ -96,17 +80,6 @@
 		}
 	}
 
-	function taskIcon(embed: Embed): Component | null {
-		if (embed.item.kind !== 'task') return null;
-		const { status } = embed.item.task;
-		return status === 'completed' ? SquareCheck : status === 'cancelled' ? SquareX : Square;
-	}
-
-	function kindIcon(embed: Embed): Component {
-		if (embed.item.kind === 'document' && embed.item.document.journal_date) return NotebookPen;
-		return taskIcon(embed) ?? KIND_ICONS[link?.kind ?? 'document'];
-	}
-
 	const card =
 		'flex w-full min-w-0 items-start gap-3 overflow-hidden rounded-md border border-border bg-bg-raised px-3 py-2.5 text-sm text-fg no-underline transition-colors hover:bg-bg-hover hover:no-underline';
 </script>
@@ -136,7 +109,7 @@
 					<StatusIcon status={embed.item.session.status} unread={embed.item.session.unread} />
 				</span>
 			{:else}
-				{@render tile(kindIcon(embed))}
+				{@render tile(embedIcon(embed))}
 			{/if}
 			<span class="flex min-w-0 flex-1 flex-col gap-0.5">
 				<span class="flex min-w-0 items-baseline gap-2">

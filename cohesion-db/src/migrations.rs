@@ -4373,6 +4373,23 @@ pub const MIGRATIONS: &[Migration] = &[
         FROM documents, json_each(outgoing_links('document', documents.id, documents.contents)) links
         WHERE documents.deleted = FALSE;",
     },
+    // A task's description links as a document's contents do: its links
+    // are kept by the commands that write tasks and filled here from every
+    // live task by the same rule. A task's go with it.
+    Migration {
+        name: "task_backlinks",
+        sql: "
+        CREATE TRIGGER tasks_backlinks_ad AFTER DELETE ON tasks
+        BEGIN
+            DELETE FROM backlinks WHERE source_kind = 'task' AND source_id = old.id;
+        END;
+
+        INSERT INTO backlinks (source_kind, source_id, target_kind, target_id, link)
+        SELECT 'task', tasks.id, json_extract(links.value, '$.kind'),
+               json_extract(links.value, '$.id'), json_extract(links.value, '$.link')
+        FROM tasks, json_each(outgoing_links('task', tasks.id, tasks.description)) links
+        WHERE tasks.deleted = FALSE;",
+    },
 ];
 
 #[cfg(test)]

@@ -12,6 +12,10 @@ under "Unreleased" with any change users would notice.
   wakes when that actor session stops, until it tells the session something
   again. Clients send `unfollowActorSession` with the session and the agent;
   a session another agent follows is left as it is.
+- A task's description links as a document does: a task whose description
+  links to an item, as a card or in a sentence, shows under that item's
+  Backlinks, and moves off it when the link goes or the task is deleted.
+  When the daemon is upgraded, it fills the list from existing tasks.
 - An item's panel shows Backlinks: the documents and journal entries that
   link to the item, wherever the link is in their text. Click one to open it
   over the page. When nothing links to the item, the section doesn't show.

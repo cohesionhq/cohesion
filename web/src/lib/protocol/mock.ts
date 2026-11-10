@@ -957,7 +957,7 @@ function seed(): MockState {
 				1,
 				1,
 				'high',
-				'Needs design: recurrence rules, what completing a repeat does, and how extensions like Todoist map. See [Area: Tasks](cohesion://document/1/5).',
+				'Needs design: recurrence rules, what completing a repeat does, and how extensions like Todoist map.\n\n[Area: Tasks](cohesion://document/1/5)\n\nRelated: [Subagent sessions](cohesion://task/1/10).',
 				4
 			),
 			task(10, 'Subagent sessions', 'incomplete', 1, 1, 'medium'),
@@ -5478,6 +5478,15 @@ export function createMock(): Mock {
 				if (d.deleted || self || !linksTo(d.contents, target)) continue;
 				try {
 					linking.push(structuredClone(resolveLink(`cohesion://document/${d.id}`)));
+				} catch (error) {
+					if (!(error instanceof ProtocolError && error.code === 'notFound')) throw error;
+				}
+			}
+			for (const t of state.tasks) {
+				const self = target.kind === 'task' && t.id === target.id;
+				if (t.deleted || self || !linksTo(t.description, target)) continue;
+				try {
+					linking.push(structuredClone(resolveLink(`cohesion://task/${t.id}`)));
 				} catch (error) {
 					if (!(error instanceof ProtocolError && error.code === 'notFound')) throw error;
 				}

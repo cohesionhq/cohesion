@@ -13,7 +13,7 @@ use cohesion_core::{Document, FromRequest, Task, TaskStatus};
 
 use crate::changed::{Changed, Invalidates};
 use crate::commands::document::{changed, saved};
-use crate::commands::task::task_list;
+use crate::commands::task::{followed, task_list};
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::retention::days_in_secs;
 use crate::{
@@ -263,6 +263,7 @@ fn restore_task(
     for event in events {
         ctx.events.send(ctx.trace.event(event));
     }
+    followed(ctx, &task)?;
     let keys = [task_list(&before), task_list(&task)];
     Ok(task.invalidating(keys))
 }

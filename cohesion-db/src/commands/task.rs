@@ -14,6 +14,7 @@ use cohesion_core::{
 };
 
 use crate::changed::{Changed, Invalidates};
+use crate::commands::backlink::FollowLinksCommand;
 use crate::commands::page::page_size;
 use crate::commands::tag::tasks_tagged;
 use crate::commands::title::ensure_title;
@@ -31,10 +32,18 @@ pub(crate) fn task_list(task: &Task) -> Invalidation {
     }
 }
 
-/// `task`, just written, having changed the list it sits in.
-fn listed(task: Task) -> Changed<Task> {
+/// `task`, just written, having changed the list it sits in, and keeping
+/// what its description links to ([`followed`]).
+fn listed(ctx: &mut CommandContext<'_>, task: Task) -> DatabaseCommandResult<Changed<Task>> {
+    followed(ctx, &task)?;
     let key = task_list(&task);
-    task.invalidating([key])
+    Ok(task.invalidating([key]))
+}
+
+/// Keeps what `task`, just written, links to ([`FollowLinksCommand`]).
+/// Every write of a task runs it, most through [`listed`].
+pub(crate) fn followed(ctx: &mut CommandContext<'_>, task: &Task) -> DatabaseCommandResult<()> {
+    ctx.run(FollowLinksCommand::of(task))
 }
 
 /// The live tasks some filters cover, in `sort`'s order.
@@ -257,7 +266,7 @@ impl DatabaseCommand for CreateTaskCommand {
                 workspace_id: task.workspace_id,
             }));
         if self.tag_ids.is_empty() {
-            return Ok(listed(task));
+            return listed(ctx, task);
         }
         // The table's foreign keys refuse a tag of another workspace or kind,
         // which rolls the task back with it.
@@ -279,7 +288,7 @@ impl DatabaseCommand for CreateTaskCommand {
             task_id: task.id,
         }
         .handle(&mut ctx.as_read())?;
-        Ok(listed(task))
+        listed(ctx, task)
     }
 }
 
@@ -318,7 +327,7 @@ impl DatabaseCommand for ChangeTaskStatusCommand {
                 task_id: task.id,
                 workspace_id: task.workspace_id,
             }));
-        Ok(listed(task))
+        listed(ctx, task)
     }
 }
 
@@ -360,7 +369,7 @@ impl DatabaseCommand for ChangeTaskTitleCommand {
                 task_id: task.id,
                 workspace_id: task.workspace_id,
             }));
-        Ok(listed(task))
+        listed(ctx, task)
     }
 }
 
@@ -401,7 +410,7 @@ impl DatabaseCommand for ChangeTaskPriorityCommand {
                 task_id: task.id,
                 workspace_id: task.workspace_id,
             }));
-        Ok(listed(task))
+        listed(ctx, task)
     }
 }
 
@@ -442,7 +451,7 @@ impl DatabaseCommand for ChangeTaskSizeCommand {
                 task_id: task.id,
                 workspace_id: task.workspace_id,
             }));
-        Ok(listed(task))
+        listed(ctx, task)
     }
 }
 
@@ -491,7 +500,7 @@ impl DatabaseCommand for ChangeTaskAssigneeCommand {
                 task_id: task.id,
                 workspace_id: task.workspace_id,
             }));
-        Ok(listed(task))
+        listed(ctx, task)
     }
 }
 
@@ -532,7 +541,7 @@ impl DatabaseCommand for ChangeTaskDescriptionCommand {
                 task_id: task.id,
                 workspace_id: task.workspace_id,
             }));
-        Ok(listed(task))
+        listed(ctx, task)
     }
 }
 
@@ -580,7 +589,7 @@ impl DatabaseCommand for ScheduleTaskCommand {
                     workspace_id: task.workspace_id,
                 }));
         }
-        Ok(listed(task))
+        listed(ctx, task)
     }
 }
 
@@ -613,6 +622,9 @@ impl DatabaseCommand for ChangeTasksStatusCommand {
                     task_id: task.id,
                     workspace_id: task.workspace_id,
                 }));
+        }
+        for task in &changed {
+            followed(ctx, task)?;
         }
         let keys: Vec<_> = changed.iter().map(task_list).collect();
         Ok(changed.invalidating(keys))
@@ -652,6 +664,7 @@ impl DatabaseCommand for MoveTaskToFolderCommand {
                 task_id: self.task_id,
                 workspace_id: self.workspace_id,
             }));
+        followed(ctx, &v)?;
         let keys = [task_list(&before), task_list(&v)];
         Ok(v.invalidating(keys))
     }
@@ -681,7 +694,7 @@ impl DatabaseCommand for DeleteTaskCommand {
             ctx.trace
                 .event(DatabaseEventKind::TaskDeleted { task: task.clone() }),
         );
-        Ok(listed(task))
+        listed(ctx, task)
     }
 }
 
