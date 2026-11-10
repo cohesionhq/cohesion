@@ -8,3 +8,4 @@ web/.svelte-kit/
 web/build/*
 !web/build/.gitkeep
 CLAUDE.local.md
+bench.json
