@@ -189,12 +189,14 @@ impl ScriptWorker<ScriptJob> {
                             tx,
                             pressure: pressure.clone(),
                         };
-                        // Execute function, await until it exits.
+                        // Execute function, await until it exits: `submit` only
+                        // queues the call, so the call itself says when it is done.
                         // This will prevent flooding, as the missed tick behavior
                         // is set to SKIP.
                         let fn_name = fn_name.clone();
                         let scope = scope.clone();
-                        _ = worker
+                        let (done, finished) = oneshot::channel::<()>();
+                        let queued = worker
                             .submit(Box::new(move |sandbox| {
                                 if let Err(err) = sandbox.and_then(|sbx| sbx.call(&fn_name)) {
                                     log_error!(
@@ -202,8 +204,13 @@ impl ScriptWorker<ScriptJob> {
                                         "{scope}: timer {fn_name} failed: {err}"
                                     );
                                 }
+                                _ = done.send(());
                             }))
                             .await;
+                        if queued.is_ok() {
+                            // An error is a call dropped unrun, which is done too.
+                            _ = finished.await;
+                        }
                     }
                 });
                 if let Some(existing) = handles.remove(&timer.function_name) {
