@@ -16,7 +16,7 @@ mod text;
 use cohesion_core::model::{ArticleFetchFailure, FeedCapture, FeedFullPagePolicy, Published};
 use std::collections::HashSet;
 
-use crate::article_snapshot::{ArticleFetchAccess, Url};
+use crate::article_snapshot::{ArticleFetchAccess, Url, is_web_address};
 use crate::fetch::fetch;
 
 pub(crate) use discover::discover_feed;
@@ -88,16 +88,21 @@ pub(crate) struct FeedItem {
 }
 
 /// `text`, read from `base`, as an RSS 2.0, Atom or JSON Feed; `None` when
-/// it is none of them. Items without a link are left out.
+/// it is none of them. Items without a link are left out, and so are those
+/// whose link isn't a web address (`mailto:`, `javascript:`): an article's
+/// URL is fetched, and opened by clients, as one.
 pub(crate) fn parse_feed(text: &str, base: &Url) -> Option<ParsedFeed> {
-    if text.trim_start().starts_with('{') {
-        return json::parse(text, base);
-    }
-    match text::root_element(text)?.as_str() {
-        "rss" => rss::parse(text, base),
-        "feed" => atom::parse(text, base),
-        _ => None,
-    }
+    let mut feed = if text.trim_start().starts_with('{') {
+        json::parse(text, base)
+    } else {
+        match text::root_element(text)?.as_str() {
+            "rss" => rss::parse(text, base),
+            "feed" => atom::parse(text, base),
+            _ => None,
+        }
+    }?;
+    feed.items.retain(|item| is_web_address(&item.url));
+    Some(feed)
 }
 
 #[cfg(test)]

@@ -2248,8 +2248,9 @@ an HTTP status, "That address isn't an RSS or Atom feed.", "That feed is over
 client (`fetch.rs`): 20 s, user agent `cohesion`, redirects followed, at most
 5 MiB. An HTML page is searched for a feed link (`discover_feed`), followed
 once. The body is sniffed: `{` is JSON Feed, a root `rss` is RSS 2.0, a root
-`feed` is Atom; anything else isn't a feed. Items without a link are dropped,
-and items already known are skipped without fetching.
+`feed` is Atom; anything else isn't a feed. Items without a link, or whose
+link isn't an http or https address, are dropped, and items already known are
+skipped without fetching.
 
 **An article's text** (`feed/item.rs`). The feed's own HTML goes through
 Coherence, unless it is an excerpt (ending in an ellipsis or a "read more"

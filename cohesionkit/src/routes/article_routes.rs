@@ -5,7 +5,7 @@ use cohesion_core::protocol::{
     Local, RefetchedArticle, ResnapshotArticleRequest, Route, ServerError,
 };
 use cohesion_db::{GetArticleCommand, ResnapshotArticleCommand};
-use cohesion_internet::article_snapshot::{ArticleFetchAccess, article_url, snapshot};
+use cohesion_internet::article_snapshot::{ArticleFetchAccess, snapshot_address};
 
 use crate::cohesion_context::CohesionContext;
 
@@ -20,11 +20,11 @@ impl Route<Local, ResnapshotArticleRequest> for CohesionContext {
                 article_id: request.article_id,
             })
             .await?;
-        let url = article_url(&article.url).expect("an article's URL parses");
-        let fetched =
-            tokio::task::spawn_blocking(move || snapshot(ArticleFetchAccess::granted(), &url))
-                .await
-                .expect("fetching a page doesn't panic");
+        let fetched = tokio::task::spawn_blocking(move || {
+            snapshot_address(ArticleFetchAccess::granted(), &article.url)
+        })
+        .await
+        .expect("fetching a page doesn't panic");
         Ok(self
             .database
             .send(ResnapshotArticleCommand {
