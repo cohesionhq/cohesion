@@ -5,11 +5,12 @@ use cohesion_core::{
         ActorSession, ActorSessionMessage, ActorSessionMessageContent, ActorSessionStatus,
         ActorToolKind, ActorUserContent, AgentCodeOutcome, AgentMessageContent, AgentThreadMark,
         Article, Attachment, Backlink, CatalogModel, Connector, ConnectorAccount, Contact,
-        ContactMethod, EndpointModel, Extension, ExtensionHook, ExtensionPermission,
-        ExtensionService, ExtensionServiceFunction, Feed, FeedFullPagePolicy, FeedStatus, HookKind,
-        IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun,
-        IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault, IntelligenceEffort,
-        IntelligenceEndpoint, IntelligenceSpendLimit, IntelligenceThread, IntelligenceThreadImage,
+        ContactMethod, Database, DatabaseProperty, DatabaseRow, DatabaseRowValue, EndpointModel,
+        Extension, ExtensionHook, ExtensionPermission, ExtensionService, ExtensionServiceFunction,
+        Feed, FeedFullPagePolicy, FeedStatus, HookKind, IntelligenceAgent, IntelligenceAgentCue,
+        IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
+        IntelligenceCostEvent, IntelligenceDefault, IntelligenceEffort, IntelligenceEndpoint,
+        IntelligenceSpendLimit, IntelligenceThread, IntelligenceThreadImage,
         IntelligenceThreadMessage, LinkKind, Memory, MemoryScope, Metadata, PairingOpener, Photo,
         Profile, PublishedPrecision, Resource, ResourceKind, RewindWriter, SavedTaskView,
         SavedTaskViewPriority, SavedTaskViewSize, SavedTaskViewTag, SecurityEvent,
@@ -405,6 +406,7 @@ const WORDS: &[(&str, &str, &str)] = &[
     ("agent_thread_marks", "source", "conversation"),
     ("backlinks", "source_kind", "document"),
     ("backlinks", "target_kind", "task"),
+    ("database_properties", "data_type", "text"),
 ];
 
 /// Required JSON columns of a table's own, which take `[]`.
@@ -510,7 +512,8 @@ fn every_model_matches_the_schema() {
     // `endpoint_model_id = 0`, `client_id = 0`, `actor_id = 0`,
     // `task_id = 0`, `contact_id = 0`, `tag_id = 0` (a task tag, with task 0 in
     // workspace 0 to put it on) and `view_id = 0` (a saved view of
-    // workspace 0), which must exist; `message_id = 0` is both
+    // workspace 0), `database_id = 0`, `row_id = 0` and `property_id = 0` (a
+    // database value, on database 0's row and property), which must exist; `message_id = 0` is both
     // an agent's message and an actor task's. That service belongs to another
     // extension, leaving extension 0 free to declare the one checked. The
     // security and storage settings' and the profile's one rows make way for
@@ -544,6 +547,10 @@ fn every_model_matches_the_schema() {
                  VALUES (0, '', '', 'refreshed', 0, 0);
              INSERT INTO tasks (id, workspace_id, title) VALUES (0, 0, '');
              INSERT INTO documents (id, workspace_id, title, contents) VALUES (0, 0, '', '');
+             INSERT INTO databases (id, workspace_id, title) VALUES (0, 0, '');
+             INSERT INTO database_properties (id, database_id, name, data_type)
+                 VALUES (0, 0, '', 'text');
+             INSERT INTO database_rows (id, database_id) VALUES (0, 0);
              INSERT INTO contacts (id, workspace_id, first_name, last_name)
                  VALUES (0, 0, '', '');
              INSERT INTO tags (id, workspace_id, name) VALUES (0, 0, 'checked');
@@ -2976,4 +2983,99 @@ See [me](cohesion://task/42) and `[code](cohesion://task/3/43)`.'),
         .execute()
         .unwrap();
     assert!(db.select::<Backlink>().all().unwrap().is_empty());
+}
+
+#[test]
+fn databases_keep_their_values_to_their_own_rows_and_properties_and_rows_take_their_documents() {
+    let mut db = Container::in_memory().unwrap();
+    let at = MIGRATIONS
+        .iter()
+        .position(|migration| migration.name == "databases")
+        .unwrap();
+    // As `migrate` runs them: the later ones rebuild tables with foreign keys off.
+    db.connection()
+        .pragma_update(None, "foreign_keys", false)
+        .unwrap();
+    db.register_migration_functions().unwrap();
+    for migration in &MIGRATIONS[..at] {
+        db.connection().execute_batch(migration.sql).unwrap();
+    }
+    db.connection()
+        .execute_batch(
+            "INSERT INTO workspaces (id, title) VALUES (1, 'Home');
+             INSERT INTO documents (id, workspace_id, title, contents) VALUES (1, 1, 'Plan', 'apples');",
+        )
+        .unwrap();
+    db.connection()
+        .pragma_update(None, "user_version", at as i64)
+        .unwrap();
+    db.migrate().unwrap();
+    db.connection()
+        .pragma_update(None, "foreign_keys", true)
+        .unwrap();
+
+    // An ordinary document stays searchable; a row's document never is.
+    let run = |sql: &str| db.connection().execute_batch(sql);
+    run(
+        "INSERT INTO databases (id, workspace_id, title) VALUES (1, 1, 'Books'), (2, 1, 'Films');
+         INSERT INTO database_properties (id, database_id, name, data_type)
+             VALUES (1, 1, 'Title', 'text'), (2, 2, 'Title', 'text');
+         INSERT INTO documents (id, workspace_id, title, contents, document_type)
+             VALUES (2, 1, 'Dune', 'apples', 'databaseRow');
+         INSERT INTO database_rows (id, database_id, document_id) VALUES (1, 1, 2), (2, 2, NULL);
+         INSERT INTO database_row_values (database_id, row_id, property_id, text_value)
+             VALUES (1, 1, 1, 'Dune');",
+    )
+    .unwrap();
+    assert_eq!(search(&db, "apples"), [("document".to_string(), 1)]);
+    run("UPDATE documents SET contents = 'pears' WHERE id = 2").unwrap();
+    assert!(search(&db, "pears").is_empty());
+
+    // A value is of its own database's row and property, once each, always
+    // with its text.
+    assert!(
+        run(
+            "INSERT INTO database_row_values (database_id, row_id, property_id, text_value)
+             VALUES (1, 1, 2, 'x')"
+        )
+        .is_err()
+    );
+    assert!(
+        run(
+            "INSERT INTO database_row_values (database_id, row_id, property_id, text_value)
+             VALUES (1, 2, 1, 'x')"
+        )
+        .is_err()
+    );
+    assert!(
+        run(
+            "INSERT INTO database_row_values (database_id, row_id, property_id, text_value)
+             VALUES (1, 1, 1, 'again')"
+        )
+        .is_err()
+    );
+    assert!(
+        run(
+            "INSERT INTO database_row_values (database_id, row_id, property_id, text_value)
+             VALUES (2, 2, 2, NULL)"
+        )
+        .is_err()
+    );
+    assert!(run("UPDATE database_properties SET data_type = 'money' WHERE id = 1").is_err());
+
+    // A row's document is never soft-deleted, and goes with its row.
+    assert!(run("UPDATE documents SET deleted = TRUE WHERE id = 2").is_err());
+    let count = |sql: &str| -> i64 {
+        db.connection()
+            .query_row(sql, [], |row| row.get(0))
+            .unwrap()
+    };
+    run("DELETE FROM databases WHERE id = 1").unwrap();
+    assert_eq!(count("SELECT count(*) FROM documents WHERE id = 2"), 0);
+    assert_eq!(
+        count("SELECT count(*) FROM database_rows WHERE database_id = 1"),
+        0
+    );
+    assert_eq!(count("SELECT count(*) FROM database_row_values"), 0);
+    assert_eq!(count("SELECT count(*) FROM documents WHERE id = 1"), 1);
 }

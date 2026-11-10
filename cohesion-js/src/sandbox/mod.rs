@@ -12,7 +12,8 @@ mod script_argument;
 mod script_sandbox;
 mod strip_types;
 
-pub(crate) use caught_error::INTERRUPTED;
+pub(crate) use caught_error::{INTERRUPTED, caught};
+pub(crate) use strip_types::strip_types;
 
 pub use activity::Activity;
 pub use agent_message::AgentMessage;

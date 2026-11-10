@@ -24,6 +24,15 @@ impl SandboxOptions {
         time_limit: Duration::from_secs(15),
     };
 
+    /// For computing a database formula for one row: the row in, a value
+    /// out. A formula is arithmetic over a few values, so 16 MB for a
+    /// runtime and its cached formulas, and a second per row, is room to
+    /// spare for a real one, while a loop that never ends costs a second.
+    pub const FORMULA: Self = Self {
+        memory_limit_bytes: 16 * 1024 * 1024,
+        time_limit: Duration::from_secs(1),
+    };
+
     /// For source read before anyone has trusted it, such as an extension's
     /// script while its manifest is read. Reading a manifest only defines
     /// functions and calls one, so 4 MB and a second per job is room to

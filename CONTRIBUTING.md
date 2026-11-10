@@ -276,6 +276,9 @@ list), `append(column, text)` and `append_line` on an `Update`. There is no
 - `filter_in_values(column, values)` and `filter_not_in_values`: a list;
   an empty `IN` list matches nothing, an empty `NOT IN` list everything.
 - `filter_day(column, DayFilter)`.
+- `order_bound(order, value)` on a `Select`: an `ORDER BY` with one `?`,
+  bound after the filters' whatever order they were added in, for a sort key
+  read through a subquery on an id from the wire (the database rows query).
 
 These take a column by name and qualify it with the model's table.
 `raw_set` and `set_group` debug-assert that the column is one of the

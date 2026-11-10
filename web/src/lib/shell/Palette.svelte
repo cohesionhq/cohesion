@@ -10,6 +10,7 @@
 <script lang="ts">
 	import { Command, Dialog } from 'bits-ui';
 	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
+	import Table2 from '@lucide/svelte/icons/table-2';
 	import Bot from '@lucide/svelte/icons/bot';
 	import BookUser from '@lucide/svelte/icons/book-user';
 	import History from '@lucide/svelte/icons/history';
@@ -128,6 +129,12 @@
 					run: () => go(routes.documents(id))
 				},
 				{ id: 'tasks', label: 'Tasks', icon: CheckSquare, run: () => go(routes.tasks(id)) },
+				{
+					id: 'databases',
+					label: 'Databases',
+					icon: Table2,
+					run: () => go(routes.databases(id))
+				},
 				{ id: 'articles', label: 'Articles', icon: Newspaper, run: () => go(routes.articles(id)) },
 				{ id: 'contacts', label: 'Contacts', icon: BookUser, run: () => go(routes.contacts(id)) },
 				{ id: 'rewind', label: 'Rewind', icon: History, run: () => go(routes.rewind(id)) },

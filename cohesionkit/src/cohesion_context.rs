@@ -15,6 +15,7 @@ use cohesion_js::ScriptEngine;
 use crate::actor_sessions::ActorSessions;
 use crate::capability_clients::CapabilityClients;
 use crate::connectors::{AgentConnectors, PendingSignIns};
+use crate::database_formulas::FormulaQueue;
 use crate::endpoint_relay::EndpointRelay;
 use crate::extension_manager::{ExtensionManager, ScriptServices};
 use crate::hooks::{HookManager, LaunchHook};
@@ -40,6 +41,8 @@ pub struct CohesionContext {
     pub(crate) server: ServerAddress,
     pub(crate) catalog: ModelCatalog,
     pub(crate) hooks: HookManager,
+    /// Brings database formulas' outputs up to date.
+    pub(crate) formulas: FormulaQueue,
     /// Runs agents: their conversations and the background runs hooks start.
     pub(crate) agents: AgentCoordinator,
     /// Installs, restarts and calls extensions, and keeps their updates.
@@ -67,7 +70,8 @@ impl CohesionContext {
     /// Starts the database worker for `container` and the script engine.
     pub fn new(container: Container, secrets: Secrets, server: ServerAddress) -> Self {
         let work = WorkTracker::default();
-        let (hooks, manager) = HookManager::new(work.clone());
+        let (formulas, formula_runner) = FormulaQueue::new(work.clone());
+        let (hooks, manager) = HookManager::new(work.clone(), formulas.clone());
         let ctx = DatabaseContext::new(container, secrets.clone(), hooks.clone());
         // Initialize the engine here so that hooks can re-use the same one;
         // the extensions get a clone before connectors, services and actors,
@@ -97,10 +101,12 @@ impl CohesionContext {
             Arc::new(EndpointRelay::new(ctx.clone(), extensions.clone())),
             work.clone(),
         );
-        // Start listening for hooks.
+        // Start listening for hooks and stale formulas.
         manager.start(extensions.clone(), ctx.clone(), agents.clone());
+        formula_runner.start(ctx.clone(), script_engine.clone());
         Self {
             hooks,
+            formulas,
             agents,
             script_engine,
             secrets,
@@ -121,8 +127,9 @@ impl CohesionContext {
     /// Starts the daemon's own work, once, before it serves clients: runs
     /// the shutdown cleanup, for a daemon that stopped without closing its
     /// database (first, so nothing has started any work yet), then refreshes the model catalog in the background, queues
-    /// the launch hooks, and starts the clock hooks and the periodic
-    /// cleanup, resource, feed and extension-update passes.
+    /// the launch hooks and the formulas a stopped daemon left outdated, and
+    /// starts the clock hooks and the periodic cleanup, resource, feed and
+    /// extension-update passes.
     pub async fn start(&self) {
         if let Err(e) = self.database.send(ShutdownCleanupCommand).await {
             log_error!(Module::Database, "Startup cleanup failed: {e:?}");
@@ -130,6 +137,7 @@ impl CohesionContext {
         let ctx = self.clone();
         tokio::spawn(async move { _ = ctx.refresh_catalog().await });
         self.hooks.send(LaunchHook {});
+        self.formulas.queue_stale(&self.database).await;
         self.hooks.start_day_clock(self.database.clone());
         self.start_periodic_cleanup();
         self.start_resource_refresh();

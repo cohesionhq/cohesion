@@ -11,7 +11,7 @@ pub(crate) const INTERRUPTED: (&str, &str) = ("InternalError", "interrupted");
 
 /// A script failure: whatever the script threw becomes its message, and an
 /// error object's stack comes along for the logs.
-pub(super) fn caught<'js>(ctx: &Ctx<'js>, error: CaughtError<'js>) -> ScriptError {
+pub(crate) fn caught<'js>(ctx: &Ctx<'js>, error: CaughtError<'js>) -> ScriptError {
     let thrown = match error {
         CaughtError::Exception(exception) => return thrown_error(&exception),
         CaughtError::Value(value) => value,

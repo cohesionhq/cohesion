@@ -27,6 +27,8 @@ pub struct Select<'c, M: Model, O = M> {
     read: fn(&dyn Row) -> Result<O, RowError>,
     pub(super) filter: Where,
     order: Option<String>,
+    /// What fills the `?`s of `order`, which come after the filters'.
+    order_params: Vec<Value>,
     limit: Option<u64>,
     offset: u64,
     model: PhantomData<fn() -> M>,
@@ -76,6 +78,7 @@ impl<'c, M: Model, O> Select<'c, M, O> {
             read,
             filter: Where::default(),
             order: None,
+            order_params: Vec::new(),
             limit: None,
             offset: 0,
             model: PhantomData,
@@ -100,6 +103,15 @@ impl<'c, M: Model, O> Select<'c, M, O> {
         self
     }
 
+    /// Sets the `ORDER BY` clause with one `?` placeholder, filled by
+    /// `value` whatever the filters bind, e.g. a sort key read from another
+    /// table for the id a client names.
+    pub fn order_bound(mut self, order: &str, value: impl IntoValue) -> Self {
+        self.order = Some(order.to_string());
+        self.order_params = vec![value.into_value()];
+        self
+    }
+
     /// Leaves out repeated rows.
     pub fn distinct(mut self) -> Self {
         self.distinct = true;
@@ -120,14 +132,20 @@ impl<'c, M: Model, O> Select<'c, M, O> {
 
     /// Every matching row.
     pub fn all(self) -> Result<Vec<O>, DatabaseError> {
-        self.container
-            .query_rows(&self.sql(), self.params(), self.read)
+        self.container.query_rows(
+            &self.sql(),
+            self.params().chain(&self.order_params),
+            self.read,
+        )
     }
 
     /// The matching row, if any; more than one is an error.
     pub fn one(self) -> Result<Option<O>, DatabaseError> {
-        self.container
-            .query_row(&self.sql(), self.params(), self.read)
+        self.container.query_row(
+            &self.sql(),
+            self.params().chain(&self.order_params),
+            self.read,
+        )
     }
 
     /// Whether any row matches. Runs `SELECT EXISTS(...)`, so no row is read
@@ -154,9 +172,12 @@ impl<'c, M: Model, O> Select<'c, M, O> {
     /// another's condition.
     pub(super) fn into_subquery(self) -> (String, Vec<Value>) {
         let sql = self.sql();
-        (sql, self.filter.params)
+        let mut params = self.filter.params;
+        params.extend(self.order_params);
+        (sql, params)
     }
 
+    /// What fills the filters' `?`s; `order`'s come after them.
     fn params(&self) -> impl Iterator<Item = &Value> {
         self.filter.params.iter()
     }

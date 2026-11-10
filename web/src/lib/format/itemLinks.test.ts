@@ -16,6 +16,8 @@ describe('item links', () => {
 			'cohesion://task/42',
 			'cohesion://document/3/7',
 			'cohesion://resource/3/9',
+			'cohesion://database/3/2',
+			'cohesion://database-row/3/2/14',
 			'cohesion://agent/3',
 			'cohesion://actor-session/143',
 			'cohesion://article/88'
@@ -23,11 +25,24 @@ describe('item links', () => {
 			expect(itemLinkHref(parseItemLink(href)!)).toBe(href);
 	});
 
+	it('reads a database row with its workspace and database', () => {
+		expect(parseItemLink('cohesion://database-row/3/2/14')).toEqual({
+			kind: 'database-row',
+			ws: 3,
+			database: 2,
+			id: 14
+		});
+		expect(parseItemLink('cohesion://database/3/2')).toEqual({ kind: 'database', ws: 3, id: 2 });
+	});
+
 	it('reads nothing else', () => {
 		for (const href of [
 			'cohesion://resource/9',
 			'cohesion://article/1/2',
 			'cohesion://contact/3',
+			'cohesion://database/2',
+			'cohesion://database-row/3/14',
+			'cohesion://database-row/14',
 			'https://example.com'
 		])
 			expect(parseItemLink(href)).toBeNull();

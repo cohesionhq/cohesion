@@ -7,10 +7,11 @@ use cohesion_macros::TsWire;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    AGENT_REACTIONS, ActivityStatus, ActorSessionStatus, ActorSessionStop, Dialect, EmbedKind,
-    ExtensionPermissionKind, HookKind, IntelligenceAgentColor, IntelligenceAgentPersonality,
-    IntelligenceAgentVerbosity, IntelligenceProvider, IntelligenceTier, PairingOpener,
-    SecurityEventKind, SpendPeriod, TaskPriority, TaskSize, VersionChange,
+    AGENT_REACTIONS, ActivityStatus, ActorSessionStatus, ActorSessionStop, DatabaseDataType,
+    Dialect, EmbedKind, ExtensionPermissionKind, HookKind, IntelligenceAgentColor,
+    IntelligenceAgentPersonality, IntelligenceAgentVerbosity, IntelligenceProvider,
+    IntelligenceTier, PairingOpener, SecurityEventKind, SpendPeriod, TaskPriority, TaskSize,
+    VersionChange,
 };
 use crate::ts_documentation::TsDocumentation;
 use crate::ts_wire::{Declarations, TsWire};
@@ -50,6 +51,8 @@ pub struct Vocabulary {
     pub security_events: Vec<Labeled<SecurityEventKind>>,
     /// What each kind of item a `cohesion://` link names is called.
     pub embed_kinds: Vec<Labeled<EmbedKind>>,
+    /// What each type of value a database property holds is called.
+    pub database_data_types: Vec<Labeled<DatabaseDataType>>,
 }
 
 impl Vocabulary {
@@ -134,6 +137,9 @@ impl Vocabulary {
             embed_kinds: words(EmbedKind::ALL, |kind| {
                 labeled(*kind, embed_kind_label(*kind))
             }),
+            database_data_types: words(DatabaseDataType::ALL, |kind| {
+                labeled(*kind, database_data_type_label(*kind))
+            }),
         }
     }
 }
@@ -189,6 +195,11 @@ interface Vocabulary {
   security_events: { kind: string; label: string }[];
   /** What each kind of item a `cohesion://` link names is called. */
   embed_kinds: { kind: EmbedKind; label: string }[];
+  /** What each type of value a database property holds is called. */
+  database_data_types: {
+    kind: "text" | "integer" | "decimal" | "currency" | "checkbox" | "date";
+    label: string;
+  }[];
 }"#;
     const TS_BRIEF: &'static str = Self::TS;
 }
@@ -329,9 +340,22 @@ fn embed_kind_label(kind: EmbedKind) -> &'static str {
         EmbedKind::Document => "Document",
         EmbedKind::JournalEntry => "Journal entry",
         EmbedKind::Resource => "Resource",
+        EmbedKind::Database => "Database",
+        EmbedKind::DatabaseRow => "Database row",
         EmbedKind::Agent => "Agent",
         EmbedKind::ActorSession => "Actor session",
         EmbedKind::Article => "Article",
+    }
+}
+
+fn database_data_type_label(kind: DatabaseDataType) -> &'static str {
+    match kind {
+        DatabaseDataType::Text => "Text",
+        DatabaseDataType::Integer => "Whole number",
+        DatabaseDataType::Decimal => "Decimal",
+        DatabaseDataType::Currency => "Currency",
+        DatabaseDataType::Checkbox => "Checkbox",
+        DatabaseDataType::Date => "Date",
     }
 }
 

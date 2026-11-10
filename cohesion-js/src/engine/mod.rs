@@ -3,6 +3,7 @@
 
 mod agent_role;
 mod cue_evaluation;
+mod formula_pool;
 mod hosts;
 mod mermaid_pool;
 mod pressure_guard;

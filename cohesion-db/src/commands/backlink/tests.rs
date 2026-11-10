@@ -1,11 +1,15 @@
-use cohesion_core::model::{Document, Embed, Task, VersionChange, VersionTarget};
+use cohesion_core::model::{
+    DatabaseDataType, DatabaseValue, Document, Embed, EmbedKind, Task, VersionChange, VersionTarget,
+};
 
 use super::*;
+use crate::commands::database::tests::Fixture;
 use crate::test_support::context;
 use crate::{
     AppendToJournalCommand, ChangeTaskDescriptionCommand, ChangeTaskTitleCommand, CommandError,
-    CreateDocumentCommand, CreateTaskCommand, CreateTaskFolderCommand, CreateWorkspaceCommand,
-    DatabaseContext, DeleteDocumentCommand, DeleteTaskCommand, DeleteTaskFolderCommand,
+    CreateDatabaseRowDocumentCommand, CreateDocumentCommand, CreateTaskCommand,
+    CreateTaskFolderCommand, CreateWorkspaceCommand, DatabaseContext, DeleteDatabaseCommand,
+    DeleteDatabaseRowCommand, DeleteDocumentCommand, DeleteTaskCommand, DeleteTaskFolderCommand,
     DeleteWorkspaceCommand, EditDocumentCommand, ListVersionsCommand, MoveTaskToFolderCommand,
     RenameDocumentCommand, RestoreVersionCommand,
 };
@@ -370,4 +374,75 @@ fn deleting_a_task_folder_takes_its_tasks_links() {
     .unwrap();
     assert!(titles(&db, &link).is_empty());
     assert!(published(&mut batches).contains(&key(LinkKind::Document, plan.id)));
+}
+
+#[test]
+fn a_database_and_its_row_have_backlinks_and_a_rows_document_links_as_its_row() {
+    let f = Fixture::new();
+    let (db, ws) = (&f.db, f.ws);
+    let title = f.property("Title", DatabaseDataType::Text);
+    let row = f.row();
+    f.set(row, &title, Some(DatabaseValue::Text("Dune".into())))
+        .unwrap();
+    let database_link = format!("cohesion://database/{ws}/{}", f.database.id);
+    let row_link = format!("cohesion://database-row/{ws}/{}/{row}", f.database.id);
+    document(
+        db,
+        ws,
+        "Plan",
+        &format!("[Books]({database_link})\n\nRead [Dune]({row_link})."),
+    );
+    assert_eq!(titles(db, &database_link), ["Plan"]);
+    assert_eq!(titles(db, &row_link), ["Plan"]);
+
+    // What a row's document links to lists the row, not the document.
+    let task = task(db, ws);
+    let task_link = format!("cohesion://task/{ws}/{}", task.id);
+    let row_document = db
+        .send_blocking(CreateDatabaseRowDocumentCommand {
+            workspace_id: ws,
+            database_id: f.database.id,
+            row_id: row,
+        })
+        .unwrap();
+    edit(
+        db,
+        &row_document,
+        &format!("Before [Fix login]({task_link})"),
+    );
+    let linking = backlinks(db, &task_link);
+    assert_eq!(linking.len(), 1);
+    assert_eq!(linking[0].kind, EmbedKind::DatabaseRow);
+    assert_eq!(linking[0].title, "Dune");
+    assert_eq!(linking[0].link, row_link);
+
+    // Deleting the row lets go of its document's links, and says so.
+    let mut batches = db.subscribe();
+    db.send_blocking(DeleteDatabaseRowCommand {
+        workspace_id: ws,
+        database_id: f.database.id,
+        row_id: row,
+    })
+    .unwrap();
+    assert!(titles(db, &task_link).is_empty());
+    assert!(published(&mut batches).contains(&key(LinkKind::Task, task.id)));
+
+    // As does deleting a database with a row whose document links.
+    let row = f.row();
+    let row_document = db
+        .send_blocking(CreateDatabaseRowDocumentCommand {
+            workspace_id: ws,
+            database_id: f.database.id,
+            row_id: row,
+        })
+        .unwrap();
+    edit(db, &row_document, &format!("[Fix login]({task_link})"));
+    assert_eq!(titles(db, &task_link), ["Untitled"]);
+    db.send_blocking(DeleteDatabaseCommand {
+        workspace_id: ws,
+        database_id: f.database.id,
+    })
+    .unwrap();
+    assert!(titles(db, &task_link).is_empty());
+    assert!(published(&mut batches).contains(&key(LinkKind::Task, task.id)));
 }

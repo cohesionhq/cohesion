@@ -34,6 +34,28 @@ describe('backlinks store', () => {
 		release();
 	});
 
+	it('lists what links to a database and to a row, and a row’s document as its row', async () => {
+		const mock = createMock();
+		const store = createBacklinksStore(mock.send);
+		for (const href of ['cohesion://database/1/1', 'cohesion://database-row/1/1/3']) {
+			const { backlinks, release } = store.show(href);
+			await backlinks.load(href);
+			expect(backlinks.value.map((embed) => embed.title)).toEqual(['Winter reading']);
+			release();
+		}
+		const dune = mock.state.databaseRows[0];
+		const notes = mock.state.documents.find((d) => d.id === dune.document_id)!;
+		notes.contents = '[Piranesi](cohesion://database-row/1/1/3)';
+		const href = 'cohesion://database-row/1/1/3';
+		const { backlinks, release } = createBacklinksStore(mock.send).show(href);
+		await backlinks.load(href);
+		expect(backlinks.value.map((embed) => [embed.kind, embed.title])).toEqual([
+			['databaseRow', 'Dune'],
+			['document', 'Winter reading']
+		]);
+		release();
+	});
+
 	it('asks again on its own item’s backlinks or a workspace going, and nothing else', () => {
 		const href = 'cohesion://actor-session/2';
 		expect(touches({ kind: 'backlinks', id: { kind: 'actorSession', id: 2 } }, href)).toBe(true);

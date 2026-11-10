@@ -3,4 +3,7 @@ import type { WorkspaceItemKind } from '$lib/shell/routes';
 
 /** The kinds of item a `cohesion://` link opens in the workspace it names. */
 export const match = ((param: string): param is WorkspaceItemKind =>
-	param === 'task' || param === 'document' || param === 'resource') satisfies ParamMatcher;
+	param === 'task' ||
+	param === 'document' ||
+	param === 'resource' ||
+	param === 'database') satisfies ParamMatcher;

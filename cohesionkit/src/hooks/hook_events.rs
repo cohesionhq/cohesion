@@ -48,9 +48,14 @@ macro_rules! hook_events {
         /// The hook `event` raises. A journal or document save raises
         /// `journal:settled` or `document:settled`, which
         /// [`HookManager`](super::HookManager) holds back until it settles.
+        /// Stale formulas raise no hook: the manager hands them to the
+        /// formula runner before asking.
         pub(super) fn event_hook(event: DatabaseEventKind) -> Arc<dyn HookEvent> {
             match event {
                 $($(DatabaseEventKind::$event { $($field),* } => Arc::new($name { $($field),* }),)?)*
+                DatabaseEventKind::DatabaseFormulasStale { .. } => {
+                    unreachable!("HookManager hands formula work to the formula runner")
+                }
             }
         }
     };

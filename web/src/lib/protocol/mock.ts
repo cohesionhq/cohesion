@@ -2,6 +2,7 @@
 // as the fixture for tests. Each `createMock()` call starts from fresh seed data.
 
 import { parseItemLink, textPieces } from '$lib/format/itemLinks';
+import { compileMockFormula } from './mockFormula';
 import { ProtocolError, toProtocolError } from './errors';
 import type {
 	DayFilter,
@@ -36,6 +37,14 @@ import type {
 	Contact,
 	ContactMethod,
 	ContactMethodKind,
+	Database,
+	DatabaseDataType,
+	DatabaseFilter,
+	DatabaseProperty,
+	DatabaseRow,
+	DatabaseRowEntry,
+	DatabaseSort,
+	DatabaseValue,
 	Photo,
 	Document,
 	DocumentFolder,
@@ -710,6 +719,18 @@ interface MockState {
 	/** Which tag is on which task. */
 	tagged: { tag_id: number; task_id: number }[];
 	savedTaskViews: SavedTaskView[];
+	databases: Database[];
+	/** Every database's; `sort_order` orders one database's. */
+	databaseProperties: DatabaseProperty[];
+	databaseRows: DatabaseRow[];
+	/** One per row and property holding a value, as `database_row_values` holds them. */
+	databaseValues: MockDatabaseValue[];
+}
+
+interface MockDatabaseValue {
+	row_id: number;
+	property_id: number;
+	value: DatabaseValue;
 }
 
 type MockContactMethod = Omit<ContactMethod, 'workspace_id'>;
@@ -1376,7 +1397,11 @@ function seed(): MockState {
 				[6, 3]
 			] as const
 		).map(([tag_id, task_id]) => ({ tag_id, task_id })),
-		savedTaskViews: []
+		savedTaskViews: [],
+		databases: [],
+		databaseProperties: [],
+		databaseRows: [],
+		databaseValues: []
 	};
 }
 
@@ -1458,6 +1483,382 @@ function seedContacts(now: number): Pick<MockState, 'contacts' | 'contactMethods
 			method(4, 3, 'email', 'hannah@bell.example')
 		]
 	};
+}
+
+// ---- Databases --------------------------------------------------------------
+// The daemon filters and sorts rows in SQL and runs formulas in QuickJS; the
+// mock does both in JS, by the same rules (`database_row.rs`,
+// `database_formula.rs`), reading only a small part of the language for a
+// formula (`mockFormula.ts`).
+
+/** Whether `text` is a real day written `YYYY-MM-DD`. */
+function isDay(text: string): boolean {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+	const [y, m, d] = text.split('-').map(Number);
+	const date = new Date(Date.UTC(y, m - 1, d));
+	return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
+/** `value` as the daemon stores it, or null for an empty one; throws the daemon's message for a bad one. */
+function checkedDatabaseValue(value: DatabaseValue): DatabaseValue | null {
+	switch (value.type) {
+		case 'text':
+			return value.value === '' ? null : value;
+		case 'integer':
+			if (!Number.isInteger(value.value)) throw new Error('A whole number has no fraction.');
+			return value;
+		case 'decimal':
+		case 'currency':
+			if (!Number.isFinite(value.value)) throw new Error('A number must be finite.');
+			return value;
+		case 'date':
+			if (!isDay(value.value)) throw new Error('A date must be a real day, as YYYY-MM-DD.');
+			return value;
+		case 'checkbox':
+			return value;
+	}
+}
+
+/** A value's text, as `DatabaseValue::text` writes it. */
+function databaseValueText(value: DatabaseValue): string {
+	return String(value.value);
+}
+
+/** `text` read as `data_type`, as `DatabaseValue::parse` reads it, or null when it isn't one. */
+function parseDatabaseValue(data_type: DatabaseDataType, text: string): DatabaseValue | null {
+	const number = text.trim() === text && text !== '' ? Number(text) : NaN;
+	let value: DatabaseValue | null;
+	switch (data_type) {
+		case 'text':
+		case 'date':
+			value = { type: data_type, value: text };
+			break;
+		case 'integer':
+			value = /^[+-]?\d+$/.test(text) ? { type: 'integer', value: Number(text) } : null;
+			break;
+		case 'decimal':
+		case 'currency':
+			value = Number.isFinite(number) ? { type: data_type, value: number } : null;
+			break;
+		case 'checkbox':
+			value =
+				text === 'true' || text === 'false' ? { type: 'checkbox', value: text === 'true' } : null;
+			break;
+	}
+	try {
+		return value && checkedDatabaseValue(value);
+	} catch {
+		return null;
+	}
+}
+
+/** What a value compares as: text ignoring case, a checkbox as 1 or 0, a date by its text. */
+function comparedValue(value: DatabaseValue): string | number {
+	if (value.type === 'text') return value.value.toLowerCase();
+	if (value.type === 'checkbox') return value.value ? 1 : 0;
+	return value.value;
+}
+
+function databaseProperties(state: MockState, database_id: number): DatabaseProperty[] {
+	return state.databaseProperties
+		.filter((p) => p.database_id === database_id)
+		.sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+}
+
+function databaseValue(
+	state: MockState,
+	row_id: number,
+	property_id: number
+): DatabaseValue | null {
+	return (
+		state.databaseValues.find((v) => v.row_id === row_id && v.property_id === property_id)?.value ??
+		null
+	);
+}
+
+function storeDatabaseValue(
+	state: MockState,
+	row_id: number,
+	property_id: number,
+	value: DatabaseValue | null
+) {
+	state.databaseValues = state.databaseValues.filter(
+		(v) => !(v.row_id === row_id && v.property_id === property_id)
+	);
+	if (value !== null) state.databaseValues.push({ row_id, property_id, value });
+}
+
+/** `output`, a formula's, as a value of `data_type`; throws when it is of another type. */
+function formulaOutput(data_type: DatabaseDataType, output: unknown): DatabaseValue | null {
+	if (output === null || output === undefined) return null;
+	const wrong = () => {
+		throw new Error(`The formula returned ${JSON.stringify(output)}, which isn’t of its type.`);
+	};
+	switch (data_type) {
+		case 'text':
+		case 'date':
+			if (typeof output !== 'string') wrong();
+			return checkedDatabaseValue({ type: data_type, value: output as string });
+		case 'integer':
+		case 'decimal':
+		case 'currency':
+			if (typeof output !== 'number') wrong();
+			return checkedDatabaseValue({ type: data_type, value: output as number });
+		case 'checkbox':
+			if (typeof output !== 'boolean') wrong();
+			return { type: 'checkbox', value: output as boolean };
+	}
+}
+
+/**
+ * Computes every formula of a database for every row, at once rather than a
+ * moment after the write as the daemon does: the mock pushes no
+ * invalidations, so the reply to a write carries its outputs.
+ */
+function computeFormulas(state: MockState, database_id: number) {
+	const properties = databaseProperties(state, database_id);
+	// Of two inputs with one name, the one created first.
+	const inputs = properties.filter((p) => p.formula === null).sort((a, b) => a.id - b.id);
+	const rows = state.databaseRows.filter((r) => r.database_id === database_id);
+	for (const property of properties) {
+		if (property.formula === null) continue;
+		const run = compileMockFormula(property.formula.source);
+		let error: string | null = null;
+		for (const row of rows) {
+			const input: Record<string, unknown> = {};
+			for (const p of inputs)
+				if (!(p.name in input)) input[p.name] = databaseValue(state, row.id, p.id)?.value ?? null;
+			let value: DatabaseValue | null = null;
+			try {
+				if (!run) throw new Error('The mock runs only simple formulas (see mockFormula.ts).');
+				value = formulaOutput(property.data_type, run(input));
+			} catch (e) {
+				error ??= (e instanceof Error ? e.message : String(e)).slice(0, 300);
+			}
+			storeDatabaseValue(state, row.id, property.id, value);
+		}
+		property.formula = { ...property.formula, error };
+	}
+}
+
+/** `row` with its cells, in its database's property order. */
+function databaseEntry(state: MockState, row: DatabaseRow): DatabaseRowEntry {
+	return {
+		...row,
+		cells: databaseProperties(state, row.database_id).flatMap((p) => {
+			const value = databaseValue(state, row.id, p.id);
+			return value === null ? [] : [{ property_id: p.id, value: { ...value } }];
+		})
+	};
+}
+
+/** A refusal of a filter, as the daemon words it. */
+function badFilter(message: string): never {
+	throw new ProtocolError('validationFailed', message, 'filters');
+}
+
+/** The test a row's value for `filter`'s property must pass; throws for a filter its type can't take. */
+function databaseFilterTest(
+	property: DatabaseProperty,
+	{ condition }: DatabaseFilter
+): (value: DatabaseValue | null) => boolean {
+	const typed = (value: DatabaseValue) => {
+		if (value.type !== property.data_type)
+			badFilter('A filter’s value must be of its property’s type.');
+		try {
+			checkedDatabaseValue(value);
+		} catch (e) {
+			badFilter((e as Error).message);
+		}
+		return comparedValue(value);
+	};
+	const ordered = (
+		value: DatabaseValue,
+		test: (a: string | number, b: string | number) => boolean
+	) => {
+		if (!['integer', 'decimal', 'currency', 'date'].includes(property.data_type))
+			badFilter('Only numbers, amounts and dates compare as greater or less.');
+		const bound = typed(value);
+		return (v: DatabaseValue | null) => v !== null && test(comparedValue(v), bound);
+	};
+	const contains = (text: string) => {
+		if (property.data_type !== 'text') badFilter('Only text can contain text.');
+		const lower = text.toLowerCase();
+		return (v: DatabaseValue | null) => v !== null && String(v.value).toLowerCase().includes(lower);
+	};
+	const equal = (value: DatabaseValue) => {
+		const bound = typed(value);
+		return (v: DatabaseValue | null) => v !== null && comparedValue(v) === bound;
+	};
+	const not = (test: (v: DatabaseValue | null) => boolean) => (v: DatabaseValue | null) => !test(v);
+	switch (condition.kind) {
+		case 'isEmpty':
+			return (v) => v === null;
+		case 'isNotEmpty':
+			return (v) => v !== null;
+		case 'equals':
+			return equal(condition.value);
+		case 'notEquals':
+			return not(equal(condition.value));
+		case 'contains':
+			return contains(condition.text);
+		case 'notContains':
+			return not(contains(condition.text));
+		case 'greaterThan':
+			return ordered(condition.value, (a, b) => a > b);
+		case 'greaterOrEqual':
+			return ordered(condition.value, (a, b) => a >= b);
+		case 'lessThan':
+			return ordered(condition.value, (a, b) => a < b);
+		case 'lessOrEqual':
+			return ordered(condition.value, (a, b) => a <= b);
+	}
+}
+
+/** A database's rows meeting every filter, in `sort`'s order (empty values last), ties as added. */
+function listDatabaseRows(
+	state: MockState,
+	database_id: number,
+	filters: DatabaseFilter[],
+	sort: DatabaseSort | null | undefined
+): DatabaseRow[] {
+	const properties = databaseProperties(state, database_id);
+	const propertyOf = (id: number) =>
+		properties.find((p) => p.id === id) ??
+		(() => {
+			throw new ProtocolError('notFound', 'The requested database property wasn’t found.');
+		})();
+	const tests = filters.map((f) => ({
+		id: f.property_id,
+		test: databaseFilterTest(propertyOf(f.property_id), f)
+	}));
+	const rows = state.databaseRows
+		.filter((r) => r.database_id === database_id)
+		.filter((r) => tests.every(({ id, test }) => test(databaseValue(state, r.id, id))))
+		.sort((a, b) => a.id - b.id);
+	if (!sort) return rows;
+	const by = propertyOf(sort.property_id).id;
+	return rows.sort((a, b) => {
+		const va = databaseValue(state, a.id, by);
+		const vb = databaseValue(state, b.id, by);
+		if (va === null || vb === null)
+			return (va === null ? 1 : 0) - (vb === null ? 1 : 0) || a.id - b.id;
+		const [x, y] = [comparedValue(va), comparedValue(vb)];
+		const order = x < y ? -1 : x > y ? 1 : 0;
+		return (sort.descending ? -order : order) || a.id - b.id;
+	});
+}
+
+/**
+ * Two databases in the first workspace: a reading list holding a value of
+ * every type and a formula that fails on the row with no rating, and a
+ * renovation budget whose total is a formula. The first row has a document,
+ * and a document links to the reading list and to one of its rows.
+ */
+function seedDatabases(state: MockState) {
+	type Cell = string | number | boolean | null;
+	const add = (
+		id: number,
+		title: string,
+		columns: [string, DatabaseDataType, string?][],
+		rows: Cell[][]
+	) => {
+		state.databases.push({ id, workspace_id: 1, title });
+		const first = state.databaseProperties.length + 1;
+		const properties = columns.map(([name, data_type, formula], i) => ({
+			id: first + i,
+			database_id: id,
+			name,
+			data_type,
+			sort_order: i + 1,
+			formula: formula ? { source: formula, error: null } : null
+		}));
+		state.databaseProperties.push(...properties);
+		const inputs = properties.filter((p) => p.formula === null);
+		for (const cells of rows) {
+			const row = { id: state.databaseRows.length + 1, database_id: id, document_id: null };
+			state.databaseRows.push(row);
+			cells.forEach((cell, i) => {
+				if (cell === null) return;
+				const p = inputs[i];
+				storeDatabaseValue(state, row.id, p.id, {
+					type: p.data_type,
+					value: cell
+				} as DatabaseValue);
+			});
+		}
+		computeFormulas(state, id);
+	};
+	add(
+		1,
+		'Reading list',
+		[
+			['Title', 'text'],
+			['Author', 'text'],
+			['Pages', 'integer'],
+			['Rating', 'decimal'],
+			['Price', 'currency'],
+			['Read', 'checkbox'],
+			['Finished', 'date'],
+			['Stars', 'text', "(row) => row.Rating.toFixed(1) + ' stars'"]
+		],
+		[
+			['Dune', 'Frank Herbert', 412, 4.5, 9.99, true, '2026-09-14'],
+			['The Left Hand of Darkness', 'Ursula K. Le Guin', 304, 4.8, 12.5, true, '2026-10-02'],
+			['Piranesi', 'Susanna Clarke', 272, 4.2, 14, false, null],
+			['Project Hail Mary', 'Andy Weir', 496, null, 16.99, false, null],
+			['The Dispossessed', 'Ursula K. Le Guin', 387, 4.6, 11.25, true, '2026-08-21'],
+			['Klara and the Sun', 'Kazuo Ishiguro', 303, 3.9, null, null, null]
+		]
+	);
+	add(
+		2,
+		'Kitchen renovation',
+		[
+			['Item', 'text'],
+			['Supplier', 'text'],
+			['Quantity', 'integer'],
+			['Unit price', 'currency'],
+			['Total', 'currency', '(row) => row.Quantity * row["Unit price"]'],
+			['Ordered', 'checkbox'],
+			['Delivery', 'date']
+		],
+		[
+			['Oak worktop', 'Timber & Co', 2, 340, true, '2026-11-18'],
+			['Mixer tap', 'Bathstore', 1, 129.99, true, '2026-11-12'],
+			['Cabinet handles', 'Handle Shop', 14, 6.5, false, null],
+			['Wall tiles (m²)', 'Tile Depot', 9, 32, false, '2026-11-25'],
+			['Paint', null, 3, 24.75, null, null]
+		]
+	);
+	const id = state.documents.reduce((max, d) => Math.max(max, d.id), 0) + 1;
+	state.documents.push({
+		id,
+		workspace_id: 1,
+		document_type: 'databaseRow',
+		title: '',
+		contents:
+			'# Notes\n\nRead it on the train over two weeks. The appendices are worth it.\n\n- Lend to Mira next.\n',
+		modified: nowSeconds() - 5 * DAY,
+		journal_date: null,
+		deleted: false,
+		folder_id: null
+	});
+	state.databaseRows[0].document_id = id;
+	// A document showing the reading list and one of its rows as cards, which
+	// their backlinks list.
+	state.documents.push({
+		id: id + 1,
+		workspace_id: 1,
+		document_type: 'normal',
+		title: 'Winter reading',
+		contents:
+			'Books for the long evenings.\n\n[Reading list](cohesion://database/1/1)\n\nNext up:\n\n[Piranesi](cohesion://database-row/1/1/3)\n',
+		modified: nowSeconds() - 2 * DAY,
+		journal_date: null,
+		deleted: false,
+		folder_id: null
+	});
 }
 
 /** Six articles across the feeds: one read and one whose page couldn't be fetched among them. */
@@ -3290,6 +3691,7 @@ function seedRewind(state: MockState, now: number): void {
 export function createMock(): Mock {
 	const state = seed();
 	seedRewind(state, nowSeconds());
+	seedDatabases(state);
 	const nextId = (rows: { id: number }[]) =>
 		rows.reduce((max, row) => Math.max(max, row.id), 0) + 1;
 	const notFound = (what: string): never => {
@@ -3314,6 +3716,34 @@ export function createMock(): Mock {
 		for (let i = 0; i < ids.length; i++)
 			for (const f of liveDocumentFolders(workspace_id)) if (f.parent_id === ids[i]) ids.push(f.id);
 		return ids;
+	};
+	const databaseOf = (workspace_id: number, database_id: number) => {
+		workspace(workspace_id);
+		return (
+			state.databases.find((d) => d.id === database_id && d.workspace_id === workspace_id) ??
+			notFound('database')
+		);
+	};
+	const propertyOf = (workspace_id: number, database_id: number, property_id: number) => {
+		databaseOf(workspace_id, database_id);
+		return (
+			state.databaseProperties.find((p) => p.id === property_id && p.database_id === database_id) ??
+			notFound('database property')
+		);
+	};
+	const rowOf = (workspace_id: number, database_id: number, row_id: number) => {
+		databaseOf(workspace_id, database_id);
+		return (
+			state.databaseRows.find((r) => r.id === row_id && r.database_id === database_id) ??
+			notFound('database row')
+		);
+	};
+	const requirePropertyName = (name: string) => {
+		if (name === '') throw new ProtocolError('validationFailed', 'Name can’t be empty.', 'name');
+	};
+	const requireFormula = (formula: string | null) => {
+		if (formula !== null && formula.trim() === '')
+			throw new ProtocolError('validationFailed', 'A formula can’t be empty.', 'formula');
 	};
 	// A contact as the daemon reads it: its row, with its methods by id.
 	type MockContact = Omit<Contact, 'methods'>;
@@ -3496,8 +3926,47 @@ export function createMock(): Mock {
 		}
 		return false;
 	};
+	/** A database row with its database's properties and its document's excerpt, as the daemon's `database_row` resolves it. */
+	const databaseRowEmbed = (workspace_id: number, database_id: number, row_id: number): Embed => {
+		const database = databaseOf(workspace_id, database_id);
+		const row = rowOf(workspace_id, database_id, row_id);
+		const properties = databaseProperties(state, database_id).map((p) => structuredClone(p));
+		const entry = databaseEntry(state, row);
+		const labelled = properties.find((p) => p.data_type === 'text');
+		const label = labelled ? databaseValue(state, row.id, labelled.id) : null;
+		const document = state.documents.find((d) => d.id === row.document_id && !d.deleted);
+		return {
+			link: `cohesion://database-row/${workspace_id}/${database_id}/${row_id}`,
+			kind: 'databaseRow',
+			workspace_id,
+			title: label?.type === 'text' && label.value.trim() !== '' ? label.value : 'Untitled',
+			excerpt: document ? excerptOf(document.contents) : '',
+			item: { kind: 'databaseRow', row: entry, database_title: database.title, properties }
+		};
+	};
 	/** The live item a `cohesion://` link names, as the daemon's `ResolveLinkCommand` finds it. */
 	const resolveLink = (link: string): Embed => {
+		const target = parseItemLink(link.trim());
+		if (target?.kind === 'database-row')
+			return databaseRowEmbed(target.ws, target.database, target.id);
+		if (target?.kind === 'database') {
+			const database = databaseOf(target.ws, target.id);
+			const rows = state.databaseRows.filter((r) => r.database_id === database.id);
+			return {
+				link: `cohesion://database/${target.ws}/${target.id}`,
+				kind: 'database',
+				workspace_id: target.ws,
+				title: database.title,
+				excerpt: '',
+				item: {
+					kind: 'database',
+					database: { ...database },
+					properties: databaseProperties(state, database.id).map((p) => structuredClone(p)),
+					rows: rows.slice(0, 5).map((r) => databaseEntry(state, r)),
+					row_count: rows.length
+				}
+			};
+		}
 		const match =
 			/^cohesion:\/\/(task|document|resource|agent|actor-session|article)\/(\d+)(?:\/(\d+))?$/.exec(
 				link.trim()
@@ -3537,6 +4006,12 @@ export function createMock(): Mock {
 						(d) => d.id === id && !d.deleted && (ws === null || d.workspace_id === ws)
 					) ?? notFound('document');
 				workspace(found.workspace_id);
+				// A row's document is part of its row, so it resolves as the row.
+				if (found.document_type === 'databaseRow') {
+					const row =
+						state.databaseRows.find((r) => r.document_id === found.id) ?? notFound('document');
+					return databaseRowEmbed(found.workspace_id, row.database_id, row.id);
+				}
 				return {
 					link: `cohesion://document/${found.workspace_id}/${id}`,
 					kind: found.document_type === 'journal' ? 'journalEntry' : 'document',
@@ -4211,7 +4686,11 @@ export function createMock(): Mock {
 			const q = query.toLowerCase();
 			return state.documents
 				.filter(
-					(d) => d.workspace_id === workspace_id && !d.deleted && d.title.toLowerCase().includes(q)
+					(d) =>
+						d.workspace_id === workspace_id &&
+						!d.deleted &&
+						d.document_type !== 'databaseRow' &&
+						d.title.toLowerCase().includes(q)
 				)
 				.map((d) => ({ ...d }));
 		},
@@ -4221,6 +4700,8 @@ export function createMock(): Mock {
 					(d) =>
 						d.workspace_id === workspace_id &&
 						!d.deleted &&
+						// A database row's document stays out of the list, as the daemon keeps it.
+						d.document_type !== 'databaseRow' &&
 						(document_type == null || d.document_type === document_type) &&
 						(journal_from == null || (d.journal_date !== null && d.journal_date >= journal_from)) &&
 						(journal_to == null || (d.journal_date !== null && d.journal_date < journal_to))
@@ -4322,6 +4803,183 @@ export function createMock(): Mock {
 			for (const id of doomed) documentFolder(workspace_id, id).deleted = true;
 			return { ...f };
 		},
+		listDatabases: ({ workspace_id }) => {
+			workspace(workspace_id);
+			return state.databases
+				.filter((d) => d.workspace_id === workspace_id)
+				.sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase()) || a.id - b.id)
+				.map((d) => ({ ...d }));
+		},
+		getDatabase: ({ workspace_id, database_id }) => ({ ...databaseOf(workspace_id, database_id) }),
+		createDatabase: ({ workspace_id, title }) => {
+			requireTitle(title);
+			workspace(workspace_id);
+			const created: Database = { id: nextId(state.databases), workspace_id, title };
+			state.databases.push(created);
+			return { ...created };
+		},
+		renameDatabase: ({ workspace_id, database_id, title }) => {
+			requireTitle(title);
+			const d = databaseOf(workspace_id, database_id);
+			d.title = title;
+			return { ...d };
+		},
+		deleteDatabase: ({ workspace_id, database_id }) => {
+			const d = databaseOf(workspace_id, database_id);
+			const rows = state.databaseRows.filter((r) => r.database_id === database_id);
+			const ids = rows.map((r) => r.id);
+			const documents = rows.flatMap((r) => (r.document_id === null ? [] : [r.document_id]));
+			state.documents = state.documents.filter((doc) => !documents.includes(doc.id));
+			state.databaseValues = state.databaseValues.filter((v) => !ids.includes(v.row_id));
+			state.databaseRows = state.databaseRows.filter((r) => r.database_id !== database_id);
+			state.databaseProperties = state.databaseProperties.filter(
+				(p) => p.database_id !== database_id
+			);
+			state.databases = state.databases.filter((x) => x.id !== database_id);
+			return { ...d };
+		},
+		listDatabaseProperties: ({ workspace_id, database_id }) => {
+			databaseOf(workspace_id, database_id);
+			return databaseProperties(state, database_id).map((p) => structuredClone(p));
+		},
+		createDatabaseProperty: ({ workspace_id, database_id, name, data_type, formula = null }) => {
+			requirePropertyName(name);
+			requireFormula(formula);
+			databaseOf(workspace_id, database_id);
+			const created: DatabaseProperty = {
+				id: nextId(state.databaseProperties),
+				database_id,
+				name,
+				data_type,
+				sort_order:
+					databaseProperties(state, database_id).reduce(
+						(max, p) => Math.max(max, p.sort_order),
+						0
+					) + 1,
+				formula: formula === null ? null : { source: formula, error: null }
+			};
+			state.databaseProperties.push(created);
+			computeFormulas(state, database_id);
+			return structuredClone(created);
+		},
+		renameDatabaseProperty: ({ workspace_id, database_id, property_id, name }) => {
+			requirePropertyName(name);
+			const p = propertyOf(workspace_id, database_id, property_id);
+			p.name = name;
+			computeFormulas(state, database_id);
+			return structuredClone(p);
+		},
+		setDatabasePropertyType: ({ workspace_id, database_id, property_id, data_type }) => {
+			const p = propertyOf(workspace_id, database_id, property_id);
+			p.data_type = data_type;
+			for (const v of state.databaseValues.filter((v) => v.property_id === property_id))
+				storeDatabaseValue(
+					state,
+					v.row_id,
+					property_id,
+					parseDatabaseValue(data_type, databaseValueText(v.value))
+				);
+			computeFormulas(state, database_id);
+			return structuredClone(p);
+		},
+		setDatabasePropertyFormula: ({ workspace_id, database_id, property_id, formula = null }) => {
+			requireFormula(formula);
+			const p = propertyOf(workspace_id, database_id, property_id);
+			// Becoming a formula drops the values set by hand; no longer one keeps its last outputs.
+			if (formula !== null && p.formula === null)
+				state.databaseValues = state.databaseValues.filter((v) => v.property_id !== property_id);
+			p.formula = formula === null ? null : { source: formula, error: null };
+			computeFormulas(state, database_id);
+			return structuredClone(p);
+		},
+		moveDatabaseProperty: ({ workspace_id, database_id, property_id, before_id = null }) => {
+			const moving = propertyOf(workspace_id, database_id, property_id);
+			const others = databaseProperties(state, database_id).filter((p) => p.id !== property_id);
+			const at = before_id === null ? others.length : others.findIndex((p) => p.id === before_id);
+			if (at < 0)
+				throw new ProtocolError(
+					'validationFailed',
+					'The property to go before isn’t in that database.'
+				);
+			others.splice(at, 0, moving);
+			others.forEach((p, i) => (p.sort_order = i + 1));
+			return others.map((p) => structuredClone(p));
+		},
+		deleteDatabaseProperty: ({ workspace_id, database_id, property_id }) => {
+			const p = propertyOf(workspace_id, database_id, property_id);
+			state.databaseProperties = state.databaseProperties.filter((x) => x.id !== property_id);
+			state.databaseValues = state.databaseValues.filter((v) => v.property_id !== property_id);
+			computeFormulas(state, database_id);
+			return structuredClone(p);
+		},
+		listDatabaseRows: ({ workspace_id, database_id, filters, sort }) => {
+			databaseOf(workspace_id, database_id);
+			return listDatabaseRows(state, database_id, filters, sort).map((r) =>
+				databaseEntry(state, r)
+			);
+		},
+		getDatabaseRow: ({ workspace_id, database_id, row_id }) =>
+			databaseEntry(state, rowOf(workspace_id, database_id, row_id)),
+		createDatabaseRow: ({ workspace_id, database_id }) => {
+			databaseOf(workspace_id, database_id);
+			const row: DatabaseRow = { id: nextId(state.databaseRows), database_id, document_id: null };
+			state.databaseRows.push(row);
+			computeFormulas(state, database_id);
+			return databaseEntry(state, row);
+		},
+		deleteDatabaseRow: ({ workspace_id, database_id, row_id }) => {
+			const row = rowOf(workspace_id, database_id, row_id);
+			state.databaseRows = state.databaseRows.filter((r) => r.id !== row_id);
+			state.databaseValues = state.databaseValues.filter((v) => v.row_id !== row_id);
+			if (row.document_id !== null)
+				state.documents = state.documents.filter((d) => d.id !== row.document_id);
+			return { ...row };
+		},
+		setDatabaseValue: ({ workspace_id, database_id, row_id, property_id, value = null }) => {
+			const p = propertyOf(workspace_id, database_id, property_id);
+			if (p.formula !== null)
+				throw new ProtocolError(
+					'validationFailed',
+					'A formula’s values can’t be set. Change its formula instead.',
+					'property_id'
+				);
+			const row = rowOf(workspace_id, database_id, row_id);
+			if (value !== null && value.type !== p.data_type)
+				throw new ProtocolError(
+					'validationFailed',
+					'The value must be of its property’s type.',
+					'value'
+				);
+			let stored: DatabaseValue | null;
+			try {
+				stored = value && checkedDatabaseValue(value);
+			} catch (e) {
+				throw new ProtocolError('validationFailed', (e as Error).message, 'value');
+			}
+			storeDatabaseValue(state, row_id, property_id, stored);
+			computeFormulas(state, database_id);
+			return databaseEntry(state, row);
+		},
+		createDatabaseRowDocument: ({ workspace_id, database_id, row_id }) => {
+			const row = rowOf(workspace_id, database_id, row_id);
+			if (row.document_id !== null)
+				throw new ProtocolError('validationFailed', 'This row already has a document.');
+			const created: Document = {
+				id: nextId(state.documents),
+				workspace_id,
+				document_type: 'databaseRow',
+				title: '',
+				contents: '',
+				modified: nowSeconds(),
+				journal_date: null,
+				deleted: false,
+				folder_id: null
+			};
+			state.documents.push(created);
+			keepDocument(created, 'created');
+			row.document_id = created.id;
+			return { ...created };
+		},
 		renameDocument: ({ workspace_id, document_id, title }) => {
 			requireTitle(title);
 			const d = document(workspace_id, document_id);
@@ -4331,6 +4989,12 @@ export function createMock(): Mock {
 		},
 		deleteDocument: ({ workspace_id, document_id }) => {
 			const d = document(workspace_id, document_id);
+			// A row's document goes for good and leaves its row.
+			if (d.document_type === 'databaseRow') {
+				state.documents = state.documents.filter((x) => x.id !== d.id);
+				for (const row of state.databaseRows) if (row.document_id === d.id) row.document_id = null;
+				return { ...d, deleted: true };
+			}
 			d.deleted = true;
 			keepDocument(d, 'deleted');
 			return { ...d };
@@ -4749,7 +5413,7 @@ export function createMock(): Mock {
 				});
 			};
 			for (const d of state.documents)
-				if (d.workspace_id === workspace_id && !d.deleted)
+				if (d.workspace_id === workspace_id && !d.deleted && d.document_type !== 'databaseRow')
 					consider('document', d.id, d.title, d.contents);
 			for (const t of state.tasks)
 				if (t.workspace_id === workspace_id && !t.deleted) consider('task', t.id, t.title, '');
@@ -5474,7 +6138,10 @@ export function createMock(): Mock {
 				);
 			const linking: Embed[] = [];
 			for (const d of state.documents) {
-				const self = target.kind === 'document' && d.id === target.id;
+				const self =
+					(target.kind === 'document' && d.id === target.id) ||
+					(target.kind === 'database-row' &&
+						state.databaseRows.some((r) => r.id === target.id && r.document_id === d.id));
 				if (d.deleted || self || !linksTo(d.contents, target)) continue;
 				try {
 					linking.push(structuredClone(resolveLink(`cohesion://document/${d.id}`)));

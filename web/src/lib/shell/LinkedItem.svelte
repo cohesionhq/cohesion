@@ -4,6 +4,7 @@
 	import AgentPanel from '$lib/features/agents/AgentPanel.svelte';
 	import ArticlePanel from '$lib/features/articles/ArticlePanel.svelte';
 	import ResourcePanel from '$lib/features/connectors/ResourcePanel.svelte';
+	import DatabaseRowPanel from '$lib/features/databases/DatabaseRowPanel.svelte';
 	import DocumentPanel from '$lib/features/documents/DocumentPanel.svelte';
 	import TaskDetails from '$lib/features/tasks/TaskDetails.svelte';
 	import { linkedItem } from './linkedItem.svelte';
@@ -34,4 +35,12 @@
 	/>
 {:else if item?.kind === 'article'}
 	<ArticlePanel bind:open={linkedItem.open} article={item.article} feedTitle={item.feedTitle} />
+{:else if item?.kind === 'database-row'}
+	<DatabaseRowPanel
+		bind:open={linkedItem.open}
+		ws={item.ws}
+		database={item.database}
+		row={item.row}
+		label={item.label}
+	/>
 {/if}

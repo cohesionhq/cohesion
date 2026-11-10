@@ -11,6 +11,8 @@ import Square from '@lucide/svelte/icons/square';
 import SquareCheck from '@lucide/svelte/icons/square-check';
 import SquareTerminal from '@lucide/svelte/icons/square-terminal';
 import SquareX from '@lucide/svelte/icons/square-x';
+import Table2 from '@lucide/svelte/icons/table-2';
+import TableProperties from '@lucide/svelte/icons/table-properties';
 import type { Component } from 'svelte';
 import type { Embed } from '$lib/protocol/types';
 import type { ItemKind } from './routes';
@@ -20,6 +22,8 @@ export const KIND_ICONS: Record<ItemKind, Component> = {
 	task: Square,
 	document: FileText,
 	resource: Package,
+	database: Table2,
+	'database-row': TableProperties,
 	agent: Bot,
 	'actor-session': SquareTerminal,
 	article: Newspaper
@@ -30,6 +34,8 @@ const EMBED_KIND_ICONS: Record<Embed['kind'], Component> = {
 	document: FileText,
 	journalEntry: NotebookPen,
 	resource: Package,
+	database: Table2,
+	databaseRow: TableProperties,
 	agent: Bot,
 	actorSession: SquareTerminal,
 	article: Newspaper

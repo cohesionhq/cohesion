@@ -5,11 +5,15 @@ use serde::{Deserialize, Serialize};
 ///
 /// - `"normal"`: an ordinary document.
 /// - `"journal"`: a daily journal entry; one per workspace per local day.
+/// - `"databaseRow"`: a database row's own document. It never shows in the
+///   document list or search, is never filed, and goes with its row.
 #[derive(Serialize, Deserialize, Clone, Debug, TextEnum, TsWire)]
 #[serde(rename_all = "camelCase")]
+#[text_enum(rename_all = "camelCase")]
 pub enum DocumentType {
     Normal,
     Journal,
+    DatabaseRow,
 }
 
 /// A piece of text in a workspace; journals are documents with a `journal_date`.

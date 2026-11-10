@@ -339,7 +339,9 @@ fn forwarded_item(
             .handle(&mut ctx.as_read())?;
             AgentForwardedItem {
                 kind: match document.document_type {
-                    DocumentType::Normal => AgentForwardedItemKind::Document,
+                    DocumentType::Normal | DocumentType::DatabaseRow => {
+                        AgentForwardedItemKind::Document
+                    }
                     DocumentType::Journal => AgentForwardedItemKind::Journal,
                 },
                 workspace_id,
