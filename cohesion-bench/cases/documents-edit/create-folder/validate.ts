@@ -1,3 +1,3 @@
 export default function validate() {
-  return B.check([[B.findDocFolder('Archive')?.parentId === null, 'a top-level Archive folder']])
+  return B.check([[B.findDocFolder('Archive', B.ANY)?.parentId === null, 'a top-level Archive folder']])
 }

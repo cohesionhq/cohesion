@@ -121,7 +121,6 @@ impl Activity {
     pub fn left(&self) -> Left {
         Left {
             reply: self.reply.clone(),
-            asked: self.asked.clone(),
             cues: self.cues.clone(),
             memories: self.memories.clone(),
         }

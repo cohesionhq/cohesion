@@ -1,5 +1,5 @@
 export default function validate() {
-  const [doc] = B.docsLike(/week so far/i);
+  const [doc] = B.docsLike(/week so far/i, B.ANY);
   const text = doc?.contents ?? '';
   return B.check([
     [doc !== undefined, 'a Week so far document'],

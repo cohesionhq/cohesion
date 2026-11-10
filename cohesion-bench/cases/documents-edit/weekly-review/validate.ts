@@ -1,5 +1,5 @@
 export default function validate() {
-  const [doc] = B.docsLike(/weekly review/i);
+  const [doc] = B.docsLike(/weekly review/i, B.ANY);
   const text = doc?.contents ?? '';
   return B.check([
     [B.mentions(text, 'library books', 'gym', 'phone contract'), 'the three overdue tasks'],

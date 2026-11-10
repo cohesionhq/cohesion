@@ -147,3 +147,15 @@ fn a_module_becomes_a_script_ending_in_its_default_export() {
     );
     assert!(module_value("export default 1;\nexport default 2;\n").is_err());
 }
+
+// Every shipped case's prompt starts by telling the agent not to ask, so
+// a run scores the work rather than a question no one answers.
+#[test]
+fn every_prompt_starts_with_the_prompt_prelude() {
+    let line = std::fs::read_to_string(default_directory().join(PROMPT_PRELUDE)).unwrap();
+    let cases = load_cases(&default_directory(), &[]).unwrap();
+    assert!(!line.trim().is_empty());
+    for case in cases {
+        assert!(case.prompt.starts_with(line.trim()), "{}", case.name);
+    }
+}

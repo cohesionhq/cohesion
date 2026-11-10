@@ -1,5 +1,5 @@
 export default function validate() {
-  const tasks = B.tasksLike(/stamp/i);
+  const tasks = B.tasksLike(/stamp/i, B.ANY);
   const task = tasks[0];
   return B.check([
     [tasks.length === 1, `one task about stamps (found ${tasks.length})`],

@@ -14,14 +14,18 @@
 //!   returning nothing (`undefined`, `null` or `false`) and fails by
 //!   returning a string saying what is wrong. It reads the database
 //!   through `cohesion`, and `bench`: what the agent told the user
-//!   (`reply`, also declared alone), the questions it asked (`asked`), the
-//!   cues it set (`cues`) and the memories it holds (`memories`).
+//!   (`reply`, also declared alone), the cues it set (`cues`) and the
+//!   memories it holds (`memories`).
 //! - `setup.ts` (optional): `export default function setup()`, adding to
 //!   the starting state what only this case needs.
 //! - `solution.ts`: `export default function solution()`, doing what a
 //!   good agent would and returning what it would leave (a `bench`, or a
 //!   string standing for its reply). Only `validate` runs it, to show the
 //!   case can pass.
+//!
+//! Every prompt starts with `prompt-prelude.md`, which tells the agent not
+//! to ask before acting: a run has no one to answer, so the bench scores the
+//! work done, not whether the agent checked first.
 //!
 //! Every script runs on the scratch daemon with the user's rights, through
 //! the same `RunScript` request `cohesion run` sends, after `prelude.ts`,
@@ -43,6 +47,9 @@ const DEFAULT_STATE: &str = "default";
 
 /// How long a case runs before it is stopped, unless it says otherwise.
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// The file in the cases directory whose text starts every case's prompt.
+const PROMPT_PRELUDE: &str = "prompt-prelude.md";
 
 /// Directories in the cases directory that hold no cases.
 const NOT_CATEGORIES: [&str; 3] = ["states", "types", "node_modules"];
@@ -101,7 +108,6 @@ pub struct Case {
 #[serde(default)]
 pub struct Left {
     pub reply: String,
-    pub asked: Vec<String>,
     pub cues: Vec<CueLeft>,
     pub memories: Vec<String>,
 }
@@ -295,6 +301,8 @@ pub fn load_cases(directory: &Path, only: &[String]) -> Result<Vec<Case>, String
     let read =
         |path: &Path| std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()));
     let prelude = read(&directory.join("prelude.ts"))?;
+    let prompt_prelude = read(&directory.join(PROMPT_PRELUDE))?;
+    let prompt_prelude = prompt_prelude.trim();
     let mut states = BTreeMap::new();
     for file in sorted_entries(&directory.join("states"))? {
         if file.extension().is_some_and(|extension| extension == "ts") {
@@ -325,8 +333,11 @@ pub fn load_cases(directory: &Path, only: &[String]) -> Result<Vec<Case>, String
                     case_directory.display()
                 ));
             }
-            let case = Case::load(&case_directory, category_name.clone(), &prelude, &states)
+            let mut case = Case::load(&case_directory, category_name.clone(), &prelude, &states)
                 .map_err(|e| format!("{}: {e}", case_directory.display()))?;
+            if !prompt_prelude.is_empty() {
+                case.prompt = format!("{prompt_prelude}\n\n{}", case.prompt);
+            }
             cases.push(case);
         }
     }

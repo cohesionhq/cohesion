@@ -31,6 +31,9 @@ Move all my overdue Personal tasks to {{day:3}}.
 - `workspaces` names the workspaces to make, comma-separated, when they
   aren't the state's; `timeout` is in seconds, 300 when left out.
 - `{{day:N}}` is the date N days from today, as `YYYY-MM-DD`.
+- The bench puts `prompt-prelude.md` ahead of every prompt: it tells
+  the agent not to ask before acting, since no one answers during a run.
+  Write the prompt so a careful agent can act on it without asking.
 
 ## validate.ts
 
@@ -47,7 +50,12 @@ Return nothing (or `false`) to pass and a string saying what's wrong to
 fail. Throwing fails too. `B.check` turns `[ok, what]` pairs into exactly
 that. For a question, `B.answered([...])` also fails the case if anything
 changed. `reply` is what the agent told the user, and `bench` adds the
-questions it asked, the cues it set and the memories it holds.
+cues it set and the memories it holds.
+
+Check the outcome, not the route: the data the agent left and the facts
+in its answer, not which calls it made or how it worded things. When the
+prompt doesn't say which workspace something goes in, look for it in
+every one: `B.tasksLike(/stamps/i, B.ANY)`, `B.newTasks(B.ANY)`.
 
 ## solution.ts
 
@@ -73,6 +81,7 @@ to the script API that breaks a case fails the tests.
 
 ## What's here
 
+- `prompt-prelude.md`: the line ahead of every prompt.
 - `prelude.ts`: `B`, the helpers every script shares (`B.task`, `B.doc`,
   `B.day`, `B.check`, `B.unchanged`, `B.newTasks`, …).
 - `states/default.ts`: the default starting state, a lived-in `Personal`

@@ -15,9 +15,17 @@ const B = (() => {
   /** The local date `offset` days from today, as `YYYY-MM-DD`. */
   const day = (offset = 0) => iso(date(offset));
   const ALL: TaskStatus[] = ['incomplete', 'completed', 'cancelled'];
+  /**
+   * In place of a workspace's title: every workspace. For something the
+   * prompt doesn't say where to put, where the agent put it is its call.
+   */
+  const ANY = '*';
   const ws = (title = 'Personal') => cohesion.workspace(title);
+  /** The workspace titled `title`, or every workspace for `ANY`. */
+  const each = (title: string) => (title === ANY ? cohesion.workspaces() : [ws(title)]);
   /** Every task of a workspace, in any status. */
-  const tasks = (title = 'Personal', options: TaskListOptions = {}) => ws(title).tasks({ status: ALL, ...options });
+  const tasks = (title = 'Personal', options: TaskListOptions = {}) =>
+    each(title).flatMap((w) => w.tasks({ status: ALL, ...options }));
   /** The one task with exactly this title, in any status; throws for none or several. */
   const task = (name: string, title = 'Personal') => {
     const found = tasks(title).filter((t) => t.title === name);
@@ -33,7 +41,8 @@ const B = (() => {
     return found[0];
   };
   /** Documents whose title matches `pattern`. */
-  const docsLike = (pattern: RegExp, title = 'Personal') => ws(title).documents().filter((d) => pattern.test(d.title));
+  const docsLike = (pattern: RegExp, title = 'Personal') =>
+    each(title).flatMap((w) => w.documents()).filter((d) => pattern.test(d.title));
   const one = <T>(found: T | undefined, what: string): T => {
     if (found === undefined) throw new Error(`no ${what}`);
     return found;
@@ -43,19 +52,19 @@ const B = (() => {
     one(ws(title).taskFolders().find((f) => f.title === name), `task folder "${name}" in ${title}`);
   /** The task folder with exactly this title, or `null`. */
   const findTaskFolder = (name: string, title = 'Personal') =>
-    ws(title).taskFolders().find((f) => f.title === name) ?? null;
+    each(title).flatMap((w) => w.taskFolders()).find((f) => f.title === name) ?? null;
   /** The document folder with exactly this title; throws when there is none. */
   const docFolder = (name: string, title = 'Personal') =>
     one(ws(title).documentFolders().find((f) => f.title === name), `document folder "${name}" in ${title}`);
   /** The document folder with exactly this title, or `null`. */
   const findDocFolder = (name: string, title = 'Personal') =>
-    ws(title).documentFolders().find((f) => f.title === name) ?? null;
+    each(title).flatMap((w) => w.documentFolders()).find((f) => f.title === name) ?? null;
   /** The contact with exactly this name; throws when there is none. */
   const contact = (first: string, last: string, title = 'Personal') =>
     one(ws(title).contacts().find((c) => c.firstName === first && c.lastName === last), `contact ${first} ${last}`);
   /** The contact with exactly this name, or `null`. */
   const findContact = (first: string, last: string, title = 'Personal') =>
-    ws(title).contacts().find((c) => c.firstName === first && c.lastName === last) ?? null;
+    each(title).flatMap((w) => w.contacts()).find((c) => c.firstName === first && c.lastName === last) ?? null;
   const tagged = (task: Task, name: string) => task.tags().some((tag) => tag.name.toLowerCase() === name.toLowerCase());
   /** Whether `text` holds every needle, ignoring case. */
   const mentions = (text: string, ...needles: (string | number)[]) =>
@@ -83,7 +92,9 @@ const B = (() => {
   const saysDay = (text: string, offset: number) => saysDate(text, date(offset));
   /** Whether the reply says it found nothing, rather than making something up. */
   const saysNone = (text: string) =>
-    /\b(no|not|couldn'?t|can'?t|cannot|unable|don'?t|doesn'?t|isn'?t|nothing|none|haven'?t|aren'?t)\b/i.test(text);
+    /\b(no|not|couldn'?t|can'?t|cannot|unable|don'?t|doesn'?t|isn'?t|nothing|none|haven'?t|aren'?t)\b/i.test(
+      text.replace(/[\u2018\u2019]/g, "'"),
+    );
 
   const SNAPSHOT_KEY = 'bench_snapshot';
   type Row = (string | number | null | string[])[];
@@ -122,15 +133,18 @@ const B = (() => {
     if (!found) throw new Error(`no workspace "${title}" at the start`);
     return found;
   };
+  /** The ids of what the setup left of `kind`, in the workspace or, for `ANY`, every one. */
+  const oldIds = (kind: 'tasks' | 'documents', title: string) =>
+    new Set(each(title).flatMap((w) => before(w.title)[kind].map(([id]) => id)));
   /** The workspace's tasks made since the setup, in any status. */
   const newTasks = (title = 'Personal') => {
-    const old = new Set(before(title).tasks.map(([id]) => id));
+    const old = oldIds('tasks', title);
     return tasks(title).filter((t) => !old.has(t.id));
   };
   /** The workspace's documents made since the setup. */
   const newDocs = (title = 'Personal') => {
-    const old = new Set(before(title).documents.map(([id]) => id));
-    return ws(title).documents().filter((d) => !old.has(d.id));
+    const old = oldIds('documents', title);
+    return each(title).flatMap((w) => w.documents()).filter((d) => !old.has(d.id));
   };
   /** The titles of the workspace's tasks that differ from the setup's. */
   const changedTasks = (title = 'Personal') => {
@@ -205,7 +219,7 @@ const B = (() => {
   };
 
   return {
-    ALL, iso, date, day, ws, tasks, task, tasksLike, doc, docsLike, taskFolder, findTaskFolder, docFolder,
+    ALL, ANY, iso, date, day, ws, tasks, task, tasksLike, doc, docsLike, taskFolder, findTaskFolder, docFolder,
     findDocFolder, contact, findContact, tagged,
     mentions, saysNumber, numbers, saysDate, saysDay, saysNone, remember, unchanged, before, newTasks, newDocs,
     changedTasks, changedOnly, onlyChanged, check, answered, load,
