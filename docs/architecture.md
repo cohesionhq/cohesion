@@ -1800,8 +1800,10 @@ requests are numbered and held until `hello`; on `hello` it checks
 vocabulary, sends `subscribe`, then flushes. It reconnects with a backoff from
 500 ms to 10 s. `evicted` is fatal ("This client was revoked…"). The root
 layout wires `invalidate` to `refreshInvalidated`, and `reset`, reconnects and
-window focus to `refreshAll`; a `notification` invalidation is shown as a
-toast.
+window focus to `refreshAll`. A `notification` invalidation and an agent's
+new message are notifications, which `notify` (`ui/notify.ts`) presents: a
+toast, unless a WebUI harness presents them itself (below). A toast that
+confirms what the user just did stays a toast.
 
 **Theming.** `lib/tokens.css` holds the design tokens and Tailwind's theme
 layers. It follows the system: light by default, dark under
@@ -1941,6 +1943,7 @@ Whatever hosts it, the page speaks only this (`web/src/lib/protocol/session.ts`)
 - A WebSocket to `/connect?token=<token>` (browsers can't set headers on a WebSocket), carrying the protocol of [5](#5-the-wire-protocol) unchanged.
 - The parts of `WebSocket` the connection uses.
 - The CSS variable `--titlebar-inset` (`lib/tokens.css`, `0px` by default), which a WebUI harness sets for what it draws over the page, such as the Mac's window controls.
+- `window.cohesionNotify(notification)`, which a WebUI harness may set before the page loads to show notifications as the system's local notifications instead of toasts. `notification` is `{message, title?, href?, avatar?}` (`AppNotification` in `lib/ui/notify.ts`); if the function throws, the page shows a toast. To open a clicked one, the harness calls `window.cohesionOpen(href)`, which the page sets and which opens only the page's own paths.
 
 `cohesion open` and the WebUI harnesses' bridge stand in for these, so the
 three change together or not at all.
