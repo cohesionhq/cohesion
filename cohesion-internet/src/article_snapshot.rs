@@ -33,9 +33,28 @@ impl ArticleFetchAccess {
 /// `text` as a URL an article can be read from: an absolute `http` or
 /// `https` address, else `None`.
 pub fn article_url(text: &str) -> Option<Url> {
-    Url::parse(text.trim())
-        .ok()
-        .filter(|url| matches!(url.scheme(), "http" | "https"))
+    Url::parse(text.trim()).ok().filter(is_web_address)
+}
+
+/// Whether `url` is an `http` or `https` address, the only kind an article
+/// is read from or opened at.
+pub(crate) fn is_web_address(url: &Url) -> bool {
+    matches!(url.scheme(), "http" | "https")
+}
+
+/// Fetches the page at `address`, an article's stored URL, as [`snapshot`]
+/// does. Feeds once kept items linking something other than a web page
+/// (`mailto:`); such an address is unreachable.
+pub fn snapshot_address(
+    access: ArticleFetchAccess,
+    address: &str,
+) -> Result<ArticleCapture, ArticleFetchFailure> {
+    match article_url(address) {
+        Some(url) => snapshot(access, &url),
+        None => Err(ArticleFetchFailure::Unreachable {
+            message: format!("{address} isn't a web address"),
+        }),
+    }
 }
 
 /// Fetches `url` and reads its text: HTML as the Markdown of the article

@@ -9,7 +9,7 @@ use cohesion_macros::js_entity;
 use rquickjs::{Ctx, Exception, Value};
 use serde::Serialize;
 
-use cohesion_internet::article_snapshot::{ArticleFetchAccess, article_url, snapshot};
+use cohesion_internet::article_snapshot::{ArticleFetchAccess, snapshot_address};
 
 use super::feed::JsFeed;
 use crate::conversion::ToJs;
@@ -44,12 +44,11 @@ impl JsArticle {
     pub fn resnapshot<'js>(&mut self, ctx: Ctx<'js>) -> rquickjs::Result<Value<'js>> {
         crate::traced_command::ensure_writable(&ctx, &self.db)?;
         let access = article_fetch_access(&ctx)?;
-        let url = article_url(&self.inner.url).expect("an article's URL parses");
         let refetched = self.write(
             &ctx,
             ResnapshotArticleCommand {
                 article_id: self.inner.id,
-                fetched: snapshot(access, &url),
+                fetched: snapshot_address(access, &self.inner.url),
             },
         )?;
         self.inner = refetched.article;
