@@ -1,15 +1,17 @@
-//! Resolving a `cohesion://` link to the item it names, as an `Embed`.
+//! Resolving a `cohesion://` link to the item it names, as an `Embed`, and
+//! Markdown to its text and embeds.
 
 use cohesion_core::FromRequest;
 use cohesion_core::model::{
     Actor, ActorMessageContent, ActorMessageKind, ActorMessageSender, ActorSessionMessage,
-    ActorSessionMessageContent, Document, Embed, Feed, ItemLink, Task,
+    ActorSessionMessageContent, Document, Embed, Feed, ItemLink, Task, TextPiece, TextSection,
+    text_pieces,
 };
-use cohesion_core::protocol::ResolveLinkRequest;
+use cohesion_core::protocol::{ResolveEmbedsRequest, ResolveLinkRequest};
 
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::{
-    CommandContext, DatabaseCommand, DatabaseCommandResult, Filtered, Found,
+    CommandContext, CommandError, DatabaseCommand, DatabaseCommandResult, Filtered, Found,
     GetActorSessionCommand, GetArticleCommand, GetIntelligenceAgentCommand, GetResourceCommand,
     Read, ReadableDatabase, ValidationError,
 };
@@ -99,6 +101,41 @@ impl DatabaseCommand for ResolveLinkCommand {
                 Embed::article(article, feed.title)
             }
         })
+    }
+}
+
+/// Markdown `text` split into its text and its embeds (`text_pieces`), each
+/// embed resolved as `ResolveLinkCommand` resolves it, or `None` once its
+/// item is gone.
+#[derive(FromRequest)]
+#[request(ResolveEmbedsRequest)]
+pub struct ResolveEmbedsCommand {
+    pub text: String,
+}
+impl DatabaseCommand for ResolveEmbedsCommand {
+    type Response = Vec<TextSection>;
+    type Access = Read;
+    fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Vec<TextSection>> {
+        text_pieces(&self.text)
+            .into_iter()
+            .map(|piece| {
+                Ok(match piece {
+                    TextPiece::Markdown(text) => TextSection::Markdown { text },
+                    TextPiece::Embed { href, label, .. } => {
+                        let embed = match (ResolveLinkCommand { link: href.clone() }).handle(ctx) {
+                            Ok(embed) => Some(Box::new(embed)),
+                            Err(CommandError::NotFound(_)) => None,
+                            Err(error) => return Err(error),
+                        };
+                        TextSection::Embed {
+                            link: href,
+                            label,
+                            embed,
+                        }
+                    }
+                })
+            })
+            .collect()
     }
 }
 

@@ -12,8 +12,10 @@ under "Unreleased" with any change users would notice.
   it is (worded in `hello.vocabulary.embed_kinds`) and the item itself, or
   `notFound` once it is deleted. Links gain two kinds,
   `cohesion://resource/<ws>/<id>` and `cohesion://article/<id>`, which agents
-  now write too. The iPhone app can show links as cards from `resolveLink`;
-  until it does, it shows the new kinds as plain links.
+  now write too. `resolveEmbeds` splits any Markdown into its text and the
+  links that stand alone on their lines, each resolved, so a client can show
+  them as cards without reading links itself. The iPhone app can show cards
+  from it; until it does, it shows the new kinds as plain links.
 - `cohesion setup` without `--name` names the client after the computer and
   the client, such as `apollo (CLI)`, instead of the hostname alone, so
   clients on one computer can be told apart in Settings › Clients and in actor

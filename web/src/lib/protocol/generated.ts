@@ -3579,6 +3579,17 @@ export interface ResolveActorSessionRequest {
 }
 
 /**
+ * Splits Markdown `text` into its sections, in order: Markdown, and each
+ * `cohesion://` link alone on its line outside code, resolved as
+ * `resolveLink` resolves it. A client renders the Markdown and shows each
+ * embed as a card, with no parsing of its own.
+ */
+export interface ResolveEmbedsRequest {
+	/** Any Markdown: a document's contents, a task's description, a draft. */
+	text: string;
+}
+
+/**
  * Resolves `link`, a `cohesion://` link to a task, document or journal
  * entry, resource, agent, actor session or article, to the item it names
  * as an `Embed`. A link to an item deleted or never made is `notFound`;
@@ -4487,6 +4498,28 @@ export interface TextBlock {
 }
 
 /**
+ * One piece of Markdown text as `resolveEmbeds` returns it, tagged by
+ * `kind`, in the order the text holds them.
+ */
+export type TextSection =
+	| {
+			kind: 'markdown';
+			text: string;
+	  }
+	| {
+			kind: 'embed';
+			/** The link as the text has it. */
+			link: string;
+			/** The link's text, to show while it resolves or once it can't. */
+			label: string;
+			/**
+			 * What the link names, as `resolveLink` returns it; `null` when it
+			 * names an item deleted or never made.
+			 */
+			embed: Embed | null;
+	  };
+
+/**
  * What a thread message says, tagged by `kind`.
  *
  * - `"userMessage"`: what the model was told.
@@ -5346,6 +5379,8 @@ export interface Requests {
 	 * every kind.
 	 */
 	resolveLink: ResolveLinkRequest;
+	/** Splits Markdown into its text and its embeds, each resolved. */
+	resolveEmbeds: ResolveEmbedsRequest;
 }
 
 /** The `ok.data` each request type answers with. */
@@ -5828,4 +5863,6 @@ export interface Replies {
 	 * every kind.
 	 */
 	resolveLink: Embed;
+	/** Splits Markdown into its text and its embeds, each resolved. */
+	resolveEmbeds: TextSection[];
 }

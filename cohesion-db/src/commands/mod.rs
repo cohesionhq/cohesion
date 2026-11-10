@@ -84,7 +84,7 @@ pub use connector_account::*;
 pub use contact::*;
 pub use document::*;
 pub use document_folder::*;
-pub use embed::ResolveLinkCommand;
+pub use embed::{ResolveEmbedsCommand, ResolveLinkCommand};
 pub use endpoint_model::*;
 pub use extension::*;
 pub use feed::*;

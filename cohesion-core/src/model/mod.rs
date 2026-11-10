@@ -49,6 +49,7 @@ mod storage_settings;
 mod tag;
 mod task;
 mod task_folder;
+mod text_section;
 mod workspace;
 
 pub use activity::{Activity, ActivityKind, ActivityOutcome, ActivityStanding, ActivityStatus};
@@ -127,4 +128,5 @@ pub use task::{
     Task, TaskAssignee, TaskFolderFilter, TaskPriority, TaskSize, TaskSort, TaskStatus,
 };
 pub use task_folder::TaskFolder;
+pub use text_section::{TextPiece, TextSection, text_pieces};
 pub use workspace::Workspace;

@@ -1,6 +1,7 @@
 // An in-memory daemon implementing every request kind, for `VITE_MOCK=1` and
 // as the fixture for tests. Each `createMock()` call starts from fresh seed data.
 
+import { textPieces } from '$lib/format/itemLinks';
 import { ProtocolError, toProtocolError } from './errors';
 import type {
 	DayFilter,
@@ -5205,6 +5206,18 @@ export function createMock(): Mock {
 		},
 		getArticle: ({ article_id }) => structuredClone(article(article_id)),
 		resolveLink: ({ link }) => structuredClone(resolveLink(link)),
+		resolveEmbeds: ({ text }) =>
+			textPieces(text).map((piece) => {
+				if (piece.kind === 'markdown') return piece;
+				const { href: link, label } = piece;
+				try {
+					return { kind: 'embed', link, label, embed: structuredClone(resolveLink(link)) };
+				} catch (error) {
+					if (error instanceof ProtocolError && error.code === 'notFound')
+						return { kind: 'embed', link, label, embed: null };
+					throw error;
+				}
+			}),
 		resnapshotArticle: ({ article_id }) => {
 			const found = article(article_id);
 			return record(found, new URL(found.url));

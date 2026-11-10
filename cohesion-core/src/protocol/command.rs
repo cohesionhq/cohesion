@@ -49,7 +49,7 @@ use crate::model::{
     IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
     IntelligenceCostEvent, IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit,
     Profile, Resource, RestoredItem, SavedTaskView, SearchResult, SecuritySettings,
-    StorageSettings, Tag, Task, TaskFolder, Version, VersionSummary, Workspace,
+    StorageSettings, Tag, Task, TaskFolder, TextSection, Version, VersionSummary, Workspace,
     WorkspaceResourceKind,
 };
 
@@ -667,4 +667,7 @@ pub enum Command {
     /// every kind.
     #[reply(Embed)]
     ResolveLink(ResolveLinkRequest),
+    /// Splits Markdown into its text and its embeds, each resolved.
+    #[reply(Vec<TextSection>)]
+    ResolveEmbeds(ResolveEmbedsRequest),
 }

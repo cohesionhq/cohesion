@@ -400,7 +400,7 @@ A session reads up to 64 requests ahead (`QUEUED_REQUESTS`) and runs them side
 by side, so replies come back in the order they finish; match them by `id`.
 
 **Requests, replies and routes.** `Command` (`cohesion-core/src/protocol/command.rs`)
-is one enum with a variant per request, 198 of them, each tagged
+is one enum with a variant per request, 199 of them, each tagged
 `#[reply(ReplyType, via = Kind)]`. `#[derive(Commands)]` generates the
 dispatch; the request structs live in the `*_requests.rs` modules beside it,
 and `ReplyData` (`reply_data.rs`) is the enum of reply payloads. Each
@@ -477,7 +477,15 @@ excerpt and the kind's word. An item deleted, in a deleted workspace or never
 made is `notFound`; text that isn't such a link fails validation on `link`.
 Nothing pushes an embed: a client asks again on the item's invalidation,
 `taskList` of the task's workspace, `documents(ws)`, `resources(ws)`,
-`agent(id)`, `actorSession(id)` or `feedArticles`.
+`agent(id)`, `actorSession(id)` or `feedArticles`. A link shows as a card
+where it is alone on its line, outside a fenced or indented code block
+(`text_pieces`, `model/text_section.rs`); a link in a sentence or a list item
+stays a link. `ResolveEmbeds{text}` splits any Markdown by that rule and
+resolves each card, answering `TextSection`s in order: `markdown` (`text`, to
+render as it is) or `embed` (`link`, `label`, and `embed`, `null` once its item
+is gone), so a client shows cards without reading links itself. The web UI
+splits the same way as you type (`textPieces`, `web/src/lib/format/itemLinks.ts`,
+tested on the same texts) and resolves each card with `ResolveLink`.
 
 **Versioning.** `PROTOCOL_VERSION` is `1` and stays 1 while Cohesion is in
 active development. There is no negotiation: the web UI compares the number in
@@ -1819,7 +1827,7 @@ with it: a client is either native, speaking the wire protocol itself, or a
 WebUI harness, a native shell around the web UI.
 
 - **Reaching the daemon**: pairing with a setup code at `/register`, then `POST /command` for one-off requests or `/connect` for a session; or the Unix socket on the same computer ([4](#4-starting-the-daemon), [6](#6-pairing-and-trust)).
-- **What they share with the web UI**: the protocol and its types (generated from Rust for the web; other clients copy `generated.ts` or model them by hand), `hello.vocabulary`, the subscribe-and-invalidate model, and the `cohesion://` links, which every client opens over the current screen and resolves with `resolveLink` to show as a card ([5](#5-the-wire-protocol), "Links and embeds").
+- **What they share with the web UI**: the protocol and its types (generated from Rust for the web; other clients copy `generated.ts` or model them by hand), `hello.vocabulary`, the subscribe-and-invalidate model, and the `cohesion://` links, which every client opens over the current screen and shows as a card where it stands alone on its line, by `resolveEmbeds` for a whole text or `resolveLink` for one link ([5](#5-the-wire-protocol), "Links and embeds").
 - **A WebUI harness** pairs natively, fetches the bundle with `WebBundle`, serves it, and stands in for the page's session API ([16](#16-the-web-ui)). There are two, both in `cohesionhq/webshell`: the Mac and iPad app in `mac/`, built on the `CohesionWebKit` Swift package, and the Linux app in `gtk/`, a Rust copy of the same flow that takes `SetupCode`, the self-signed certificate and the protocol's envelope from `cohesion-rs` and runs `CohesionWebKit`'s bridge script unchanged (`gtk/src/bridge.js`). The web UI keeps a few things a web view needs: `--titlebar-inset`, and keyboard and mouse-button history steps a web view doesn't do itself (`web/src/lib/shell/shortcuts.svelte.ts`).
 - **Push notifications** are not the daemon's: it raises hooks (`notification:send`, `agent:message`, `client:revoke`…) and an installed extension with `network` sends pushes. The iOS companion extension (`com.cohesion.cloud.ios-companion`) appears here only in doc comments.
 

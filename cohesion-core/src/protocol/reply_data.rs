@@ -32,7 +32,7 @@ use crate::model::{
     IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
     IntelligenceCostEvent, IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit,
     Profile, Resource, RestoredItem, SavedTaskView, SearchResult, SecuritySettings,
-    StorageSettings, Tag, Task, TaskFolder, Version, VersionSummary, Workspace,
+    StorageSettings, Tag, Task, TaskFolder, TextSection, Version, VersionSummary, Workspace,
     WorkspaceResourceKind,
 };
 
@@ -134,6 +134,7 @@ pub enum ReplyData {
     EndpointModel(Box<EndpointModel>),
     Article(Box<Article>),
     Embed(Box<Embed>),
+    TextSections(Vec<TextSection>),
     Feed(Feed),
     Feeds(Vec<Feed>),
     FeedSummaries(Vec<FeedSummary>),

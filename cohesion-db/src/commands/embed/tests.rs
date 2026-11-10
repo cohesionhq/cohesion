@@ -1,7 +1,7 @@
 use cohesion_core::LocalIdentity;
 use cohesion_core::model::{
     ActorDefinition, ActorMessageContent, ActorSessionMessageContent, ActorUserContent, Embed,
-    EmbedItem, EmbedKind, FeedFullPagePolicy, FeedItemCapture, IntelligenceAgentColor,
+    EmbedItem, EmbedKind, FeedFullPagePolicy, FeedItemCapture, IntelligenceAgentColor, TextSection,
 };
 use cohesion_core::protocol::ClientCapabilities;
 
@@ -303,4 +303,41 @@ fn text_that_is_not_an_item_link_fails_on_link() {
             _ => panic!("{text} resolved"),
         }
     }
+}
+
+#[test]
+fn markdown_splits_into_its_text_and_resolved_embeds() {
+    let db = context();
+    let ws = workspace(&db);
+    let task = task(&db, ws);
+    let text = format!(
+        "Today:\n\n[Fix login](cohesion://task/{ws}/{})\n[Gone](cohesion://task/{ws}/999)\n\nSee [it](cohesion://task/{ws}/{}).",
+        task.id, task.id
+    );
+    let sections = db.send_blocking(ResolveEmbedsCommand { text }).unwrap();
+    let [
+        TextSection::Markdown { text: before },
+        TextSection::Embed {
+            label: found_label,
+            embed: Some(found),
+            ..
+        },
+        TextSection::Embed {
+            link: gone_link,
+            embed: None,
+            ..
+        },
+        TextSection::Markdown { text: after },
+    ] = sections.as_slice()
+    else {
+        panic!("unexpected sections");
+    };
+    assert_eq!(before, "Today:");
+    assert_eq!(found_label, "Fix login");
+    assert_eq!(found.title, "Fix login");
+    assert_eq!(gone_link, &format!("cohesion://task/{ws}/999"));
+    assert_eq!(
+        after,
+        &format!("See [it](cohesion://task/{ws}/{}).", task.id)
+    );
 }
