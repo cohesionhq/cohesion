@@ -1431,6 +1431,44 @@ fn typescript_types_are_stripped() {
     assert_eq!(text, "5");
 }
 
+#[test]
+fn stripped_typescript_runs_as_written() {
+    let sandbox =
+        Sandbox::new(SandboxOptions::STANDARD, database().read_write(), &[], None).unwrap();
+    let cases = [
+        // An erased statement doesn't turn the next line into a call.
+        ("const a = 1\ntype T = number\n(2)", "2"),
+        // A return type on its own line.
+        ("const f = (a: number):\n  number => a + 1;\nf(1)", "2"),
+        (
+            "abstract class A<T> {\n\
+               private readonly items: T[] = [];\n\
+               declare size: number;\n\
+               abstract name(): string;\n\
+               add(item: T): this;\n\
+               add(item: T): this { this.items.push(item); return this; }\n\
+               get count(): number { return this.items.length; }\n\
+             }\n\
+             class B extends A<number> implements Named { name() { return \"b\"; } }\n\
+             interface Named { name(): string }\n\
+             new B().add(1).add(2).count",
+            "2",
+        ),
+        (
+            "const pick = <T, K extends keyof T>(from: T, key: K): T[K] => from[key];\n\
+             const sizes = new Map<string, number>([[\"a\", 1]]);\n\
+             pick({ a: sizes.get(\"a\")! < 2 ? `${1 as number}` : \"\" }, \"a\")",
+            "\"1\"",
+        ),
+    ];
+    for (script, expected) in cases {
+        let ScriptOutput(text) = sandbox.evaluate(script.to_string()).unwrap();
+        assert_eq!(text, expected, "{script}");
+    }
+    let refused = sandbox.evaluate("enum Colour { Red }".to_string());
+    assert!(matches!(refused, Err(ScriptError::Exception { .. })));
+}
+
 fn create_task(db: &DatabaseContext, workspace_id: i64, title: &str) -> i64 {
     db.send_blocking(CreateTaskCommand {
         workspace_id,

@@ -7,6 +7,10 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- Cohesion strips TypeScript from scripts with its own parser, in place of
+  swc. Scripts run as before, and the assertion `<T>value` now works. A
+  syntax error in a script is reported by the script engine, with its line
+  and column.
 - Agents have skills: prompts you save for one agent or for every agent on
   a team, from Skills… in an agent's menu or a team's. Type `/` in an
   agent's message box to run one, with anything you add as a note. An
