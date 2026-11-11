@@ -198,6 +198,7 @@ fn the_users_message_keeps_the_skill_as_it_stood() {
             attachments: Vec::new(),
             forward,
             skill,
+            workspace_id: None,
         })
     };
 

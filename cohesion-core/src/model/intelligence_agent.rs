@@ -116,6 +116,10 @@ pub struct IntelligenceAgent {
     /// The team the agent is on; `null` when it's on none. Pinning is
     /// apart from teams: a pinned agent stays on its team.
     pub team_id: Option<i64>,
+    /// The workspace the user was in when they last named one in a message
+    /// to the agent; `null` until one does. A hint for requests that don't
+    /// say where, never a limit on where the agent works.
+    pub workspace_id: Option<i64>,
     /// How many actor sessions not yet resolved the agent follows.
     #[model(expr = IntelligenceAgent::FOLLOWING_COUNT_SQL)]
     #[fields(skip)]

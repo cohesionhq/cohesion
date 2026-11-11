@@ -2613,6 +2613,12 @@ export interface IntelligenceAgent {
 	 * apart from teams: a pinned agent stays on its team.
 	 */
 	team_id: number | null;
+	/**
+	 * The workspace the user was in when they last named one in a message
+	 * to the agent; `null` until one does. A hint for requests that don't
+	 * say where, never a limit on where the agent works.
+	 */
+	workspace_id: number | null;
 	/** How many actor sessions not yet resolved the agent follows. */
 	following_count: number;
 }
@@ -2686,6 +2692,15 @@ export interface IntelligenceAgentMessage {
 	 * client quotes above it; `null` when it stands alone.
 	 */
 	reply_to: number | null;
+	/**
+	 * On the user's message, the workspace they were in when it isn't the
+	 * one the agent was last told, which the agent reads before the message
+	 * as `User switched to the "…" workspace`; `null` otherwise, and on
+	 * every other message.
+	 */
+	switched_workspace_id: number | null;
+	/** The title of `switched_workspace_id` as it is now; `null` with it. */
+	switched_workspace_title: string | null;
 	/**
 	 * The message in one line: what a reply quoting it shows, and how a
 	 * client shows a kind it has no view for. Its text, a forward's note (else the item's title), a choice's
@@ -4506,6 +4521,13 @@ export interface SendAgentMessageRequest {
 	 * not both.
 	 */
 	skill?: number | null;
+	/**
+	 * The workspace the user is in as they send it. When it isn't the one
+	 * the agent was last told, the agent reads `User switched to the "…"
+	 * workspace` before the message. A hint for what the user means, never
+	 * a limit on where the agent works; `null` says nothing.
+	 */
+	workspace_id?: number | null;
 }
 
 /** Why a command failed; `field` names the offending input when there is one. */

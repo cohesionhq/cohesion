@@ -19,6 +19,7 @@ export function agentsHandlers(core: MockCore) {
 		notFound,
 		document,
 		task,
+		workspace,
 		emojiValue,
 		agent,
 		agentRow,
@@ -106,6 +107,7 @@ export function agentsHandlers(core: MockCore) {
 				pinned: false,
 				sort_order: Math.max(0, ...state.agents.map((a) => a.sort_order)) + 1,
 				team_id: team_id ?? null,
+				workspace_id: null,
 				following_count: 0
 			};
 			state.agents.push(created);
@@ -180,7 +182,12 @@ export function agentsHandlers(core: MockCore) {
 				.map((a) => ({ ...a })),
 		// The agent answers with a canned reply; it runs no code here. The
 		// reply is one model call, on a thread of its own.
-		sendAgentMessage: ({ agent_id, message, attachments, forward, skill }) => {
+		sendAgentMessage: ({ agent_id, message, attachments, forward, skill, workspace_id }) => {
+			// Like the daemon, the message records a workspace the agent wasn't
+			// last told.
+			const switched = workspace_id != null ? workspace(workspace_id) : null;
+			const told = switched && switched.id !== agent(agent_id).workspace_id ? switched : null;
+			if (told) agent(agent_id).workspace_id = told.id;
 			// The forwarded item, live, as the daemon looks it up.
 			let content: AgentMessageContent = { kind: 'text', text: message };
 			if (forward && skill != null)
@@ -226,7 +233,9 @@ export function agentsHandlers(core: MockCore) {
 			});
 			state.costEvents.push(costEvent(nextId(state.costEvents), thread_id, now, 6_000, 120));
 			const user = agentMessage(nextId(state.agentMessages), agent_id, now, 'user', content, {
-				attachment_count: attachments?.length ?? 0
+				attachment_count: attachments?.length ?? 0,
+				switched_workspace_id: told?.id ?? null,
+				switched_workspace_title: told?.title ?? null
 			});
 			state.agentMessages.push(user);
 			for (const { media_type, data } of attachments ?? [])

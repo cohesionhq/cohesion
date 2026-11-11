@@ -14,7 +14,7 @@ use cohesion_core::model::{
     ActorSession, ActorSessionStop, AgentAgendaChange, AgentAsk, AgentAskReply, AgentChoice,
     AgentCodeExecution, AgentCodeOutcome, AgentForwardedItem, AgentMemoryChange,
     AgentMessageContent, AgentPeer, AgentSkill, AgentWake, Initiative, IntelligenceAgentCue,
-    IntelligenceAgentMessage, IntelligenceAgentMessageSender, Task,
+    IntelligenceAgentMessage, IntelligenceAgentMessageSender, Task, Workspace,
 };
 use cohesion_core::protocol::actor_session_stop_label;
 use cohesion_js::ScriptOutput;
@@ -39,6 +39,7 @@ pub(super) fn status_message(
     cues: &[IntelligenceAgentCue],
     skills: &[AgentSkill],
     agenda: &str,
+    workspace: Option<&Workspace>,
     recent: &[IntelligenceAgentMessage],
     answering: Option<i64>,
     now: &Zoned,
@@ -49,21 +50,29 @@ pub(super) fn status_message(
     };
     format!(
         "{}\n\n{}{answer}",
-        status(cues, skills, agenda, now),
+        status(cues, skills, agenda, workspace, now),
         recent_conversation(recent, now)
     )
 }
 
-/// The time, the agent's cues, the skills it may use and `agenda`, its
-/// agenda as the thread hears it: what a fork's opening leaves out, since the
-/// time changes from one fork to the next and the cues, skills and agenda do
-/// as they are set.
+/// The time, the workspace the user is in (when the agent was told one),
+/// the agent's cues, the skills it may use and `agenda`, its agenda as the
+/// thread hears it: what a fork's opening leaves out, since the time changes
+/// from one fork to the next and the rest as it is set.
 pub(super) fn status(
     cues: &[IntelligenceAgentCue],
     skills: &[AgentSkill],
     agenda: &str,
+    workspace: Option<&Workspace>,
     now: &Zoned,
 ) -> String {
+    let workspace = match workspace {
+        Some(workspace) => format!(
+            "\nThe user is in the \"{}\" workspace (id {}).",
+            workspace.title, workspace.id
+        ),
+        None => String::new(),
+    };
     let cues = match cues {
         [] => " none".to_string(),
         cues => cues
@@ -80,7 +89,7 @@ pub(super) fn status(
             .collect(),
     };
     format!(
-        "{}\nYour cues:{cues}\n{}\n{agenda}",
+        "{}{workspace}\nYour cues:{cues}\n{}\n{agenda}",
         time(now),
         skill_list(skills)
     )
@@ -170,10 +179,25 @@ pub(super) fn user_text(message: &IntelligenceAgentMessage) -> String {
         AgentMessageContent::Skill { name, prompt, note } => skill(name, prompt, note),
         _ => return format!("[#{id}]"),
     };
-    match (text.as_str(), message.attachment_count) {
+    let text = match (text.as_str(), message.attachment_count) {
         (text, 0) => format!("[#{id}] {text}"),
         ("", count) => format!("[#{id}] ({} attached)", images(count)),
         (text, count) => format!("[#{id}] {text}\n({} attached)", images(count)),
+    };
+    after_switch(message, text)
+}
+
+/// `text`, a line for the user's message `message`, after `User switched to
+/// the "Core" workspace (id 5).` when the message records a switch.
+fn after_switch(message: &IntelligenceAgentMessage, text: String) -> String {
+    match (
+        message.switched_workspace_id,
+        &message.switched_workspace_title,
+    ) {
+        (Some(id), Some(title)) => {
+            format!("User switched to the \"{title}\" workspace (id {id}).\n{text}")
+        }
+        _ => text,
     }
 }
 
@@ -486,7 +510,8 @@ pub(super) fn line(message: &IntelligenceAgentMessage, now: &Zoned) -> String {
         | AgentMessageContent::Forward { .. }
         | AgentMessageContent::Skill { .. } => {
             let text = message_text(&message.message_content).expect("it has text");
-            format!("{head}: {}", excerpt(&text, message.id, EXCERPT_CHARS))
+            let line = format!("{head}: {}", excerpt(&text, message.id, EXCERPT_CHARS));
+            after_switch(message, line)
         }
         AgentMessageContent::Error { error } => {
             format!("{head} failed: {}", preview(error))

@@ -1809,6 +1809,8 @@ export function agentMessage(
 		reacted_at: null,
 		attachment_count: 0,
 		reply_to: null,
+		switched_workspace_id: null,
+		switched_workspace_title: null,
 		...extra
 	};
 	const excerpt = agentExcerpt(message_content, message.attachment_count);
@@ -2378,6 +2380,7 @@ export function seedAgents(
 				pinned: true,
 				sort_order: 1,
 				team_id: 1,
+				workspace_id: null,
 				following_count: 0
 			},
 			{
@@ -2400,6 +2403,7 @@ export function seedAgents(
 				pinned: false,
 				sort_order: 2,
 				team_id: 2,
+				workspace_id: null,
 				following_count: 0
 			},
 			{
@@ -2420,6 +2424,7 @@ export function seedAgents(
 				pinned: false,
 				sort_order: 3,
 				team_id: 1,
+				workspace_id: null,
 				following_count: 0
 			},
 			{
@@ -2440,6 +2445,7 @@ export function seedAgents(
 				pinned: false,
 				sort_order: 4,
 				team_id: 2,
+				workspace_id: null,
 				following_count: 0
 			}
 		],

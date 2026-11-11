@@ -16,7 +16,7 @@ use std::sync::Arc;
 use cohesion_core::log::Module;
 use cohesion_core::model::{
     ActorSession, ActorSessionStop, AgentAskReply, CacheLength, ContextRebuildReason,
-    IntelligenceAgentCue, IntelligenceTier, Task,
+    IntelligenceAgentCue, IntelligenceTier, Task, Workspace,
 };
 use cohesion_core::{log_error, log_info};
 use cohesion_db::{
@@ -463,6 +463,8 @@ struct Brief<'a> {
     held: Option<i64>,
     /// The agent's agenda as the fork's status lists it.
     agenda: String,
+    /// The workspace the user is in, as the agent was last told.
+    workspace: Option<Workspace>,
     now: Zoned,
 }
 
@@ -510,6 +512,7 @@ async fn session(
         ),
         held: opening.held,
         agenda: turn.agenda().hear(&agenda::load(database, agent_id).await?),
+        workspace: conversation_session::user_workspace(database, agent_id).await?,
         now: Zoned::now(),
     };
 
@@ -575,7 +578,13 @@ async fn carry_on(
     let skills = conversation_session::usable_skills(database, agent_id).await?;
     let prompt = format!(
         "{}\n\n{prompt}",
-        agent_transcript::status(&cues, &skills, &brief.agenda, &brief.now)
+        agent_transcript::status(
+            &cues,
+            &skills,
+            &brief.agenda,
+            brief.workspace.as_ref(),
+            &brief.now,
+        )
     );
     Ok(Opened {
         session,
@@ -652,7 +661,13 @@ async fn open_new(
         session,
         prompt: format!(
             "{}\n\n# {}\n{}",
-            agent_transcript::status(&cues, &skills, &brief.agenda, &brief.now),
+            agent_transcript::status(
+                &cues,
+                &skills,
+                &brief.agenda,
+                brief.workspace.as_ref(),
+                &brief.now,
+            ),
             brief.heading,
             brief.text
         ),

@@ -5029,6 +5029,16 @@ pub const MIGRATIONS: &[Migration] = &[
             WHERE id = new.agent_id;
         END;",
     },
+    // Which workspace the user is in, as agents hear it: the one each agent
+    // was last told, and, on the user's message that told it a new one, the
+    // workspace it switched to, which the agent reads before that message.
+    Migration {
+        name: "agent_workspace",
+        sql: "ALTER TABLE intelligence_agents ADD COLUMN workspace_id INTEGER
+            REFERENCES workspaces(id) ON DELETE SET NULL;
+        ALTER TABLE intelligence_agent_messages ADD COLUMN switched_workspace_id INTEGER
+            REFERENCES workspaces(id) ON DELETE SET NULL;",
+    },
 ];
 
 #[cfg(test)]

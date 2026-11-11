@@ -276,6 +276,7 @@ fn every_kind_has_a_one_line_excerpt() {
             attachments: vec![image("aGk="), image("aGV5")],
             forward: None,
             skill: None,
+            workspace_id: None,
         })
         .unwrap();
     assert_eq!(images.excerpt, "2 images");
@@ -288,6 +289,7 @@ fn every_kind_has_a_one_line_excerpt() {
             attachments: Vec::new(),
             forward: None,
             skill: None,
+            workspace_id: None,
         })
         .unwrap();
     let reacted = db
@@ -351,6 +353,7 @@ fn a_forward_carries_the_live_item_it_names() {
             attachments: Vec::new(),
             forward: Some(target),
             skill: None,
+            workspace_id: None,
         })
         .map(|(message, _)| message.message_content)
     };
@@ -451,6 +454,7 @@ fn the_agent_reacts_to_a_forward() {
                 id: document.id,
             }),
             skill: None,
+            workspace_id: None,
         })
         .unwrap();
     let reacted = db
@@ -634,6 +638,7 @@ fn attachments_are_counted_listed_and_deleted_with_their_agent() {
             attachments: vec![image("aGk="), image("aGV5")],
             forward: None,
             skill: None,
+            workspace_id: None,
         })
         .unwrap();
     assert_eq!(message.attachment_count, 2);
@@ -719,6 +724,7 @@ fn a_message_needs_text_or_valid_images() {
             attachments,
             forward: None,
             skill: None,
+            workspace_id: None,
         })
     };
     assert!(matches!(
@@ -1025,4 +1031,60 @@ fn a_forks_messages_say_what_they_are_to_it() {
         assert_eq!(forked(surfaced), Some(AgentRunPart::Surfaced));
     }
     assert_eq!(post(None, text("Done.")), None);
+}
+
+#[test]
+fn a_message_records_the_workspace_the_user_switched_to_since_the_agent_last_heard() {
+    let db = context();
+    let (agent_id, _) = agent_with_messages(&db, 0);
+    let workspace = |title: &str| {
+        db.send_blocking(CreateWorkspaceCommand {
+            title: title.to_string(),
+            emoji: None,
+        })
+        .unwrap()
+    };
+    let (home, work) = (workspace("Home"), workspace("Work"));
+    let send = |workspace_id| {
+        db.send_blocking(CreateUserAgentMessageCommand {
+            agent_id,
+            text: "Hi".to_string(),
+            attachments: Vec::new(),
+            forward: None,
+            skill: None,
+            workspace_id,
+        })
+        .map(|(message, _)| message)
+    };
+    let switched = |message: &cohesion_core::model::IntelligenceAgentMessage| {
+        (
+            message.switched_workspace_id,
+            message.switched_workspace_title.clone(),
+        )
+    };
+    let agent_workspace = || {
+        db.send_blocking(GetIntelligenceAgentCommand { agent_id })
+            .unwrap()
+            .workspace_id
+    };
+
+    // Naming none says nothing, and leaves the agent's alone.
+    assert_eq!(switched(&send(None).unwrap()), (None, None));
+    assert_eq!(agent_workspace(), None);
+
+    // The first one named is a switch; the same one again isn't.
+    let first = send(Some(home.id)).unwrap();
+    assert_eq!(switched(&first), (Some(home.id), Some("Home".to_string())));
+    assert_eq!(agent_workspace(), Some(home.id));
+    assert_eq!(switched(&send(Some(home.id)).unwrap()), (None, None));
+    assert_eq!(switched(&send(None).unwrap()), (None, None));
+    assert_eq!(agent_workspace(), Some(home.id));
+
+    let moved = send(Some(work.id)).unwrap();
+    assert_eq!(switched(&moved), (Some(work.id), Some("Work".to_string())));
+    assert_eq!(agent_workspace(), Some(work.id));
+
+    // A workspace that doesn't exist is refused, and nothing is sent.
+    assert!(matches!(send(Some(999)), Err(CommandError::NotFound(_))));
+    assert_eq!(agent_workspace(), Some(work.id));
 }
