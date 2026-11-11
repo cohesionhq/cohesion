@@ -3,7 +3,7 @@ use cohesion_core::model::ExtensionPermissionKind;
 use crate::script_api::{
     ACCOUNTS, ACTORS, AGENT, AGENTS, ARTICLES, CONNECTORS, CONTACTS, CORE, CUES, IMAGES,
     INTELLIGENCE, LOG, NETWORK, NOTIFICATIONS, RESOURCES, REWIND, SERVICES, STORAGE, ScriptModule,
-    TIMER, USAGE, VOCABULARY,
+    TABLES, TIMER, USAGE, VOCABULARY,
 };
 
 #[derive(PartialEq, Copy, Clone)]
@@ -107,7 +107,7 @@ impl Mount {
     pub fn modules(self) -> &'static [ScriptModule] {
         match self {
             Mount::Cohesion => &[
-                CORE, AGENTS, ARTICLES, RESOURCES, CONTACTS, REWIND, VOCABULARY,
+                CORE, TABLES, AGENTS, ARTICLES, RESOURCES, CONTACTS, REWIND, VOCABULARY,
             ],
             Mount::Intelligence => &[INTELLIGENCE],
             Mount::Log => &[LOG],

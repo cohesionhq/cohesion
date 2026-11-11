@@ -180,7 +180,7 @@
 						{titleError}
 					</p>{/if}
 
-				{#if home?.is_table}
+				{#if home?.representation === 'table'}
 					<DocumentProperties workspace={ws} folder={home.id} document={id} />
 				{/if}
 

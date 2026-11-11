@@ -126,19 +126,22 @@ describe('tables store', () => {
 		expect(column(store.rows.value, notes.id).every((v) => v === null)).toBe(true);
 	});
 
-	it('makes a plain folder a table with its first property, and plain again without its last', async () => {
+	it('shows a folder as a table from its first property, and as a list again when set', async () => {
 		const mock = createMock();
 		const documents = createDocumentsStore(mock.send);
 		const store = createTablesStore(mock.send);
 		await documents.folders.load(1);
-		expect(documents.folders.value.find((f) => f.id === 1)?.is_table).toBe(false);
+		const representation = () => documents.folders.value.find((f) => f.id === 1)?.representation;
+		expect(representation()).toBe('list');
 		const only = await store.createProperty({ workspace_id: 1, folder_id: 1 }, 'Status', 'text');
 		await documents.folders.refetch();
-		expect(documents.folders.value.find((f) => f.id === 1)?.is_table).toBe(true);
+		expect(representation()).toBe('table');
 		await store.open(1, 1);
 		await store.removeProperty(only.id);
 		await documents.folders.refetch();
-		expect(documents.folders.value.find((f) => f.id === 1)?.is_table).toBe(false);
+		expect(representation()).toBe('table');
+		await documents.setRepresentation(1, 1, 'list');
+		expect(representation()).toBe('list');
 	});
 
 	it('takes a document created, renamed or moved out into the open table', async () => {

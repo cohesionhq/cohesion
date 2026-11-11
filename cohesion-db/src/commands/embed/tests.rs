@@ -1,8 +1,8 @@
 use cohesion_core::LocalIdentity;
 use cohesion_core::model::{
-    ActorDefinition, ActorMessageContent, ActorSessionMessageContent, ActorUserContent, Embed,
-    EmbedItem, EmbedKind, FeedFullPagePolicy, FeedItemCapture, IntelligenceAgentColor,
-    PropertyDataType, PropertyValue, TextSection,
+    ActorDefinition, ActorMessageContent, ActorSessionMessageContent, ActorUserContent,
+    DocumentFolderRepresentation, Embed, EmbedItem, EmbedKind, FeedFullPagePolicy, FeedItemCapture,
+    IntelligenceAgentColor, PropertyDataType, PropertyValue, TextSection,
 };
 use cohesion_core::protocol::ClientCapabilities;
 
@@ -431,7 +431,7 @@ fn a_folder_resolves_with_its_properties_and_only_its_first_rows() {
     else {
         panic!("not a folder");
     };
-    assert!(folder.is_table);
+    assert_eq!(folder.representation, DocumentFolderRepresentation::Table);
     let names: Vec<&str> = properties.iter().map(|p| p.name.as_str()).collect();
     assert_eq!(names, ["Author", "Pages"]);
     assert_eq!(row_count, rows.len() as i64);
@@ -455,7 +455,7 @@ fn a_plain_folder_resolves_with_its_documents_titles() {
     else {
         panic!("not a folder");
     };
-    assert!(!folder.is_table);
+    assert_eq!(folder.representation, DocumentFolderRepresentation::List);
     assert!(properties.is_empty());
     assert_eq!(row_count, 1);
     assert_eq!(rows[0].title, "Plan");

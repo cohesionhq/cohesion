@@ -120,7 +120,7 @@ fn create_journal(
 /// `journal_from..journal_to`, and only those carrying every one of the
 /// `metadata` pairs and `has_metadata` keys. Documents in a table are
 /// listed like any other; a client that keeps them apart reads which
-/// folders are tables from `DocumentFolder::is_table`.
+/// folders show as tables from `DocumentFolder::representation`.
 #[derive(FromRequest)]
 #[request(ListDocumentsRequest)]
 pub struct ListDocumentsCommand {

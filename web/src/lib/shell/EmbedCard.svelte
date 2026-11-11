@@ -84,7 +84,7 @@
 				return `${item.feed_title} · ${publishedDate(item.article)}`;
 			case 'documentFolder': {
 				const count = item.row_count;
-				return item.folder.is_table
+				return item.folder.representation === 'table'
 					? `Table · ${count === 1 ? '1 row' : `${count} rows`}`
 					: `${kind} · ${count === 1 ? '1 document' : `${count} documents`}`;
 			}

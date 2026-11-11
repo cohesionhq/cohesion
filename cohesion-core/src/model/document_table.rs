@@ -8,7 +8,7 @@
 //! title is its document's. A choice property's values pick from its
 //! [`PropertyOption`]s, which only a choice property has.
 
-use cohesion_macros::{Model, TextEnum, TsWire};
+use cohesion_macros::{Fields, Model, TextEnum, TsWire};
 use serde::{Deserialize, Serialize};
 
 use crate::model::IntelligenceAgentColor;
@@ -124,7 +124,7 @@ impl ColumnGroup for PropertyType {
 
 /// A column of a document folder's table: a name and the type of value it
 /// holds. A folder with at least one is a table; the Inbox never has one.
-#[derive(Clone, Debug, Serialize, Deserialize, Model, TsWire)]
+#[derive(Clone, Debug, Serialize, Deserialize, Model, Fields, TsWire)]
 #[model(table = "document_folder_properties", backup = Included)]
 pub struct DocumentFolderProperty {
     pub id: i64,
@@ -134,12 +134,14 @@ pub struct DocumentFolderProperty {
     /// choice property's options; a formula's outputs must be of it.
     #[serde(flatten)]
     #[model(group, reads)]
+    #[fields(skip)]
     pub kind: PropertyType,
     /// Where the property sits among its folder's; lower comes first.
     pub sort_order: i64,
     /// What computes the property's values, or `null` for a property whose
     /// values are set by hand.
     #[model(group)]
+    #[fields(skip)]
     pub formula: Option<PropertyFormula>,
 }
 
@@ -168,7 +170,7 @@ impl DocumentFolderProperty {
 /// Only a choice property has options; they go when it stops being one. A
 /// value names its option by id, so renaming one changes no value, and
 /// deleting one empties the values that held it.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Model, TsWire)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Model, Fields, TsWire)]
 #[model(table = "document_property_options", backup = Included)]
 pub struct PropertyOption {
     pub id: i64,

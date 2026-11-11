@@ -86,7 +86,7 @@ pub use connector_account::{AccountHost, ConnectorAccount};
 pub use contact::{Contact, ContactMethod, ContactMethodKind, NewContactMethod};
 pub use day_filter::{DayFilter, DayRange};
 pub use document::{Document, DocumentType};
-pub use document_folder::DocumentFolder;
+pub use document_folder::{DocumentFolder, DocumentFolderRepresentation};
 pub use document_table::{
     DocumentCell, DocumentFolderProperty, DocumentValue, FormulaUpdateMode, PropertyDataType,
     PropertyFormula, PropertyOption, PropertyType, PropertyValue, TableRow,

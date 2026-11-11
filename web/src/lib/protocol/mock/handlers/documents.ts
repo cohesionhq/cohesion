@@ -17,6 +17,7 @@ export function documentsHandlers(core: MockCore) {
 		documentSubtree,
 		listedFolder,
 		tablesChanged,
+		invalidate,
 		journalFor,
 		keepDocument,
 		touch,
@@ -117,7 +118,7 @@ export function documentsHandlers(core: MockCore) {
 							.map((f) => f.sort_order)
 					) + 1,
 				deleted: false,
-				is_table: false
+				representation: 'list'
 			};
 			state.documentFolders.push(created);
 			return { ...created };
@@ -152,6 +153,13 @@ export function documentsHandlers(core: MockCore) {
 			f.parent_id = parent_id;
 			siblings.forEach((s, i) => (s.sort_order = i));
 			return liveDocumentFolders(workspace_id).map(listedFolder);
+		},
+		setDocumentFolderRepresentation: ({ workspace_id, folder_id, representation }) => {
+			const f = documentFolder(workspace_id, folder_id);
+			f.representation = representation;
+			tablesChanged(folder_id);
+			invalidate({ kind: 'documentFolders', id: workspace_id });
+			return listedFolder(f);
 		},
 		deleteDocumentFolder: ({ workspace_id, folder_id }) => {
 			const f = documentFolder(workspace_id, folder_id);

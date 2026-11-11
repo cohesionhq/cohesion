@@ -33,7 +33,8 @@ export const KIND_ICONS: Record<ItemKind, Component> = {
 
 /** `embed`'s icon: a task's box checked or crossed as it stands, a table's grid, else its kind's. */
 export function embedIcon(embed: Embed): Component {
-	if (embed.item.kind === 'documentFolder' && embed.item.folder.is_table) return Table2;
+	if (embed.item.kind === 'documentFolder' && embed.item.folder.representation === 'table')
+		return Table2;
 	if (embed.item.kind === 'task') {
 		const { status } = embed.item.task;
 		return status === 'completed' ? SquareCheck : status === 'cancelled' ? SquareX : Square;

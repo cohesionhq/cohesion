@@ -668,7 +668,7 @@ export function seed(): MockState {
 				title: 'Design',
 				sort_order: 1,
 				deleted: false,
-				is_table: false
+				representation: 'list'
 			},
 			{
 				id: 2,
@@ -677,7 +677,7 @@ export function seed(): MockState {
 				title: 'Research',
 				sort_order: 2,
 				deleted: false,
-				is_table: false
+				representation: 'list'
 			},
 			{
 				id: 3,
@@ -686,7 +686,7 @@ export function seed(): MockState {
 				title: 'Search',
 				sort_order: 1,
 				deleted: false,
-				is_table: false
+				representation: 'list'
 			}
 		],
 		folders: [
@@ -1264,7 +1264,7 @@ export function seedTables(state: MockState) {
 			title,
 			sort_order: folder_id,
 			deleted: false,
-			is_table: true
+			representation: 'table'
 		});
 		const first = state.folderProperties.length + 1;
 		const properties = columns.map(([name, data_type, formula, update_mode], i) =>

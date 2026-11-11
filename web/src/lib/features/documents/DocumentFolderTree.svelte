@@ -201,7 +201,7 @@
 					{:else}
 						<span class="size-5 flex-none" aria-hidden="true"></span>
 					{/if}
-					{#if folder.is_table}
+					{#if folder.representation === 'table'}
 						<Table2
 							class="ml-1 flex-none text-fg-subtle"
 							size={13}
@@ -216,7 +216,9 @@
 						aria-current={current === folder.id ? 'page' : undefined}
 						aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
 						onkeydown={(e) => key(e, folder)}
-						>{folder.title}{#if folder.is_table}<span class="sr-only">, table</span>{/if}</a
+						>{folder.title}{#if folder.representation === 'table'}<span class="sr-only"
+								>, table</span
+							>{/if}</a
 					>
 					<span
 						class={[

@@ -3432,3 +3432,39 @@ fn databases_become_document_folders_whose_rows_are_documents() {
         [["0"]]
     );
 }
+
+#[test]
+fn folders_with_properties_become_tables_and_the_rest_lists() {
+    let mut db = migrated_before("document_folder_representation");
+    db.connection()
+        .execute_batch(
+            "INSERT INTO workspaces (id, title) VALUES (1, 'Home');
+             INSERT INTO document_folders (id, workspace_id, title, sort_order)
+                 VALUES (1, 1, 'Notes', 1), (2, 1, 'Books', 2);
+             INSERT INTO document_folder_properties (id, folder_id, name, data_type)
+                 VALUES (1, 2, 'Pages', 'integer');",
+        )
+        .unwrap();
+    db.migrate().unwrap();
+    let representations: Vec<(i64, String)> = db
+        .connection()
+        .prepare("SELECT id, representation FROM document_folders ORDER BY id")
+        .unwrap()
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        representations,
+        [(1, "list".to_string()), (2, "table".to_string())]
+    );
+    // Only the two representations are stored.
+    assert!(
+        db.connection()
+            .execute(
+                "UPDATE document_folders SET representation = 'board' WHERE id = 1",
+                [],
+            )
+            .is_err()
+    );
+}

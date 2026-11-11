@@ -449,8 +449,8 @@ the time the client hears back.
 clients refetch. `Invalidation` (`cohesion-core/src/invalidation.rs`, tagged
 `{kind, id}`) has the keys `workspace(id)`, `intelligenceCostEvents`,
 `agent(id)`, `agentTeams`, `taskFolders(ws)`, `documents(ws)`,
-`documentFolders(ws)` (one was created, renamed, moved or deleted, or became
-a table or stopped being one), `documentTable(folder)` (anything in a
+`documentFolders(ws)` (one was created, renamed, moved or deleted, or its
+representation changed), `documentTable(folder)` (anything in a
 folder's table: a property, a value, or a document coming, going, renamed or
 deleted), `taskList{workspace_id, folder_id}` (null folder is the inbox),
 `connectorAccounts`, `resources(ws)`, `resourceKinds(ws)`, `feeds`,
@@ -528,12 +528,18 @@ showing it. Documents and tasks themselves never touch the table.
 
 **Tables** (`cohesion-db/src/commands/document_folder_property.rs` and
 `document_value.rs`, models in `cohesion-core/src/model/document_table.rs`).
-A document folder with properties is a table, and each live document in it
-is a row; there is no kind of folder to set, and the Inbox never has
-properties. `DocumentFolder.is_table` (read from the properties, not
-stored) says which folders are tables, so a client knows from
-`ListDocumentFolders` alone, and `documentFolders(ws)` is invalidated when a
-folder gains its first property or loses its last. A
+A document folder's properties are a table's columns, and each live
+document in it is a row; the Inbox never has properties.
+`DocumentFolder.representation` (`DocumentFolderRepresentation`, stored:
+`list` or `table`) says how a client shows the folder, so it knows from
+`ListDocumentFolders` alone. A folder starts as a `list`; creating a
+property in a `list` folder makes it a `table`, and deleting its last
+property leaves an empty `table`.
+`SetDocumentFolderRepresentation{workspace_id, folder_id, representation}`
+sets it either way, keeping the properties and values, and invalidates
+`documentFolders(ws)` and `documentTable(folder)`. Values, rows and the
+commands below follow the properties, not the representation: a `list`
+folder with properties still holds its documents' values. A
 `DocumentFolderProperty` has a `name`, a `data_type` (`PropertyDataType`:
 `text`, `integer`, `decimal`, `currency`, `checkbox`, `date`, `choice`, worded by
 `hello.vocabulary.property_data_types`) and a `sort_order`. Its type is a
@@ -561,6 +567,16 @@ amount must be finite and a date a real `YYYY-MM-DD`. Deleting a property
 deletes its values. Changing a property's type reads each value's text as
 the new type (`PropertyValue::parse`: `"42"` is an integer, `"3.5"` no
 integer, `"true"` only a checkbox) and empties the values that aren't one.
+
+Scripts reach the same commands through the `tables` script module:
+`DocumentFolder.properties()`, `createProperty(name, dataType, {options?,
+formula?, updateMode?})` and a `representation` setter; on each
+`DocumentFolderProperty`, `rename`, `setDataType`, `setFormula`,
+`moveBefore`, `delete` and a choice's `addOption`, `renameOption`,
+`setOptionColor`, `moveOption` and `deleteOption` (an option by name or id);
+and on `Document`, `values()` (every column by name, a choice as its option's
+name, as a formula's row reads it) and `setValue(property, value)`
+(`cohesion-js/src/entities/document_folder_property.rs`).
 
 **Choices** (`cohesion-db/src/commands/property_option.rs`). A choice's value
 is one of its property's options, `{"type": "choice", "value": <option id>}`.
@@ -601,7 +617,7 @@ table among the folders it deletes loses its properties and its documents
 their values. A soft-deleted row keeps its folder and values, leaves
 `ListTableRows`, and comes back as the row it was through Rewind; purging it
 takes its values. `ListDocuments` lists documents in tables like any other,
-so a client that keeps them apart filters with `is_table`.
+so a client that keeps them apart filters with `representation`.
 
 **Formulas** (`cohesion-db/src/commands/document_formula.rs`,
 `cohesion-js/src/formula.rs`, `cohesionkit/src/table_formulas.rs`). A
@@ -997,7 +1013,7 @@ script's own key-value store (`set_storage_blocking`) and `credentials()`.
 and no other permission to any area.
 
 **Migrations** (`cohesion-db/src/migrations.rs`). `MIGRATIONS` is a list of
-`Migration{name, sql}`, 96 at the time of writing; the first seven are the
+`Migration{name, sql}`, 100 at the time of writing; the first seven are the
 squashed schema of the 68 that came before them. `PRAGMA user_version` is how
 many have been applied. `Container::migrate()`, called by the daemon right
 after opening the file:
@@ -1038,7 +1054,7 @@ deleting sets `deleted`, and client reads use `select_live`.
 |---|---|
 | `workspaces` (soft) | `title`, `emoji`. |
 | `documents` (soft) | `workspace_id`, `document_type` (`normal` or `journal`), `title`, `contents` (Markdown), `modified`, `journal_date`, `deleted_at`, `folder_id` (null is the Inbox; never set on a journal; unique with `id`, for `document_values`' key), and `formula_stale`, how many changes the outputs of its folder's formulas are behind for it (0 when current or in no table; a partial index finds the nonzero ones; not on `Document`). A journal entry is a document of type `journal`; a unique index allows one live entry per workspace per day. |
-| `document_folders` (soft) | `workspace_id`, `parent_id` (null at the top level; a composite key keeps it in the same workspace), `title`, `sort_order` (among its siblings). Folders nest without limit; deleting one deletes those inside it and moves their documents to the Inbox, deleting the properties and values of any table among them. A folder with properties is a table (`DocumentFolder.is_table`, read, not stored). |
+| `document_folders` (soft) | `workspace_id`, `parent_id` (null at the top level; a composite key keeps it in the same workspace), `title`, `sort_order` (among its siblings). Folders nest without limit; deleting one deletes those inside it and moves their documents to the Inbox, deleting the properties and values of any table among them. `representation` (`list` or `table`, `DocumentFolderRepresentation`) is how it shows; the `document_folder_representation` migration made every folder with properties a `table`. |
 | `document_folder_properties` | A table's columns: `folder_id` (never null, so the Inbox has none), `name`, `data_type` (`text`, `integer`, `decimal`, `currency`, `checkbox`, `date`, `choice`; unique with `id`, for the options' key), `sort_order`, and for a formula `formula_source`, `formula_update_mode` (`whenChanged` or `continuously`; checks keep it set exactly when the source is) and `formula_error` (its last failure; a check keeps it from outliving the source). A check keeps a choice from being a formula. |
 | `document_property_options` | A choice's options: `property_id`, `data_type` (always `choice`; with `property_id` the key to `document_folder_properties(id, data_type)`, so only a choice has options and a property holding any can't change type until they go), `name` (not empty; a unique index on `(property_id, name COLLATE NOCASE)`), `color` (an agent color or null) and `sort_order`; unique on `(property_id, id)`, for the values' key. Deleting the property takes them. |
 | `document_values` | One per document and property at most: `folder_id`, `document_id`, `property_id`, with composite keys to `documents(folder_id, id)` and `document_folder_properties(folder_id, id)` so the document and the property are always of one folder, and a document can't change folder while it holds values; `text_value` (always; empty for a choice), `integer_value` (an integer, a checkbox as 1 or 0), `real_value` (a decimal, an amount, an integer) and `option_id` (a choice's), with a key to `document_property_options(property_id, id)` so the option is of the value's own property, and deleting it takes the value. A missing row is an empty value. |
@@ -1597,7 +1613,7 @@ and the cache match:
 
 The `code-tool` description declares, in brief (each comment's first
 paragraph), the script modules loaded up front (`core`, `agent`, `services`),
-indexes the ones loaded on demand (agents, articles, resources, rewind,
+indexes the ones loaded on demand (tables, agents, articles, resources, rewind,
 vocabulary, contacts, cues, actors, images, storage, network, connectors…), and
 lists the installed services and connected accounts (`agent_code_call.rs`).
 It is always built for `AgentRole::DOCUMENTED` (a user-started turn), whoever
@@ -2116,7 +2132,7 @@ search of the workspace and actor sessions.
 **Mock mode.** `VITE_MOCK=1` makes `api.ts` use `web/src/lib/protocol/mock.ts`,
 an in-memory daemon that implements every request with seed data, instead of a
 socket; of the invalidations it pushes only those of tables (`documentTable`,
-and `documentFolders` as a folder becomes a table or stops being one), through
+and `documentFolders` as a folder's representation changes), through
 `connection.invalidated`. Vitest uses the same mock. Its parts are under
 `protocol/mock/`: the seed data, the state and lookups every area shares
 (`core.ts`), and one file of handlers per area (`handlers/`). With `npm run dev`, `.env.development` sets
@@ -2124,7 +2140,7 @@ and `documentFolders` as a folder becomes a table or stops being one), through
 
 **Tables** (`routes/w/[ws]/documents/`, `features/tables/`,
 `stores/tables.svelte.ts`). A document folder with columns is a table
-(`DocumentFolder.is_table`); there is no Databases page. The folder tree marks
+(`DocumentFolder.representation` is `table`); there is no Databases page. The folder tree marks
 a table with a table icon, and the Documents page shows a table folder as one
 (`DocumentTable.svelte`) instead of its list: the title first, edited in place
 as a rename (`renameDocument`), then a column per property in its order, its
@@ -2145,8 +2161,9 @@ or Continuously, "Continuously updates every hour."), under the type when
 adding and alone in that column when editing a formula; renaming a column
 and changing its type stay dialogs. On a plain folder it says "This will convert this
 folder to a table.", and its first column makes the folder a table
-(`DocumentsStore.markTable`, until `documentFolders` comes back). Deleting the
-last column says the folder will be a plain one again, and it shows as a list.
+(`DocumentsStore.markRepresentation`, until `documentFolders` comes back). Deleting the
+last column says the folder will be a plain one again, and the page then sets it
+to a list (`DocumentsStore.setRepresentation`).
 A cell edits in place with an editor for its type (`ValueCell.svelte`: text, a
 number, a date picker; a checkbox toggles), read by `features/tables/values.ts`;
 ↩ saves, Esc cancels, ⇥ and ⇧⇥ save and move along the row, and the daemon's

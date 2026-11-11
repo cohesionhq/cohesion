@@ -99,11 +99,8 @@ export function createCore() {
 			for (const f of liveDocumentFolders(workspace_id)) if (f.parent_id === ids[i]) ids.push(f.id);
 		return ids;
 	};
-	/** A live folder as the daemon lists it: a table once it has properties. */
-	const listedFolder = (f: DocumentFolder): DocumentFolder => ({
-		...f,
-		is_table: state.folderProperties.some((p) => p.folder_id === f.id)
-	});
+	/** A live folder as the daemon lists it. */
+	const listedFolder = (f: DocumentFolder): DocumentFolder => ({ ...f });
 	const tableOf = (workspace_id: number, folder_id: number) => {
 		workspace(workspace_id);
 		return documentFolder(workspace_id, folder_id);

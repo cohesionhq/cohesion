@@ -1818,8 +1818,9 @@ export interface DocumentCell {
  * A named group of documents in a workspace, which may sit inside another.
  *
  * Folders nest without limit. A document in no folder is in the Inbox;
- * journals are never in a folder. A folder with properties
- * (`DocumentFolderProperty`) is a table, whose documents are its rows.
+ * journals are never in a folder. A folder's properties
+ * (`DocumentFolderProperty`) are a table's columns, and its documents are
+ * its rows; `representation` says whether it shows as one.
  */
 export interface DocumentFolder {
 	id: number;
@@ -1830,11 +1831,8 @@ export interface DocumentFolder {
 	/** Where the folder sits among its siblings; lower comes first. */
 	sort_order: number;
 	deleted: boolean;
-	/**
-	 * Whether the folder has properties, so is a table; it stops being one
-	 * when its last property is deleted.
-	 */
-	is_table: boolean;
+	/** Whether the folder shows as a list or a table. */
+	representation: DocumentFolderRepresentation;
 }
 
 /**
@@ -1853,6 +1851,18 @@ export type DocumentFolderProperty = {
 	 */
 	formula: PropertyFormula | null;
 } & PropertyType;
+
+/**
+ * How a document folder shows its documents; stored as text.
+ *
+ * - `"list"`: as a list of documents (new folders start here).
+ * - `"table"`: as a table, a row per document and a column per property.
+ *
+ * A folder gaining a property becomes a table; one losing its last stays
+ * one, an empty table, until it is set back to a list. A list keeps its
+ * properties and its documents their values.
+ */
+export type DocumentFolderRepresentation = 'list' | 'table';
 
 /**
  * What a document is for; stored as text.
@@ -4664,6 +4674,17 @@ export interface SetDocumentFolderPropertyTypeRequest {
 }
 
 /**
+ * Sets how document folder `folder_id` in a workspace shows its
+ * documents: as a list or a table. Its properties and values stay either
+ * way.
+ */
+export interface SetDocumentFolderRepresentationRequest {
+	workspace_id: number;
+	folder_id: number;
+	representation: DocumentFolderRepresentation;
+}
+
+/**
  * Sets live document `document_id`'s value for property `property_id` of
  * its folder, which must be of the property's type, or empties it when
  * `value` is absent; refused for a formula, whose values are computed.
@@ -5718,6 +5739,8 @@ export interface Requests {
 	 * new siblings; replies with every folder in the workspace.
 	 */
 	moveDocumentFolder: MoveDocumentFolderRequest;
+	/** Sets whether a document folder shows as a list or a table. */
+	setDocumentFolderRepresentation: SetDocumentFolderRepresentationRequest;
 	/** Deletes a document folder and the folders inside it. */
 	deleteDocumentFolder: DeleteDocumentFolderRequest;
 	/**
@@ -6300,6 +6323,8 @@ export interface Replies {
 	 * new siblings; replies with every folder in the workspace.
 	 */
 	moveDocumentFolder: DocumentFolder[];
+	/** Sets whether a document folder shows as a list or a table. */
+	setDocumentFolderRepresentation: DocumentFolder;
 	/** Deletes a document folder and the folders inside it. */
 	deleteDocumentFolder: DocumentFolder;
 	/**

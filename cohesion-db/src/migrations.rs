@@ -5039,6 +5039,20 @@ pub const MIGRATIONS: &[Migration] = &[
         ALTER TABLE intelligence_agent_messages ADD COLUMN switched_workspace_id INTEGER
             REFERENCES workspaces(id) ON DELETE SET NULL;",
     },
+    // A document folder's representation, how it shows its documents, is
+    // stored rather than read from whether it has properties, so a table
+    // can be empty and a folder with properties can show as a list. Every
+    // folder with properties was a table.
+    Migration {
+        name: "document_folder_representation",
+        sql: "ALTER TABLE document_folders ADD COLUMN representation TEXT NOT NULL
+            DEFAULT 'list' CHECK (representation IN ('list', 'table'));
+        UPDATE document_folders SET representation = 'table'
+        WHERE EXISTS (
+            SELECT 1 FROM document_folder_properties
+            WHERE document_folder_properties.folder_id = document_folders.id
+        );",
+    },
 ];
 
 #[cfg(test)]

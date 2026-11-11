@@ -82,5 +82,5 @@ export function listedIn(
 
 /** The ids of the folders that are tables. */
 export function tableIds(folders: DocumentFolder[]): Set<number> {
-	return new Set(folders.filter((f) => f.is_table).map((f) => f.id));
+	return new Set(folders.filter((f) => f.representation === 'table').map((f) => f.id));
 }

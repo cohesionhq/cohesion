@@ -1,13 +1,12 @@
-//! A document folder's properties: the columns that make it a table. A
-//! folder has none until one is created, and is a plain folder again once
-//! its last is deleted; the Inbox never has any. Its documents' values are
-//! in `document_value.rs`.
+//! A document folder's properties: a table's columns. A folder has none
+//! until one is created, which makes it show as a table; deleting its last
+//! leaves an empty table. The Inbox never has any. Its documents' values
+//! are in `document_value.rs`.
 
 use cohesion_core::FromRequest;
-use cohesion_core::invalidation::Invalidation;
 use cohesion_core::model::{
-    DocumentFolder, DocumentFolderProperty, DocumentValue, PropertyDataType, PropertyOption,
-    PropertyValue,
+    DocumentFolder, DocumentFolderProperty, DocumentFolderRepresentation, DocumentValue,
+    PropertyDataType, PropertyOption, PropertyValue,
 };
 use cohesion_core::protocol::{
     CreateDocumentFolderPropertyRequest, DeleteDocumentFolderPropertyRequest, FormulaDefinition,
@@ -16,7 +15,9 @@ use cohesion_core::protocol::{
 };
 
 use crate::changed::{Changed, Invalidates};
-use crate::commands::document_folder::GetDocumentFolderCommand;
+use crate::commands::document_folder::{
+    GetDocumentFolderCommand, SetDocumentFolderRepresentationCommand,
+};
 use crate::commands::document_formula::{ensure_formula, new_formula};
 use crate::commands::document_table::{TableChange, store_value, table_changed};
 use crate::commands::property_option::{add_options, ensure_not_formula_choice};
@@ -103,7 +104,8 @@ impl DatabaseCommand for GetDocumentFolderPropertyCommand {
 /// set by hand. A choice property, never a formula, starts with `options`
 /// in their order; no other type takes any. No
 /// document holds a value for it until a formula's outputs are computed. A
-/// folder's first property makes it a table, which its folder list shows.
+/// folder showing as a list shows as a table from then on, which its folder
+/// list shows.
 #[derive(FromRequest)]
 #[request(CreateDocumentFolderPropertyRequest)]
 pub struct CreateDocumentFolderPropertyCommand {
@@ -131,7 +133,7 @@ impl DatabaseCommand for CreateDocumentFolderPropertyCommand {
             )
             .into());
         }
-        folder(&mut ctx.as_read(), self.workspace_id, self.folder_id)?;
+        let table = folder(&mut ctx.as_read(), self.workspace_id, self.folder_id)?;
         let property = ctx
             .db
             .insert::<DocumentFolderProperty>()
@@ -153,8 +155,17 @@ impl DatabaseCommand for CreateDocumentFolderPropertyCommand {
         };
         // A formula is computed for every document; any other property is a
         // new key, empty, in the row every formula reads.
-        let table = table_changed(ctx, self.folder_id, TableChange::Inputs)?;
-        Ok(property.invalidating([table, Invalidation::DocumentFolders(self.workspace_id)]))
+        let key = table_changed(ctx, self.folder_id, TableChange::Inputs)?;
+        let property = property.invalidating([key]);
+        if table.representation == DocumentFolderRepresentation::Table {
+            return Ok(property);
+        }
+        ctx.run(SetDocumentFolderRepresentationCommand {
+            workspace_id: self.workspace_id,
+            folder_id: self.folder_id,
+            representation: DocumentFolderRepresentation::Table,
+        })?;
+        Ok(property)
     }
 }
 
@@ -364,8 +375,8 @@ impl DatabaseCommand for MoveDocumentFolderPropertyCommand {
 }
 
 /// Deletes a property; every document's value for it goes with it by the
-/// schema's cascade. Deleting a folder's last property makes it a plain
-/// folder again, which its folder list shows.
+/// schema's cascade. Deleting a folder's last property leaves it showing as
+/// a table, an empty one.
 #[derive(FromRequest)]
 #[request(DeleteDocumentFolderPropertyRequest)]
 pub struct DeleteDocumentFolderPropertyCommand {
@@ -391,8 +402,8 @@ impl DatabaseCommand for DeleteDocumentFolderPropertyCommand {
             .delete::<DocumentFolderProperty>()
             .filter_eq(DocumentFolderProperty::ID, property.id)
             .execute()?;
-        let table = table_changed(ctx, self.folder_id, TableChange::Inputs)?;
-        Ok(property.invalidating([table, Invalidation::DocumentFolders(self.workspace_id)]))
+        let key = table_changed(ctx, self.folder_id, TableChange::Inputs)?;
+        Ok(property.invalidating([key]))
     }
 }
 

@@ -57,8 +57,7 @@ export function tablesHandlers(core: MockCore) {
 					'Only a choice property has options.',
 					'options'
 				);
-			tableOf(workspace_id, folder_id);
-			const first = folderProperties(state, folder_id).length === 0;
+			const folder = tableOf(workspace_id, folder_id);
 			const created = typedProperty(
 				{
 					id: nextId(state.folderProperties),
@@ -75,7 +74,11 @@ export function tablesHandlers(core: MockCore) {
 			state.folderProperties.push(created);
 			computeFormulas(state, folder_id);
 			tablesChanged(folder_id);
-			if (first) invalidate({ kind: 'documentFolders', id: workspace_id });
+			// A folder showing as a list shows as a table from its new property on.
+			if (folder.representation !== 'table') {
+				folder.representation = 'table';
+				invalidate({ kind: 'documentFolders', id: workspace_id });
+			}
 			return structuredClone(created);
 		},
 		renameDocumentFolderProperty: ({ workspace_id, folder_id, property_id, name }) => {
@@ -167,8 +170,6 @@ export function tablesHandlers(core: MockCore) {
 			state.documentValues = state.documentValues.filter((v) => v.property_id !== property_id);
 			computeFormulas(state, folder_id);
 			tablesChanged(folder_id);
-			if (folderProperties(state, folder_id).length === 0)
-				invalidate({ kind: 'documentFolders', id: workspace_id });
 			return structuredClone(p);
 		},
 		createPropertyOption: ({ workspace_id, folder_id, property_id, name, color = null }) => {
