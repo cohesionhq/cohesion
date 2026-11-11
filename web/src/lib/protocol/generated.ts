@@ -4407,6 +4407,12 @@ export interface SearchResult {
 	 * contact's notes; always `""` for tasks and JSON resources.
 	 */
 	contents: string;
+	/**
+	 * The matched task's status (`"incomplete"`, `"completed"` or
+	 * `"cancelled"`); `"none"` for documents, resources and contacts, which
+	 * have no status, so every hit has the same shape.
+	 */
+	status: string;
 }
 
 /** Search the entire workspace. */

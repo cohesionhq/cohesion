@@ -1256,7 +1256,7 @@ internal error.
 
 | Search | Request and command | Ranks by | Returns |
 |---|---|---|---|
-| Workspace | `SearchWorkspace{workspace_id, query}`, `SearchWorkspaceCommand` | `bm25(search_fts, 5.0, 1.0)`: title weighs 5, contents 1 | `Vec<SearchResult>` (`id` of the index entry, `entity_kind` (`document`, `task`, `resource`, `contact`), `entity_id`, `workspace_id`, `title`, `contents`); no paging, no snippet. Scripts: `workspace.search(query)`. CLI: `cohesion search`. |
+| Workspace | `SearchWorkspace{workspace_id, query}`, `SearchWorkspaceCommand` | `bm25(search_fts, 5.0, 1.0)`: title weighs 5, contents 1 | `Vec<SearchResult>` (`id` of the index entry, `entity_kind` (`document`, `task`, `resource`, `contact`), `entity_id`, `workspace_id`, `title`, `contents`, `status`: a task's status, `"none"` for the other kinds, read from `tasks` when searched); no paging, no snippet. Scripts: `workspace.search(query)`. CLI: `cohesion search`. |
 | Corpus (articles) | `SearchFeedCorpus{query, feed_ids?, offset, limit?}`, `SearchFeedCorpusCommand` | `bm25(feed_corpus_fts, 5.0, 2.0, 1.0)` | `FeedCorpusPage{hits, total}`, each hit with a 24-token snippet of the text; 50 a page by default, 500 at most. Scripts: `cohesion.searchCorpus(query, {feedIds})`, the best 200 whole articles. |
 | Actor sessions | `SearchActorSessions{query}`, `SearchActorSessionsCommand` | Title matches at `5.0 * bm25`, message matches at `bm25`; each session's best match, then most recently changed | `Vec<ActorSessionSearchHit>` across every actor, resolved sessions included, with a snippet when a message matched |
 

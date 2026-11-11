@@ -11,7 +11,8 @@ function daemon(count: number, asked: string[]): Send {
 		entity_id: i + 1,
 		workspace_id: 1,
 		title: `Plan ${i + 1}`,
-		contents: ''
+		contents: '',
+		status: 'incomplete'
 	}));
 	return (async (type: string) => {
 		asked.push(type);
