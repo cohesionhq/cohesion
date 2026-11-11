@@ -26,6 +26,7 @@
 //! limited.
 
 mod actor_exchange;
+mod agenda;
 mod agent_activity;
 mod agent_code_call;
 mod agent_coordinator;

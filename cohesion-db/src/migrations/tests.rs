@@ -3,9 +3,9 @@ use cohesion_core::{
     model::{
         AccountHost, Activity, ActivityStatus, Actor, ActorMessageContent, ActorPermissionDecision,
         ActorSession, ActorSessionMessage, ActorSessionMessageContent, ActorSessionStatus,
-        ActorToolKind, ActorUserContent, AgentCodeOutcome, AgentMessageContent, AgentThreadMark,
-        Article, Attachment, Backlink, CatalogModel, Connector, ConnectorAccount, Contact,
-        ContactMethod, DocumentFolderProperty, DocumentValue, EndpointModel, Extension,
+        ActorToolKind, ActorUserContent, AgentAgendaItem, AgentCodeOutcome, AgentMessageContent,
+        AgentThreadMark, Article, Attachment, Backlink, CatalogModel, Connector, ConnectorAccount,
+        Contact, ContactMethod, DocumentFolderProperty, DocumentValue, EndpointModel, Extension,
         ExtensionHook, ExtensionPermission, ExtensionService, ExtensionServiceFunction, Feed,
         FeedFullPagePolicy, FeedStatus, HookKind, IntelligenceAgent, IntelligenceAgentCue,
         IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
@@ -445,6 +445,7 @@ const POSITIVE: &[(&str, &str)] = &[
     ("agent_thread_marks", "cache_seconds"),
     ("agent_thread_marks", "memory_limit"),
     ("saved_task_view_sizes", "size"),
+    ("agent_agenda_items", "position"),
 ];
 
 /// Required text columns a `CHECK` keeps to a set of words, with one of

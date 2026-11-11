@@ -72,6 +72,7 @@ fn placement(table: &str) -> Option<Placement> {
         | "intelligence_cost_events"
         | "intelligence_agents"
         | "intelligence_agent_cues"
+        | "agent_agenda_items"
         | "intelligence_agent_teams"
         | "actors"
         | "extensions"

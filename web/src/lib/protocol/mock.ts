@@ -21,6 +21,7 @@ import type {
 	ActorSessionMessageContent,
 	ActorSessionSearchHit,
 	Connector,
+	AgentAgendaItem,
 	AgentChoice,
 	AgentCodeExecution,
 	AgentMemoryChange,
@@ -702,6 +703,7 @@ interface MockState {
 	agentMessages: IntelligenceAgentMessage[];
 	agentAttachments: Attachment[];
 	agentCues: IntelligenceAgentCue[];
+	agentAgenda: AgentAgendaItem[];
 	agentRuns: IntelligenceAgentRun[];
 	activities: Activity[];
 	actors: Actor[];
@@ -2306,6 +2308,8 @@ function agentExcerpt(content: AgentMessageContent, attachment_count: number): s
 				return content.error;
 			case 'note':
 				return content.note;
+			case 'agenda':
+				return content.items.join('; ');
 			case 'rebuiltContext':
 				return `Context rebuilt${rebuildBecause[content.reason ?? 'none']}`;
 			case 'woke':
@@ -2339,6 +2343,7 @@ function agentRunPart(content: AgentMessageContent, run_id: number | null): Agen
 		case 'documentation':
 		case 'memory':
 		case 'note':
+		case 'agenda':
 		case 'askedAgent':
 			return 'step';
 		default:
@@ -2353,6 +2358,10 @@ function agentExcerptVerb(content: AgentMessageContent): string | null {
 			return content.change === 'forgotten' ? 'Forgot' : 'Remembered';
 		case 'note':
 			return 'Noted';
+		case 'agenda':
+			return { appended: 'Added to the agenda', finished: 'Finished', reset: 'Cleared the agenda' }[
+				content.change
+			];
 		case 'woke':
 			return 'Woke';
 		default:
@@ -2920,6 +2929,14 @@ function seedActors(
 const WEEK_CHART =
 	'iVBORw0KGgoAAAANSUhEUgAAAPAAAACMCAIAAADN17N/AAAB5UlEQVR42u3dwQ1AERRFQR3qRE3WCsRSFYRnklPAjTfLn/zU+5TClDyBgJaAloCWgBbQEtAS0BLQEtACWgJaAloCWgJaQEtAS0BLQEtABy+XsSmgBTTQAhpoAQ000EALaKAFNNACGmgBDTTQQAtooAU00AIaaKCBBhpooAU00AIaaAENNNBAC2igBfR9G4AGGmgBDbSABlpAAw000AIaaAENtIAGWkADDTTQAhpoAQ20gAZaQIcH7TtgoIEGGmiH9A5AAw000EADDTTQQAMNNNAO6R2ABhpooIEGGmiggQYaaKAd0jsADTTQQAMNNNBAAw000EA7pHcAGmiggQYaaKB/OqQNQMMENNA2AA20DUA7pA1AwwQ00DABDbQNQANtA9AOaQPQMAENNExAA20D0EDbALRD2nAAtEe0AWiHtAFoG2wA2gaggbYBaIe0AWiHtAFoG2wA2gagPaINQDukDUA7pA1A22AD0DYA7RFtANohbQDaIW0A2gYbgLYBaI9oA9AOaQPQDmkD0DbYALQNQHtEG4B2SBuAdkgbgLbBBqBtANoj2gC0Q9oAtA02AG0D0EDbALRHtAFoh7QBaBtsANoGoIG2AWiPaMNLoGtt0lUF/5OsBLSAloCWgJaAloAW0BLQ0qkWqfkkEnJUAs8AAAAASUVORK5CYII=';
 
+/** The steps the seeded Core Engineer set out, its first one finished. */
+const AGENDA = [
+	'Add the agenda table and its commands',
+	'Give every thread the agenda tools',
+	'Show the agenda beside the conversation',
+	'Check it in a browser'
+];
+
 function seedAgents(
 	now: number
 ): Pick<
@@ -2929,6 +2946,7 @@ function seedAgents(
 	| 'agentMessages'
 	| 'agentAttachments'
 	| 'agentCues'
+	| 'agentAgenda'
 	| 'agentRuns'
 	| 'memories'
 > {
@@ -3441,6 +3459,17 @@ function seedAgents(
 				change: 'remembered'
 			}),
 			agentMessage(58, 1, now - 62, 'agent', 'Nothing urgent. CI finished green.'),
+			// The agent sets out its agenda, then finishes the first item.
+			agentMessage(60, 1, now - 61, 'agent', {
+				kind: 'agenda',
+				change: 'appended',
+				items: AGENDA
+			}),
+			agentMessage(61, 1, now - 20, 'agent', {
+				kind: 'agenda',
+				change: 'finished',
+				items: [AGENDA[0]]
+			}),
 			// One job's run of notes, beside the other jobs in this feed.
 			agentMessage(
 				39,
@@ -3499,6 +3528,14 @@ function seedAgents(
 					'When the user asks for a task, react 👍 to their message instead of replying, unless more is needed.'
 			}
 		],
+		agentAgenda: AGENDA.map((text, index) => ({
+			id: index + 1,
+			agent_id: 1,
+			position: index + 1,
+			text,
+			added_at: now - 61,
+			finished_at: index === 0 ? now - 20 : null
+		})),
 		agentCues: [
 			{
 				id: 1,
@@ -4469,7 +4506,8 @@ export function createMock(): Mock {
 							'askedByAgent',
 							'note',
 							'woke',
-							'rebuiltContext'
+							'rebuiltContext',
+							'agenda'
 						].includes(m.message_content.kind)
 				)
 				.map((m) => m.sent_at)
@@ -6609,6 +6647,7 @@ export function createMock(): Mock {
 				if (t.assignee?.kind === 'agent' && t.assignee.agent_id === agent_id) t.assignee = null;
 			state.agentMessages = state.agentMessages.filter((m) => m.agent_id !== agent_id);
 			state.agentCues = state.agentCues.filter((c) => c.agent_id !== agent_id);
+			state.agentAgenda = state.agentAgenda.filter((i) => i.agent_id !== agent_id);
 			state.agentRuns = state.agentRuns.filter((r) => r.agent_id !== agent_id);
 			state.memories = state.memories.filter(
 				(m) => m.scope.kind !== 'agent' || m.scope.agent_id !== agent_id
@@ -6712,6 +6751,13 @@ export function createMock(): Mock {
 			);
 			state.agentMessages.push(reply);
 			return null;
+		},
+		listAgentAgenda: ({ agent_id }) => {
+			agent(agent_id);
+			return state.agentAgenda
+				.filter((i) => i.agent_id === agent_id)
+				.sort((a, b) => a.position - b.position)
+				.map((i) => ({ ...i }));
 		},
 		listAgentCues: ({ agent_id }) => {
 			agent(agent_id);

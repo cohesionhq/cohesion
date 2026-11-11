@@ -7,6 +7,15 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- An agent keeps an agenda: the steps it means to take next, in order,
+  which it sets out, finishes and clears with the tools `agenda_append`,
+  `agenda_finish` and `agenda_reset`. Every thread of its conversation,
+  forks and cue runs included, shares it and hears when another changes
+  it. The web UI shows the agenda in the column beside the conversation,
+  and each change as a line in the transcript. `ListAgentAgenda` lists it,
+  and agent messages gain the kind `agenda`; the iPhone app and other
+  clients show that kind as a plain line until they add a view for it.
+
 - Contacts can be linked and embedded like tasks and documents, as
   `cohesion://contact/<ws>/<id>`: a link alone on its line shows the
   contact as a card, `@` and ⌘K find contacts by name or notes, and a

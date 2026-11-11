@@ -45,8 +45,9 @@ Validate at these boundaries and nowhere else:
     actor follow-ups that descend from them): everything the conversation
     may do.
   - **Started by an event** (a cue firing): reads, sends notifications,
-    works with actors, and asks with `ask_choice` before any change; no
-    `network`, no writes, no cues or memories set. The user's pick starts
+    works with actors, keeps the agent's own notes and agenda, and asks
+    with `ask_choice` before any change; no `network`, no writes, no cues
+    or memories set. The user's pick starts
     a chain they started. A chain never gains rights.
   - **A cue's function**, deciding whether its fork wakes, reads and sends
     notifications, nothing more.

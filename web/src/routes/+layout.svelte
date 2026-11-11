@@ -298,6 +298,7 @@
 				<AgentGutter
 					agent={gutterAgent}
 					cues={agents.cues.key === gutterAgent.id ? agents.cues.value : []}
+					agenda={agents.agenda.key === gutterAgent.id ? agents.agenda.value : []}
 					actors={actors.list.value}
 					sessions={actors.followedBy(gutterAgent.id)}
 					onresolve={resolveSession}

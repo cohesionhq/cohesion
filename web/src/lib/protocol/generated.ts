@@ -547,6 +547,40 @@ export interface AddFeedRequest {
 }
 
 /**
+ * How an agent changed its agenda, in an `agenda` message.
+ *
+ * - `"appended"`: it added `items`.
+ * - `"finished"`: it finished the one item in `items`.
+ * - `"reset"`: it cleared the agenda, whose items were `items`.
+ */
+export type AgentAgendaChange = 'appended' | 'finished' | 'reset';
+
+/**
+ * One item of an agent's agenda: a step it means to take, kept in order
+ * with the others and shared by every thread of its conversation. The
+ * agent adds, finishes and clears them with its agenda tools; a finished
+ * item stays until the agenda is cleared.
+ */
+export interface AgentAgendaItem {
+	id: number;
+	agent_id: number;
+	/** Where it stands in the agenda, from 1. */
+	position: number;
+	text: string;
+	/** When it was added, in Unix seconds. */
+	added_at: number;
+	/** When it was finished, in Unix seconds; `null` while it is open. */
+	finished_at: number | null;
+}
+
+/** One change to an agent's agenda, stored as an `agenda` message. */
+export interface AgentAgendaUpdate {
+	change: AgentAgendaChange;
+	/** The text of the items it added, finished or cleared, in order. */
+	items: string[];
+}
+
+/**
  * One agent's question to another, stored twice: as `askedAgent` in the
  * conversation of the agent that asked, and as `askedByAgent` in the
  * conversation of the agent that answered, each naming the other in
@@ -691,6 +725,7 @@ export type AgentMemoryChange = 'remembered' | 'forgotten';
  *   database rather than carrying on its last thread, which loses the
  *   provider's cached prompt, and `reason` says why
  *   (`null` on a line written before reasons were kept).
+ * - `"agenda"`: the agent added, finished or cleared items of its agenda.
  */
 export type AgentMessageContent =
 	| {
@@ -731,7 +766,8 @@ export type AgentMessageContent =
 	| {
 			kind: 'rebuiltContext';
 			reason?: ContextRebuildReason | null;
-	  };
+	  }
+	| ({ kind: 'agenda' } & AgentAgendaUpdate);
 
 /**
  * An agent named in another's conversation, as it was named when it was
@@ -2576,7 +2612,8 @@ export interface IntelligenceAgentMessage {
 	 * client shows a kind it has no view for. Its text, a forward's note (else the item's title), a choice's
 	 * question, a script's title, `Learning about network`, `Asked Scout:
 	 * …`, `Scout asked: …`, or an error; for the agent's bookkeeping, what
-	 * follows `excerpt_verb`: the memory, the note, or what woke it
+	 * follows `excerpt_verb`: the memory, the note, the agenda items it
+	 * added, finished or cleared (joined by `; `), or what woke it
 	 * (`Actor session 264 stopped`, `Cue “Morning” fired`, `“Fix
 	 * the build” was assigned to you`). A compressed context's is
 	 * `Context rebuilt`, then why when it is known, with no verb.
@@ -2584,7 +2621,8 @@ export interface IntelligenceAgentMessage {
 	excerpt: string;
 	/**
 	 * What the agent did, for a line of its bookkeeping: `Remembered`,
-	 * `Forgot`, `Noted` or `Woke`, which reads alone as the heading of a
+	 * `Forgot`, `Noted`, `Added to the agenda`, `Finished`, `Cleared the
+	 * agenda` or `Woke`, which reads alone as the heading of a
 	 * run of such lines and before `excerpt` as `Noted: …`; `null` for
 	 * every other kind.
 	 */
@@ -2980,6 +3018,11 @@ export interface ListActorSessionsRequest {
  */
 export interface ListActorSubagentsRequest {
 	session_id: number;
+}
+
+/** Lists agent `agent_id`'s agenda, in order, finished items included. */
+export interface ListAgentAgendaRequest {
+	agent_id: number;
 }
 
 /** Lists agent `agent_id`'s cues, oldest first. */
@@ -5896,6 +5939,8 @@ export interface Requests {
 	respondToAgentChoice: RespondToAgentChoiceRequest;
 	/** Lists agent `agent_id`'s cues, oldest first. */
 	listAgentCues: ListAgentCuesRequest;
+	/** Lists agent `agent_id`'s agenda, in order, finished items included. */
+	listAgentAgenda: ListAgentAgendaRequest;
 	/** Removes cue `cue_id`; an agent left with no cues goes idle. */
 	removeAgentCue: RemoveAgentCueRequest;
 	/**
@@ -6465,6 +6510,8 @@ export interface Replies {
 	respondToAgentChoice: AcceptedResponse;
 	/** Lists agent `agent_id`'s cues, oldest first. */
 	listAgentCues: IntelligenceAgentCue[];
+	/** Lists agent `agent_id`'s agenda, in order, finished items included. */
+	listAgentAgenda: AgentAgendaItem[];
 	/** Removes cue `cue_id`; an agent left with no cues goes idle. */
 	removeAgentCue: AcceptedResponse;
 	/**

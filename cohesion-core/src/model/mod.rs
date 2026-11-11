@@ -4,6 +4,7 @@
 mod activity;
 mod actor;
 mod actor_message_columns;
+mod agent_agenda_item;
 mod agent_message_columns;
 mod agent_thread_mark;
 mod article;
@@ -57,6 +58,7 @@ mod workspace;
 pub use activity::{Activity, ActivityKind, ActivityOutcome, ActivityStanding, ActivityStatus};
 pub use actor::*;
 pub use actor_message_columns::{ActorMessageKind, ActorMessageSender};
+pub use agent_agenda_item::{AGENDA_ITEM_CHARS, AGENDA_LIMIT, AgentAgendaItem};
 pub use agent_message_columns::{
     AgentCodeStatus, AgentMessageKind, AgentReplyStatus, AgentWakeKind,
 };

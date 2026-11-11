@@ -1072,6 +1072,7 @@ deleting sets `deleted`, and client reads use `select_live`.
 | `intelligence_agents` | `agent_name`, `agent_color`, `agent_emoji`, `agent_personality`, `agent_verbosity`, `agent_role`, `agent_directive`, `team_id`, `pinned`, `sort_order`, `agent_unread`, `last_message_at`, `activity`, `foreground_started`, `context_tokens`. |
 | `intelligence_agent_messages` | An agent's conversation: `sender`, `kind` and its columns, `run_id`, `reply_to`, `reaction`. A trigger marks the agent unread for kinds the user sees. |
 | `intelligence_agent_cues` | `agent_id`, `name` (unique per agent), `hook`, `script`, `instructions`, `effort`, `set_at`. |
+| `agent_agenda_items` | An agent's agenda ([11](#11-agents-in-the-data-model)): `agent_id`, `position` (from 1), `text`, `added_at`, `finished_at`. |
 | `intelligence_agent_runs` | One per fork: `hook`, `cue_name`, `thread_id`, `outcome` (`running`, `completed`, `failed`), `sender_agent_id`. |
 | `memories` | `memory`, and `agent_id` or `team_id` or neither (global). |
 | `agent_thread_marks` | One per agent: which model thread the conversation is on and how far it has heard ([12](#12-how-a-turn-runs)). |
@@ -1148,6 +1149,7 @@ erDiagram
   intelligence_agent_teams |o--o{ intelligence_agents : N
   intelligence_agents ||--o{ intelligence_agent_messages : C
   intelligence_agents ||--o{ intelligence_agent_cues : C
+  intelligence_agents ||--o{ agent_agenda_items : C
   intelligence_agents ||--o{ intelligence_agent_runs : C
   intelligence_agents ||--o{ memories : C
   intelligence_agents ||--o| agent_thread_marks : C
@@ -1330,7 +1332,7 @@ memories. Requests: `CreateIntelligenceAgent`, `UpdateIntelligenceAgent`,
 `DeleteIntelligenceAgent`, `ListIntelligenceAgents`, `ReorderIntelligenceAgents`,
 `SetAgentPinned`, `SetAgentTeam`, team CRUD, `MarkAgentRead`,
 `ListAgentMessages`, `GetAgentMessage`, `SendAgentMessage`, `StopAgentTurn`,
-`SetAgentMessageReaction`, `RespondToAgentChoice`, `ListAgentCues`,
+`SetAgentMessageReaction`, `RespondToAgentChoice`, `ListAgentCues`, `ListAgentAgenda`,
 `RemoveAgentCue`, `ListMemories`, `ForgetMemory`, `ListAgentRuns`,
 `ListAgentMessageAttachments` (`cohesion-core/src/protocol/agent_requests.rs`).
 If the `agent` tier has no model, sending a message fails with "No model is
@@ -1357,6 +1359,24 @@ said, storage is data scripts use, notes are where work stands.
 **Notes** (`send_note(note, done?)`, `AgentMessageContent::Note`) are for the
 agent's own later turns. Nobody is told; at most 1,000 characters
 (`NOTE_LIMIT`). A note doesn't count as having answered the user.
+
+**The agenda** (`AgentAgendaItem`, `agent_agenda_items`) is the steps the
+agent means to take next, in order: one per agent, shared by its
+conversation and every fork, and shown to the user beside the conversation.
+The tools (`cohesion-intelligence/src/agents/agenda.rs`) are
+`agenda_append(items, pos?)`, which adds items at position `pos` (from 1;
+the items there move down) or at the end, `agenda_finish(pos?)`, which
+finishes that item or the first open one, and `agenda_reset()`, which clears
+it. Each returns the agenda as it now stands. It holds at most 20 items
+(`AGENDA_LIMIT`), finished ones included, each one line of at most 200
+characters (`AGENDA_ITEM_CHARS`). Every thread may change it, a turn an event
+started included, as it may post notes. Each change posts an `agenda`
+message in the same transaction (`cohesion-db/src/commands/agent_agenda.rs`)
+and invalidates `agent`. Every thread opens with the agenda in its status
+block; each thread's `ForegroundTurn` keeps what it last heard
+(`HeardAgenda`), so a thread whose agenda another changed hears it under
+`# Agenda changed` before its next model call (through `TurnInput::take`)
+or at the start of its next turn.
 
 **Cues** (`IntelligenceAgentCue`, `intelligence_agent_cues`) let an agent
 react to hooks:
@@ -1393,8 +1413,9 @@ question from another agent), an optional `run_id` (the fork that posted it),
 | `note` | `note` |
 | `woke` | What woke a fork: a cue, an actor session stopping, or an assigned task |
 | `rebuiltContext` | Why the conversation moved to a new thread |
+| `agenda` | A change to the agenda: `change` (`appended`, `finished` or `reset`) and `items`, the text of the items it added, finished or cleared |
 
-`note`, `woke` and `rebuiltContext` are bookkeeping: they raise no hook and
+`note`, `woke`, `rebuiltContext` and `agenda` are bookkeeping: they raise no hook and
 don't make the agent unread. Images ride in `attachments`; an agent's scripts
 add them with the `images` global and `send_message`'s `images` argument
 (`agents/image_tray.rs`).
@@ -1495,7 +1516,7 @@ Requests connect within 30 s and finish within 10 minutes
 `SystemPrompt::prompt`), in order, most stable first so the provider's cached
 prefix lasts:
 
-1. `FOREGROUND_AGENT_PROMPT`: what an agent in Cohesion is, its context, memories and storage, working with the user's data, cues, other agents, and replying.
+1. `FOREGROUND_AGENT_PROMPT`: what an agent in Cohesion is, its context, memories, storage, notes and agenda, working with the user's data, cues, other agents, and replying.
 2. `LINKS`: how to write and read `cohesion://task/<ws>/<id>`, `cohesion://document/<ws>/<id>`, `cohesion://resource/<ws>/<id>`, `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and `cohesion://article/<id>`, and that in a document a link alone on its line shows as a card.
 3. "Your voice": its personality and verbosity.
 4. "Your role" and "Your directive", when set.
@@ -1509,7 +1530,7 @@ between turns (the time, the cues, news from forks, memory changes) goes in
 messages instead.
 
 **The tools.** Every session, the conversation and every fork alike, gets the
-same 12, built by `conversation_session::agent_tools`, so their definitions
+same 15, built by `conversation_session::agent_tools`, so their definitions
 and the cache match:
 
 | Tool | Does |
@@ -1523,6 +1544,7 @@ and the cache match:
 | `react(message_id, emoji, done?)` | Reacts to the user's message |
 | `read_message(id, start?, end?)` | Reads a message of this conversation by character range, for text a prompt cut short |
 | `remember`, `forget`, `memories` | Memories |
+| `agenda_append(items, pos?)`, `agenda_finish(pos?)`, `agenda_reset()` | The agenda |
 
 The `code-tool` description declares, in brief (each comment's first
 paragraph), the script modules loaded up front (`core`, `agent`, `services`),
@@ -1558,14 +1580,14 @@ refused with a note to use `send_note` or `ask_choice`. Its opening says so
 (`agent_transcript::fork_rights`).
 
 **What the first message holds** (`agent_transcript.rs`). A new thread opens
-with a status block, "Current time: …" and the agent's cues, then "Recent
+with a status block, "Current time: …", the agent's cues and its agenda, then "Recent
 conversation": the messages most worth keeping (`relevant_set.rs`), each cut at
 800 characters (`EXCERPT_CHARS`; `read_message` reads the rest), then the
 user's message. The relevant set walks back from the newest message, dropping
 scripts and notes older than an hour, until it runs out of a 160,000-character
 budget (`HISTORY_CHARS`) or a message's relevance, which falls with its age
 and position, drops below 0.44. On a live thread a turn instead sends what
-changed: "Memories changed", "Since your last reply" (what forks posted), then
+changed: "Memories changed", "Agenda changed", "Since your last reply" (what forks posted), then
 "User's message", "User's pick", "User's reaction" or a fork's heading.
 Messages the user sends while a turn runs join it before the next model call.
 
@@ -1693,6 +1715,7 @@ doesn't have or a write its database refuses, never a check inside a mount.
 | Set or remove cues | Yes | Refused | No |
 | `remember`, `forget` | Yes | Refused | No |
 | `send_message`, `send_note`, `ask_choice`, `react`, `ask_agent` | Yes | Yes (`ask_choice` needs `context` in a fork) | No model |
+| Change its agenda | Yes | Yes | No model |
 | Wake an agent by assigning it a task | Yes | No | No |
 | Model | The `agent` tier | The cue's effort tier (its forks: `agent`) | None |
 | Held by spend limits | Forks only | Yes | No model |

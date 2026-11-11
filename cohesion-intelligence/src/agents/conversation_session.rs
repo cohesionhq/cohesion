@@ -18,6 +18,7 @@ use cohesion_db::{
 };
 use cohesion_js::AgentRole;
 
+use super::agenda::{AgendaTool, AgendaToolKind};
 use super::agent_error::AgentError;
 use super::agent_messenger::{AgentMessenger, OwedReply};
 use super::agent_tool::{AgentTool, Seat, seated};
@@ -281,6 +282,21 @@ fn agent_tools(
         Box::new(MemoriesTool {
             database: database.clone(),
             agent_id,
+        }),
+        Box::new(AgendaTool {
+            database: database.clone(),
+            agent_id,
+            kind: AgendaToolKind::Append,
+        }),
+        Box::new(AgendaTool {
+            database: database.clone(),
+            agent_id,
+            kind: AgendaToolKind::Finish,
+        }),
+        Box::new(AgendaTool {
+            database: database.clone(),
+            agent_id,
+            kind: AgendaToolKind::Reset,
         }),
     ]
 }

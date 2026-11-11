@@ -7,9 +7,9 @@ use cohesion_macros::TextEnum;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    ActorSessionStop, AgentAsk, AgentAskReply, AgentChoice, AgentCodeExecution, AgentCodeOutcome,
-    AgentForwardedItem, AgentForwardedItemKind, AgentMemoryChange, AgentMessageContent, AgentPeer,
-    AgentWake, ContextRebuildReason, HookKind,
+    ActorSessionStop, AgentAgendaChange, AgentAgendaUpdate, AgentAsk, AgentAskReply, AgentChoice,
+    AgentCodeExecution, AgentCodeOutcome, AgentForwardedItem, AgentForwardedItemKind,
+    AgentMemoryChange, AgentMessageContent, AgentPeer, AgentWake, ContextRebuildReason, HookKind,
 };
 use crate::stored_model::ColumnGroup;
 use crate::value::{IntoValue, Json, Row, RowError, Value, read_column};
@@ -31,6 +31,7 @@ pub enum AgentMessageKind {
     Note,
     Woke,
     RebuiltContext,
+    Agenda,
 }
 
 /// How a script's `outcome` column reads.
@@ -88,6 +89,8 @@ struct Columns {
     actor_session_id: Option<i64>,
     stop: Option<ActorSessionStop>,
     reason: Option<ContextRebuildReason>,
+    agenda_change: Option<AgentAgendaChange>,
+    agenda: Option<Vec<String>>,
 }
 
 impl Columns {
@@ -116,6 +119,8 @@ impl Columns {
             actor_session_id: None,
             stop: None,
             reason: None,
+            agenda_change: None,
+            agenda: None,
         }
     }
 
@@ -123,6 +128,14 @@ impl Columns {
         Self {
             text: Some(text),
             ..Self::of(kind)
+        }
+    }
+
+    /// These columns holding the items an `agenda` message names.
+    fn listing(self, agenda: Vec<String>) -> Self {
+        Self {
+            agenda: Some(agenda),
+            ..self
         }
     }
 
@@ -187,6 +200,8 @@ impl ColumnGroup for AgentMessageContent {
         "actor_session_id",
         "stop",
         "reason",
+        "agenda_change",
+        "agenda",
     ];
 
     fn from_row(row: &dyn Row) -> Result<Self, RowError> {
@@ -260,6 +275,10 @@ impl ColumnGroup for AgentMessageContent {
             Kind::RebuiltContext => Self::RebuiltContext {
                 reason: read_column(row, "reason")?,
             },
+            Kind::Agenda => Self::Agenda(AgentAgendaUpdate {
+                change: read_column(row, "agenda_change")?,
+                items: read_column::<Json<Vec<String>>>(row, "agenda")?.0,
+            }),
         })
     }
 
@@ -340,6 +359,11 @@ impl ColumnGroup for AgentMessageContent {
                 reason,
                 ..Columns::of(Kind::RebuiltContext)
             },
+            Self::Agenda(update) => Columns {
+                agenda_change: Some(update.change),
+                ..Columns::text(Kind::Agenda, update.changed_text())
+            }
+            .listing(update.items),
         };
         vec![
             columns.kind.into_value(),
@@ -365,6 +389,8 @@ impl ColumnGroup for AgentMessageContent {
             columns.actor_session_id.into_value(),
             columns.stop.into_value(),
             columns.reason.into_value(),
+            columns.agenda_change.into_value(),
+            columns.agenda.map(Json).into_value(),
         ]
     }
 }

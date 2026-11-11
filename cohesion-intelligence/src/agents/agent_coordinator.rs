@@ -584,7 +584,7 @@ impl AgentCoordinator {
             .lock()
             .expect("the foreground turns lock is not poisoned")
             .entry(agent_id)
-            .or_default()
+            .or_insert_with(|| Arc::new(self.inner.messenger.turn(agent_id)))
             .clone()
     }
 

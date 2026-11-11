@@ -26,14 +26,14 @@ use super::storage_requests::{
 };
 use super::task_requests::TaskPage;
 use crate::model::{
-    Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, Article, Attachment,
-    CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
-    DocumentFolderProperty, Embed, EndpointModel, ExtensionHook, ExtensionPermission, Feed,
-    FeedSummary, IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage,
-    IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault,
-    IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource, RestoredItem, SavedTaskView,
-    SearchResult, SecuritySettings, StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection,
-    Version, VersionSummary, Workspace, WorkspaceResourceKind,
+    Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem,
+    Article, Attachment, CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem,
+    Document, DocumentFolder, DocumentFolderProperty, Embed, EndpointModel, ExtensionHook,
+    ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
+    IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
+    IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
+    RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings, TableRow, Tag,
+    Task, TaskFolder, TextSection, Version, VersionSummary, Workspace, WorkspaceResourceKind,
 };
 
 /// The payload of a successful reply.
@@ -112,6 +112,7 @@ pub enum ReplyData {
     AgentMessages(Vec<IntelligenceAgentMessage>),
     Attachments(Vec<Attachment>),
     AgentCues(Vec<IntelligenceAgentCue>),
+    AgentAgenda(Vec<AgentAgendaItem>),
     AgentRuns(Vec<IntelligenceAgentRun>),
     Activities(Vec<Activity>),
     Actors(Vec<Actor>),

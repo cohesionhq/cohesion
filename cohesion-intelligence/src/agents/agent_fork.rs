@@ -27,6 +27,7 @@ use cohesion_js::ScriptOutput;
 use jiff::Zoned;
 
 use super::actor_exchange;
+use super::agenda;
 use super::agent_activity::Work;
 use super::agent_error::AgentError;
 use super::agent_messenger::{AgentMessenger, AskMode, OwedReply, RunningFork};
@@ -460,6 +461,8 @@ struct Brief<'a> {
     /// The message in the conversation that stands for the fork, which the
     /// prompt carries itself.
     held: Option<i64>,
+    /// The agent's agenda as the fork's status lists it.
+    agenda: String,
     now: Zoned,
 }
 
@@ -506,6 +509,7 @@ async fn session(
             agent_transcript::fork_rights(turn.trace().initiative())
         ),
         held: opening.held,
+        agenda: turn.agenda().hear(&agenda::load(database, agent_id).await?),
         now: Zoned::now(),
     };
 
@@ -570,7 +574,7 @@ async fn carry_on(
     let cues = database.send(ListAgentCuesCommand { agent_id }).await?;
     let prompt = format!(
         "{}\n\n{prompt}",
-        agent_transcript::status(&cues, &brief.now)
+        agent_transcript::status(&cues, &brief.agenda, &brief.now)
     );
     Ok(Opened {
         session,
@@ -599,8 +603,9 @@ async fn open_background(
     Ok(Opened {
         session,
         prompt: format!(
-            "{}\n\n# {}\n{}",
+            "{}\n{}\n\n# {}\n{}",
             agent_transcript::time(&brief.now),
+            brief.agenda,
             brief.heading,
             brief.text
         ),
@@ -645,7 +650,7 @@ async fn open_new(
         session,
         prompt: format!(
             "{}\n\n# {}\n{}",
-            agent_transcript::status(&cues, &brief.now),
+            agent_transcript::status(&cues, &brief.agenda, &brief.now),
             brief.heading,
             brief.text
         ),

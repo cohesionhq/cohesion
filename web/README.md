@@ -244,6 +244,7 @@ only these exist:
   right of the sheet (`shell/ConversationGutter.svelte`) and takes what the
   conversation's header would otherwise carry, in a summary row as tall as that header over flat groups, all ruled by
   hairlines and inset a little from its edges (`ui/GutterCard.svelte`, `ui/GutterGroup.svelte`): for an agent its context size and what it is doing, its
+  agenda (the step it is on marked, finished ones struck through), its
   actor sessions not yet resolved, each with an eye-off icon to stop following it and the sidebar's archive
   icon to resolve it on hover or focus (always on touch), and its cues (`AgentGutter`), for a session where
   its actor, where it works and its model, then its usage as bars (`SessionGutter`); where it

@@ -11,10 +11,11 @@ use clap::{
 use cohesion_core::{
     invalidation::Invalidation,
     model::{
-        AgentAskReply, AgentCodeOutcome, AgentForwardedItemKind, AgentMemoryChange,
-        AgentMessageContent, AgentWake, IntelligenceAgent, IntelligenceAgentColor,
-        IntelligenceAgentMessage, IntelligenceAgentMessageSender, IntelligenceAgentPersonality,
-        IntelligenceAgentRunState, IntelligenceAgentVerbosity, MemoryScope,
+        AgentAgendaChange, AgentAskReply, AgentCodeOutcome, AgentForwardedItemKind,
+        AgentMemoryChange, AgentMessageContent, AgentWake, IntelligenceAgent,
+        IntelligenceAgentColor, IntelligenceAgentMessage, IntelligenceAgentMessageSender,
+        IntelligenceAgentPersonality, IntelligenceAgentRunState, IntelligenceAgentVerbosity,
+        MemoryScope,
     },
     protocol::{
         AcceptedResponse, Call, CreateIntelligenceAgentRequest, DeleteIntelligenceAgentRequest,
@@ -654,6 +655,14 @@ fn summary(message: &IntelligenceAgentMessage) -> Vec<String> {
             vec![format!("woke: task \"{title}\" was assigned to you")]
         }
         AgentMessageContent::RebuiltContext { .. } => vec!["context rebuilt".to_string()],
+        AgentMessageContent::Agenda(update) => {
+            let changed = truncate(&update.changed_text(), 100);
+            vec![match update.change {
+                AgentAgendaChange::Appended => format!("added to the agenda: {changed}"),
+                AgentAgendaChange::Finished => format!("finished: {changed}"),
+                AgentAgendaChange::Reset => "cleared the agenda".to_string(),
+            }]
+        }
     }
 }
 
