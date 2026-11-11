@@ -68,8 +68,8 @@ const LINK_KINDS: Record<ItemKind, LinkKind> = {
 	task: 'task',
 	document: 'document',
 	resource: 'resource',
-	database: 'database',
-	'database-row': 'databaseRow',
+	'document-folder': 'documentFolder',
+	contact: 'contact',
 	agent: 'agent',
 	'actor-session': 'actorSession',
 	article: 'article'

@@ -53,7 +53,7 @@ macro_rules! hook_events {
         pub(super) fn event_hook(event: DatabaseEventKind) -> Arc<dyn HookEvent> {
             match event {
                 $($(DatabaseEventKind::$event { $($field),* } => Arc::new($name { $($field),* }),)?)*
-                DatabaseEventKind::DatabaseFormulasStale { .. } => {
+                DatabaseEventKind::TableFormulasStale { .. } => {
                     unreachable!("HookManager hands formula work to the formula runner")
                 }
             }

@@ -47,6 +47,15 @@ pub(super) struct ScriptRequest<J> {
     _pressure: PressureGuard,
 }
 
+/// What a worker's thread receives: a script to run, or word to stop once
+/// the scripts queued ahead of it have run. Its thread also stops when every
+/// sender is gone, which a worker shared through the daemon never sees, so
+/// [`ScriptWorker::stop`] is how a shutdown ends it.
+pub(super) enum Message<J> {
+    Run(ScriptRequest<J>),
+    Stop,
+}
+
 /// What a fresh sandbox is built from: the database its scripts reach and
 /// the globals it mounts.
 #[derive(Clone)]
@@ -65,7 +74,7 @@ pub(super) struct FreshJob {
 /// scripts in order: ephemeral, taking [`FreshJob`]s, or persistent, taking
 /// [`ScriptJob`]s for its one sandbox.
 pub(super) struct ScriptWorker<J = ScriptJob> {
-    pub(super) tx: mpsc::Sender<ScriptRequest<J>>,
+    pub(super) tx: mpsc::Sender<Message<J>>,
     pressure: Arc<AtomicI64>,
 }
 
@@ -85,9 +94,9 @@ impl ScriptWorker<FreshJob> {
     /// only that job. Each sandbox is served by `hosts`; with `None`,
     /// `services.use` and `actors` throw.
     pub(super) fn ephemeral(options: SandboxOptions, hosts: Option<Hosts>) -> Self {
-        let (tx, mut rx) = mpsc::channel::<ScriptRequest<FreshJob>>(64);
+        let (tx, mut rx) = mpsc::channel::<Message<FreshJob>>(64);
         thread::spawn(move || {
-            while let Some(request) = rx.blocking_recv() {
+            while let Some(Message::Run(request)) = rx.blocking_recv() {
                 let FreshJob { spec, job } = request.job;
                 let run = || match Sandbox::new(options, spec.database, &spec.mounts, None) {
                     Ok(sandbox) => {
@@ -112,10 +121,10 @@ impl ScriptWorker<MermaidJob> {
     /// A worker that draws diagrams with one renderer it keeps between them,
     /// held to `options`. A panic in a job costs only that job.
     pub(super) fn mermaid(options: SandboxOptions, queue_limit: Duration) -> Self {
-        let (tx, mut rx) = mpsc::channel::<ScriptRequest<MermaidJob>>(64);
+        let (tx, mut rx) = mpsc::channel::<Message<MermaidJob>>(64);
         thread::spawn(move || {
             let mut renderer = None;
-            while let Some(request) = rx.blocking_recv() {
+            while let Some(Message::Run(request)) = rx.blocking_recv() {
                 survive_panic(|| request.job.run(&mut renderer, options, queue_limit));
             }
         });
@@ -131,10 +140,10 @@ impl ScriptWorker<FormulaJob> {
     /// jobs, with the formulas it compiled, held to `options`. A panic in a
     /// job costs only that job, and the runtime with it.
     pub(super) fn formula(options: SandboxOptions) -> Self {
-        let (tx, mut rx) = mpsc::channel::<ScriptRequest<FormulaJob>>(64);
+        let (tx, mut rx) = mpsc::channel::<Message<FormulaJob>>(64);
         thread::spawn(move || {
             let mut runtime = None;
-            while let Some(request) = rx.blocking_recv() {
+            while let Some(Message::Run(request)) = rx.blocking_recv() {
                 survive_panic(|| request.job.run(&mut runtime, options));
             }
         });
@@ -161,7 +170,7 @@ impl ScriptWorker<ScriptJob> {
         closing: ScriptStop,
     ) -> Result<Self, ScriptError> {
         let (setup_tx, setup_rx) = oneshot::channel::<Result<(), ScriptError>>();
-        let (tx, mut rx) = mpsc::channel::<ScriptRequest<ScriptJob>>(64);
+        let (tx, mut rx) = mpsc::channel::<Message<ScriptJob>>(64);
 
         let worker = Self {
             tx,
@@ -209,12 +218,14 @@ impl ScriptWorker<ScriptJob> {
                             tx,
                             pressure: pressure.clone(),
                         };
-                        // Execute function, await until it exits.
+                        // Execute function, await until it exits: `submit` only
+                        // queues the call, so the call itself says when it is done.
                         // This will prevent flooding, as the missed tick behavior
                         // is set to SKIP.
                         let fn_name = fn_name.clone();
                         let scope = scope.clone();
-                        _ = worker
+                        let (done, finished) = oneshot::channel::<()>();
+                        let queued = worker
                             .submit(Box::new(move |sandbox| {
                                 if let Err(err) = sandbox.and_then(|sbx| sbx.call(&fn_name)) {
                                     log_error!(
@@ -222,8 +233,13 @@ impl ScriptWorker<ScriptJob> {
                                         "{scope}: timer {fn_name} failed: {err}"
                                     );
                                 }
+                                _ = done.send(());
                             }))
                             .await;
+                        if queued.is_ok() {
+                            // An error is a call dropped unrun, which is done too.
+                            _ = finished.await;
+                        }
                     }
                 });
                 if let Some(existing) = handles.remove(&timer.function_name) {
@@ -253,7 +269,7 @@ impl ScriptWorker<ScriptJob> {
 
             _ = setup_tx.send(Ok(()));
 
-            while let Some(request) = rx.blocking_recv() {
+            while let Some(Message::Run(request)) = rx.blocking_recv() {
                 let run = || (request.job)(Ok(&shared_sandbox));
                 survive_panic(run);
             }
@@ -279,10 +295,16 @@ impl<J> ScriptWorker<J> {
             .reserve()
             .await
             .map_err(|_| ScriptError::Cancelled)?;
-        permit.send(ScriptRequest {
+        permit.send(Message::Run(ScriptRequest {
             job,
             _pressure: pressure,
-        });
+        }));
         Ok(())
+    }
+
+    /// Ends this worker's thread once the scripts queued ahead have run.
+    /// Scripts submitted after are cancelled.
+    pub(super) async fn stop(&self) {
+        _ = self.tx.send(Message::Stop).await;
     }
 }

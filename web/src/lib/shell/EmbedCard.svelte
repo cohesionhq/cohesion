@@ -1,11 +1,11 @@
 <!--
 	A `cohesion://` link alone on its line, shown as a card of the item it
-	names (`embeds`): its icon (a task's box, an agent's avatar, a session's
-	status), its title, what it is, then the start of its text; a database
-	adds its first rows as a small table, and a database row a few of its
-	values before its document's text. A click opens
-	it over the page, as the link would (`linkedItem.follow`), or goes to a
-	database's table. While it
+	names (`embeds`): its icon (a task's box, an agent's avatar, a contact's
+	photo or initials, a session's status), its title, what it is, then the
+	start of its text; a folder adds its first documents, as a small table
+	under their titles when it is a table. A click opens it over the page, as
+	the link would (`linkedItem.follow`), or goes to the Documents page at a
+	folder. While it
 	resolves, the link's own text shimmers; once its item is gone, the text
 	stays, quiet, with "Task not found"; if it can't be resolved, it is the
 	plain link.
@@ -13,13 +13,21 @@
 <script lang="ts">
 	import type { Component } from 'svelte';
 	import { publishedDate } from '$lib/features/articles/published';
-	import { cellValue, formatValue, isNumeric } from '$lib/features/databases/values';
+	import ChoicePill from '$lib/features/tables/ChoicePill.svelte';
+	import {
+		cellValue,
+		formatValue,
+		isNumeric,
+		optionOf,
+		optionsOf
+	} from '$lib/features/tables/values';
 	import { longDay, localDay, shortDay } from '$lib/format/dates';
-	import type { DatabaseProperty, DatabaseRowEntry, Embed } from '$lib/protocol/types';
+	import type { DocumentFolderProperty, Embed, TableRow } from '$lib/protocol/types';
 	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 	import { connectors } from '$lib/stores/connectors.svelte';
 	import { embeds } from '$lib/stores/embeds.svelte';
 	import AgentAvatar from '$lib/ui/AgentAvatar.svelte';
+	import Photo from '$lib/ui/Photo.svelte';
 	import Shimmer from '$lib/ui/Shimmer.svelte';
 	import StatusIcon from '$lib/ui/StatusIcon.svelte';
 	import { embedIcon, KIND_ICONS } from './embedIcons';
@@ -52,8 +60,8 @@
 		task: 'Task not found',
 		document: 'Document not found',
 		resource: 'Resource not found',
-		database: 'Database not found',
-		'database-row': 'Row not found',
+		'document-folder': 'Folder not found',
+		contact: 'Contact not found',
 		agent: 'Agent not found',
 		'actor-session': 'Session not found',
 		article: 'Article not found'
@@ -75,6 +83,8 @@
 					: kind;
 			case 'resource':
 				return connectors.kindTitle(item.resource);
+			case 'contact':
+				return [kind, item.contact.methods[0]?.value].filter(Boolean).join(' · ');
 			case 'agent':
 				return kind;
 			case 'actorSession':
@@ -83,33 +93,29 @@
 					.join(' · ');
 			case 'article':
 				return `${item.feed_title} · ${publishedDate(item.article)}`;
-			case 'database':
-				return `${kind} · ${item.row_count === 1 ? '1 row' : `${item.row_count} rows`}`;
-			case 'databaseRow':
-				return `${kind} · ${item.database_title}`;
+			case 'documentFolder': {
+				const count = item.row_count;
+				return item.folder.is_table
+					? `Table · ${count === 1 ? '1 row' : `${count} rows`}`
+					: `${kind} · ${count === 1 ? '1 document' : `${count} documents`}`;
+			}
 		}
 	}
 
-	/** The most columns a database's card shows. */
-	const PREVIEW_COLUMNS = 5;
-	/** The most values a row's card shows. */
-	const ROW_VALUES = 4;
+	/** The most columns a table's card shows besides the title. */
+	const PREVIEW_COLUMNS = 4;
 
 	/** A value as a card shows it: a checkbox only when checked, an empty one blank. */
-	function shownValue(row: DatabaseRowEntry, property: DatabaseProperty): string {
+	function shownValue(row: TableRow, property: DocumentFolderProperty): string {
 		const value = cellValue(row, property.id);
 		if (value === null || (value.type === 'checkbox' && !value.value)) return '';
-		return formatValue(value);
+		return formatValue(value, optionsOf(property));
 	}
 
-	/** A row's values worth showing on its card: those it holds, but the one its label is. */
-	function rowValues(row: DatabaseRowEntry, properties: DatabaseProperty[]) {
-		const labelled = properties.find((p) => p.data_type === 'text');
-		return properties
-			.filter((p) => p.id !== labelled?.id)
-			.map((p) => ({ property: p, text: shownValue(row, p) }))
-			.filter((v) => v.text !== '')
-			.slice(0, ROW_VALUES);
+	/** A choice's option, drawn as its pill; null for any other value or none. */
+	function shownOption(row: TableRow, property: DocumentFolderProperty) {
+		const value = cellValue(row, property.id);
+		return value?.type === 'choice' ? optionOf(optionsOf(property), value.value) : null;
 	}
 
 	const card =
@@ -136,6 +142,10 @@
 					emoji={embed.item.agent.agent_emoji}
 					size="sm"
 				/>
+			{:else if embed.item.kind === 'contact'}
+				<span class="inline-flex size-7 flex-none items-center justify-center">
+					<Photo photo={embed.item.contact.photo} name={embed.title} size="sm" />
+				</span>
 			{:else if embed.item.kind === 'actorSession'}
 				<span class="inline-flex size-7 flex-none items-center justify-center">
 					<StatusIcon status={embed.item.session.status} unread={embed.item.session.unread} />
@@ -155,54 +165,57 @@
 					>
 					<span class="min-w-0 shrink-[2] truncate text-xs text-fg-subtle">{detail(embed)}</span>
 				</span>
-				{#if embed.item.kind === 'databaseRow'}
-					{@const values = rowValues(embed.item.row, embed.item.properties)}
-					{#if values.length}
-						<span class="flex min-w-0 flex-wrap gap-x-4 gap-y-0.5 text-xs">
-							{#each values as { property, text } (property.id)}
-								<span class="flex min-w-0 gap-1.5">
-									<span class="flex-none text-fg-subtle">{property.name}</span>
-									<span class="min-w-0 truncate text-fg-muted">{text}</span>
-								</span>
-							{/each}
-						</span>
-					{/if}
-				{/if}
 				{#if embed.excerpt}
 					<span class="line-clamp-2 text-xs text-fg-muted">{embed.excerpt}</span>
 				{/if}
-				{#if embed.item.kind === 'database' && embed.item.properties.length && embed.item.rows.length}
+				{#if embed.item.kind === 'documentFolder' && embed.item.rows.length}
 					{@const columns = embed.item.properties.slice(0, PREVIEW_COLUMNS)}
-					<span class="mt-1.5 block min-w-0 overflow-hidden">
-						<table class="w-full table-fixed border-collapse text-xs">
-							<thead>
-								<tr class="border-b border-border">
-									{#each columns as property (property.id)}
-										<th
-											class={[
-												'truncate px-1.5 py-1 font-medium text-fg-subtle first:pl-0',
-												isNumeric(property.data_type) ? 'text-right' : 'text-left'
-											]}>{property.name}</th
-										>
-									{/each}
-								</tr>
-							</thead>
-							<tbody>
-								{#each embed.item.rows as row (row.id)}
-									<tr class="border-b border-border last:border-b-0">
+					{#if columns.length}
+						<span class="mt-1.5 block min-w-0 overflow-hidden">
+							<table class="w-full table-fixed border-collapse text-xs">
+								<thead>
+									<tr class="border-b border-border">
+										<th class="truncate py-1 pr-1.5 text-left font-medium text-fg-subtle">Title</th>
 										{#each columns as property (property.id)}
-											<td
+											<th
 												class={[
-													'truncate px-1.5 py-1 text-fg-muted first:pl-0',
-													isNumeric(property.data_type) && 'text-right tabular-nums'
-												]}>{shownValue(row, property)}</td
+													'truncate px-1.5 py-1 font-medium text-fg-subtle',
+													isNumeric(property.data_type) ? 'text-right' : 'text-left'
+												]}>{property.name}</th
 											>
 										{/each}
 									</tr>
-								{/each}
-							</tbody>
-						</table>
-					</span>
+								</thead>
+								<tbody>
+									{#each embed.item.rows as row (row.document_id)}
+										<tr class="border-b border-border last:border-b-0">
+											<td class="truncate py-1 pr-1.5 text-fg">{row.title}</td>
+											{#each columns as property (property.id)}
+												{@const option = shownOption(row, property)}
+												<td
+													class={[
+														'truncate px-1.5 py-1 text-fg-muted',
+														isNumeric(property.data_type) && 'text-right tabular-nums'
+													]}
+													>{#if option}<ChoicePill {option} />{:else}{shownValue(
+															row,
+															property
+														)}{/if}</td
+												>
+											{/each}
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</span>
+					{:else}
+						<!-- A plain folder: its first documents' titles. -->
+						<span class="mt-1 flex min-w-0 flex-col text-xs text-fg-muted">
+							{#each embed.item.rows as row (row.document_id)}
+								<span class="truncate">{row.title}</span>
+							{/each}
+						</span>
+					{/if}
 				{/if}
 			</span>
 		{:else if loaded}

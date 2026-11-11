@@ -1,6 +1,7 @@
 <!--
 	A workspace's contacts, by last name, each row its photo, its name and the
 	first way to reach them; a row opens the contact's panel, where it is edited.
+	A link or search lands here with `?contact=`, which opens that contact's panel.
 -->
 <script lang="ts">
 	import Plus from '@lucide/svelte/icons/plus';
@@ -50,6 +51,20 @@
 	function show(id: number) {
 		openId = id;
 		panelOpen = true;
+	}
+
+	// Open the contact `?contact=` names, then drop the parameter.
+	$effect(() => {
+		const param = page.url.searchParams.get('contact');
+		if (param === null) return;
+		untrack(() => void reveal(Number(param)));
+	});
+
+	async function reveal(id: number) {
+		show(id);
+		const url = new URL(page.url);
+		url.searchParams.delete('contact');
+		await page.goto(url.pathname + url.search, { replaceState: true });
 	}
 </script>
 

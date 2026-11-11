@@ -20,13 +20,12 @@ pub enum Invalidation {
     /// deleted, journals included.
     Documents(i64),
     /// A workspace's document folders changed: one was created, renamed,
-    /// moved or deleted.
+    /// moved or deleted, or became a table or stopped being one.
     DocumentFolders(i64),
-    /// A workspace's databases changed: one was created, renamed or deleted.
-    Databases(i64),
-    /// Anything in database `id` changed: its title, a property, a row, a
-    /// value, or which rows have a document.
-    Database(i64),
+    /// The table of document folder `id` changed: a property was added,
+    /// changed, moved or deleted, a value was set or computed, or a document
+    /// came into the folder, left it, was renamed or deleted.
+    DocumentTable(i64),
     /// The tasks in one list changed; a `None` folder is the inbox.
     TaskList {
         workspace_id: i64,

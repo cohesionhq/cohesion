@@ -40,6 +40,8 @@ struct Column {
     ty: Type,
     storage: Storage,
     read_from: Read,
+    /// A group that reads more than its columns (`#[model(group, reads)]`).
+    reads: bool,
 }
 
 impl Column {
@@ -74,6 +76,11 @@ impl Column {
                     <#ty as ::cohesion_core::stored_model::ColumnGroup>::COLUMNS
                         .iter()
                         .map(|column| format!("{}.{}", #table, column)),
+                );
+                items.extend(
+                    <#ty as ::cohesion_core::stored_model::ColumnGroup>::READS
+                        .iter()
+                        .map(|(name, sql)| format!("{} AS {}", sql, name)),
                 );
             },
             (_, Read::Column) => quote! { items.push(format!("{}.{}", #table, #name)); },
@@ -167,6 +174,7 @@ pub(crate) fn model(input: DeriveInput) -> syn::Result<TokenStream> {
     for (index, field) in fields.enumerate() {
         let ident = field.ident.clone().expect("named fields have identifiers");
         let mut skip = false;
+        let mut reads = false;
         let mut storage = Storage::Plain;
         let mut read_from = Read::Column;
         for attr in field.attrs.iter().filter(|a| a.path().is_ident("model")) {
@@ -177,6 +185,8 @@ pub(crate) fn model(input: DeriveInput) -> syn::Result<TokenStream> {
                     storage = Storage::Json;
                 } else if meta.path.is_ident("group") {
                     storage = Storage::Group;
+                } else if meta.path.is_ident("reads") {
+                    reads = true;
                 } else if meta.path.is_ident("expr") {
                     let term: Term = meta.value()?.parse()?;
                     term.check_model(&referable)?;
@@ -195,8 +205,8 @@ pub(crate) fn model(input: DeriveInput) -> syn::Result<TokenStream> {
                     read_from = Read::OrFrom(model);
                 } else {
                     return Err(meta.error(
-                        "expected `skip`, `json`, `group`, `expr = ...`, `coalesce(...)` \
-                         or `or_from = Model`",
+                        "expected `skip`, `json`, `group`, `reads`, `expr = ...`, \
+                         `coalesce(...)` or `or_from = Model`",
                     ));
                 }
                 Ok(())
@@ -208,6 +218,23 @@ pub(crate) fn model(input: DeriveInput) -> syn::Result<TokenStream> {
                 "`expr`, `coalesce` and `or_from` change how one stored column is read: a `skip` or \
                  `group` field has no single column",
             ));
+        }
+        if reads && !matches!(storage, Storage::Group) {
+            return Err(syn::Error::new_spanned(
+                &ident,
+                "`reads` marks a `group` field whose group reads more than its columns",
+            ));
+        }
+        if matches!(storage, Storage::Group) && !reads {
+            // A group that reads more than its columns must say so, or its
+            // model would claim `RETURNING *` reads it.
+            let ty = &field.ty;
+            checks.push(quote! {
+                const _: () = assert!(
+                    <#ty as ::cohesion_core::stored_model::ColumnGroup>::READS.is_empty(),
+                    "this group reads more than its columns: mark its field `#[model(group, reads)]`",
+                );
+            });
         }
         if let Read::OrFrom(joined) = &read_from {
             // The joined model must have a field of this name and type.
@@ -223,6 +250,7 @@ pub(crate) fn model(input: DeriveInput) -> syn::Result<TokenStream> {
             ty: field.ty.clone(),
             storage,
             read_from,
+            reads,
         };
         if column.name() == "id" {
             if skip
@@ -254,8 +282,10 @@ pub(crate) fn model(input: DeriveInput) -> syn::Result<TokenStream> {
 
     // `RETURNING *` reads a row of the table alone: only a model that joins
     // nothing and reads every field from its column can be read from one.
-    let single_table =
-        joins.is_empty() && columns.iter().all(|c| matches!(c.read_from, Read::Column));
+    let single_table = joins.is_empty()
+        && columns
+            .iter()
+            .all(|c| matches!(c.read_from, Read::Column) && !c.reads);
     let single_table = single_table.then(|| {
         quote! { impl ::cohesion_core::stored_model::SingleTable for #name {} }
     });

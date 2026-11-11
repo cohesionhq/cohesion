@@ -1,20 +1,20 @@
 use std::time::Duration;
 
-use cohesion_core::model::{DatabaseDataType, DatabaseValue};
+use cohesion_core::model::{PropertyDataType, PropertyValue};
 
 use super::{
     CACHE_SIZE, Formula, FormulaOutput, FormulaRow, FormulaRuntime, NOT_A_FUNCTION, TOO_SLOW,
 };
 use crate::sandbox::SandboxOptions;
 
-use DatabaseDataType as T;
-use DatabaseValue as V;
+use PropertyDataType as T;
+use PropertyValue as V;
 
 fn runtime() -> FormulaRuntime {
     FormulaRuntime::new(SandboxOptions::FORMULA).unwrap()
 }
 
-fn formula(property_id: i64, data_type: DatabaseDataType, source: &str) -> Formula {
+fn formula(property_id: i64, data_type: PropertyDataType, source: &str) -> Formula {
     Formula {
         property_id,
         source: source.to_string(),
@@ -31,7 +31,7 @@ fn book(pages: Option<i64>, title: &str) -> FormulaRow {
 }
 
 /// What `source`, a formula of `data_type`, gives for one book.
-fn one(data_type: DatabaseDataType, source: &str) -> FormulaOutput {
+fn one(data_type: PropertyDataType, source: &str) -> FormulaOutput {
     let run = runtime().evaluate(&formula(1, data_type, source), &[book(Some(412), "Dune")]);
     assert!(run.stopped.is_none());
     run.outputs.into_iter().next().unwrap()

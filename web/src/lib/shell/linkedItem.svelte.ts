@@ -30,6 +30,7 @@ export type LinkedItem =
 	  }
 	| { kind: 'document'; document: Document }
 	| { kind: 'resource'; resource: Resource }
+	| { kind: 'contact'; contact: Contact }
 	| { kind: 'agent'; agent: IntelligenceAgent }
 	| {
 			kind: 'actor-session';
@@ -39,14 +40,8 @@ export type LinkedItem =
 			messages: ActorSessionMessage[];
 	  }
 	| { kind: 'article'; article: Article; feedTitle: string }
-	| {
-			kind: 'database-row';
-			ws: number;
-			database: number;
-			row: number;
-			/** The row's label as it resolved, shown until the row itself loads. */
-			label: string;
-	  };
+	/** A document whose folder is a table, opened as its row, with its values. */
+	| { kind: 'table-row'; document: Document };
 
 /**
  * The item a `cohesion://` link or a forward opens: one panel, mounted once
@@ -57,11 +52,11 @@ class LinkedItems {
 	open = $state(false);
 
 	/**
-	 * Finds the item `link` names and opens it, or says it is gone. A
-	 * database has no panel: it goes to its table.
+	 * Finds the item `link` names and opens it, or says it is gone. A folder
+	 * has no panel: it goes to the Documents page at it.
 	 */
 	async show(link: ItemLink): Promise<void> {
-		if (link.kind === 'database') {
+		if (link.kind === 'document-folder') {
 			await goto(itemLinkRoute(link));
 			return;
 		}
@@ -81,11 +76,11 @@ class LinkedItems {
 	/**
 	 * A click on a link to `link` opens it over the page, unless it is
 	 * opened elsewhere (a modifier or another button), when the link's Open
-	 * page goes to it. A database has no panel, so its link goes to its table
-	 * as any link would.
+	 * page goes to it. A folder has no panel, so its link goes to the
+	 * Documents page at it as any link would.
 	 */
 	follow(event: MouseEvent, link: ItemLink): void {
-		if (event.button !== 0 || link.kind === 'database') return;
+		if (event.button !== 0 || link.kind === 'document-folder') return;
 		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
 		event.preventDefault();
 		void this.show(link);
@@ -96,8 +91,8 @@ const NAMES: Record<ItemLink['kind'], string> = {
 	task: 'Task',
 	document: 'Document',
 	resource: 'Resource',
-	database: 'Database',
-	'database-row': 'Row',
+	'document-folder': 'Folder',
+	contact: 'Contact',
 	agent: 'Agent',
 	'actor-session': 'Actor session',
 	article: 'Article'
@@ -118,10 +113,20 @@ async function find(link: ItemLink): Promise<LinkedItem | null> {
 			]);
 			return { kind: 'task', task, folders, tags, contacts };
 		}
-		case 'document':
-			return { kind: 'document', document: item.document };
+		case 'document': {
+			const { document } = item;
+			// A document in a table opens as its row, with its values.
+			if (document.folder_id === null) return { kind: 'document', document };
+			const properties = await send('listDocumentFolderProperties', {
+				workspace_id: document.workspace_id,
+				folder_id: document.folder_id
+			});
+			return { kind: properties.length > 0 ? 'table-row' : 'document', document };
+		}
 		case 'resource':
 			return { kind: 'resource', resource: item.resource };
+		case 'contact':
+			return { kind: 'contact', contact: item.contact };
 		case 'agent':
 			return { kind: 'agent', agent: item.agent };
 		case 'actorSession': {
@@ -137,18 +142,8 @@ async function find(link: ItemLink): Promise<LinkedItem | null> {
 			const article = await send('getArticle', { article_id: item.article.id });
 			return { kind: 'article', article, feedTitle: item.feed_title };
 		}
-		// A link to a row's document resolves as its row, and opens as it.
-		case 'databaseRow':
-			if (embed.workspace_id === null) return null;
-			return {
-				kind: 'database-row',
-				ws: embed.workspace_id,
-				database: item.row.database_id,
-				row: item.row.id,
-				label: embed.title
-			};
-		// A database has no panel; `show` sends it to its table.
-		case 'database':
+		// A folder has no panel; `show` sends it to the Documents page at it.
+		case 'documentFolder':
 			return null;
 	}
 }

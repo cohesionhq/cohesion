@@ -53,12 +53,14 @@
 {/if}
 
 <style>
+	/* Grey, but keeping most of the logo's own contrast, so its dark and light parts stay apart. */
 	.quiet {
-		filter: grayscale(1) contrast(0.3) brightness(1.15);
+		filter: grayscale(1) contrast(0.8) brightness(1.1);
 	}
+	/* Lifted in the dark, so a black logo keeps its edge on the near-black canvas. */
 	@media (prefers-color-scheme: dark) {
 		.quiet {
-			filter: grayscale(1) contrast(0.3) brightness(1.05);
+			filter: grayscale(1) contrast(0.75) brightness(1.35);
 		}
 	}
 </style>

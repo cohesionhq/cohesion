@@ -1,8 +1,14 @@
+use std::time::Duration;
+
 use cohesion_core::{log::Module, log_info, model::CatalogModel};
 use cohesion_db::{DatabaseContext, UpdateCatalogModelsCommand};
 
 use super::catalog_error::CatalogError;
 use super::models_dev_schema::{Catalog, Model, Provider, TierCondition};
+
+/// How long the catalog may take to arrive, body included. Without a limit a
+/// connection that stalls would keep the update waiting for good.
+const CATALOG_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Clone, Debug)]
 pub struct ModelCatalog {
@@ -14,11 +20,15 @@ impl ModelCatalog {
     }
 
     pub async fn update(&self) -> Result<(), CatalogError> {
-        let download = reqwest::get("https://models.dev/catalog.json").await;
-        let download = match download {
-            Ok(download) => download,
-            Err(e) => return Err(CatalogError::CannotDownload(e.to_string())),
-        };
+        let download = reqwest::Client::builder()
+            .timeout(CATALOG_TIMEOUT)
+            .build()
+            .map_err(|err| CatalogError::CannotDownload(err.to_string()))?
+            .get("https://models.dev/catalog.json")
+            .send()
+            .await
+            .and_then(reqwest::Response::error_for_status)
+            .map_err(|err| CatalogError::CannotDownload(err.to_string()))?;
 
         let bytes = download
             .bytes()

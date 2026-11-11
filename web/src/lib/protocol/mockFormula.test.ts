@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { formulaStarter } from '$lib/features/databases/formulas';
-import type { DatabaseDataType, DatabaseProperty } from './types';
+import { formulaStarter } from '$lib/features/tables/formulas';
+import type { PropertyDataType, DocumentFolderProperty } from './types';
 import { compileMockFormula } from './mockFormula';
 
 const row = { Title: 'Dune', Pages: 412, Rating: 4.5, 'Unit price': 2.5, Read: true, Empty: null };
@@ -38,9 +38,13 @@ describe('mock formulas', () => {
 	});
 
 	it('runs every starter the formula editor offers', () => {
-		const property = (id: number, name: string, data_type: DatabaseDataType): DatabaseProperty => ({
+		const property = (
+			id: number,
+			name: string,
+			data_type: Exclude<PropertyDataType, 'choice'>
+		): DocumentFolderProperty => ({
 			id,
-			database_id: 1,
+			folder_id: 1,
 			name,
 			data_type,
 			sort_order: id,
@@ -53,7 +57,7 @@ describe('mock formulas', () => {
 			property(4, 'Read', 'checkbox'),
 			property(5, 'Finished', 'date')
 		];
-		const types: DatabaseDataType[] = [
+		const types: PropertyDataType[] = [
 			'text',
 			'integer',
 			'decimal',

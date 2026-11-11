@@ -13,7 +13,7 @@ use tokio::task::AbortHandle;
 
 use super::hook_events::{HookEvent, HookInstance, event_hook};
 use super::hook_receiver::HookReceiver;
-use crate::database_formulas::FormulaQueue;
+use crate::table_formulas::FormulaQueue;
 
 /// How long a journal or document goes without a save before its settled
 /// hook runs.
@@ -28,7 +28,7 @@ pub struct HookManager {
     pub(super) work: WorkTracker,
     /// Database events arrive on the worker thread, outside the runtime.
     pub(super) runtime: Handle,
-    /// Where stale database formulas go instead of the hooks.
+    /// Where stale table formulas go instead of the hooks.
     formulas: FormulaQueue,
 }
 
@@ -49,7 +49,7 @@ impl std::fmt::Debug for Settling {
 
 impl HookManager {
     /// Must be called inside the tokio runtime, which runs the settle timers.
-    /// Stale database formulas raise no hook and go to `formulas`.
+    /// Stale table formulas raise no hook and go to `formulas`.
     pub(crate) fn new(work: WorkTracker, formulas: FormulaQueue) -> (HookManager, HookReceiver) {
         let (tx, rx) = mpsc::unbounded_channel::<HookInstance>();
         let manager = Self {
@@ -158,9 +158,7 @@ impl DatabaseEventListener for HookManager {
             | DatabaseEventKind::DocumentSaved { document_id, .. } => {
                 self.settle(document_id, event_hook(event.kind), event.trace)
             }
-            DatabaseEventKind::DatabaseFormulasStale { database_id } => {
-                self.formulas.queue(database_id)
-            }
+            DatabaseEventKind::TableFormulasStale { folder_id } => self.formulas.queue(folder_id),
             kind => {
                 self.queue(event_hook(kind), None, event.trace);
             }

@@ -278,7 +278,7 @@ list), `append(column, text)` and `append_line` on an `Update`. There is no
 - `filter_day(column, DayFilter)`.
 - `order_bound(order, value)` on a `Select`: an `ORDER BY` with one `?`,
   bound after the filters' whatever order they were added in, for a sort key
-  read through a subquery on an id from the wire (the database rows query).
+  read through a subquery on an id from the wire (the table rows query).
 
 These take a column by name and qualify it with the model's table.
 `raw_set` and `set_group` debug-assert that the column is one of the
@@ -321,6 +321,14 @@ The schema should still hold the same rule in a `CHECK`. The group's columns
 are columns of the model for `filter`s, so none may share a name with the
 model's other columns or another group's; the derive refuses to compile one
 that does.
+
+A group whose variants carry rows of another table, as a choice property
+carries its options (`PropertyType`), implements `ColumnGroup` by hand and
+names that SQL in `READS` (`(name, sql)`, selected `AS` the name its
+`from_row` reads); the field is marked `#[model(group, reads)]`, which keeps
+the model from being `SingleTable`, since `RETURNING *` can't read them, and
+the derive refuses an unmarked field whose group reads any. What it reads is
+never written by `set_group`: those rows have commands of their own.
 
 Prefer a group to nullable columns read one by one. When a row is one of
 several kinds, each with columns only it uses, the group makes the

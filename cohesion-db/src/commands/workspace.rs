@@ -13,6 +13,7 @@ use super::emoji::emoji;
 use crate::changed::{Changed, Invalidates};
 use crate::command_error::searched;
 use crate::commands::title::ensure_title;
+use crate::commands::workspace_scope::ensure_workspace;
 use crate::{
     CommandContext, DatabaseCommand, DatabaseCommandResult, DatabaseEventKind, Filtered, Found,
     Read, ReadableDatabase, Write,
@@ -164,6 +165,7 @@ impl DatabaseCommand for SearchWorkspaceCommand {
     type Response = Vec<SearchResult>;
     type Access = Read;
     fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Self::Response> {
+        ensure_workspace(ctx.db, self.workspace_id)?;
         let query = "SELECT entry.id,
             idx.title,
             idx.contents,

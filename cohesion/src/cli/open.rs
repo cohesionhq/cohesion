@@ -39,7 +39,11 @@ pub async fn run(ctx: &Context, args: OpenArgs) -> Result<(), CliError> {
         target: ctx.target(),
     };
     let token = if args.dev {
-        std::env::var(DEV_TOKEN_VARIABLE).map_err(|_| CliError::MissingDevToken)?
+        // An empty token is one any local software could present.
+        std::env::var(DEV_TOKEN_VARIABLE)
+            .ok()
+            .filter(|token| !token.is_empty())
+            .ok_or(CliError::MissingDevToken)?
     } else {
         launch_token::saved(ctx.storage_path(), args.reset_token).map_err(CliError::Storage)?
     };

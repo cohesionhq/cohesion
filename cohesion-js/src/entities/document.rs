@@ -4,7 +4,7 @@ use cohesion_core::Document;
 use cohesion_core::model::VersionTarget;
 use cohesion_db::{
     AppendToDocumentCommand, GetDocumentFolderCommand, ListVersionsCommand, MoveDocumentCommand,
-    commands::EditDocumentCommand,
+    commands::{DeleteDocumentCommand, EditDocumentCommand, RenameDocumentCommand},
 };
 use cohesion_macros::js_entity;
 use rquickjs::{Class, Ctx};
@@ -108,6 +108,34 @@ impl JsDocument {
                 workspace_id: self.inner.workspace_id,
                 document_id: self.inner.id,
                 folder_id: folder.map(|folder| folder.borrow().inner().id),
+            },
+        )?;
+        Ok(())
+    }
+    /// Changes the document's title. Saved immediately; `modified` updates
+    /// too. An empty title throws.
+    pub fn rename<'js>(&mut self, ctx: Ctx<'js>, title: String) -> rquickjs::Result<()> {
+        self.inner = self.write(
+            &ctx,
+            RenameDocumentCommand {
+                workspace_id: self.inner.workspace_id,
+                document_id: self.inner.id,
+                title,
+            },
+        )?;
+        Ok(())
+    }
+    /// Deletes this document; it disappears from listings and `deleted`
+    /// becomes `true`.
+    ///
+    /// Saved immediately. Rewind can bring it back, except a database row's
+    /// document, which is removed for good.
+    pub fn delete<'js>(&mut self, ctx: Ctx<'js>) -> rquickjs::Result<()> {
+        self.inner = self.write(
+            &ctx,
+            DeleteDocumentCommand {
+                workspace_id: self.inner.workspace_id,
+                document_id: self.inner.id,
             },
         )?;
         Ok(())

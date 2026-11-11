@@ -77,16 +77,21 @@ export function touches(key: Invalidation, link: string, embed: Embed | null): b
 				return workspaceGone || (key.kind === 'documents' && key.id === ws);
 			case 'resource':
 				return workspaceGone || (key.kind === 'resources' && key.id === ws);
+			case 'contact':
+				return workspaceGone || (key.kind === 'contacts' && key.id === ws);
 			case 'agent':
 				return key.kind === 'agent' && key.id === item.agent.id;
 			case 'actorSession':
 				return key.kind === 'actorSession' && key.id === item.session.id;
 			case 'article':
 				return key.kind === 'feedArticles';
-			case 'database':
-				return workspaceGone || (key.kind === 'database' && key.id === item.database.id);
-			case 'databaseRow':
-				return workspaceGone || (key.kind === 'database' && key.id === item.row.database_id);
+			// A folder's rows and columns, or its title and whether it is a table.
+			case 'documentFolder':
+				return (
+					workspaceGone ||
+					(key.kind === 'documentTable' && key.id === item.folder.id) ||
+					(key.kind === 'documentFolders' && key.id === ws)
+				);
 		}
 	}
 	const kind = parseItemLink(link)?.kind;
@@ -98,8 +103,8 @@ const KEYS: Record<ItemKind, Invalidation['kind']> = {
 	task: 'taskList',
 	document: 'documents',
 	resource: 'resources',
-	database: 'databases',
-	'database-row': 'database',
+	'document-folder': 'documentFolders',
+	contact: 'contacts',
 	agent: 'agent',
 	'actor-session': 'actorSession',
 	article: 'feedArticles'

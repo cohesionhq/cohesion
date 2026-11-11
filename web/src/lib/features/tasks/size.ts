@@ -1,17 +1,6 @@
 import type { IntelligenceAgentColor, TaskSize } from '$lib/protocol/types';
 import { vocabulary } from '$lib/protocol/vocabulary.svelte';
-
-/** A size's chip: its color as text on a faint wash of the same color. */
-const CHIPS: Record<IntelligenceAgentColor, string> = {
-	blue: 'bg-agent-blue/15 text-agent-blue',
-	green: 'bg-agent-green/15 text-agent-green',
-	orange: 'bg-agent-orange/15 text-agent-orange',
-	purple: 'bg-agent-purple/15 text-agent-purple',
-	red: 'bg-agent-red/15 text-agent-red',
-	pink: 'bg-agent-pink/15 text-agent-pink',
-	teal: 'bg-agent-teal/15 text-agent-teal',
-	yellow: 'bg-agent-yellow/15 text-agent-yellow'
-};
+import { agentChip } from '$lib/ui/colors';
 
 /** A size's color as text alone, for a picker button. */
 const TONES: Record<IntelligenceAgentColor, string> = {
@@ -39,7 +28,7 @@ export function sizes(): {
 	return vocabulary.value.task_sizes.map(({ kind, label, color }, i) => ({
 		value: kind,
 		label,
-		chip: CHIPS[color],
+		chip: agentChip[color],
 		tone: TONES[color],
 		key: String(i + 1)
 	}));

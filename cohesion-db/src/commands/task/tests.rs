@@ -8,7 +8,8 @@ use crate::{
     ChangeTasksStatusCommand, CreateContactCommand, CreateIntelligenceAgentCommand,
     CreateTaskCommand, CreateTaskFolderCommand, CreateWorkspaceCommand, DatabaseContext,
     DatabaseEventKind, DeleteContactCommand, DeleteIntelligenceAgentCommand, DeleteTaskCommand,
-    GetTaskCommand, ListTaskPageCommand, ListTasksCommand, ScheduleTaskCommand, TaskListing,
+    DeleteTaskFolderCommand, GetTaskCommand, ListTaskPageCommand, ListTasksCommand,
+    MoveTaskToFolderCommand, ScheduleTaskCommand, TaskListing,
 };
 
 #[test]
@@ -185,6 +186,126 @@ fn deleted_task_is_not_listed() {
         }))
         .unwrap();
     assert_eq!(listed.iter().map(|t| t.id).collect::<Vec<_>>(), [ids[1]]);
+}
+
+#[test]
+fn a_deleted_task_cannot_be_changed_or_deleted_again() {
+    let (db, events) = recording_context();
+    let workspace_id = db
+        .send_blocking(CreateWorkspaceCommand {
+            title: "w".to_string(),
+            emoji: None,
+        })
+        .unwrap()
+        .id;
+    let task_id = db
+        .send_blocking(CreateTaskCommand {
+            workspace_id,
+            title: "a".to_string(),
+            folder_id: None,
+            priority: None,
+            size: None,
+            assignee: None,
+            description: None,
+            start_date: None,
+            due_date: None,
+            tag_ids: Vec::new(),
+        })
+        .unwrap()
+        .id;
+    db.send_blocking(DeleteTaskCommand {
+        workspace_id,
+        task_id,
+    })
+    .unwrap();
+    events.take();
+
+    assert!(
+        db.send_blocking(ChangeTaskTitleCommand {
+            workspace_id,
+            task_id,
+            title: "b".to_string(),
+        })
+        .is_err()
+    );
+    assert!(
+        db.send_blocking(ChangeTaskStatusCommand {
+            workspace_id,
+            task_id,
+            status: TaskStatus::Completed,
+        })
+        .is_err()
+    );
+    assert!(
+        db.send_blocking(ChangeTaskDescriptionCommand {
+            workspace_id,
+            task_id,
+            description: "more".to_string(),
+        })
+        .is_err()
+    );
+    let changed = db
+        .send_blocking(ChangeTasksStatusCommand {
+            workspace_id,
+            task_ids: vec![task_id],
+            status: TaskStatus::Completed,
+        })
+        .unwrap();
+    assert!(changed.is_empty());
+    assert!(
+        db.send_blocking(DeleteTaskCommand {
+            workspace_id,
+            task_id,
+        })
+        .is_err()
+    );
+    assert!(events.take().is_empty());
+}
+
+#[test]
+fn a_task_moves_only_to_a_live_folder() {
+    let (db, workspace_id, ids) = status_fixture(&["a"]);
+    let folder = db
+        .send_blocking(CreateTaskFolderCommand {
+            workspace_id,
+            title: "errands".to_string(),
+        })
+        .unwrap();
+    let moved = db
+        .send_blocking(MoveTaskToFolderCommand {
+            workspace_id,
+            task_id: ids[0],
+            folder_id: Some(folder.id),
+        })
+        .unwrap();
+    assert_eq!(moved.task_folder_id, Some(folder.id));
+    db.send_blocking(MoveTaskToFolderCommand {
+        workspace_id,
+        task_id: ids[0],
+        folder_id: None,
+    })
+    .unwrap();
+
+    db.send_blocking(DeleteTaskFolderCommand {
+        workspace_id,
+        folder_id: folder.id,
+    })
+    .unwrap();
+    assert!(
+        db.send_blocking(MoveTaskToFolderCommand {
+            workspace_id,
+            task_id: ids[0],
+            folder_id: Some(folder.id),
+        })
+        .is_err()
+    );
+    let task = db
+        .send_blocking(GetTaskCommand {
+            workspace_id,
+            task_id: ids[0],
+        })
+        .unwrap();
+    assert_eq!(task.task_folder_id, None);
 }
 
 #[test]

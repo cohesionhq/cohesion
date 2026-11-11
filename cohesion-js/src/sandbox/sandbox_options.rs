@@ -24,7 +24,7 @@ impl SandboxOptions {
         time_limit: Duration::from_secs(15),
     };
 
-    /// For computing a database formula for one row: the row in, a value
+    /// For computing a table formula for one row: the row in, a value
     /// out. A formula is arithmetic over a few values, so 16 MB for a
     /// runtime and its cached formulas, and a second per row, is room to
     /// spare for a real one, while a loop that never ends costs a second.

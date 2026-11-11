@@ -1,7 +1,7 @@
 //! `cohesion`, the command-line client for cohesiond: `setup` registers this client,
-//! `api` sends raw protocol commands, the `cli` commands print for people, and `open`
+//! `api` sends raw protocol commands, the `cli` commands print for people, `open`
 //! serves the web UI on loopback through `web_proxy`, which relays the browser's calls
-//! over this client's connection.
+//! over this client's connection, and `mcp` serves MCP on stdio.
 
 mod api;
 mod args;

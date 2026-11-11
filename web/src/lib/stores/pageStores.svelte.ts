@@ -1,5 +1,5 @@
 // The stores that hold what a page shows (an open task list, document,
-// database, conversation or actor session, a workspace's tags or contacts), one set for each half of
+// table, conversation or actor session, a workspace's tags or contacts), one set for each half of
 // the sheet, so two pages of the same kind side by side each have their own.
 // A component takes its half's with `pageStores()`; the shell (sidebar, ⌘K,
 // the linked-item panel), drawn outside both halves, gets the main half's.
@@ -13,12 +13,13 @@ import { createActorsStore, type ActorsStore } from './actors.svelte';
 import { createAgentsStore, type AgentsStore } from './agents.svelte';
 import { createArticlesStore, type ArticlesStore } from './articles.svelte';
 import { createContactsStore, type ContactsStore } from './contacts.svelte';
-import { createDatabasesStore, type DatabasesStore } from './databases.svelte';
+
 import { createDocumentsStore, type DocumentsStore } from './documents.svelte';
 import { createJournalStore, type JournalStore } from './journal.svelte';
 import { Resource } from './resource.svelte';
 import { createResourcesStore, type ResourcesStore } from './resources.svelte';
 import { createRewindStore, type RewindStore } from './rewind.svelte';
+import { createTablesStore, DocumentValues, type TablesStore } from './tables.svelte';
 import { createTagsStore, type TagsStore } from './tags.svelte';
 import { createTasksStore, type TasksStore } from './tasks.svelte';
 import { createThreadsStore, type ThreadsStore } from './threads.svelte';
@@ -28,11 +29,11 @@ export interface PageStores {
 	agents: AgentsStore;
 	articles: ArticlesStore;
 	contacts: ContactsStore;
-	databases: DatabasesStore;
 	documents: DocumentsStore;
 	journal: JournalStore;
 	resources: ResourcesStore;
 	rewind: RewindStore;
+	tables: TablesStore;
 	tasks: TasksStore;
 	threads: ThreadsStore;
 	taskTags: TagsStore;
@@ -44,11 +45,11 @@ export function createPageStores(send: Send = defaultSend): PageStores {
 		agents: createAgentsStore(send),
 		articles: createArticlesStore(send),
 		contacts: createContactsStore(send),
-		databases: createDatabasesStore(send),
 		documents: createDocumentsStore(send),
 		journal: createJournalStore(send),
 		resources: createResourcesStore(send),
 		rewind: createRewindStore(send),
+		tables: createTablesStore(send),
 		tasks: createTasksStore(send),
 		threads: createThreadsStore(send),
 		taskTags: createTagsStore(send)
@@ -72,9 +73,12 @@ export function pageStores(): PageStores {
 
 /** Stops every resource in `stores` refetching, once the half that showed them has closed. */
 export function dropPageStores(stores: PageStores) {
-	for (const store of Object.values(stores)) {
-		for (const value of Object.values(store)) {
+	const drop = (holder: object) => {
+		for (const value of Object.values(holder)) {
 			if (value instanceof Resource) value.drop();
+			// A part of a store with resources of its own.
+			else if (value instanceof DocumentValues) drop(value);
 		}
-	}
+	};
+	for (const store of Object.values(stores)) drop(store);
 }

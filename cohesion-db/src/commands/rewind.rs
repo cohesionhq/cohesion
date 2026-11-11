@@ -12,7 +12,7 @@ use cohesion_core::protocol::{
 use cohesion_core::{Document, FromRequest, Task, TaskStatus};
 
 use crate::changed::{Changed, Invalidates};
-use crate::commands::document::{changed, saved};
+use crate::commands::document::{changed, saved, table_of};
 use crate::commands::task::{followed, task_list};
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::retention::days_in_secs;
@@ -297,11 +297,13 @@ fn restore_document(
             .found()
             .map_err(day_taken)
     })?;
-    if rewritten || before.deleted {
+    let table = table_of(&document);
+    let restored = if rewritten || before.deleted {
         saved(ctx, document)
     } else {
         changed(ctx, document)
-    }
+    };
+    Ok(restored?.and(table))
 }
 
 /// The only unique value a restore can collide with is a journal's day, the

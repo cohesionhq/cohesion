@@ -16,7 +16,10 @@ pub fn saved(storage: &StoragePath, reset: bool) -> Result<String, ApplicationSt
     let path = storage.web_token_file();
     if !reset {
         match fs::read_to_string(&path) {
-            Ok(token) => return Ok(token.trim().to_string()),
+            Ok(token) if is_token(token.trim()) => return Ok(token.trim().to_string()),
+            // A write cut short leaves the file empty or partial, and an empty token is
+            // one anybody can present: replace it rather than serve behind it.
+            Ok(_) => {}
             Err(err) if err.kind() == ErrorKind::NotFound => {}
             Err(err) => return Err(ApplicationStorageError::CannotReadWebToken(err)),
         }
@@ -25,6 +28,11 @@ pub fn saved(storage: &StoragePath, reset: bool) -> Result<String, ApplicationSt
     // Only this user may read it: it lets a browser act as this client.
     write_private(&path, token.as_bytes()).map_err(ApplicationStorageError::CannotWriteWebToken)?;
     Ok(token)
+}
+
+/// Whether `token` is one `fresh` could have made.
+fn is_token(token: &str) -> bool {
+    token.len() == TOKEN_LENGTH && token.bytes().all(|b| TOKEN_ALPHABET.contains(&b))
 }
 
 /// A fresh random secret: the token the UI must present, so other local software can't use

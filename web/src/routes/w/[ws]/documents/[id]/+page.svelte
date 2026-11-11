@@ -2,6 +2,8 @@
 	import { untrack } from 'svelte';
 	import DocumentBody from '$lib/features/documents/DocumentBody.svelte';
 	import DocumentMenu from '$lib/features/documents/DocumentMenu.svelte';
+	import DocumentMover from '$lib/features/documents/DocumentMover.svelte';
+	import DocumentProperties from '$lib/features/tables/DocumentProperties.svelte';
 	import { useAutosave } from '$lib/features/documents/autosave.svelte';
 	import { toProtocolError } from '$lib/protocol/errors';
 	import { routes } from '$lib/shell/routes';
@@ -53,9 +55,10 @@
 			: { href: `${routes.documents(ws)}?folder=inbox`, label: 'Inbox' }
 	);
 
+	let mover = $state<DocumentMover>();
+
 	function move(folder_id: number | null) {
-		if (doc && doc.folder_id !== folder_id)
-			documents.move(doc, folder_id).catch((error) => toasts.error(error));
+		if (doc) void mover?.move(doc, folder_id);
 	}
 
 	$effect(() => {
@@ -177,6 +180,10 @@
 						{titleError}
 					</p>{/if}
 
+				{#if home?.is_table}
+					<DocumentProperties workspace={ws} folder={home.id} document={id} />
+				{/if}
+
 				<DocumentBody
 					draft={documents.text}
 					workspace={ws}
@@ -190,3 +197,5 @@
 		{/snippet}
 	</ResourceState>
 </div>
+
+<DocumentMover bind:this={mover} />

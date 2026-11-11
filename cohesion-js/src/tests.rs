@@ -514,6 +514,25 @@ fn panicking_job_fails_alone() {
     assert_eq!(text, "1");
 }
 
+// Shutting the engine down ends its worker threads: a script after it is
+// cancelled rather than run, and the threads don't outlive the engine.
+#[test]
+fn a_shut_down_engine_runs_nothing() {
+    let db = database();
+    create_workspace(&db, "W");
+    let engine = ScriptEngine::new(db.read_write());
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap();
+    let ScriptOutput(text) = runtime
+        .block_on(engine.general_purpose_run("1 + 1".to_string()))
+        .unwrap();
+    assert_eq!(text, "2");
+    runtime.block_on(engine.shutdown());
+    let after = runtime.block_on(engine.general_purpose_run("1 + 1".to_string()));
+    assert!(matches!(after, Err(ScriptError::Cancelled)), "{after:?}");
+}
+
 #[test]
 fn scripts_do_not_share_prototypes() {
     let db = database();
@@ -2938,6 +2957,57 @@ fn a_script_brings_back_a_deleted_item_but_a_read_only_one_only_looks() {
     assert_eq!(output["back"], false);
     assert_eq!(output["restored"], "restored");
     assert_eq!(output["left"], 0);
+}
+
+#[test]
+fn a_script_renames_and_deletes_documents_but_a_read_only_one_cannot() {
+    let db = database();
+    create_workspace(&db, "Home");
+    let result = json(
+        &db,
+        r#"
+        const home = cohesion.workspace("Home");
+        const draft = home.createDocument("Draft", "Eggs");
+        const kept = home.createDocument("Kept");
+        draft.rename("Groceries");
+        let emptyRefused = false;
+        try { draft.rename(""); } catch (e) { emptyRefused = true; }
+        const renamed = [draft.title, home.document(draft.id).title];
+        kept.delete();
+        [renamed, emptyRefused, kept.deleted,
+         home.documents().map((d) => d.title),
+         home.deletedDocuments().map((d) => d.title)]
+        "#,
+    );
+    assert_eq!(
+        result,
+        serde_json::json!([
+            ["Groceries", "Groceries"],
+            true,
+            true,
+            ["Groceries"],
+            ["Kept"]
+        ])
+    );
+
+    let sandbox = Sandbox::new(
+        SandboxOptions::STANDARD,
+        db.read_only(),
+        &[Mount::Cohesion],
+        None,
+    )
+    .unwrap();
+    let ScriptOutput(text) = sandbox
+        .evaluate(
+            "const doc = cohesion.workspace('Home').documents()[0];\n\
+             [() => doc.rename('Shopping'), () => doc.delete()].map(write => {\n\
+                 try { write(); return 'wrote'; }\n\
+                 catch (e) { return e instanceof Error && e.message.includes('read-only access'); }\n\
+             })"
+            .to_string(),
+        )
+        .unwrap();
+    assert_eq!(text, "[true,true]");
 }
 
 #[test]

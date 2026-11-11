@@ -5,6 +5,7 @@ use cohesion_core::{Client, ClientKeyKind, FromRequest, LocalIdentity};
 
 use super::security::{alert, record};
 use crate::changed::{Changed, Invalidates};
+use crate::retention::days_in_secs;
 use crate::{
     CommandContext, CommandError, DatabaseCommand, DatabaseCommandResult, DatabaseEventKind,
     Filtered, Found, GetSecuritySettingsCommand, Read, ReadableDatabase, ValidationError, Write,
@@ -280,7 +281,7 @@ impl DatabaseCommand for RevokeInactiveClientsCommand {
             .select_id::<Client>()
             .live()
             .filter("coalesce(last_seen_at, created_at) < ?")
-            .bind(ctx.now - days * 24 * 60 * 60)
+            .bind(ctx.now.saturating_sub(days_in_secs(days)))
             .filter_not_in_values("id", self.online)
             .all()?;
         revoke_all(ctx, inactive, SecurityEventKind::InactiveClientRevoked)
