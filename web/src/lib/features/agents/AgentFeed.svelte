@@ -42,8 +42,8 @@
 	import Zap from '@lucide/svelte/icons/zap';
 	import WandSparkles from '@lucide/svelte/icons/wand-sparkles';
 	import AlarmClock from '@lucide/svelte/icons/alarm-clock';
-	import { tick, type Component } from 'svelte';
-	import { SvelteSet } from 'svelte/reactivity';
+	import { flushSync, tick, untrack, type Component } from 'svelte';
+	import { MediaQuery, SvelteSet } from 'svelte/reactivity';
 	import { fly } from 'svelte/transition';
 	import {
 		type AgentChoice,
@@ -85,6 +85,12 @@
 	/** The message whose reaction picker is open. */
 	let reacting = $state<number | null>(null);
 
+	/**
+	 * A device without hover reacts from a button's popover, one with hover
+	 * from the bar under the text; each message draws only the one in use.
+	 */
+	const touch = new MediaQuery('hover: none');
+
 	/** Whether the user can react to `message`: one of the agent's saved text messages. */
 	function reactable(message: AgentMessage): boolean {
 		return message.id > 0 && message.message_content.kind === 'text' && message.sender !== 'user';
@@ -108,6 +114,46 @@
 	/** The transcript with each fork's steps gathered under what woke it. */
 	const collapsed = $derived(collapseRuns(messages));
 	const entries = $derived(collapsed.shown);
+
+	// An agent's feed opens on its newest entries alone, as many as fill the
+	// window, and draws the rest of the page once that has painted, so
+	// arriving costs a screenful, not 50 messages. The rest goes above, out of
+	// view, AgentView keeping the reader at the bottom as the feed grows. How
+	// many fill it is judged straight after the first render, before the
+	// page's first frame, whose layout this does early rather than again.
+	const FIRST_DRAWN = 12;
+	let list = $state<HTMLElement>();
+	/** How many of the newest entries are drawn, for the agent it was judged for. */
+	let drawn = $state<{ agent: number; count: number } | null>(null);
+	const firstDrawn = $derived(
+		entries.length - (drawn?.agent === agent.id ? drawn.count : FIRST_DRAWN)
+	);
+	$effect(() => {
+		const id = agent.id;
+		const feed = list;
+		if (!feed || untrack(() => drawn?.agent === id && drawn.count === Infinity)) return;
+		let cancelled = false;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		let frame: number | undefined;
+		queueMicrotask(() => {
+			if (cancelled) return;
+			let count = FIRST_DRAWN;
+			while (feed.offsetHeight < innerHeight && count < entries.length) {
+				count *= 2;
+				drawn = { agent: id, count };
+				flushSync();
+			}
+			// The rest once the first frame has painted.
+			frame = requestAnimationFrame(() => {
+				timer = setTimeout(() => (drawn = { agent: id, count: Infinity }));
+			});
+		});
+		return () => {
+			cancelled = true;
+			if (frame !== undefined) cancelAnimationFrame(frame);
+			clearTimeout(timer);
+		};
+	});
 
 	/** The forks whose steps are open, by run, kept as refetches replace the messages. */
 	const opened = new SvelteSet<number>();
@@ -427,7 +473,7 @@
 {#snippet tools(message: AgentMessage)}
 	<span
 		class={[
-			'group/react pointer-events-none absolute top-full z-1 pt-1 group-focus-within:pointer-events-auto group-hover:pointer-events-auto touch:hidden',
+			'group/react pointer-events-none absolute top-full z-1 pt-1 group-focus-within:pointer-events-auto group-hover:pointer-events-auto',
 			message.reaction ? 'left-9' : 'left-0'
 		]}
 	>
@@ -551,12 +597,12 @@
 	{/if}
 {/snippet}
 
-<ol class="mx-auto flex w-full max-w-190 flex-col gap-2 pt-3">
+<ol class="mx-auto flex w-full max-w-190 flex-col gap-2 pt-3" bind:this={list}>
 	{#each entries as message, index (message.id)}
 		{@const user = message.sender === 'user'}
 		{@const content = message.message_content}
 		{@const fold = folds[index]}
-		{#if !folded[index]}
+		{#if index >= firstDrawn && !folded[index]}
 			{#if fold}
 				<!-- A run of status lines, folded into one quiet line that opens onto them. -->
 				<li class={['flex', blockGap(index)]}>
@@ -640,7 +686,7 @@
 							{#if content.kind === 'text'}
 								<!-- Bare, like an actor's text in its transcript: the column is the reply's shape. -->
 								<div class="relative min-w-0 text-md">
-									{#if reactable(message)}
+									{#if reactable(message) && !touch.current}
 										{@render tools(message)}
 									{/if}
 									<Markdown source={content.text} diagrams />
@@ -652,10 +698,8 @@
 							{#if message.attachment_count > 0}
 								{@render images(message, 'under')}
 							{/if}
-							{#if reactable(message) && !message.reaction}
-								<span class="-ml-1.5 hidden self-start touch:inline-flex"
-									>{@render react(message)}</span
-								>
+							{#if reactable(message) && !message.reaction && touch.current}
+								<span class="-ml-1.5 inline-flex self-start">{@render react(message)}</span>
 							{/if}
 							{@render reaction(message)}
 						{/if}

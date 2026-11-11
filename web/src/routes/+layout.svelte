@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '$lib/tokens.css';
-	import { goto, onNavigate } from '$app/navigation';
+	import { goto, onNavigate, preloadCode } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount, type Snippet } from 'svelte';
 	import { connection, onUnreachable, send, start } from '$lib/protocol/api';
@@ -13,7 +13,7 @@
 	import SplitView from '$lib/shell/SplitView.svelte';
 	import Notice from '$lib/shell/Notice.svelte';
 	import Palette from '$lib/shell/Palette.svelte';
-	import { routes } from '$lib/shell/routes';
+	import { mainPages, routes } from '$lib/shell/routes';
 	import {
 		historyStepFor,
 		historyStepForButton,
@@ -106,6 +106,17 @@
 		if (workspaces.currentId === null && workspaces.list.loaded) {
 			workspaces.currentId = workspaces.pick();
 		}
+	});
+
+	// The main pages' code loads a moment after the app opens, so a first
+	// visit (from a shortcut too, which no hover preloads) draws at once.
+	$effect(() => {
+		const ws = workspaces.currentId;
+		if (ws === null) return;
+		const timer = setTimeout(() => {
+			for (const path of mainPages(ws)) preloadCode(path).catch(() => {});
+		}, 1000);
+		return () => clearTimeout(timer);
 	});
 
 	// The sidebar shows the current workspace's kinds of resource, in the
