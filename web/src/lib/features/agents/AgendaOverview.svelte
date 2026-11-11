@@ -2,11 +2,13 @@
 	An agent's agenda in the column beside its conversation, kept to two lines however long it is: a
 	dot a step, the finished ones stacked in green, the step the agent is on in indigo and the rest
 	stacked in grey, with that step's text under them. Hovering, focusing or tapping it opens the
-	whole agenda as a timeline on a card over the conversation, as Rewind draws history.
+	whole agenda as a timeline on a card over the conversation, as Rewind draws history. A step added
+	grows in, and a step ticked eases to green and into the stack, so no change jumps.
 -->
 <script lang="ts">
 	import { flip } from 'svelte/animate';
-	import { fly } from 'svelte/transition';
+	import { backOut } from 'svelte/easing';
+	import { fade, fly, scale } from 'svelte/transition';
 	import type { AgentAgendaItem } from '$lib/protocol/types';
 	import HoverCard from '$lib/ui/HoverCard.svelte';
 	import { motion } from '$lib/ui/motion';
@@ -23,6 +25,9 @@
 	const unfinished = $derived(agenda.filter((item) => item.finished_at === null));
 	// The step the agent is on: the first not yet finished.
 	const current = $derived(unfinished[0]);
+	// The dots in the order they're drawn, one element a step, so ticking one moves it rather than
+	// redrawing it.
+	const dots = $derived([...finished, ...unfinished]);
 	const summary = $derived(`${finished.length} of ${agenda.length} done`);
 </script>
 
@@ -41,23 +46,32 @@
 			onclick={() => (open = !open)}
 		>
 			<span class="flex h-4 items-center" aria-hidden="true">
-				{#each finished as item (item.id)}
-					<span class="size-2.5 rounded-full bg-ok ring-2 ring-canvas not-first:-ml-1"></span>
-				{/each}
-				{#each unfinished as item, index (item.id)}
-					{#if (index === 0 && finished.length > 0) || index === 1}
-						<span class="h-px w-2.5 bg-border-strong"></span>
-					{/if}
+				{#each dots as item, index (item.id)}
+					{@const done = item.finished_at !== null}
+					{@const now = item.id === current?.id}
+					<!-- A hairline leads to the step the agent is on and to the one after it; every other
+					     dot tucks under the one before. Each change of colour, size and spacing eases, so a
+					     ticked step slides into the green stack as the next one grows. -->
+					{@const joined = !done && index > 0 && index - finished.length <= 1}
 					<span
 						class={[
-							'rounded-full ring-2 ring-canvas',
-							index === 0 ? 'size-3 bg-accent' : 'size-2.5 bg-fg-subtle/50',
-							index > 1 && '-ml-1'
+							'relative flex-none rounded-full ring-2 ring-canvas transition-[margin,width,height,background-color] duration-200 ease-out',
+							// The hairline, in the gap between this dot's ring and the last one's.
+							'before:absolute before:top-1/2 before:right-[calc(100%+2px)] before:h-px before:w-1.5 before:bg-border-strong before:transition-opacity before:duration-200',
+							now ? 'size-3 bg-accent' : done ? 'size-2.5 bg-ok' : 'size-2.5 bg-fg-subtle/50',
+							index > 0 && (joined ? 'ml-2.5' : '-ml-1'),
+							!joined && 'before:opacity-0'
 						]}
+						in:scale={{ start: 0.4, duration: motion.duration, easing: backOut }}
+						animate:flip={{ duration: motion.duration }}
 					></span>
 				{/each}
 			</span>
-			<span class="truncate text-xs">{current?.text ?? 'All done'}</span>
+			{#key current?.id}
+				<span class="truncate text-xs" in:fade={{ duration: motion.duration }}
+					>{current?.text ?? 'All done'}</span
+				>
+			{/key}
 		</button>
 	{/snippet}
 	<h3 class="mb-1.5 flex items-baseline justify-between gap-2 text-xs font-medium text-fg-subtle">
@@ -72,7 +86,7 @@
 			{@const now = item.id === current?.id}
 			<li
 				class={[
-					'flex items-start gap-2.5 py-0.5',
+					'flex items-start gap-2.5 py-0.5 transition-colors',
 					done ? 'text-fg-subtle' : now ? 'text-fg' : 'text-fg-muted'
 				]}
 				aria-current={now ? 'step' : undefined}
