@@ -27,7 +27,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
-	import { elapsed, nowSeconds } from '$lib/format/dates';
+	import { elapsed, nowSeconds, shortTime } from '$lib/format/dates';
 	import type {
 		ActorAnswer,
 		ActorSession,
@@ -267,6 +267,10 @@
 	/** Whether any tool or thinking is going on now. */
 	const anyRunning = $derived(messages.some((_, index) => running(index)));
 
+	/** Whether Alt (Option) is held, which shows when each message was sent. */
+	let showTimes = $state(false);
+	const trackAlt = (event: KeyboardEvent) => (showTimes = event.altKey);
+
 	/** Ticks each second while a tool or thinking goes on, so its time counts up. */
 	let now = $state(nowSeconds());
 	$effect(() => {
@@ -317,6 +321,8 @@
 	const askedBy = (request: ActorSessionMessage) =>
 		subagents.find((s) => s.id === request.session_id) ?? null;
 </script>
+
+<svelte:window onkeydown={trackAlt} onkeyup={trackAlt} onblur={() => (showTimes = false)} />
 
 <PageTitle title={`${session?.title ?? 'Session'} · Actors`} />
 
@@ -369,11 +375,22 @@
 							{@const said = message.content}
 							<li
 								class={[
-									'flex min-w-0 flex-col',
+									'relative flex min-w-0 flex-col',
 									said.sender === 'user' && 'items-end',
 									spacing(index)
 								]}
 							>
+								{#if showTimes}
+									<!-- Floats in the margin, so showing it moves nothing. -->
+									<time
+										class={[
+											'pointer-events-none absolute top-0 z-1 rounded-sm bg-bg px-1 text-xs text-fg-subtle tabular-nums',
+											said.sender === 'user' ? 'left-0' : 'right-0'
+										]}
+										datetime={new Date(message.sent_at * 1000).toISOString()}
+										>{shortTime(message.sent_at)}</time
+									>
+								{/if}
 								{#if said.sender === 'user'}
 									{#if message.attachment_count > 0}
 										<SentImages
