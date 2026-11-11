@@ -44,8 +44,10 @@ Each item is one edit that's easy to forget; the rule behind it is in
   shortcuts").
 - **Any other shortcut**: its handler and its row in
   `ShortcutsDialog.svelte`, in the same commit.
-- **A new link kind** (`cohesion://…`): a panel on `ui/ItemPanel.svelte`
-  and an `/open/…` route.
+- **A new link kind** (`cohesion://…`): an entry in `ITEM_KINDS`
+  (`lib/format/itemLinks.ts`), which the grammar, the `/open/…` matchers
+  and the stores read; its icon in `shell/embedIcons.ts`; and a panel on
+  `ui/ItemPanel.svelte`.
 - **Look and feel**: `aria-label` on icon-only controls, hover-only
   actions shown on touch, `motion.duration` on transitions, nothing under
   `--titlebar-inset`, tokens rather than new values ("Look and feel",

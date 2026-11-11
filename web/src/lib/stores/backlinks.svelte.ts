@@ -3,8 +3,8 @@
 // Each asks again when what links to its item changes.
 
 import { send as defaultSend } from '$lib/protocol/api';
-import type { Embed, Invalidation, LinkKind, Send } from '$lib/protocol/types';
-import { parseItemLink, type ItemKind } from '$lib/format/itemLinks';
+import type { Embed, Invalidation, Send } from '$lib/protocol/types';
+import { ITEM_KINDS, parseItemLink } from '$lib/format/itemLinks';
 import { Resource } from './resource.svelte';
 
 /** What a panel's Backlinks show: the items linking to its item. */
@@ -60,20 +60,8 @@ export function touches(key: Invalidation, link: string): boolean {
 	if (key.kind === 'workspace') return true;
 	if (key.kind !== 'backlinks') return false;
 	const item = parseItemLink(link);
-	return item !== null && key.id.kind === LINK_KINDS[item.kind] && key.id.id === item.id;
+	return item !== null && key.id.kind === ITEM_KINDS[item.kind].wire && key.id.id === item.id;
 }
-
-/** How the daemon names each kind of item a link names. */
-const LINK_KINDS: Record<ItemKind, LinkKind> = {
-	task: 'task',
-	document: 'document',
-	resource: 'resource',
-	'document-folder': 'documentFolder',
-	contact: 'contact',
-	agent: 'agent',
-	'actor-session': 'actorSession',
-	article: 'article'
-};
 
 export function createBacklinksStore(send: Send = defaultSend): BacklinksStore {
 	return new BacklinksStore(send);

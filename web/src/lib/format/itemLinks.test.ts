@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { itemLinkHref, parseItemLink, textPieces, type TextPiece } from './itemLinks';
+import {
+	ITEM_KINDS,
+	isUnscopedItemKind,
+	isWorkspaceItemKind,
+	itemKindOf,
+	itemLinkHref,
+	parseItemLink,
+	textPieces,
+	type ItemKind,
+	type TextPiece
+} from './itemLinks';
 
 const markdown = (text: string): TextPiece => ({ kind: 'markdown', text });
 const task = (label: string, ws: number, id: number): TextPiece => ({
@@ -10,6 +20,24 @@ const task = (label: string, ws: number, id: number): TextPiece => ({
 });
 
 describe('item links', () => {
+	it('reads each kind in the forms its entry allows, and no other', () => {
+		for (const kind of Object.keys(ITEM_KINDS) as ItemKind[]) {
+			const { scoped, unscoped, wire } = ITEM_KINDS[kind];
+			expect(scoped || unscoped).toBe(true);
+			expect(isWorkspaceItemKind(kind)).toBe(scoped);
+			expect(isUnscopedItemKind(kind)).toBe(unscoped);
+			expect(parseItemLink(`cohesion://${kind}/3/42`)).toEqual(
+				scoped ? { kind, ws: 3, id: 42 } : null
+			);
+			expect(parseItemLink(`cohesion://${kind}/42`)).toEqual(
+				unscoped ? { kind, ws: null, id: 42 } : null
+			);
+			expect(itemKindOf(wire)).toBe(kind);
+		}
+		expect(isWorkspaceItemKind('toString')).toBe(false);
+		expect(isUnscopedItemKind('journal')).toBe(false);
+	});
+
 	it('reads and writes back every kind', () => {
 		for (const href of [
 			'cohesion://task/3/42',

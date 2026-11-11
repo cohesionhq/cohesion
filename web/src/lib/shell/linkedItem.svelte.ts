@@ -16,7 +16,7 @@ import type {
 import { goto } from '$app/navigation';
 import { toasts } from '$lib/ui/toasts.svelte';
 import { resolve } from './links';
-import { itemLinkRoute, type ItemLink } from './routes';
+import { ITEM_KINDS, itemLinkRoute, type ItemLink } from './routes';
 
 /** What a link opened, with what its panel shows besides the item itself. */
 export type LinkedItem =
@@ -63,7 +63,7 @@ class LinkedItems {
 		try {
 			const item = await find(link);
 			if (item === null) {
-				toasts.show(`${NAMES[link.kind]} not found.`);
+				toasts.show(`${ITEM_KINDS[link.kind].noun} not found.`);
 				return;
 			}
 			this.item = item;
@@ -86,17 +86,6 @@ class LinkedItems {
 		void this.show(link);
 	}
 }
-
-const NAMES: Record<ItemLink['kind'], string> = {
-	task: 'Task',
-	document: 'Document',
-	resource: 'Resource',
-	'document-folder': 'Folder',
-	contact: 'Contact',
-	agent: 'Agent',
-	'actor-session': 'Actor session',
-	article: 'Article'
-};
 
 /** What `link` names, as the daemon resolves it, with what its panel needs besides. */
 async function find(link: ItemLink): Promise<LinkedItem | null> {

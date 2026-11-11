@@ -2,7 +2,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { toProtocolError } from '$lib/protocol/errors';
-	import type { ItemKind } from '$lib/shell/routes';
+	import { ITEM_KINDS, type ItemKind } from '$lib/shell/routes';
 	import EmptyState from '$lib/ui/EmptyState.svelte';
 	import { pane } from '$lib/shell/pane.svelte';
 
@@ -16,17 +16,6 @@
 
 	let { kind, find }: Props = $props();
 
-	const missing: Record<ItemKind, string> = {
-		task: 'Task not found.',
-		document: 'Document not found.',
-		agent: 'Agent not found.',
-		resource: 'Resource not found.',
-		'document-folder': 'Folder not found.',
-		contact: 'Contact not found.',
-		'actor-session': 'Session not found.',
-		article: 'Article not found.'
-	};
-
 	let failure = $state<{ message: string; retry: boolean } | null>(null);
 
 	$effect(() => {
@@ -38,7 +27,7 @@
 		failure = null;
 		try {
 			const href = await f();
-			if (href === null) failure = { message: missing[k], retry: false };
+			if (href === null) failure = { message: `${ITEM_KINDS[k].noun} not found.`, retry: false };
 			else await page.goto(href, { replaceState: true });
 		} catch (error) {
 			failure = { message: toProtocolError(error).message, retry: true };

@@ -2,25 +2,120 @@
 // (`ItemLink`, `TextPiece` in cohesion-core): what a link names, and where a
 // text shows items as cards.
 
+import type { Invalidation, LinkKind } from '$lib/protocol/types';
+
+/** What the app knows of one kind of item a `cohesion://` link can name. */
+interface ItemKindInfo {
+	/** How the daemon names the kind, in an embed and in `backlinks`. */
+	wire: LinkKind;
+	/** Whether a link names it with its workspace: `cohesion://task/3/42`. */
+	scoped: boolean;
+	/** Whether a link names it without one: `cohesion://task/42`, `cohesion://agent/3`. */
+	unscoped: boolean;
+	/** The invalidation that says an item of the kind changed somewhere. */
+	changes: Invalidation['kind'];
+	/** What an item of the kind is called where one isn't found: "Task not found". */
+	noun: string;
+}
+
+/**
+ * Every kind of item a `cohesion://` link can name, by the word the link
+ * uses: `cohesion://task/3/42`, `cohesion://document/3/7`,
+ * `cohesion://resource/3/9`, `cohesion://document-folder/3/2` and
+ * `cohesion://contact/3/12` (workspace, then item; a folder is how a table
+ * is linked); `cohesion://agent/3`, `cohesion://actor-session/143` and
+ * `cohesion://article/88`; and `cohesion://task/42` and
+ * `cohesion://document/7` without their workspace, as links were first
+ * written. The daemon reads them the same way (`ItemLink`).
+ *
+ * A new kind is one entry here, its icon (`shell/embedIcons.ts`), and what
+ * the compiler then asks for: where its embed opens (`shell/links.ts`), its
+ * panel (`shell/linkedItem.svelte.ts`) and its card's detail
+ * (`shell/EmbedCard.svelte`).
+ */
+export const ITEM_KINDS = {
+	task: { wire: 'task', scoped: true, unscoped: true, changes: 'taskList', noun: 'Task' },
+	document: {
+		wire: 'document',
+		scoped: true,
+		unscoped: true,
+		changes: 'documents',
+		noun: 'Document'
+	},
+	resource: {
+		wire: 'resource',
+		scoped: true,
+		unscoped: false,
+		changes: 'resources',
+		noun: 'Resource'
+	},
+	'document-folder': {
+		wire: 'documentFolder',
+		scoped: true,
+		unscoped: false,
+		changes: 'documentFolders',
+		noun: 'Folder'
+	},
+	contact: {
+		wire: 'contact',
+		scoped: true,
+		unscoped: false,
+		changes: 'contacts',
+		noun: 'Contact'
+	},
+	agent: { wire: 'agent', scoped: false, unscoped: true, changes: 'agent', noun: 'Agent' },
+	'actor-session': {
+		wire: 'actorSession',
+		scoped: false,
+		unscoped: true,
+		changes: 'actorSession',
+		noun: 'Session'
+	},
+	article: {
+		wire: 'article',
+		scoped: false,
+		unscoped: true,
+		changes: 'feedArticles',
+		noun: 'Article'
+	}
+} as const satisfies Record<string, ItemKindInfo>;
+
+type Kinds = typeof ITEM_KINDS;
+
 /** What a `cohesion://` link can point at. */
-export type ItemKind = WorkspaceItemKind | 'agent' | 'actor-session' | 'article';
+export type ItemKind = keyof Kinds;
 
 /** What a `cohesion://` link names with its workspace. */
-export type WorkspaceItemKind = 'task' | 'document' | 'resource' | 'document-folder' | 'contact';
+export type WorkspaceItemKind = {
+	[K in ItemKind]: Kinds[K]['scoped'] extends true ? K : never;
+}[ItemKind];
 
 /** What a `cohesion://` link can name without its workspace. */
-export type UnscopedItemKind = 'task' | 'document' | 'agent' | 'actor-session' | 'article';
+export type UnscopedItemKind = {
+	[K in ItemKind]: Kinds[K]['unscoped'] extends true ? K : never;
+}[ItemKind];
 
-// `cohesion://task/3/42`, `cohesion://document/3/7`, `cohesion://resource/3/9`,
-// `cohesion://document-folder/3/2` and `cohesion://contact/3/12` (workspace,
-// then item; a folder is how a table is linked); `cohesion://agent/3`,
-// `cohesion://actor-session/143` and `cohesion://article/88`. The daemon reads
-// them the same way (`ItemLink`).
-const WORKSPACE_ITEM_LINK =
-	/^cohesion:\/\/(task|document|resource|document-folder|contact)\/(\d+)\/(\d+)$/;
-// `cohesion://task/42` and `cohesion://document/7` without their workspace,
-// as links were first written, as well as agents, actor sessions and articles.
-const ITEM_LINK = /^cohesion:\/\/(task|document|agent|actor-session|article)\/(\d+)$/;
+const kinds = Object.keys(ITEM_KINDS) as ItemKind[];
+
+/** Whether `word` is a kind a link names with its workspace. */
+export function isWorkspaceItemKind(word: string): word is WorkspaceItemKind {
+	return Object.hasOwn(ITEM_KINDS, word) && ITEM_KINDS[word as ItemKind].scoped;
+}
+
+/** Whether `word` is a kind a link names without its workspace. */
+export function isUnscopedItemKind(word: string): word is UnscopedItemKind {
+	return Object.hasOwn(ITEM_KINDS, word) && ITEM_KINDS[word as ItemKind].unscoped;
+}
+
+/** The kind of link that names what the daemon calls `wire`. */
+export function itemKindOf(wire: LinkKind): ItemKind {
+	return kinds.find((kind) => ITEM_KINDS[kind].wire === wire)!;
+}
+
+const WORKSPACE_ITEM_LINK = new RegExp(
+	`^cohesion://(${kinds.filter(isWorkspaceItemKind).join('|')})/(\\d+)/(\\d+)$`
+);
+const ITEM_LINK = new RegExp(`^cohesion://(${kinds.filter(isUnscopedItemKind).join('|')})/(\\d+)$`);
 
 /**
  * What a `cohesion://` link names: a task, document, resource, document
