@@ -34,4 +34,8 @@ pub struct SearchResult {
     /// The matched document's full contents, a Markdown resource's text or a
     /// contact's notes; always `""` for tasks and JSON resources.
     pub contents: String,
+    /// The matched task's status (`"incomplete"`, `"completed"` or
+    /// `"cancelled"`); `"none"` for documents, resources and contacts, which
+    /// have no status, so every hit has the same shape.
+    pub status: String,
 }

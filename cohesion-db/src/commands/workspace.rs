@@ -171,9 +171,13 @@ impl DatabaseCommand for SearchWorkspaceCommand {
             idx.contents,
             entry.entity_kind,
             entry.entity_id,
-            entry.workspace_id
+            entry.workspace_id,
+            CASE WHEN entry.entity_kind = 'task'
+                THEN COALESCE(task.status, 'none') ELSE 'none' END AS status
         FROM search_fts AS idx
         INNER JOIN search_entries AS entry ON entry.id = idx.rowid
+        LEFT JOIN tasks AS task
+            ON entry.entity_kind = 'task' AND task.id = entry.entity_id
         WHERE idx.search_fts MATCH ?
             AND entry.workspace_id = ?
         ORDER BY bm25(search_fts, 5.0, 1.0)

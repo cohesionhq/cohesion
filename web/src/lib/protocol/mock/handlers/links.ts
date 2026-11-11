@@ -20,20 +20,22 @@ export function linksHandlers(core: MockCore) {
 				entity_kind: SearchResult['entity_kind'],
 				entity_id: number,
 				title: string,
-				contents: string
+				contents: string,
+				status = 'none'
 			) => {
 				const [inTitle, inContents] = [starts(title), starts(contents)];
 				if (!words.every((w) => inTitle(w) || inContents(w))) return;
 				hits.push({
 					title: words.some(inTitle),
-					result: { id: 0, entity_kind, entity_id, workspace_id, title, contents }
+					result: { id: 0, entity_kind, entity_id, workspace_id, title, contents, status }
 				});
 			};
 			for (const d of state.documents)
 				if (d.workspace_id === workspace_id && !d.deleted)
 					consider('document', d.id, d.title, d.contents);
 			for (const t of state.tasks)
-				if (t.workspace_id === workspace_id && !t.deleted) consider('task', t.id, t.title, '');
+				if (t.workspace_id === workspace_id && !t.deleted)
+					consider('task', t.id, t.title, '', t.status);
 			// JSON resources are indexed by title only.
 			for (const a of state.resources)
 				if (a.workspace_id === workspace_id)

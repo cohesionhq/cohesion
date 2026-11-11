@@ -1,8 +1,8 @@
 use crate::test_support::context;
 use crate::{
-    CommandError, CreateDocumentCommand, CreateTaskCommand, CreateWorkspaceCommand,
-    DeleteWorkspaceCommand, GetWorkspaceIncludingDeletedCommand, RenameWorkspaceCommand,
-    SearchWorkspaceCommand, SetWorkspaceEmojiCommand,
+    ChangeTaskStatusCommand, CommandError, CreateDocumentCommand, CreateTaskCommand,
+    CreateWorkspaceCommand, DeleteWorkspaceCommand, GetWorkspaceIncludingDeletedCommand,
+    RenameWorkspaceCommand, SearchWorkspaceCommand, SetWorkspaceEmojiCommand,
 };
 
 #[test]
@@ -52,6 +52,29 @@ fn search_ranks_title_matches_first_and_stays_in_its_workspace() {
     assert_eq!(hits.len(), 3);
     assert_eq!(ids.last(), Some(&mentions.id));
     assert!(ids.contains(&titled.id) && ids.contains(&task.id));
+    let status_of = |hits: &[cohesion_core::model::SearchResult], id| {
+        hits.iter()
+            .find(|hit| hit.entity_id == id)
+            .unwrap()
+            .status
+            .clone()
+    };
+    assert_eq!(status_of(&hits, task.id), "incomplete");
+    assert_eq!(status_of(&hits, titled.id), "none");
+
+    db.send_blocking(ChangeTaskStatusCommand {
+        workspace_id: home.id,
+        task_id: task.id,
+        status: cohesion_core::TaskStatus::Completed,
+    })
+    .unwrap();
+    let hits = db
+        .send_blocking(SearchWorkspaceCommand {
+            workspace_id: home.id,
+            query: "garden".to_string(),
+        })
+        .unwrap();
+    assert_eq!(status_of(&hits, task.id), "completed");
 }
 
 #[test]
