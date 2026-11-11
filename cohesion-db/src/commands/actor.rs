@@ -793,6 +793,17 @@ impl DatabaseCommand for SetActorSessionStatusCommand {
             .filter_eq(ActorSession::ID, self.session_id)
             .filter("status <> ?")
             .bind(status);
+        // Its actor ending a turn leaves a session unread, and resolving one
+        // reads it. A subagent is never unread.
+        let update = match self.moved {
+            ActorSessionMove::Finished | ActorSessionMove::Failed if before.subagent.is_none() => {
+                update.set_true(ActorSession::UNREAD)
+            }
+            ActorSessionMove::Resolved => update
+                .set_false(ActorSession::UNREAD)
+                .set_now(ActorSession::READ_AT),
+            _ => update,
+        };
         let update = if self.moved.keeps_resolved() {
             update
                 .filter("status <> ?")

@@ -751,6 +751,40 @@ fn a_session_is_unread_once_its_actor_finishes_a_stretch_not_when_one_is_cut_sho
 }
 
 #[test]
+fn a_finished_turn_leaves_a_session_unread_and_resolving_it_reads_it() {
+    let db = context();
+    let session = session(&db);
+    let get = |db: &DatabaseContext| {
+        db.send_blocking(GetActorSessionCommand { id: session.id })
+            .unwrap()
+    };
+    let moved = |db: &DatabaseContext, moved: ActorSessionMove| {
+        db.send_blocking(SetActorSessionStatusCommand {
+            session_id: session.id,
+            moved,
+        })
+        .unwrap();
+    };
+    moved(&db, ActorSessionMove::Working);
+    assert!(!get(&db).unread);
+    moved(&db, ActorSessionMove::Finished);
+    assert!(get(&db).unread);
+
+    moved(&db, ActorSessionMove::Resolved);
+    let resolved = get(&db);
+    assert!(!resolved.unread);
+    assert!(resolved.read_at.is_some());
+
+    // Its actor ending a turn after it was resolved leaves it resolved and read.
+    moved(&db, ActorSessionMove::Finished);
+    assert!(!get(&db).unread);
+
+    moved(&db, ActorSessionMove::Working);
+    moved(&db, ActorSessionMove::Failed);
+    assert!(get(&db).unread);
+}
+
+#[test]
 fn search_finds_a_session_by_its_title_or_its_text_but_not_its_tools() {
     let db = context();
     let session = session(&db);
