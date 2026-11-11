@@ -22,7 +22,7 @@
 	import Select from '$lib/ui/Select.svelte';
 	import Textarea from '$lib/ui/Textarea.svelte';
 	import TextInput from '$lib/ui/TextInput.svelte';
-	import AgentDot from './AgentDot.svelte';
+	import AgentColorPicker from './AgentColorPicker.svelte';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 
 	const { agents } = pageStores();
@@ -138,31 +138,7 @@
 			</div>
 		</Field>
 
-		<fieldset class="flex flex-col gap-1">
-			<legend class="mb-1 font-medium">Color</legend>
-			<div class="flex flex-wrap gap-1">
-				{#each options(vocabulary.value.agent_colors) as option (option.value)}
-					<label
-						class="relative inline-flex size-8 cursor-pointer items-center justify-center rounded-sm hover:bg-bg-hover has-checked:bg-bg-hover has-focus-visible:shadow-focus"
-					>
-						<input
-							class="peer sr-only"
-							type="radio"
-							name="{id}-color"
-							value={option.value}
-							bind:group={color}
-						/>
-						<span
-							class="inline-flex rounded-full p-0.5 ring-fg-muted peer-checked:ring-2"
-							aria-hidden="true"
-						>
-							<AgentDot color={option.value} size="lg" />
-						</span>
-						<span class="sr-only">{option.label}</span>
-					</label>
-				{/each}
-			</div>
-		</fieldset>
+		<AgentColorPicker bind:value={color} />
 
 		<Field label="Role" for="{id}-role">
 			<TextInput

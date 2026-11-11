@@ -3,14 +3,10 @@
 	import { getClientInfo } from '$lib/protocol/client';
 	import { mockMode } from '$lib/protocol/api';
 	import type { ClientInfo } from '$lib/protocol/types';
+	import Onboarding from '$lib/features/onboarding/Onboarding.svelte';
 	import { routes } from '$lib/shell/routes';
 	import { workspaces } from '$lib/stores/workspaces.svelte';
-	import Button from '$lib/ui/Button.svelte';
-	import Dialog from '$lib/ui/Dialog.svelte';
 	import EmptyState from '$lib/ui/EmptyState.svelte';
-	import Field from '$lib/ui/Field.svelte';
-	import TextInput from '$lib/ui/TextInput.svelte';
-	import { toasts } from '$lib/ui/toasts.svelte';
 	import { pane } from '$lib/shell/pane.svelte';
 	import PageTitle from '$lib/shell/PageTitle.svelte';
 
@@ -18,32 +14,24 @@
 
 	let client = $state<ClientInfo | null>(null);
 	let empty = $state(false);
-	let creating = $state(false);
-	let title = $state('');
+	let onboarding = $state(false);
 
 	onMount(async () => {
 		void workspaces.load();
 		client = mockMode ? { workspace: null, target: '' } : await getClientInfo();
 	});
 
-	// Land once the list arrives, which may only be after "Try again".
+	// Land once the list arrives, which may only be after "Try again". With no workspace, the
+	// first-run flow opens once; a workspace made there is landed in when it closes.
 	$effect(() => {
-		if (client === null || !workspaces.list.loaded) return;
+		if (client === null || !workspaces.list.loaded || onboarding) return;
 		const id = workspaces.pick(client.workspace);
-		if (id === null) empty = true;
-		else void page.goto(routes.workspace(id), { replaceState: true });
-	});
-
-	async function create(event: SubmitEvent) {
-		event.preventDefault();
-		try {
-			const created = await workspaces.create(title.trim());
-			creating = false;
-			void page.goto(routes.workspace(created.id), { replaceState: true });
-		} catch (error) {
-			toasts.error(error);
+		if (id !== null) void page.goto(routes.workspace(id), { replaceState: true });
+		else if (!empty) {
+			empty = true;
+			onboarding = true;
 		}
-	}
+	});
 </script>
 
 <PageTitle title="Cohesion" />
@@ -54,7 +42,7 @@
 			message="No workspaces yet"
 			actionLabel="Create a workspace"
 			primary
-			onaction={() => (creating = true)}
+			onaction={() => (onboarding = true)}
 		/>
 	</div>
 {:else if workspaces.list.error}
@@ -67,16 +55,4 @@
 	</div>
 {/if}
 
-<Dialog bind:open={creating} title="New workspace">
-	<form id="first-workspace" onsubmit={create}>
-		<Field label="Title" for="first-workspace-title">
-			<TextInput id="first-workspace-title" bind:value={title} autocomplete="off" required />
-		</Field>
-	</form>
-	{#snippet footer()}
-		<Button onclick={() => (creating = false)}>Cancel</Button>
-		<Button variant="primary" type="submit" form="first-workspace" disabled={title.trim() === ''}>
-			Create
-		</Button>
-	{/snippet}
-</Dialog>
+<Onboarding bind:open={onboarding} />
