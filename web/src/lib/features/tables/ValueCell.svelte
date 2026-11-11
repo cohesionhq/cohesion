@@ -1,7 +1,8 @@
 <!--
 	One row's value for one property, edited in place: a checkbox toggles, a
 	choice shows as its option's pill and picks another, or none, from a menu
-	of its options (each also on its number key, 0 clearing it), any
+	of its options (each also on its number key, 0 clearing it) and a field
+	that adds one and picks it, any
 	other value set by hand opens an editor for its type on a click (Enter or a
 	click elsewhere saves, Escape cancels, a value that can't be read or that
 	the daemon refuses shows why under it), and a formula's value only reads.
@@ -36,6 +37,11 @@
 		/** Sets the value, or empties it when null; throws the daemon's refusal. */
 		onsave: (value: PropertyValue | null) => Promise<unknown>;
 		/**
+		 * Adds an option to a choice, last, and replies with the property; throws the refusal of its
+		 * name. Without it the choice's menu has no "Add option" field.
+		 */
+		onaddoption?: (name: string) => Promise<DocumentFolderProperty>;
+		/**
 		 * Tab or Shift+Tab in the editor, once the value is saved: the table
 		 * moves to the next value. Without it Tab moves focus as usual, which
 		 * saves.
@@ -43,7 +49,18 @@
 		ontab?: (back: boolean) => void;
 	}
 
-	let { property, value, rowLabel, look, editing, onedit, onstop, onsave, ontab }: Props = $props();
+	let {
+		property,
+		value,
+		rowLabel,
+		look,
+		editing,
+		onedit,
+		onstop,
+		onsave,
+		onaddoption,
+		ontab
+	}: Props = $props();
 
 	const id = $props.id();
 	const numeric = $derived(isNumeric(property.data_type));
@@ -143,6 +160,27 @@
 		);
 	}
 
+	/** What is typed in the choice menu's "Add option" field, and why the daemon refused it. */
+	let optionName = $state('');
+	let optionError = $state<string | null>(null);
+
+	/** Adds the typed option, picks it for this value and closes the menu. */
+	async function addOption(close: () => void) {
+		const name = optionName.trim();
+		if (name === '' || !onaddoption) return;
+		try {
+			const added = await onaddoption(name);
+			const option = optionsOf(added).at(-1);
+			optionName = '';
+			close();
+			if (option) choose(option.id);
+		} catch (e) {
+			const failure = toProtocolError(e);
+			if (failure.code === 'validationFailed') optionError = failure.message;
+			else toasts.error(failure);
+		}
+	}
+
 	/** A choice's menu: each option, checked when picked, then a way to empty it. */
 	const choiceItems = $derived<MenuItem[]>([
 		...options.map((option, i) => ({
@@ -179,9 +217,38 @@
 	{/if}
 {/snippet}
 
+{#snippet addOptionField(close: () => void)}
+	<div class="px-1 pb-0.5">
+		<input
+			class="w-full rounded-sm border border-transparent bg-transparent px-1 py-1 outline-none placeholder:text-fg-muted hover:border-border focus:border-border-strong"
+			placeholder="Add option…"
+			aria-label="Add option"
+			aria-invalid={optionError !== null}
+			autocomplete="off"
+			bind:value={optionName}
+			oninput={() => (optionError = null)}
+			onkeydown={(event) => {
+				// The menu would take typed keys for its own: a number key picks, a letter jumps.
+				if (event.key !== 'Escape') event.stopPropagation();
+				if (event.key === 'Enter') {
+					event.preventDefault();
+					void addOption(close);
+				}
+			}}
+		/>
+		{#if optionError}<p class="mt-1 px-1 text-xs text-danger" role="alert">{optionError}</p>{/if}
+	</div>
+{/snippet}
+
 {#if property.data_type === 'choice' && property.formula === null}
 	<!-- A detail sits in a row's panel, over the page, as a task's details do. -->
-	<Menu items={choiceItems} align="start" icon={optionDot} inDialog={look === 'detail'}>
+	<Menu
+		items={choiceItems}
+		align="start"
+		icon={optionDot}
+		inDialog={look === 'detail'}
+		footer={onaddoption ? addOptionField : undefined}
+	>
 		{#snippet trigger(props)}
 			<button
 				class={[

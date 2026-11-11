@@ -91,6 +91,11 @@
 		onsetbyhand: (property: DocumentFolderProperty) => void;
 		/** Edits a choice's options. */
 		onoptions: (property: DocumentFolderProperty) => void;
+		/** Adds an option to a choice, last; throws the refusal of its name. */
+		onaddoption: (
+			property: DocumentFolderProperty,
+			name: string
+		) => Promise<DocumentFolderProperty>;
 		/** Moves a property just before `before_id`, or last when it's null. */
 		onmove: (property: DocumentFolderProperty, before_id: number | null) => void;
 		ondelete: (property: DocumentFolderProperty) => void;
@@ -122,6 +127,7 @@
 		onformula,
 		onsetbyhand,
 		onoptions,
+		onaddoption,
 		onmove,
 		ondelete,
 		onaddproperty,
@@ -376,6 +382,7 @@
 									if (here) editing = null;
 								}}
 								onsave={(next) => onsetvalue(row, property, next)}
+								onaddoption={(name) => onaddoption(property, name)}
 								ontab={moveEditor}
 							/>
 						</td>
