@@ -2099,7 +2099,9 @@ search of the workspace and actor sessions.
 an in-memory daemon that implements every request with seed data, instead of a
 socket; of the invalidations it pushes only those of tables (`documentTable`,
 and `documentFolders` as a folder becomes a table or stops being one), through
-`connection.invalidated`. Vitest uses the same mock. With `npm run dev`, `.env.development` sets
+`connection.invalidated`. Vitest uses the same mock. Its parts are under
+`protocol/mock/`: the seed data, the state and lookups every area shares
+(`core.ts`), and one file of handlers per area (`handlers/`). With `npm run dev`, `.env.development` sets
 `VITE_DEV_PROXY=1`, so the page doesn't ask for a token.
 
 **Tables** (`routes/w/[ws]/documents/`, `features/tables/`,
@@ -2185,7 +2187,13 @@ so a large table doesn't bury the rest, unless the filter is searching, when a
 row shows with its folder's name like any other. Deleting a folder that is, or
 holds, a table says its columns and values will be deleted too.
 
-The mock filters, sorts and runs formulas in JS, by the daemon's rules; it
+The mock filters, sorts and runs formulas in JS, by the daemon's rules
+(`protocol/mock/tableRules.ts`). Two files of cases keep the copies in step,
+each run by a Rust test and a vitest test: `table_cases.json`
+(`cohesion-db/src/commands/document_value/`) for filtering and sorting, and
+`link_cases.json` (`cohesion-core/src/model/item_link/`) for reading
+`cohesion://` links and finding a text's embeds. The daemon's answer is the
+right one; a rule changed on one side gets a case there. The mock
 reads only a small part of JavaScript for a formula
 (`protocol/mockFormula.ts`: arithmetic, comparisons, `??`, `?:`, a few methods
 and `Math` functions over `row`), and anything else fails every row.
@@ -2804,7 +2812,7 @@ Settings › Security lists the security events.
 | `cohesion` | Argument definitions, `cohesion open`'s guard, launch link and token | tower's `ServiceExt` |
 | `cohesion-core` | Models (`tests/model.rs`) and core helpers | |
 | `cohesion-bench` | Every bench case fails on its starting data and passes after its `solution.ts` (`every_case_can_fail_and_pass`); a run's metrics match what Cohesion recorded; the scores | A scratch `CohesionContext`, and a local server speaking Chat Completions |
-| `web/` | Stores against the mock daemon, the connection (with an injected WebSocket), formatting and UI helpers (`src/**/*.test.ts`) | Vitest in Node, with `vocabulary.setup.ts`. There are no component or end-to-end tests: components are checked by `svelte-check`, lint and the build, and then by eye in mock mode. |
+| `web/` | Stores against the mock daemon, the cases shared with the daemon (`table_cases.json`, `link_cases.json`), the connection (with an injected WebSocket), formatting and UI helpers (`src/**/*.test.ts`) | Vitest in Node, with `vocabulary.setup.ts`. There are no component or end-to-end tests: components are checked by `svelte-check`, lint and the build, and then by eye in mock mode. |
 
 Unit tests live out of line: `#[cfg(test)] mod tests;` at the end of a file,
 the tests in `foo/tests.rs`, never an inline `mod tests { … }`.

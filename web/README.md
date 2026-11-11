@@ -62,7 +62,14 @@ Swaps the transport for `src/lib/protocol/mock.ts`, an in-memory daemon with
 seed data modelled on a real daemon's, with people's names made up (three workspaces, journals,
 tasks and tags, documents and folders, two of them tables, contacts, feeds and their articles, agents and their threads, actors,
 settings).
-No daemon or CLI needed. The tests use the same mock. It pushes the
+No daemon or CLI needed. The tests use the same mock. `mock.ts` is
+`createMock`; its parts are under `src/lib/protocol/mock/`: `seed.ts` (the
+data it starts from), `core.ts` (its state and the lookups every area
+shares), `handlers/` (one file of request handlers per area: documents,
+tables, tasks, agents, actors and so on) and `tableRules.ts` (the daemon's
+rules for values, formulas, filters and sorts). A new request kind gets its
+handler in its area's file, and `createMock` doesn't compile until every kind
+has one. It pushes the
 invalidations of tables (`documentTable`, and `documentFolders` as a folder
 becomes a table or stops being one) a moment after the write, as the daemon
 does, and no others. It has no JavaScript

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
 	ITEM_KINDS,
@@ -145,5 +146,50 @@ describe('text pieces', () => {
 	it('splits nothing into nothing', () => {
 		expect(textPieces('')).toEqual([]);
 		expect(textPieces('\n \n')).toEqual([]);
+	});
+});
+
+// The cases the daemon's tests run too (`the_shared_link_cases_hold`,
+// `the_shared_text_cases_hold` in cohesion-core): the web UI must read a
+// link, and find a text's embeds, as the daemon does. When a case fails only
+// here, this side is what's wrong.
+describe('the link cases shared with the daemon', () => {
+	const shared: {
+		links: {
+			href: string;
+			names: { kind: string; workspace_id: number | null; id: number } | null;
+		}[];
+		texts: {
+			text: string;
+			pieces: ({ markdown: string } | { embed: { label: string; href: string } })[];
+		}[];
+	} = JSON.parse(
+		readFileSync(
+			new URL('../../../../cohesion-core/src/model/item_link/link_cases.json', import.meta.url),
+			'utf8'
+		)
+	);
+
+	it('reads each link as the daemon does', () => {
+		for (const { href, names } of shared.links) {
+			const link = parseItemLink(href);
+			const read = link && {
+				kind: ITEM_KINDS[link.kind].wire,
+				workspace_id: link.ws,
+				id: link.id
+			};
+			expect(read, href).toEqual(names);
+		}
+	});
+
+	it('finds each text’s embeds as the daemon does', () => {
+		for (const { text, pieces } of shared.texts) {
+			const found = textPieces(text).map((piece) =>
+				piece.kind === 'markdown'
+					? { markdown: piece.text }
+					: { embed: { label: piece.label, href: piece.href } }
+			);
+			expect(found, JSON.stringify(text)).toEqual(pieces);
+		}
 	});
 });
