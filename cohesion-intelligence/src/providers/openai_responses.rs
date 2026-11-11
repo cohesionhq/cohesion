@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use super::endpoint_key::EndpointKey;
 use super::json_schema::JsonSchemaObject;
-use super::post_json::{self, post, post_json};
+use super::post_json::{self, post};
 use crate::intelligence_backend::{BackendFuture, IntelligenceBackend};
 use crate::intelligence_error::IntelligenceError;
 use crate::thinking::{RedactedThinking, Thinking};
@@ -50,10 +50,7 @@ impl ResponsesBackend {
             key,
             prompt_cache_key,
             preset,
-            long_ttl: match long {
-                CacheLifetime::Short { .. } => None,
-                CacheLifetime::Long(long) => Some(long.ttl()),
-            },
+            long_ttl: super::long_ttl(long),
             client: post_json::client(),
         }
     }
@@ -61,7 +58,7 @@ impl ResponsesBackend {
 
 /// The settings a dialect wraps the Responses API with: whether the server
 /// keeps the conversation.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub enum ResponsesPreset {
     /// `Dialect::Responses`: responses are stored on the server, so after the
     /// first turn only the items added since the last response are sent,
@@ -73,6 +70,25 @@ pub enum ResponsesPreset {
     /// plan serves only these.
     Stateless,
 }
+impl ResponsesPreset {
+    /// Whether the server keeps the conversation, so a turn may chain from
+    /// the last response and ask for the next to be stored.
+    fn stores_conversation(self) -> bool {
+        matches!(self, ResponsesPreset::Stored)
+    }
+
+    /// The turn a reply's `body` holds, after a request sending `sent`
+    /// transcript items: a stored reply is one JSON response, a stateless
+    /// one a stream of events.
+    fn read_reply(self, body: &[u8], sent: usize) -> Result<Turn, IntelligenceError> {
+        match self {
+            ResponsesPreset::Stored => serde_json::from_slice::<ResponsesResponse>(body)
+                .map_err(IntelligenceError::InvalidResponse)?
+                .into_turn(Some(sent)),
+            ResponsesPreset::Stateless => streamed_response(body)?.into_turn(None),
+        }
+    }
+}
 impl IntelligenceBackend for ResponsesBackend {
     fn send<'a>(&'a mut self, state: &'a Transcript) -> BackendFuture<'a> {
         Box::pin(self.send_turn(state))
@@ -83,7 +99,7 @@ impl ResponsesBackend {
         let remote = state
             .remote
             .as_ref()
-            .filter(|_| self.preset == ResponsesPreset::Stored)
+            .filter(|_| self.preset.stores_conversation())
             .filter(|remote| remote.cursor <= state.items.len());
         match self.post(state, remote).await {
             // The server may have dropped the stored response (expiry, a different
@@ -118,18 +134,8 @@ impl ResponsesBackend {
         if let Some(key) = self.key.current().await? {
             request = request.bearer_auth(key);
         }
-        let sent = state.items.len();
-        match self.preset {
-            ResponsesPreset::Stored => {
-                let response: ResponsesResponse =
-                    post_json(request, &body, is_context_limit_error).await?;
-                response.into_turn(Some(sent))
-            }
-            ResponsesPreset::Stateless => {
-                let events = post(request, &body, is_context_limit_error).await?;
-                streamed_response(&events)?.into_turn(None)
-            }
-        }
+        let reply = post(request, &body, is_context_limit_error).await?;
+        self.preset.read_reply(&reply, state.items.len())
     }
 }
 
@@ -248,18 +254,7 @@ impl<'a> ResponsesRequest<'a> {
         long_ttl: Option<&'a str>,
     ) -> Self {
         let start = remote.map_or(0, |remote| remote.cursor);
-        // A read lands only where an earlier request wrote, and the server
-        // writes only at the end of the latest message, which a thread
-        // copying this one's shared items never sends: it follows them with
-        // its own. So the last shared item carries a breakpoint of its own,
-        // for the long cache. Shared items that end the transcript are
-        // cached as its tail is: the server's breakpoint lands on them.
-        let shared = state.cache.shared_items;
-        let (anchor, tail) = if shared > 0 && shared >= state.items.len() {
-            (None, CacheLength::Long)
-        } else {
-            (shared.checked_sub(1), state.cache.tail)
-        };
+        let (anchor, tail) = state.cache.shared_breakpoint(state.items.len());
         let long = long_ttl
             .filter(|_| state.cache.prefix == CacheLength::Long)
             .map(|ttl| PromptCacheBreakpoint {
@@ -267,7 +262,7 @@ impl<'a> ResponsesRequest<'a> {
                 ttl,
             });
         let breakpoint = |index: usize| long.filter(|_| Some(index) == anchor);
-        let stored = preset == ResponsesPreset::Stored;
+        let stored = preset.stores_conversation();
         // The system prompt ends in a breakpoint for the long cache too: every
         // thread and fork of an agent starts with it, so a new thread reads
         // it back rather than writing it behind its own first message. Only

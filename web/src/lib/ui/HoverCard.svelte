@@ -9,6 +9,7 @@
 <script lang="ts">
 	import { LinkPreview } from 'bits-ui';
 	import type { Snippet } from 'svelte';
+	import CardArrow, { cardArrowPlacement } from './CardArrow.svelte';
 
 	interface Props {
 		open?: boolean;
@@ -21,6 +22,10 @@
 		align?: 'start' | 'center' | 'end';
 		/** Keeps the card shut, e.g. while the trigger is dragged. */
 		disabled?: boolean;
+		/** The card's width, a Tailwind class. */
+		width?: string;
+		/** Draws a `CardArrow` on the card's edge, pointing at the trigger, and sets the card further off. */
+		arrow?: boolean;
 	}
 
 	let {
@@ -30,7 +35,9 @@
 		children,
 		side = 'right',
 		align = 'start',
-		disabled = false
+		disabled = false,
+		width = 'w-64',
+		arrow = false
 	}: Props = $props();
 
 	/** How long the pointer may rest off both the trigger and the card before it closes. */
@@ -71,13 +78,15 @@
 	<LinkPreview.Portal>
 		<LinkPreview.Content
 			bind:ref={contentEl}
-			class="overlay-surface z-45 w-64 max-w-[calc(100vw-2*var(--gutter))] p-3"
+			class={['overlay-surface z-45 max-w-[calc(100vw-2*var(--gutter))] p-3', width]}
 			{side}
 			{align}
 			sideOffset={8}
 			collisionPadding={8}
+			{...arrow ? cardArrowPlacement : {}}
 		>
 			{@render children()}
+			{#if arrow}<CardArrow />{/if}
 		</LinkPreview.Content>
 	</LinkPreview.Portal>
 </LinkPreview.Root>

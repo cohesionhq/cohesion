@@ -391,6 +391,10 @@ doing, not by how it looks.
 - **Popover** holds a small panel beside its trigger (the emoji picker, a
   usage breakdown);
   **HoverCard** only adds detail that is also reachable without hovering.
+  A floating card points at what opened it with **CardArrow**
+  (`ui/CardArrow.svelte`), a soft arrow drawn as one surface with the card,
+  inside a surface that doesn't clip it; `HoverCard` draws one when given
+  `arrow` (the agent column's agenda does), and takes a `width`.
 - **EmptyState** and **ResourceState** draw every empty, loading, error
   and not-found state, worded by "Empty states" in skill `copywriting`:
   centered, with its `message` as the title in `fg-muted` and an optional

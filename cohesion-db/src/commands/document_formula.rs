@@ -34,7 +34,7 @@ use crate::commands::document_value::store_value;
 use crate::commands::property_option::ensure_not_formula_choice;
 use crate::{
     CommandContext, DatabaseCommand, DatabaseCommandResult, DatabaseError, DatabaseEventKind,
-    Filtered, Read, ReadableDatabase, ValidationError, Write,
+    Filtered, Read, ReadableDatabase, ValidationError, Write, WriteContainer,
 };
 
 /// A document with how many changes its formula outputs are behind (0 when
@@ -84,6 +84,21 @@ pub(crate) fn formulas_stale(
                 .event(DatabaseEventKind::TableFormulasStale { folder_id }),
         );
     }
+    Ok(())
+}
+
+/// Lets go of the stale marks of folder `folder_id`'s documents (only document
+/// `document_id`'s, when given), for documents that are leaving the folder.
+pub(crate) fn forget_stale_marks(
+    db: WriteContainer<'_>,
+    folder_id: i64,
+    document_id: Option<i64>,
+) -> Result<(), DatabaseError> {
+    db.container().execute_statement(
+        "UPDATE documents SET formula_stale = 0
+         WHERE folder_id = ?1 AND (?2 IS NULL OR id = ?2) AND formula_stale > 0",
+        [&folder_id.into_value(), &document_id.into_value()],
+    )?;
     Ok(())
 }
 

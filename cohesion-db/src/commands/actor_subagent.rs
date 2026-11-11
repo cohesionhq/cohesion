@@ -16,7 +16,8 @@ use cohesion_core::{
 };
 
 use super::actor::{
-    GetActorSessionCommand, SetActorSessionStatusCommand, given_title, session_keys, top_session_id,
+    GetActorSessionCommand, SetActorSessionStatusCommand, ancestors, given_title, session_keys,
+    started_session, top_session_id,
 };
 use crate::changed::{Changed, Invalidates};
 use crate::{
@@ -81,24 +82,6 @@ fn find_subagent(
     Ok(found)
 }
 
-/// How far `session` sits below the session Cohesion started: 0 for that
-/// session itself.
-fn depth(
-    ctx: &mut CommandContext<'_, Read>,
-    session: &ActorSession,
-) -> DatabaseCommandResult<usize> {
-    let mut depth = 0;
-    let mut parent = session.subagent.as_ref().map(|s| s.parent_session_id);
-    while let Some(up) = parent {
-        depth += 1;
-        parent = GetActorSessionCommand { id: up }
-            .handle(ctx)?
-            .subagent
-            .map(|s| s.parent_session_id);
-    }
-    Ok(depth)
-}
-
 /// `text`, trimmed, at most `limit` bytes, or `None` when blank.
 fn short_text(
     text: Option<String>,
@@ -125,13 +108,7 @@ impl DatabaseCommand for GetTopActorSessionCommand {
     type Access = Read;
     fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Self::Response> {
         let session = GetActorSessionCommand { id: self.id }.handle(ctx)?;
-        match session.subagent {
-            None => Ok(session),
-            Some(_) => {
-                let top = top_session_id(ctx, &session)?;
-                GetActorSessionCommand { id: top }.handle(ctx)
-            }
-        }
+        started_session(ctx, session)
     }
 }
 
@@ -217,7 +194,7 @@ impl DatabaseCommand for LaunchActorSubagentCommand {
             }
             let launched = find_subagent(read, &top, &key)?;
             if launched.is_none() {
-                if depth(read, &above)? + 1 > SUBAGENT_DEPTH_LIMIT {
+                if ancestors(read, &above)?.len() + 1 > SUBAGENT_DEPTH_LIMIT {
                     let message =
                         format!("A subagent sits at most {SUBAGENT_DEPTH_LIMIT} levels deep.");
                     return Err(ValidationError::in_field("parent", message).into());
@@ -319,13 +296,7 @@ impl DatabaseCommand for ListActorSessionFamilyCommand {
             id: self.session_id,
         }
         .handle(ctx)?;
-        let top = match session.subagent {
-            None => session,
-            Some(_) => {
-                let id = top_session_id(ctx, &session)?;
-                GetActorSessionCommand { id }.handle(ctx)?
-            }
-        };
+        let top = started_session(ctx, session)?;
         let below: Vec<ActorSession> = ctx
             .db
             .select::<ActorSession>()

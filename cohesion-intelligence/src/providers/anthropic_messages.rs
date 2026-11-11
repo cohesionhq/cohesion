@@ -43,10 +43,7 @@ impl MessagesBackend {
             base_url,
             model_identifier,
             key,
-            long_ttl: match long {
-                CacheLifetime::Short { .. } => None,
-                CacheLifetime::Long(long) => Some(long.ttl()),
-            },
+            long_ttl: super::long_ttl(long),
             client: post_json::client(),
         }
     }
@@ -65,12 +62,7 @@ impl MessagesBackend {
                 CacheLength::Long => self.long_ttl.as_deref(),
             },
         };
-        let body = MessagesRequest::new(
-            &self.model_identifier,
-            state,
-            cache_control(state.cache.prefix),
-            cache_control(state.cache.tail),
-        )?;
+        let body = MessagesRequest::new(&self.model_identifier, state, cache_control)?;
         let mut request = self
             .client
             .post(format!("{}/messages", self.base_url.trim_end_matches('/')))
@@ -116,22 +108,16 @@ struct MessagesRequest<'a> {
     cache_control: CacheControl<'a>,
 }
 impl<'a> MessagesRequest<'a> {
-    /// The request for `state`, its tools, system prompt and shared items
-    /// cached under `long` and the rest under `tail`.
+    /// The request for `state`, caching as its plan says, each length as
+    /// `cache_control` gives it.
     fn new(
         model: &'a str,
         state: &'a Transcript,
-        long: CacheControl<'a>,
-        tail: CacheControl<'a>,
+        cache_control: impl Fn(CacheLength) -> CacheControl<'a>,
     ) -> Result<Self, IntelligenceError> {
-        let shared = state.cache.shared_items;
-        // Shared items that end the transcript are cached as its tail is:
-        // the request's own breakpoint lands on the same block.
-        let (anchor, tail) = if shared > 0 && shared >= state.items.len() {
-            (None, long)
-        } else {
-            (shared.checked_sub(1), tail)
-        };
+        let long = cache_control(state.cache.prefix);
+        let (anchor, tail) = state.cache.shared_breakpoint(state.items.len());
+        let tail = cache_control(tail);
         let mut messages: Vec<MessagesMessage<'a>> = Vec::with_capacity(state.items.len());
         for (index, item) in state.items.iter().enumerate() {
             let (role, block) = match item {

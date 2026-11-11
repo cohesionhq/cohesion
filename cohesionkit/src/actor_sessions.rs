@@ -413,7 +413,6 @@ impl ActorSessions {
     ) -> Result<Reported, ServerError> {
         let database = &self.inner.database;
         let session_id = session.id;
-        let subagent = session.subagent.is_some();
         match report {
             ActorSessionReport::Launch(_) => unreachable!("a launch is taken by `report`"),
             ActorSessionReport::Message { content, images } => {
@@ -435,14 +434,7 @@ impl ActorSessions {
                     ActorSessionStatus::NeedsAttention => ActorSessionMove::NeedsYou,
                     _ => ActorSessionMove::Working,
                 };
-                // A subagent shows no activity, so its progress only marks
-                // it working.
-                if subagent {
-                    database
-                        .send(SetActorSessionStatusCommand { session_id, moved })
-                        .await?;
-                } else {
-                    let activity = self.work(&session, client_id, moved).await?;
+                if let Some(activity) = self.work(&session, client_id, moved).await? {
                     activity.progress(progress).await?;
                 }
             }
@@ -516,16 +508,6 @@ impl ActorSessions {
         client_id: i64,
         moved: ActorSessionMove,
     ) -> Result<(), ServerError> {
-        if session.subagent.is_some() {
-            self.inner
-                .database
-                .send(SetActorSessionStatusCommand {
-                    session_id: session.id,
-                    moved,
-                })
-                .await?;
-            return Ok(());
-        }
         match moved.status() {
             ActorSessionStatus::Working | ActorSessionStatus::NeedsAttention => {
                 self.work(session, client_id, moved).await?;
@@ -548,13 +530,14 @@ impl ActorSessions {
 
     /// Moves session `session` as `moved` says, to work or needing attention, and
     /// answers its stretch of work, opened now if it has none, paused while
-    /// the session needs attention.
+    /// the session needs attention. A subagent has no stretch of work, so it
+    /// only moves and gets none.
     async fn work(
         &self,
         session: &ActorSession,
         client_id: i64,
         moved: ActorSessionMove,
-    ) -> Result<ActivityHandle, ServerError> {
+    ) -> Result<Option<ActivityHandle>, ServerError> {
         let standing = match moved.status() {
             ActorSessionStatus::NeedsAttention => ActivityStanding::Paused,
             _ => ActivityStanding::Running,
@@ -566,7 +549,10 @@ impl ActorSessions {
                 moved,
             })
             .await?;
-        self.open(session, client_id, standing).await
+        if session.subagent.is_some() {
+            return Ok(None);
+        }
+        self.open(session, client_id, standing).await.map(Some)
     }
 
     /// Moves session `session_id` as `moved` says, idle or failed, ending its

@@ -182,11 +182,13 @@ impl AgentTool for AgendaTool {
             AgendaToolKind::Append => Tool {
                 name: "agenda_append",
                 description: format!(
-                    "Adds steps to your agenda: what you mean to do next, in order, for work \
-                     that takes more than a step or two, so you and your other threads keep \
-                     track of it. The user sees your agenda beside your conversation. It holds \
-                     at most {AGENDA_LIMIT} items, finished ones included; returns it as it \
-                     now stands."
+                    "Adds steps to your agenda, in order: what you mean to do, for work that \
+                     takes more than a step or two. Call it before you start, unasked. The \
+                     agenda is a record, not a queue: it runs nothing and queues no work for \
+                     you, so you still do each step. It lets the user see what you are working \
+                     toward and what is in progress, and keeps your other threads in step. It \
+                     holds at most {AGENDA_LIMIT} items, finished ones included; returns it as \
+                     it now stands."
                 )
                 .into(),
                 fields: vec![
@@ -209,9 +211,9 @@ impl AgentTool for AgendaTool {
             },
             AgendaToolKind::Finish => Tool {
                 name: "agenda_finish",
-                description: "Marks an item of your agenda finished, as soon as you've done \
-                    it; it stays, ticked, until you reset the agenda. Returns the agenda as it \
-                    now stands."
+                description: "Marks an item of your agenda finished as soon as you've done \
+                    it, so the user sees your progress; it stays, ticked, until you reset the \
+                    agenda. Returns the agenda as it now stands."
                     .into(),
                 fields: vec![Field {
                     name: "pos",
@@ -223,9 +225,9 @@ impl AgentTool for AgendaTool {
             },
             AgendaToolKind::Reset => Tool {
                 name: "agenda_reset",
-                description: "Clears your agenda, finished and open items alike: once the \
-                    work is done, or to replace the steps with new ones, which you then add \
-                    with `agenda_append`."
+                description: "Clears your agenda, finished and open items alike: once all \
+                    the work is done or dropped, so it no longer shows as in progress, or to \
+                    replace the steps with new ones, which you then add with `agenda_append`."
                     .into(),
                 fields: Vec::new(),
             },

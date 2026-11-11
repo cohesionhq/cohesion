@@ -6,7 +6,7 @@ use jiff::Timestamp;
 use cohesion_core::log::Module;
 use cohesion_core::log_info;
 use cohesion_core::model::{
-    CacheLength, CacheLifetime, Dialect, EndpointBackend, EndpointModel, Memory, RemoteChain,
+    CacheLength, CacheLifetime, EndpointBackend, EndpointModel, Memory, RemoteChain,
 };
 use cohesion_db::{
     CreateIntelligenceCostEventCommand, CreateIntelligenceThreadCommand, DatabaseContext,
@@ -19,9 +19,7 @@ use crate::account_credentials::AccountCredentials;
 use crate::activity::{Activity, ShowActivity};
 use crate::intelligence_backend::IntelligenceBackend;
 use crate::intelligence_error::IntelligenceError;
-use crate::providers::{
-    ChatCompletionsBackend, EndpointKey, MessagesBackend, ResponsesBackend, ResponsesPreset,
-};
+use crate::providers::backend_for;
 use crate::spend_limits::SpendCap;
 use crate::system_prompt::{HeardMemories, SystemPrompt};
 use crate::tools::SessionTool;
@@ -197,45 +195,16 @@ impl Session {
         let model_identifier = model.model_identifier.clone();
         let short_cache = endpoint.backend.cache_lifetime(CacheLength::Short);
         let long_cache = endpoint.backend.cache_lifetime(CacheLength::Long);
-        let (backend, provider_identifier) = match endpoint.backend {
-            EndpointBackend::Integrated {
-                provider_identifier,
-                dialect,
-                base_url,
-                api_key,
-                ..
-            } => (
-                built_in(
-                    dialect,
-                    base_url,
-                    EndpointKey::Stored(api_key),
-                    model_identifier,
-                    cache_key,
-                    long_cache,
-                ),
-                provider_identifier,
-            ),
-            EndpointBackend::Account {
-                provider_identifier,
-                dialect,
-                base_url,
-                account_id,
-                ..
-            } => (
-                built_in(
-                    dialect,
-                    base_url,
-                    EndpointKey::Account {
-                        account_id,
-                        credentials,
-                    },
-                    model_identifier,
-                    cache_key,
-                    long_cache,
-                ),
-                provider_identifier,
-            ),
-        };
+        let (EndpointBackend::Integrated {
+            provider_identifier,
+            ..
+        }
+        | EndpointBackend::Account {
+            provider_identifier,
+            ..
+        }) = &endpoint.backend;
+        let provider_identifier = provider_identifier.clone();
+        let backend = backend_for(endpoint.backend, credentials, model_identifier, cache_key);
 
         Self {
             tools,
@@ -567,40 +536,6 @@ impl Session {
         self.transcript.add(item);
         Ok(())
     }
-}
-
-/// The built-in backend speaking `dialect` to `base_url` with `key`.
-/// `cache_key` names the requests of a Responses backend that share a prefix;
-/// Messages and Responses backends ask for `long`, the endpoint's long
-/// cache, where a transcript's plan says so (a Responses server keeps one
-/// cache per request, so its every request asks for it). Chat completions
-/// offer no choice of cache.
-fn built_in(
-    dialect: Dialect,
-    base_url: String,
-    key: EndpointKey,
-    model_identifier: String,
-    cache_key: String,
-    long: CacheLifetime,
-) -> Box<dyn IntelligenceBackend> {
-    let preset = match dialect {
-        Dialect::ChatCompletions => {
-            return Box::new(ChatCompletionsBackend::new(base_url, key, model_identifier));
-        }
-        Dialect::Messages => {
-            return Box::new(MessagesBackend::new(base_url, key, model_identifier, long));
-        }
-        Dialect::Responses => ResponsesPreset::Stored,
-        Dialect::StatelessResponses => ResponsesPreset::Stateless,
-    };
-    Box::new(ResponsesBackend::new(
-        base_url,
-        key,
-        model_identifier,
-        cache_key,
-        preset,
-        long,
-    ))
 }
 
 /// How long `cache` lasts. The schema keeps an endpoint's cache lifetimes

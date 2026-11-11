@@ -315,17 +315,13 @@ impl<R: ExchangeReader> Reading<R> {
                 self.complete(result);
                 return Ok(());
             }
-            Ok((ClientFrame::ActorSessionUpdate(update), _)) => {
-                if self.offering.is_none() {
-                    let error = ServerError::bad_request("This session serves no client.");
-                    Queued::Answered(Box::new(Reply {
-                        id: Some(update.id),
-                        outcome: Outcome::Error(error),
-                    }))
-                } else {
-                    return self.actor_updates.send(update).await.map_err(|_| ());
-                }
-            }
+            Ok((ClientFrame::ActorSessionUpdate(update), _)) => match self.serving() {
+                Ok(_) => return self.actor_updates.send(update).await.map_err(|_| ()),
+                Err(error) => Queued::Answered(Box::new(Reply {
+                    id: Some(update.id),
+                    outcome: Outcome::Error(ServerError::bad_request(error)),
+                })),
+            },
             Ok((ClientFrame::ActorUsage(update), _)) => {
                 Queued::Answered(Box::new(self.report_usage(update)))
             }
@@ -334,13 +330,19 @@ impl<R: ExchangeReader> Reading<R> {
         self.requests.send(queued).await.map_err(|_| ())
     }
 
+    /// The client the session serves, or why it serves none.
+    fn serving(&self) -> Result<&ClientSessionHandle, String> {
+        self.offering
+            .as_ref()
+            .ok_or_else(|| "This session serves no client.".to_string())
+    }
+
     /// Keeps what one of the client's actors reports of its usage while the
     /// session serves the client, and answers `accepted` or why not.
     fn report_usage(&self, ActorUsageUpdate { id, actor, usage }: ActorUsageUpdate) -> Reply {
-        let reported = check_usage(&usage).and_then(|()| match &self.offering {
-            Some(offering) => offering.report_usage(actor, usage),
-            None => Err("This session serves no client.".to_string()),
-        });
+        let reported = check_usage(&usage)
+            .and_then(|()| self.serving())
+            .and_then(|offering| offering.report_usage(actor, usage));
         let outcome = match reported {
             Ok(()) => {
                 self.context.database.publish(Invalidation::ActorUsage);

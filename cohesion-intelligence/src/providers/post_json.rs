@@ -9,8 +9,9 @@ use crate::intelligence_error::IntelligenceError;
 
 /// How long a provider may take to accept the connection.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
-/// How long a whole turn may take. Replies aren't streamed, so this covers a
-/// long, high-effort answer; past it the turn fails rather than hanging.
+/// How long a whole turn may take, a streamed reply read to its end
+/// included. This covers a long, high-effort answer; past it the turn fails
+/// rather than hanging.
 const TURN_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
 /// The HTTP client a backend sends its turns with.

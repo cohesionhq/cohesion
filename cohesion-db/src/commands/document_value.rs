@@ -20,7 +20,7 @@ use crate::changed::{Changed, Invalidates};
 use crate::commands::document_folder_property::{
     GetDocumentFolderPropertyCommand, ListDocumentFolderPropertiesCommand,
 };
-use crate::commands::document_formula::formulas_stale;
+use crate::commands::document_formula::{forget_stale_marks, formulas_stale};
 use crate::{
     CommandContext, CommandError, DatabaseCommand, DatabaseCommandResult, DatabaseError, Filtered,
     Read, ReadableDatabase, Select, ValidationError, Write, WriteContainer,
@@ -85,11 +85,7 @@ pub(crate) fn forget_values(
             "DELETE FROM document_values WHERE folder_id = ?1 AND (?2 IS NULL OR document_id = ?2)",
             params,
         )?;
-        db.container().execute_statement(
-            "UPDATE documents SET formula_stale = 0
-             WHERE folder_id = ?1 AND (?2 IS NULL OR id = ?2) AND formula_stale > 0",
-            params,
-        )?;
+        forget_stale_marks(db, folder_id, document_id)?;
     }
     Ok(())
 }

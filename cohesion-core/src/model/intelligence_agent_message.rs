@@ -1,7 +1,7 @@
 use cohesion_macros::{Model, TextEnum, TsWire};
 use serde::{Deserialize, Serialize};
 
-use crate::model::{ActorSessionStop, HookKind};
+use crate::model::{ActorSessionStop, HookKind, ItemLink};
 
 /// Who sent an agent message.
 ///
@@ -242,10 +242,14 @@ impl AgentForwardedItem {
     /// The sentence the agent reads the item from, after the user's note:
     /// `Forwarded task [Fix login](cohesion://task/3/42).`
     pub fn reference(&self) -> String {
+        let workspace_id = Some(self.workspace_id);
+        let id = self.id;
         // A journal entry is a document, as its link names it.
         let link = match self.kind {
-            AgentForwardedItemKind::Task => "task",
-            AgentForwardedItemKind::Document | AgentForwardedItemKind::Journal => "document",
+            AgentForwardedItemKind::Task => ItemLink::Task { workspace_id, id },
+            AgentForwardedItemKind::Document | AgentForwardedItemKind::Journal => {
+                ItemLink::Document { workspace_id, id }
+            }
         };
         let noun = self.kind.noun();
         // Backslashes and brackets in a title would end the link's text early.
@@ -256,10 +260,7 @@ impl AgentForwardedItem {
             }
             title.push(c);
         }
-        format!(
-            "Forwarded {noun} [{title}](cohesion://{link}/{}/{}).",
-            self.workspace_id, self.id
-        )
+        format!("Forwarded {noun} [{title}]({link}).")
     }
 }
 
