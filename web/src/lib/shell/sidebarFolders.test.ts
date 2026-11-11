@@ -16,7 +16,7 @@ const docFolder = (
 	title,
 	sort_order,
 	deleted: false,
-	is_table: false,
+	representation: 'list',
 	...extra
 });
 
@@ -38,7 +38,7 @@ describe('documentFolderRows', () => {
 		docFolder(2, 'Research', null, 2),
 		docFolder(1, 'Design', null, 1),
 		docFolder(3, 'Search', 2, 1),
-		docFolder(4, 'Reading list', null, 3, { is_table: true }),
+		docFolder(4, 'Reading list', null, 3, { representation: 'table' }),
 		docFolder(5, 'Old', null, 4, { deleted: true })
 	];
 

@@ -32,7 +32,7 @@ export function documentFolderRows(
 				label: folder.title,
 				depth,
 				current: open === String(folder.id),
-				table: folder.is_table
+				table: folder.representation === 'table'
 			},
 			...flat(children)
 		]);
