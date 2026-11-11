@@ -927,7 +927,7 @@ function seed(): MockState {
 				title: 'Design',
 				sort_order: 1,
 				deleted: false,
-				is_table: false
+				representation: 'list'
 			},
 			{
 				id: 2,
@@ -936,7 +936,7 @@ function seed(): MockState {
 				title: 'Research',
 				sort_order: 2,
 				deleted: false,
-				is_table: false
+				representation: 'list'
 			},
 			{
 				id: 3,
@@ -945,7 +945,7 @@ function seed(): MockState {
 				title: 'Search',
 				sort_order: 1,
 				deleted: false,
-				is_table: false
+				representation: 'list'
 			}
 		],
 		folders: [
@@ -1870,7 +1870,7 @@ function seedTables(state: MockState) {
 			title,
 			sort_order: folder_id,
 			deleted: false,
-			is_table: true
+			representation: 'table'
 		});
 		const first = state.folderProperties.length + 1;
 		const properties = columns.map(([name, data_type, formula, update_mode], i) =>
@@ -3962,11 +3962,8 @@ export function createMock(): Mock {
 			for (const f of liveDocumentFolders(workspace_id)) if (f.parent_id === ids[i]) ids.push(f.id);
 		return ids;
 	};
-	/** A live folder as the daemon lists it: a table once it has properties. */
-	const listedFolder = (f: DocumentFolder): DocumentFolder => ({
-		...f,
-		is_table: state.folderProperties.some((p) => p.folder_id === f.id)
-	});
+	/** A live folder as the daemon lists it. */
+	const listedFolder = (f: DocumentFolder): DocumentFolder => ({ ...f });
 	const tableOf = (workspace_id: number, folder_id: number) => {
 		workspace(workspace_id);
 		return documentFolder(workspace_id, folder_id);
@@ -5108,7 +5105,7 @@ export function createMock(): Mock {
 							.map((f) => f.sort_order)
 					) + 1,
 				deleted: false,
-				is_table: false
+				representation: 'list'
 			};
 			state.documentFolders.push(created);
 			return { ...created };
@@ -5164,6 +5161,13 @@ export function createMock(): Mock {
 			tablesChanged(...doomed);
 			return deleted;
 		},
+		setDocumentFolderRepresentation: ({ workspace_id, folder_id, representation }) => {
+			const f = documentFolder(workspace_id, folder_id);
+			f.representation = representation;
+			tablesChanged(folder_id);
+			invalidate({ kind: 'documentFolders', id: workspace_id });
+			return listedFolder(f);
+		},
 		listDocumentFolderProperties: ({ workspace_id, folder_id }) => {
 			tableOf(workspace_id, folder_id);
 			return folderProperties(state, folder_id).map((p) => structuredClone(p));
@@ -5185,8 +5189,7 @@ export function createMock(): Mock {
 					'Only a choice property has options.',
 					'options'
 				);
-			tableOf(workspace_id, folder_id);
-			const first = folderProperties(state, folder_id).length === 0;
+			const folder = tableOf(workspace_id, folder_id);
 			const created = typedProperty(
 				{
 					id: nextId(state.folderProperties),
@@ -5203,7 +5206,11 @@ export function createMock(): Mock {
 			state.folderProperties.push(created);
 			computeFormulas(state, folder_id);
 			tablesChanged(folder_id);
-			if (first) invalidate({ kind: 'documentFolders', id: workspace_id });
+			// A folder showing as a list shows as a table from its new property on.
+			if (folder.representation !== 'table') {
+				folder.representation = 'table';
+				invalidate({ kind: 'documentFolders', id: workspace_id });
+			}
 			return structuredClone(created);
 		},
 		renameDocumentFolderProperty: ({ workspace_id, folder_id, property_id, name }) => {
@@ -5295,8 +5302,6 @@ export function createMock(): Mock {
 			state.documentValues = state.documentValues.filter((v) => v.property_id !== property_id);
 			computeFormulas(state, folder_id);
 			tablesChanged(folder_id);
-			if (folderProperties(state, folder_id).length === 0)
-				invalidate({ kind: 'documentFolders', id: workspace_id });
 			return structuredClone(p);
 		},
 		createPropertyOption: ({ workspace_id, folder_id, property_id, name, color = null }) => {

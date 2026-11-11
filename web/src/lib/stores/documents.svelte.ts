@@ -2,7 +2,13 @@ import { send as defaultSend } from '$lib/protocol/api';
 import { monthLabel } from '$lib/format/dates';
 import { subtreeIds } from '$lib/features/documents/folderTree';
 import { holdsValues } from '$lib/features/tables/values';
-import type { Document, DocumentFolder, Invalidation, Send } from '$lib/protocol/types';
+import type {
+	Document,
+	DocumentFolder,
+	DocumentFolderRepresentation,
+	Invalidation,
+	Send
+} from '$lib/protocol/types';
 import { Draft } from './draft.svelte';
 import { Resource } from './resource.svelte';
 
@@ -193,9 +199,7 @@ export class DocumentsStore {
 	): Promise<boolean> {
 		const from = doc.folder_id;
 		if (from === null || from === folder_id) return false;
-		// A folder known not to be a table holds no values; one not listed here is asked.
-		const listed = this.folders.key === doc.workspace_id ? this.folders.value : [];
-		if (listed.find((f) => f.id === from)?.is_table === false) return false;
+		// Any folder may hold values, even one showing as a list, so the daemon is asked.
 		const key = { workspace_id: doc.workspace_id, folder_id: from };
 		const [properties, row] = await Promise.all([
 			this.#send('listDocumentFolderProperties', key),
@@ -248,13 +252,30 @@ export class DocumentsStore {
 	}
 
 	/**
-	 * Takes what a column's reply says of folder `folder_id`: its first made it
-	 * a table, deleting its last a plain folder again.
+	 * Takes what a column's reply says of folder `folder_id`: a folder's new
+	 * column makes it show as a table.
 	 */
-	markTable(folder_id: number, is_table: boolean): void {
+	markRepresentation(folder_id: number, representation: DocumentFolderRepresentation): void {
 		this.folders.update((list) =>
-			list.map((f) => (f.id === folder_id && f.is_table !== is_table ? { ...f, is_table } : f))
+			list.map((f) =>
+				f.id === folder_id && f.representation !== representation ? { ...f, representation } : f
+			)
 		);
+	}
+
+	/** Shows folder `folder_id` as a list or a table; its columns and values stay. */
+	async setRepresentation(
+		workspace_id: number,
+		folder_id: number,
+		representation: DocumentFolderRepresentation
+	): Promise<void> {
+		const folder = await this.#send('setDocumentFolderRepresentation', {
+			workspace_id,
+			folder_id,
+			representation
+		});
+		if (this.folders.key === workspace_id)
+			this.folders.update((list) => list.map((f) => (f.id === folder.id ? folder : f)));
 	}
 
 	/** Deletes a folder and those inside it; their documents move to the Inbox, as the daemon moves them. */

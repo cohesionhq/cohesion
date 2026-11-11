@@ -7,6 +7,19 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- Scripts and agents can shape a table and fill it in. `DocumentFolder`
+  gains `properties()` and `createProperty()`, and each
+  `DocumentFolderProperty` can be renamed, retyped, made a formula, moved
+  and deleted, with a choice column's options added, renamed, recolored,
+  moved and deleted. `Document.values()` reads a row's values by column
+  name and `Document.setValue()` writes one. A folder's `representation`,
+  `list` or `table`, replaces `is_table` and is now stored: a folder's
+  first column still makes it a table, but deleting its last no longer
+  turns it back, and `setDocumentFolderRepresentation` sets either. Folders
+  that already had columns become tables when the daemon updates. The
+  iPhone app and other clients that read `is_table` need to read
+  `representation` instead.
+
 - Agents have skills: prompts you save for one agent or for every agent on
   a team, from Skills… in an agent's menu or a team's. Type `/` in an
   agent's message box to run one, with anything you add as a note. An
@@ -64,7 +77,7 @@ under "Unreleased" with any change users would notice.
   `createDocumentFolderProperty`, `renameDocumentFolderProperty`,
   `setDocumentFolderPropertyType`, `moveDocumentFolderProperty`,
   `deleteDocumentFolderProperty`, `listTableRows`, `getTableRow` and
-  `setDocumentValue`, `is_table` on `DocumentFolder`, the
+  `setDocumentValue`, `representation` on `DocumentFolder`, the
   `documentTable(folder)` invalidation and
   `hello.vocabulary.property_data_types`; rows are created, renamed, deleted
   and moved with the document commands. The iPhone app needn't show tables:

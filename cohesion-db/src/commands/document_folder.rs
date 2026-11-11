@@ -3,9 +3,11 @@
 
 use cohesion_core::invalidation::Invalidation;
 use cohesion_core::model::DocumentFolderProperty;
+use cohesion_core::model::DocumentFolderRepresentation;
 use cohesion_core::protocol::{
     CreateDocumentFolderRequest, DeleteDocumentFolderRequest, ListDocumentFoldersRequest,
     MoveDocumentFolderRequest, MoveDocumentRequest, RenameDocumentFolderRequest,
+    SetDocumentFolderRepresentationRequest,
 };
 use cohesion_core::{Document, DocumentFolder, DocumentType, FromRequest};
 
@@ -34,6 +36,23 @@ impl DatabaseCommand for GetDocumentFolderCommand {
         ctx.db
             .select_live()
             .filter_eq(DocumentFolder::WORKSPACE_ID, self.workspace_id)
+            .filter_eq(DocumentFolder::ID, self.folder_id)
+            .one()
+            .found()
+    }
+}
+
+/// One live document folder by id, in whichever workspace holds it: for a
+/// script's table column, which knows its folder but not its workspace.
+pub struct FindDocumentFolderCommand {
+    pub folder_id: i64,
+}
+impl DatabaseCommand for FindDocumentFolderCommand {
+    type Response = DocumentFolder;
+    type Access = Read;
+    fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<DocumentFolder> {
+        ctx.db
+            .select_live()
             .filter_eq(DocumentFolder::ID, self.folder_id)
             .one()
             .found()
@@ -181,6 +200,38 @@ impl DatabaseCommand for RenameDocumentFolderCommand {
             .returning_one()
             .found()?;
         Ok(folder.invalidating([Invalidation::DocumentFolders(self.workspace_id)]))
+    }
+}
+
+/// Sets whether a live document folder shows as a list or a table. Its
+/// properties and its documents' values stay either way.
+#[derive(FromRequest)]
+#[request(SetDocumentFolderRepresentationRequest)]
+pub struct SetDocumentFolderRepresentationCommand {
+    pub workspace_id: i64,
+    pub folder_id: i64,
+    pub representation: DocumentFolderRepresentation,
+}
+impl DatabaseCommand for SetDocumentFolderRepresentationCommand {
+    type Response = DocumentFolder;
+    type Access = Write;
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_>,
+    ) -> DatabaseCommandResult<Changed<DocumentFolder>> {
+        ensure_workspace(ctx.db, self.workspace_id)?;
+        let folder = ctx
+            .db
+            .update_live()
+            .set(DocumentFolder::REPRESENTATION, self.representation)
+            .filter_eq(DocumentFolder::WORKSPACE_ID, self.workspace_id)
+            .filter_eq(DocumentFolder::ID, self.folder_id)
+            .returning_one()
+            .found()?;
+        Ok(folder.invalidating([
+            Invalidation::DocumentFolders(self.workspace_id),
+            Invalidation::DocumentTable(self.folder_id),
+        ]))
     }
 }
 

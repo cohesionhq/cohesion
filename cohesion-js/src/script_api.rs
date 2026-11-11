@@ -11,14 +11,14 @@ use rquickjs::{Ctx, Exception, FromJs, IntoJs, Object, Value};
 use cohesion_core::model::{
     AccountDescription, ActivityStatus, ActorEffort, ActorMode, ActorModel, ActorSessionStatus,
     Block, CheckboxBlock, Component, ConnectorResource, ConnectorResourceFilters,
-    ConnectorResourcePreview, ContactMethodKind, Credential, Dialect, ExtensionManifest,
-    ExtensionPermissionKind, HeadingBlock, HeadingLevel, HookKind, IntelligenceAgentColor,
-    IntelligenceAgentPersonality, IntelligenceAgentVerbosity, IntelligenceEffort,
-    IntelligenceProvider, IntelligenceTier, LinkBlock, MetadataKey, NewContactMethod,
-    OrganizationUnit, OverviewBlock, PkceChallenge, PublishedPrecision, RegistryResult,
-    ResourceContentKind, ResourceKind, ResourceKindDescription, SearchEntityKind,
-    ServiceDescription, ServiceFunctionManifest, ServiceManifest, TextBlock, VersionAuthor,
-    VersionChange, VersionedItem,
+    ConnectorResourcePreview, ContactMethodKind, Credential, Dialect, DocumentFolderRepresentation,
+    ExtensionManifest, ExtensionPermissionKind, FormulaUpdateMode, HeadingBlock, HeadingLevel,
+    HookKind, IntelligenceAgentColor, IntelligenceAgentPersonality, IntelligenceAgentVerbosity,
+    IntelligenceEffort, IntelligenceProvider, IntelligenceTier, LinkBlock, MetadataKey,
+    NewContactMethod, OrganizationUnit, OverviewBlock, PkceChallenge, PropertyDataType,
+    PublishedPrecision, RegistryResult, ResourceContentKind, ResourceKind, ResourceKindDescription,
+    SearchEntityKind, ServiceDescription, ServiceFunctionManifest, ServiceManifest, TextBlock,
+    VersionAuthor, VersionChange, VersionedItem,
 };
 use cohesion_core::protocol::{PlanUsage, Vocabulary};
 use cohesion_core::ts_documentation::TsDocumentation;
@@ -31,9 +31,9 @@ use crate::conversion::{FromJsField, ToJs};
 use crate::entities::workspace_options::TaskFolderListOptions;
 use crate::entities::{
     account, actor, actor_session, agent, agent_team, article, connector, connector_account,
-    connector_account_options, contact, document, document_folder, endpoint_model, feed,
-    intelligence_endpoint, resource, rewind, search_result, tag, task, task_folder, usage,
-    workspace, workspace_options,
+    connector_account_options, contact, document, document_folder, document_folder_property,
+    endpoint_model, feed, intelligence_endpoint, resource, rewind, search_result, tag, task,
+    task_folder, usage, workspace, workspace_options,
 };
 use crate::globals::{
     AccountEndpointOptions, AccountsGlobal, ActorDispatchOptions, ActorSessionMessage,
@@ -67,6 +67,8 @@ script_api! {
         ],
         enums: [
             DocumentType,
+            DocumentFolderRepresentation,
+            IntelligenceAgentColor,
             SearchEntityKind,
             TaskStatus,
             TaskPriority,
@@ -83,7 +85,7 @@ script_api! {
             TaskFolderListOptions,
         ],
         interfaces: [TaskSize, TaskAssignee, DayFilter, DayRange],
-        mounted: [TaskStatus, TaskPriority, TaskSort],
+        mounted: [TaskStatus, TaskPriority, TaskSort, DocumentFolderRepresentation],
     }
 
     /// The `agent` global, for an agent the user is talking to.
@@ -107,10 +109,23 @@ script_api! {
         organized into, as `cohesion.agents()` and `cohesion.teams()` return them." {
         entities: [agent::JsAgent, agent_team::JsTeam],
         enums: [
-            IntelligenceAgentColor,
             IntelligenceAgentPersonality,
             IntelligenceAgentVerbosity,
         ],
+    }
+
+    /// A table folder's columns and their options, which
+    /// `DocumentFolder.properties()` returns.
+    TABLES = "tables", on_demand, "Tables: a document folder's columns \
+        (`DocumentFolder.properties()`), their types, options and formulas, and each \
+        document's values in them (`Document.values()`, `Document.setValue()`)." {
+        entities: [
+            document_folder_property::JsDocumentFolderProperty,
+            document_folder_property::JsPropertyOption,
+        ],
+        enums: [PropertyDataType, FormulaUpdateMode],
+        options: [document_folder_property::PropertyCreateOptions],
+        mounted: [PropertyDataType, FormulaUpdateMode],
     }
 
     /// Articles and feeds, which `cohesion` returns.

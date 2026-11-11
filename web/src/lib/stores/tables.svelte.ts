@@ -328,7 +328,7 @@ export class TablesStore {
 
 	/**
 	 * Deletes a property with its values, and the filters and sort on it;
-	 * deleting the last makes the folder a plain one again.
+	 * the folder still shows as a table after its last.
 	 */
 	async removeProperty(property_id: number): Promise<DocumentFolderProperty> {
 		const property = await this.#send('deleteDocumentFolderProperty', {

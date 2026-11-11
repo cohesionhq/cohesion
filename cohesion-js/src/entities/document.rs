@@ -1,16 +1,20 @@
 //! `Document` in scripts.
 
 use cohesion_core::Document;
-use cohesion_core::model::VersionTarget;
+use cohesion_core::model::{DocumentFolderProperty, PropertyValue, VersionTarget};
 use cohesion_db::{
-    AppendToDocumentCommand, GetDocumentFolderCommand, ListVersionsCommand, MoveDocumentCommand,
+    AppendToDocumentCommand, GetDocumentFolderCommand, GetTableRowCommand,
+    ListDocumentFolderPropertiesCommand, ListVersionsCommand, MoveDocumentCommand,
+    SetDocumentValueCommand,
     commands::{DeleteDocumentCommand, EditDocumentCommand, RenameDocumentCommand},
 };
 use cohesion_macros::js_entity;
-use rquickjs::{Class, Ctx};
+use rquickjs::{Class, Ctx, Exception, FromJs, Object, Value};
 
 use super::document_folder::JsDocumentFolder;
+use super::document_folder_property::{JsDocumentFolderProperty, property_value};
 use super::rewind::JsVersionSummary;
+use crate::formula::{FormulaRow, row_object};
 
 /// A piece of text in a workspace: either a normal document or a daily journal
 /// entry.
@@ -92,6 +96,95 @@ impl JsDocument {
         )?;
         Ok(Some(JsDocumentFolder::new(folder, self.db.clone())))
     }
+    /// The document's values in its folder's table, by column name, e.g.
+    /// `{ Pages: 412, Status: "Read", Due: null }`: text and dates
+    /// (`"YYYY-MM-DD"`) as strings, whole numbers, decimals and amounts as
+    /// numbers, a checkbox as a boolean, a choice as its option's name, and
+    /// `null` when empty.
+    ///
+    /// Every column of the folder is there, formulas too; a document in the
+    /// Inbox or a folder with no columns has none.
+    #[ts(returns = "Record<string, string | number | boolean | null>")]
+    pub fn values<'js>(&self, ctx: Ctx<'js>) -> rquickjs::Result<Object<'js>> {
+        let Some(folder_id) = self.inner.folder_id else {
+            return Object::new(ctx);
+        };
+        let properties = self.properties(&ctx, folder_id)?;
+        let row = self.read(
+            &ctx,
+            GetTableRowCommand {
+                workspace_id: self.inner.workspace_id,
+                folder_id,
+                document_id: self.inner.id,
+            },
+        )?;
+        let values: FormulaRow = properties
+            .iter()
+            .map(|property| {
+                let value = row
+                    .cells
+                    .iter()
+                    .find(|cell| cell.property_id == property.id)
+                    .and_then(|cell| match &cell.value {
+                        PropertyValue::Choice(option_id) => property
+                            .option(*option_id)
+                            .map(|option| PropertyValue::Text(option.name.clone())),
+                        value => Some(value.clone()),
+                    });
+                (property.name.clone(), value)
+            })
+            .collect();
+        row_object(&ctx, &values)
+    }
+
+    /// Sets the document's value for `property`, a column of its folder by
+    /// name or as a `DocumentFolderProperty`, e.g.
+    /// `doc.setValue("Pages", 412)`; `null` empties it.
+    ///
+    /// Saved immediately. The value is as `values()` reads it: a string for
+    /// text and dates (`"YYYY-MM-DD"`), a number, a boolean for a checkbox,
+    /// and an option's name (or id) for a choice. A value of another type, a
+    /// column the folder doesn't have, and a formula's column throw.
+    #[qjs(rename = "setValue")]
+    pub fn set_value<'js>(
+        &mut self,
+        ctx: Ctx<'js>,
+        #[ts(type = "string | DocumentFolderProperty")] property: Value<'js>,
+        #[ts(type = "string | number | boolean | null")] value: Value<'js>,
+    ) -> rquickjs::Result<()> {
+        let Some(folder_id) = self.inner.folder_id else {
+            return Err(Exception::throw_type(
+                &ctx,
+                "This document isn’t in a folder, so it has no columns.",
+            ));
+        };
+        let properties = self.properties(&ctx, folder_id)?;
+        let found = match Class::<JsDocumentFolderProperty>::from_js(&ctx, property.clone()) {
+            Ok(property) => {
+                let id = property.borrow().inner().id;
+                properties.iter().find(|p| p.id == id)
+            }
+            Err(_) => {
+                let name = String::from_js(&ctx, property)?;
+                properties.iter().find(|p| p.name == name)
+            }
+        };
+        let property = found.ok_or_else(|| {
+            Exception::throw_type(&ctx, "The document’s folder has no such column.")
+        })?;
+        let value = property_value(&ctx, property, value)?;
+        self.write(
+            &ctx,
+            SetDocumentValueCommand {
+                workspace_id: self.inner.workspace_id,
+                folder_id,
+                document_id: self.inner.id,
+                property_id: property.id,
+                value,
+            },
+        )?;
+        Ok(())
+    }
     /// Files this document in `folder`, from the same workspace, or in the
     /// Inbox when `null`.
     ///
@@ -139,5 +232,22 @@ impl JsDocument {
             },
         )?;
         Ok(())
+    }
+}
+
+impl JsDocument {
+    /// The columns of folder `folder_id`, this document's, in their order.
+    fn properties(
+        &self,
+        ctx: &Ctx<'_>,
+        folder_id: i64,
+    ) -> rquickjs::Result<Vec<DocumentFolderProperty>> {
+        self.read(
+            ctx,
+            ListDocumentFolderPropertiesCommand {
+                workspace_id: self.inner.workspace_id,
+                folder_id,
+            },
+        )
     }
 }
