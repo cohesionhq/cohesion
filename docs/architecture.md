@@ -652,7 +652,12 @@ validation on `property_id`.
   created in or moved into the folder (that document), and a property
   created, renamed, retyped, deleted or made a formula or not, or a source
   changed (every document). A folder with no formula marks nothing; a
-  document leaving the folder loses its mark. Continuous formulas are
+  document leaving the folder loses its mark. A write gets its table's
+  invalidation key from `table_changed` (`cohesion-db`'s
+  `commands/document_table.rs`) by saying what it changed (`TableChange`),
+  which is what marks the documents, so a command can't invalidate a table
+  without deciding whether formulas read what it changed; a document
+  leaving goes through `rows_left` the same way. Continuous formulas are
   marked on a timer: `CohesionContext::start_continuous_formulas` runs
   `MarkContinuousFormulasStaleCommand` as the daemon starts and every hour
   after (`WorkTracker::every`, an interval from start, not on the clock's

@@ -12,7 +12,8 @@ use cohesion_core::protocol::{
 use cohesion_core::{Document, FromRequest, Task, TaskStatus};
 
 use crate::changed::{Changed, Invalidates};
-use crate::commands::document::{changed, saved, table_of};
+use crate::commands::document::{changed, row_changed, saved};
+use crate::commands::document_table::TableChange;
 use crate::commands::task::{followed, task_list};
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::retention::days_in_secs;
@@ -297,7 +298,7 @@ fn restore_document(
             .found()
             .map_err(day_taken)
     })?;
-    let table = table_of(&document);
+    let table = row_changed(ctx, &document, TableChange::Shown)?;
     let restored = if rewritten || before.deleted {
         saved(ctx, document)
     } else {
