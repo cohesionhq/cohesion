@@ -47,7 +47,7 @@ fn rendered() -> String {
             "What did you find?",
         ),
     ];
-    status_message(&cues, &recent, Some(44), &now())
+    status_message(&cues, "Your agenda is empty.", &recent, Some(44), &now())
 }
 
 #[test]
@@ -76,7 +76,7 @@ fn the_agents_own_text_reads_as_sent() {
         text(1, NOW - 60, IntelligenceAgentMessageSender::User, "Hi"),
         text(2, NOW - 30, IntelligenceAgentMessageSender::Agent, "Hello"),
     ];
-    let rendered = status_message(&[], &recent, None, &now());
+    let rendered = status_message(&[], "Your agenda is empty.", &recent, None, &now());
     let line = rendered
         .lines()
         .find(|line| line.starts_with("[#2]"))
@@ -218,7 +218,13 @@ fn a_forward_reads_as_the_note_then_the_items_link() {
         format!("[#50] What did I promise?\n\n{reference}")
     );
     assert_eq!(user_text(&forward("")), format!("[#50] {reference}"));
-    let rendered = status_message(&[], &[forward("Look")], None, &now());
+    let rendered = status_message(
+        &[],
+        "Your agenda is empty.",
+        &[forward("Look")],
+        None,
+        &now(),
+    );
     assert!(rendered.ends_with(&format!(": Look\n\n{reference}")));
 }
 
@@ -312,7 +318,7 @@ fn a_runs_scripts_carry_their_code() {
         ),
         text(3, NOW, IntelligenceAgentMessageSender::User, "Do it"),
     ];
-    let rendered = status_message(&[], &recent, None, &now());
+    let rendered = status_message(&[], "Your agenda is empty.", &recent, None, &now());
     let run = rendered.find("[#1]").unwrap();
     let user = rendered.find("[#3]").unwrap();
     let run_code = rendered.find("cohesion.workspace(1).tasks()").unwrap();
@@ -347,7 +353,7 @@ fn failed_turns_show_as_failures() {
             },
         ),
     ];
-    let rendered = status_message(&[], &recent, None, &now());
+    let rendered = status_message(&[], "Your agenda is empty.", &recent, None, &now());
     let line = rendered
         .lines()
         .find(|line| line.starts_with("[#2]"))
@@ -361,7 +367,13 @@ fn failed_turns_show_as_failures() {
 fn a_new_thread_reads_the_pick_and_context_from_the_choice() {
     let (pending, _) = choice(1, None);
     let (answered, _) = choice(2, Some(1));
-    let rendered = status_message(&[], &[pending, answered], None, &now());
+    let rendered = status_message(
+        &[],
+        "Your agenda is empty.",
+        &[pending, answered],
+        None,
+        &now(),
+    );
     let pending = &rendered[rendered.find("[#1]").unwrap()..rendered.find("[#2]").unwrap()];
     assert!(pending.contains("unanswered"));
     assert!(pending.contains("Task 7 landed in Inbox"));

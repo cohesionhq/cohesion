@@ -9,6 +9,7 @@ mod activity;
 mod actor;
 mod actor_session_follower;
 mod actor_subagent;
+mod agent_agenda;
 mod agent_ask;
 mod agent_name;
 mod agent_thread_mark;
@@ -82,6 +83,7 @@ pub use actor_subagent::{
     ListUnansweredSubagentRequestsCommand, SUBAGENT_DEPTH_LIMIT, SUBAGENT_LIMIT,
     SettleActorSubagentsCommand, SubagentsOf,
 };
+pub use agent_agenda::*;
 pub use agent_ask::{
     ASK_STOPPED_REASON, AgentAskRecord, AnswerAgentAskCommand, AskAgentCommand,
     SettleAgentAsksCommand,

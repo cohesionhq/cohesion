@@ -11,10 +11,10 @@
 //! changed since.
 
 use cohesion_core::model::{
-    ActorSession, ActorSessionStop, AgentAsk, AgentAskReply, AgentChoice, AgentCodeExecution,
-    AgentCodeOutcome, AgentForwardedItem, AgentMemoryChange, AgentMessageContent, AgentPeer,
-    AgentWake, Initiative, IntelligenceAgentCue, IntelligenceAgentMessage,
-    IntelligenceAgentMessageSender, Task,
+    ActorSession, ActorSessionStop, AgentAgendaChange, AgentAsk, AgentAskReply, AgentChoice,
+    AgentCodeExecution, AgentCodeOutcome, AgentForwardedItem, AgentMemoryChange,
+    AgentMessageContent, AgentPeer, AgentWake, Initiative, IntelligenceAgentCue,
+    IntelligenceAgentMessage, IntelligenceAgentMessageSender, Task,
 };
 use cohesion_core::protocol::actor_session_stop_label;
 use cohesion_js::ScriptOutput;
@@ -37,6 +37,7 @@ const EXCERPT_CHARS: usize = 800;
 /// model might otherwise carry on in its final reply.
 pub(super) fn status_message(
     cues: &[IntelligenceAgentCue],
+    agenda: &str,
     recent: &[IntelligenceAgentMessage],
     answering: Option<i64>,
     now: &Zoned,
@@ -47,15 +48,15 @@ pub(super) fn status_message(
     };
     format!(
         "{}\n\n{}{answer}",
-        status(cues, now),
+        status(cues, agenda, now),
         recent_conversation(recent, now)
     )
 }
 
-/// The time and the agent's cues: what a fork's opening leaves out, since
-/// the time changes from one fork to the next and the cues do as they are
-/// set.
-pub(super) fn status(cues: &[IntelligenceAgentCue], now: &Zoned) -> String {
+/// The time, the agent's cues and `agenda`, its agenda as the thread hears
+/// it: what a fork's opening leaves out, since the time changes from one
+/// fork to the next and the cues and agenda do as they are set.
+pub(super) fn status(cues: &[IntelligenceAgentCue], agenda: &str, now: &Zoned) -> String {
     let cues = match cues {
         [] => " none".to_string(),
         cues => cues
@@ -71,7 +72,7 @@ pub(super) fn status(cues: &[IntelligenceAgentCue], now: &Zoned) -> String {
             })
             .collect(),
     };
-    format!("{}\nYour cues:{cues}", time(now))
+    format!("{}\nYour cues:{cues}\n{agenda}", time(now))
 }
 
 /// The time alone, which a cue's background run opens with.
@@ -325,7 +326,7 @@ pub(super) fn fork_rights(initiative: Initiative) -> &'static str {
              change anything: writes throw, there is no `network`, and you can't set cues or \
              change memories. To change something, ask the user with `ask_choice`, putting in \
              `context` what to do on each answer; their pick starts a turn that can. Note \
-             where the work stands with `send_note`."
+             where the work stands with `send_note`, and keep your agenda up to date."
         }
     }
 }
@@ -521,6 +522,16 @@ pub(super) fn line(message: &IntelligenceAgentMessage, now: &Zoned) -> String {
         ),
         AgentMessageContent::RebuiltContext { .. } => {
             format!("{head} rebuilt context: a fresh thread started from these lines")
+        }
+        AgentMessageContent::Agenda(update) => {
+            let changed = update.changed_text();
+            match update.change {
+                AgentAgendaChange::Appended => format!("{head} added to your agenda: {changed}"),
+                AgentAgendaChange::Finished => {
+                    format!("{head} finished an item of your agenda: {changed}")
+                }
+                AgentAgendaChange::Reset => format!("{head} cleared your agenda"),
+            }
         }
     }
 }

@@ -17,6 +17,7 @@ use cohesion_db::{
 use cohesion_js::{CueEvaluation, ScriptEngine};
 use tokio::sync::oneshot;
 
+use super::agenda::Agendas;
 use super::agent_activity::{AgentActivity, Work};
 use super::agent_fork::{self, Fork, Question};
 use super::conversation_mark::ConversationMarks;
@@ -57,6 +58,8 @@ pub(super) struct AgentMessenger {
     /// Each agent's running forks, which the user's stop of the agent stops
     /// along with its conversation's turn.
     forks: Arc<Mutex<HashMap<i64, Vec<Arc<ForegroundTurn>>>>>,
+    /// Each agent's agenda, which its threads hear one another change.
+    agendas: Agendas,
 }
 
 /// Whether a question asks for a reply.
@@ -192,6 +195,7 @@ impl AgentMessenger {
             work,
             waiters: Arc::default(),
             forks: Arc::default(),
+            agendas: Agendas::default(),
         }
     }
 
@@ -414,7 +418,7 @@ impl AgentMessenger {
     /// turn begun under `trace` and counted among the agent's running forks
     /// before anything runs, so the user's stop from here on reaches it.
     fn fork(&self, agent_id: i64, run_id: i64, trace: DatabaseEventTrace) -> Fork {
-        let turn = Arc::new(ForegroundTurn::default());
+        let turn = Arc::new(self.turn(agent_id));
         turn.begin(trace);
         Fork {
             agent_id,
@@ -541,6 +545,12 @@ impl AgentMessenger {
 
     pub(super) fn spend(&self) -> &Arc<SpendLimits> {
         &self.spend
+    }
+
+    /// A new turn for one of agent `agent_id`'s threads, hearing what its
+    /// other threads change of its agenda.
+    pub(super) fn turn(&self, agent_id: i64) -> ForegroundTurn {
+        ForegroundTurn::new(self.agendas.of(agent_id))
     }
 
     pub(super) fn marks(&self) -> &ConversationMarks {

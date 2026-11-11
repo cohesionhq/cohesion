@@ -12,6 +12,7 @@ use cohesion_db::{
 };
 use jiff::Zoned;
 
+use super::agenda;
 use super::agent_activity::Work;
 use super::agent_error::AgentError;
 use super::agent_messenger::AgentMessenger;
@@ -308,11 +309,20 @@ impl AgentHost {
                 // what was remembered and forgotten since it last heard.
                 let memories =
                     conversation_session::agent_memories(&self.database, self.agent.id).await?;
-                let changed = self
+                let memories = self
                     .session
                     .as_mut()
                     .expect("a live thread")
                     .hear_memories(memories);
+                // A thread that moved hears the agenda in its status below;
+                // one that didn't, what another thread changed of it.
+                let agenda = (!moved).then(|| self.foreground.agenda().news()).flatten();
+                let changed = [memories, agenda]
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>()
+                    .join("\n\n");
+                let changed = (!changed.is_empty()).then_some(changed);
                 // A failed turn's work is in the feed, not the thread.
                 let prompt = self
                     .catch_up(&trigger, changed.as_deref(), text, heading.as_deref())
@@ -325,9 +335,10 @@ impl AgentHost {
                             agent_id: self.agent.id,
                         })
                         .await?;
+                    let agenda = self.hear_agenda().await?;
                     format!(
                         "{}\n\n{prompt}",
-                        agent_transcript::status(&cues, &Zoned::now())
+                        agent_transcript::status(&cues, &agenda, &Zoned::now())
                     )
                 } else {
                     prompt
@@ -467,12 +478,21 @@ impl AgentHost {
             conversation_session::note_rebuilt(&self.database, agent_id, reason).await?;
         }
 
+        let agenda = self.hear_agenda().await?;
         Ok(agent_transcript::status_message(
             &cues,
+            &agenda,
             &self.working_set,
             answering,
             &Zoned::now(),
         ))
+    }
+
+    /// The agent's agenda as it is now, which the thread hears for its
+    /// status.
+    async fn hear_agenda(&self) -> Result<String, CommandError> {
+        let items = agenda::load(&self.database, self.agent.id).await?;
+        Ok(self.foreground.agenda().hear(&items))
     }
 
     /// Notes that the thread just started holds the working set as its

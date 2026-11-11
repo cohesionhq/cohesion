@@ -1,5 +1,6 @@
 //! What reaches a running turn from outside it: the user's messages, which
-//! steer it, and the user's stop.
+//! steer it, news its owner adds (an agent's agenda changed by another of
+//! its threads), and the user's stop.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -13,8 +14,8 @@ pub type StoppedFuture<'a> = Pin<Box<dyn Future<Output = ()> + Send + 'a>>;
 /// Where a [`Session`](crate::session::Session)'s turn hears from its user
 /// while it works.
 pub trait TurnInput: Send + Sync {
-    /// The prompts sent since the turn last asked, oldest first; they join
-    /// it before its next model call.
+    /// The prompts sent since the turn last asked, oldest first, and any
+    /// news; they join it before its next model call.
     fn take(&self) -> Vec<Prompt>;
 
     /// As [`take`](Self::take), except that when none are waiting the turn

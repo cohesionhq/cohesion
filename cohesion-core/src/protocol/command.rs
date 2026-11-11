@@ -44,14 +44,14 @@ use super::tag_requests::*;
 use super::task_requests::*;
 use super::workspace_requests::*;
 use crate::model::{
-    Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, Article, Attachment,
-    CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
-    DocumentFolderProperty, Embed, EndpointModel, ExtensionHook, ExtensionPermission, Feed,
-    FeedSummary, IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage,
-    IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault,
-    IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource, RestoredItem, SavedTaskView,
-    SearchResult, SecuritySettings, StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection,
-    Version, VersionSummary, Workspace, WorkspaceResourceKind,
+    Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem,
+    Article, Attachment, CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem,
+    Document, DocumentFolder, DocumentFolderProperty, Embed, EndpointModel, ExtensionHook,
+    ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
+    IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
+    IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
+    RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings, TableRow, Tag,
+    Task, TaskFolder, TextSection, Version, VersionSummary, Workspace, WorkspaceResourceKind,
 };
 
 /// Every request a client can send; the `args` of a [`Request`](super::Request).
@@ -559,6 +559,9 @@ pub enum Command {
     /// Lists agent `agent_id`'s cues, oldest first.
     #[reply(Vec<IntelligenceAgentCue>)]
     ListAgentCues(ListAgentCuesRequest),
+    /// Lists agent `agent_id`'s agenda, in order, finished items included.
+    #[reply(Vec<AgentAgendaItem>)]
+    ListAgentAgenda(ListAgentAgendaRequest),
     /// Removes cue `cue_id`; an agent left with no cues goes idle.
     #[reply(AcceptedResponse, via = Intelligence)]
     RemoveAgentCue(RemoveAgentCueRequest),

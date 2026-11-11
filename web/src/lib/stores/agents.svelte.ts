@@ -9,6 +9,7 @@ import type {
 	IntelligenceAgent,
 	Attachment,
 	IntelligenceAgentColor,
+	AgentAgendaItem,
 	IntelligenceAgentCue,
 	IntelligenceAgentMessage,
 	IntelligenceAgentPersonality,
@@ -121,6 +122,8 @@ export class AgentsStore {
 	readonly feed: Resource<AgentFeed, number>;
 	/** The selected agent's cues, oldest first. */
 	readonly cues: Resource<IntelligenceAgentCue[], number>;
+	/** The selected agent's agenda, in order, finished items included. */
+	readonly agenda: Resource<AgentAgendaItem[], number>;
 	readonly runs: Resource<IntelligenceAgentRun[], number>;
 	/** The agent the view shows. */
 	selected = $state<number | null>(null);
@@ -196,6 +199,11 @@ export class AgentsStore {
 			initial: [],
 			matches: forAgent
 		});
+		this.agenda = new Resource({
+			fetch: (agent_id) => send('listAgentAgenda', { agent_id }),
+			initial: [],
+			matches: forAgent
+		});
 		this.runs = new Resource({
 			fetch: (agent_id) => send('listAgentRuns', { agent_id, limit: RUNS_LIMIT }),
 			initial: [],
@@ -230,20 +238,25 @@ export class AgentsStore {
 		return id === null ? null : (this.list.value.find((a) => a.id === id) ?? null);
 	}
 
-	/** Shows agent `agent_id`'s feed and cues, or nothing for null. */
+	/** Shows agent `agent_id`'s feed, cues and agenda, or nothing for null. */
 	open(agent_id: number | null): Promise<void> {
 		this.selected = agent_id;
 		if (agent_id === null) {
 			this.release();
 			return Promise.resolve();
 		}
-		return Promise.all([this.feed.load(agent_id), this.cues.load(agent_id)]).then(() => undefined);
+		return Promise.all([
+			this.feed.load(agent_id),
+			this.cues.load(agent_id),
+			this.agenda.load(agent_id)
+		]).then(() => undefined);
 	}
 
-	/** Stops refetching the selected agent's feed, cues and runs. */
+	/** Stops refetching the selected agent's feed, cues, agenda and runs. */
 	release(): void {
 		this.feed.release();
 		this.cues.release();
+		this.agenda.release();
 		this.runs.release();
 	}
 

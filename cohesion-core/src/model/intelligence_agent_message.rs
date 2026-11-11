@@ -44,6 +44,7 @@ pub enum IntelligenceAgentMessageSender {
 ///   database rather than carrying on its last thread, which loses the
 ///   provider's cached prompt, and `reason` says why
 ///   (`null` on a line written before reasons were kept).
+/// - `"agenda"`: the agent added, finished or cleared items of its agenda.
 #[derive(Serialize, Deserialize, Clone, Debug, TsWire)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AgentMessageContent {
@@ -79,6 +80,7 @@ pub enum AgentMessageContent {
         #[serde(default)]
         reason: Option<ContextRebuildReason>,
     },
+    Agenda(AgentAgendaUpdate),
 }
 
 /// Why an agent's turn started a fresh model thread instead of carrying on
@@ -105,13 +107,13 @@ pub enum ContextRebuildReason {
 
 impl AgentMessageContent {
     /// Whether this is the agent's own bookkeeping (a note, a wake line, a
-    /// compressed context),
+    /// compressed context, a change to its agenda),
     /// which raises no hook: it is news to no one but the agent's own later
     /// turns.
     pub fn is_bookkeeping(&self) -> bool {
         matches!(
             self,
-            Self::Note { .. } | Self::Woke { .. } | Self::RebuiltContext { .. }
+            Self::Note { .. } | Self::Woke { .. } | Self::RebuiltContext { .. } | Self::Agenda(_)
         )
     }
 }
@@ -150,6 +152,36 @@ impl AgentMessageContent {
     /// Whether it can be reacted to: a text message or a forward.
     pub fn is_reactable(&self) -> bool {
         matches!(self, Self::Text { .. } | Self::Forward { .. })
+    }
+}
+
+/// How an agent changed its agenda, in an `agenda` message.
+///
+/// - `"appended"`: it added `items`.
+/// - `"finished"`: it finished the one item in `items`.
+/// - `"reset"`: it cleared the agenda, whose items were `items`.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TextEnum, TsWire)]
+#[serde(rename_all = "camelCase")]
+#[text_enum(rename_all = "camelCase")]
+pub enum AgentAgendaChange {
+    Appended,
+    Finished,
+    Reset,
+}
+
+/// One change to an agent's agenda, stored as an `agenda` message.
+#[derive(Serialize, Deserialize, Clone, Debug, TsWire)]
+pub struct AgentAgendaUpdate {
+    pub change: AgentAgendaChange,
+    /// The text of the items it added, finished or cleared, in order.
+    pub items: Vec<String>,
+}
+
+impl AgentAgendaUpdate {
+    /// The items' text, joined by `; `: what the message's line shows
+    /// after its verb.
+    pub fn changed_text(&self) -> String {
+        self.items.join("; ")
     }
 }
 
@@ -305,14 +337,16 @@ pub struct IntelligenceAgentMessage {
     /// client shows a kind it has no view for. Its text, a forward's note (else the item's title), a choice's
     /// question, a script's title, `Learning about network`, `Asked Scout:
     /// …`, `Scout asked: …`, or an error; for the agent's bookkeeping, what
-    /// follows `excerpt_verb`: the memory, the note, or what woke it
+    /// follows `excerpt_verb`: the memory, the note, the agenda items it
+    /// added, finished or cleared (joined by `; `), or what woke it
     /// (`Actor session 264 stopped`, `Cue “Morning” fired`, `“Fix
     /// the build” was assigned to you`). A compressed context's is
     /// `Context rebuilt`, then why when it is known, with no verb.
     #[model(expr = IntelligenceAgentMessage::EXCERPT_SQL)]
     pub excerpt: String,
     /// What the agent did, for a line of its bookkeeping: `Remembered`,
-    /// `Forgot`, `Noted` or `Woke`, which reads alone as the heading of a
+    /// `Forgot`, `Noted`, `Added to the agenda`, `Finished`, `Cleared the
+    /// agenda` or `Woke`, which reads alone as the heading of a
     /// run of such lines and before `excerpt` as `Noted: …`; `null` for
     /// every other kind.
     #[model(expr = IntelligenceAgentMessage::EXCERPT_VERB_SQL)]
@@ -354,6 +388,7 @@ macro_rules! excerpt_sql {
                 || ' asked: ' || intelligence_agent_messages.text \
             WHEN 'error' THEN intelligence_agent_messages.text \
             WHEN 'note' THEN intelligence_agent_messages.text \
+            WHEN 'agenda' THEN intelligence_agent_messages.text \
             WHEN 'woke' THEN CASE intelligence_agent_messages.wake \
                 WHEN 'cue' THEN 'Cue “' || intelligence_agent_messages.cue_name || '” fired' \
                 WHEN 'assignedTask' THEN '“' || intelligence_agent_messages.title || '” was assigned to you' \
@@ -383,7 +418,7 @@ impl IntelligenceAgentMessage {
         WHEN intelligence_agent_messages.run_id IS NULL THEN NULL \
         WHEN intelligence_agent_messages.kind IN ('woke', 'askedByAgent') THEN 'trigger' \
         WHEN intelligence_agent_messages.kind IN ('codeExecution', 'documentation', 'memory', \
-            'note', 'askedAgent') THEN 'step' \
+            'note', 'agenda', 'askedAgent') THEN 'step' \
         ELSE 'surfaced' END)";
 
     /// The SQL of [`excerpt`](Self::excerpt): the line for each kind with
@@ -410,6 +445,10 @@ impl IntelligenceAgentMessage {
         WHEN 'memory' THEN CASE intelligence_agent_messages.change \
             WHEN 'forgotten' THEN 'Forgot' ELSE 'Remembered' END \
         WHEN 'note' THEN 'Noted' \
+        WHEN 'agenda' THEN CASE intelligence_agent_messages.agenda_change \
+            WHEN 'finished' THEN 'Finished' \
+            WHEN 'reset' THEN 'Cleared the agenda' \
+            ELSE 'Added to the agenda' END \
         WHEN 'woke' THEN 'Woke' END)";
 }
 

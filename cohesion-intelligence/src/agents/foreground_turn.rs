@@ -1,10 +1,11 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use cohesion_core::model::{Attachment, IntelligenceAgentMessage};
 use cohesion_db::DatabaseEventTrace;
 use cohesion_js::ScriptStop;
 use tokio::sync::watch;
 
+use super::agenda::{Agenda, HeardAgenda};
 use super::agent_transcript;
 use crate::transcript_item::{Prompt, PromptImage};
 use crate::turn_input::{StoppedFuture, TurnInput};
@@ -15,12 +16,14 @@ use crate::turn_input::{StoppedFuture, TurnInput};
 /// host runs it; a fork of the conversation has one of its own. It carries
 /// the trace the turn's writes and questions continue: a turn the user
 /// started begins a fresh one, a fork or a turn another agent's answer
-/// woke continues the question's.
+/// woke continues the question's. It also hears, for its thread, what
+/// the agent's other threads changed of its agenda.
 #[derive(Default)]
 pub(super) struct ForegroundTurn {
     state: Mutex<State>,
     /// Whether the running turn is stopped, for the model call it waits on.
     stopped: watch::Sender<bool>,
+    agenda: HeardAgenda,
 }
 
 /// A message of the user's waiting for the running turn to take it in.
@@ -47,6 +50,19 @@ struct State {
 }
 
 impl ForegroundTurn {
+    /// A thread's turn, hearing changes to `agenda`, its agent's.
+    pub(super) fn new(agenda: Arc<Agenda>) -> Self {
+        Self {
+            agenda: HeardAgenda::new(agenda),
+            ..Self::default()
+        }
+    }
+
+    /// What the thread heard of its agent's agenda.
+    pub(super) fn agenda(&self) -> &HeardAgenda {
+        &self.agenda
+    }
+
     /// Starts a turn under `trace`, taking messages in until it closes, and
     /// returns which turn it is, for [`end`](Self::end). Messages a turn
     /// still open never took in wait for this one.
@@ -155,8 +171,22 @@ impl State {
 }
 
 impl TurnInput for ForegroundTurn {
+    /// The user's messages, after what another thread changed of the
+    /// agenda, if it did.
     fn take(&self) -> Vec<Prompt> {
-        self.state().take()
+        let mut prompts = self.state().take();
+        if !self.is_stopped()
+            && let Some(news) = self.agenda.news()
+        {
+            prompts.insert(
+                0,
+                Prompt {
+                    text: news,
+                    images: Vec::new(),
+                },
+            );
+        }
+        prompts
     }
 
     fn close(&self) -> Vec<Prompt> {

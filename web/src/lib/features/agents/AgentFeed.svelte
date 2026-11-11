@@ -31,6 +31,7 @@
 	import CheckSquare from '@lucide/svelte/icons/square-check';
 	import FoldVertical from '@lucide/svelte/icons/fold-vertical';
 	import Info from '@lucide/svelte/icons/info';
+	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
 	import Forward from '@lucide/svelte/icons/forward';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -189,7 +190,14 @@
 
 	/** The icon of a quiet line: what it records. A memory draws its own, in `MemoryPopover`. */
 	function quietIcon(message: AgentMessage): Component {
-		return message.message_content.kind === 'rebuiltContext' ? FoldVertical : Info;
+		switch (message.message_content.kind) {
+			case 'rebuiltContext':
+				return FoldVertical;
+			case 'agenda':
+				return ListChecks;
+			default:
+				return Info;
+		}
 	}
 
 	/** Whether `message` draws as a one-line status: a fork's row or a quiet line. */
