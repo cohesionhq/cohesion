@@ -3606,8 +3606,22 @@ function seedRewind(state: MockState, now: number): void {
 	state.versions.push(
 		version(1, 3 * DAY, 'A first draft.\n', 'created', 'user', null),
 		version(2, 2 * DAY, `${d.contents}\n\nTo do: ask Core Engineer.\n`, 'edited', 'user', null),
-		version(3, 5 * 60 * MINUTE, 'A rewrite by an agent.\n', 'edited', 'agent', 'Core Engineer'),
-		version(4, 90 * MINUTE, 'Synced in from elsewhere.\n', 'edited', 'extension', 'Linear sync'),
+		version(
+			3,
+			5 * 60 * MINUTE,
+			`${d.contents.replace('instead of a generic internal error', 'and the position it failed at')}\nTo do: ask Core Engineer.\n`,
+			'edited',
+			'agent',
+			'Core Engineer'
+		),
+		version(
+			4,
+			90 * MINUTE,
+			`${d.contents}\nSee LIN-412 for the quoting rules.\n`,
+			'edited',
+			'extension',
+			'Linear sync'
+		),
 		version(5, 12 * MINUTE, d.contents, 'edited', 'user', null)
 	);
 	const t = state.tasks.find((t) => t.workspace_id === 1)!;

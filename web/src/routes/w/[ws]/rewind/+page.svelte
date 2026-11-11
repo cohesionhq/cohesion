@@ -9,15 +9,16 @@
 	import FileText from '@lucide/svelte/icons/file-text';
 	import NotebookPen from '@lucide/svelte/icons/notebook-pen';
 	import { untrack } from 'svelte';
+	import AuthorIcon from '$lib/features/rewind/AuthorIcon.svelte';
 	import RewindPanel from '$lib/features/rewind/RewindPanel.svelte';
-	import { longDay, shortDate, shortTime } from '$lib/format/dates';
+	import Timeline from '$lib/features/rewind/Timeline.svelte';
+	import { longDay, shortTime } from '$lib/format/dates';
 	import { pane } from '$lib/shell/pane.svelte';
 	import PageTitle from '$lib/shell/PageTitle.svelte';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 	import { authorLabel, type DeletedItem } from '$lib/stores/rewind.svelte';
 	import { storage } from '$lib/stores/settings/storage.svelte';
 	import EmptyState from '$lib/ui/EmptyState.svelte';
-	import { list } from '$lib/ui/list';
 	import PageHeader from '$lib/ui/PageHeader.svelte';
 	import ResourceState from '$lib/ui/ResourceState.svelte';
 
@@ -69,29 +70,32 @@
 			{#if items.length === 0}
 				<EmptyState message="No deleted items" />
 			{:else}
-				<ul class={list.rows}>
-					{#each items as item (`${item.kind}-${item.id}`)}
+				<Timeline
+					rows={items}
+					key={(item) => `${item.kind}-${item.id}`}
+					node={() => 'gone'}
+					onchoose={show}
+				>
+					{#snippet row(item)}
 						{@const Icon = icon(item)}
-						<li class="border-b border-border">
-							<button
-								class="flex min-h-11 w-full cursor-pointer flex-wrap items-baseline gap-x-2 py-2 text-left transition-colors hover:bg-bg-hover"
-								type="button"
-								onclick={() => show(item)}
+						<span class="flex items-baseline gap-2">
+							<span class="self-center text-fg-subtle">
+								<Icon size={15} strokeWidth={1.75} aria-label={kindLabel(item)} />
+							</span>
+							<span class="min-w-0 font-medium wrap-anywhere">{name(item)}</span>
+							<span class="ml-auto flex-none text-xs text-fg-subtle tabular-nums"
+								>{shortTime(item.modified)}</span
 							>
-								<span class="self-center text-fg-subtle">
-									<Icon size={15} strokeWidth={1.75} aria-label={kindLabel(item)} />
-								</span>
-								<span class="min-w-0 wrap-anywhere">{name(item)}</span>
-								<span class="ml-auto text-xs text-fg-subtle">
-									Deleted {shortDate(item.modified)}, {shortTime(
-										item.modified
-									)}{#if authorLabel(item)}&nbsp;by
-										{authorLabel(item)}{/if}
-								</span>
-							</button>
-						</li>
-					{/each}
-				</ul>
+						</span>
+						<span class="mt-0.5 flex items-center gap-1.5 text-xs text-fg-muted">
+							{#if authorLabel(item)}
+								<AuthorIcon author={item.author} />Deleted by {authorLabel(item)}
+							{:else}
+								Deleted
+							{/if}
+						</span>
+					{/snippet}
+				</Timeline>
 			{/if}
 		{/snippet}
 	</ResourceState>

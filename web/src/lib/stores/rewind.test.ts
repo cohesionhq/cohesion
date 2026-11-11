@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createMock } from '$lib/protocol/mock';
-import { authorLabel, createRewindStore, type RewindItem } from './rewind.svelte';
+import { authorLabel, createRewindStore, groupByDay, type RewindItem } from './rewind.svelte';
 
 describe('rewind store', () => {
 	it('restoring keeps a new version, so it can be undone', async () => {
@@ -43,5 +43,21 @@ describe('rewind store', () => {
 		expect(authorLabel({ author: 'extension', author_name: 'Linear' })).toBe('Linear');
 		expect(authorLabel({ author: 'script', author_name: null })).toBe('Script');
 		expect(authorLabel({ author: 'unknown', author_name: null })).toBe(null);
+	});
+});
+
+describe('groupByDay', () => {
+	it('names today and yesterday, and dates the days before', () => {
+		const today = 1_000_000;
+		const rows = [today + 60, today - 60, today - 86_400 - 60, today - 3 * 86_400].map(
+			(modified) => ({ modified })
+		);
+		const days = groupByDay(rows, today, (s) => `day ${s}`);
+		expect(days.map((d) => [d.label, d.rows.length])).toEqual([
+			['Today', 1],
+			['Yesterday', 1],
+			[`day ${today - 86_400 - 60}`, 1],
+			[`day ${today - 3 * 86_400}`, 1]
+		]);
 	});
 });
