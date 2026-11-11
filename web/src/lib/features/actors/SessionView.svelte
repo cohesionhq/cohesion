@@ -276,6 +276,9 @@
 		return () => clearInterval(timer);
 	});
 
+	/** `elapsed` for a step's row: nothing at all under a second. */
+	const took = (seconds: number) => (seconds < 1 ? null : elapsed(seconds));
+
 	/**
 	 * How long the tool or thinking at `index` took, in whole seconds: until
 	 * its actor said it ended, counting up while it runs. One whose actor
@@ -286,10 +289,10 @@
 		const said = messages[index].content;
 		const start = messages[index].sent_at;
 		if (said.sender === 'actor' && 'ended_at' in said && said.ended_at !== null)
-			return elapsed(said.ended_at - start);
-		if (running(index)) return elapsed(Math.max(0, now - start));
+			return took(said.ended_at - start);
+		if (running(index)) return took(Math.max(0, now - start));
 		const next = messages[index + 1];
-		return next ? elapsed(next.sent_at - start) : null;
+		return next ? took(next.sent_at - start) : null;
 	}
 
 	/** Whether message `index` is a one-line row: a tool the actor ran, or its folded thinking. */
