@@ -378,6 +378,10 @@ doing, not by how it looks.
 - **Select** (`ui/Select.svelte`) is a form field over a short, fixed list:
   a setting's value, a provider. `Choices` is the same choice laid out in a
   panel.
+- **Segmented** (`ui/Segmented.svelte`) switches between a few lists of
+  one thing in place, one showing at a time, each segment with its count:
+  an agent's Personal and Team skills and memories. `Tabs` link between a
+  page's views instead.
 - **Dialog** (`ui/Dialog.svelte`) is for a decision or a short form that
   blocks until answered; `ConfirmDialog` for a destructive action. Every
   dialog is centred in the window, at least `--dialog-inset` from its top
