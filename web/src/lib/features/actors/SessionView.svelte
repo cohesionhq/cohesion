@@ -292,6 +292,19 @@
 		return next ? elapsed(next.sent_at - start) : null;
 	}
 
+	/**
+	 * How long the session worked on its last turn once it has stopped: from the
+	 * user's last message (or the session's start) to when it went idle or failed;
+	 * `null` while it works, waits on the user, or has no actor reply to show for it.
+	 */
+	const workedFor = $derived.by(() => {
+		if (!session || (session.status !== 'idle' && session.status !== 'failed')) return null;
+		if (messages.at(-1)?.content.sender !== 'actor') return null;
+		const turn = messages.findLast((m) => m.content.sender === 'user');
+		const start = turn?.sent_at ?? session.started_at;
+		return elapsed(Math.max(0, session.status_changed_at - start));
+	});
+
 	/** Whether message `index` is a one-line row: a tool the actor ran, or its folded thinking. */
 	const isLine = (index: number) =>
 		['toolUse', 'thinking'].includes(messages[index]?.content.kind ?? '');
@@ -541,6 +554,10 @@
 
 					{#if session.status === 'working'}
 						<WorkingLine />
+					{:else if workedFor}
+						<p class="mx-auto mt-4 w-full max-w-190 text-xs text-fg-subtle tabular-nums">
+							Worked for {workedFor}
+						</p>
 					{/if}
 				{/if}
 			</div>
