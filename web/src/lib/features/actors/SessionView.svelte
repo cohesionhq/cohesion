@@ -352,7 +352,7 @@
 												/>
 												{#if running(index)}<span class="sr-only">Running: </span>{/if}
 												<Shimmer class="flex-none font-medium text-fg-muted" active={running(index)}
-													>Thinking</Shimmer
+													>{running(index) ? 'Thinking' : 'Thought'}</Shimmer
 												>
 												{#if took(index)}
 													<span class="flex-none tabular-nums">{took(index)}</span>
