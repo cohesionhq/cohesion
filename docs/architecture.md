@@ -1564,7 +1564,7 @@ Requests connect within 30 s and finish within 10 minutes
 `SystemPrompt::prompt`), in order, most stable first so the provider's cached
 prefix lasts:
 
-1. `FOREGROUND_AGENT_PROMPT`: what an agent in Cohesion is, the workspace the user is in as a hint, its context, memories, storage, notes and agenda, working with the user's data, cues, skills, other agents, and replying.
+1. `FOREGROUND_AGENT_PROMPT`: what an agent in Cohesion is, the workspace the user is in as a hint, its context, its agenda, memories, storage and notes, working with the user's data, cues, skills, other agents, and replying.
 2. `LINKS`: how to write and read `cohesion://task/<ws>/<id>`, `cohesion://document/<ws>/<id>`, `cohesion://resource/<ws>/<id>`, `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and `cohesion://article/<id>`, and that in a document a link alone on its line shows as a card.
 3. "Your voice": its personality and verbosity.
 4. "Your role" and "Your directive", when set.
