@@ -370,7 +370,8 @@ doing, not by how it looks.
   panel for an item's version history; an item with a history puts this button
   among its actions rather than drawing its own. The workspace's Rewind page,
   of what was deleted, has no sidebar row: it opens from the "…" menu beside
-  the workspace picker, or ⌘K.
+  the workspace picker, or ⌘K. Both draw their rows on one timeline
+  (`features/rewind/Timeline.svelte`), grouped by day.
 - **SidePanel** (`ui/SidePanel.svelte`) is for reading or writing
   something longer without leaving the page; `ItemPanel` on top of it opens
   every linked item (`cohesion://…`) but a folder, which opens the Documents page at it. An Expand button beside Close floats it

@@ -123,3 +123,32 @@ export class RewindStore {
 export function createRewindStore(send: Send = defaultSend): RewindStore {
 	return new RewindStore(send);
 }
+
+/** Rows of one day, under the day's name. */
+export interface Day<T> {
+	key: string;
+	label: string;
+	rows: T[];
+}
+
+/** Splits rows (newest first) by local day: Today, Yesterday, then each day's short date. */
+export function groupByDay<T extends { modified: number }>(
+	rows: T[],
+	todayStart: number,
+	dateLabel: (seconds: number) => string
+): Day<T>[] {
+	const days: Day<T>[] = [];
+	for (const row of rows) {
+		const back = Math.max(0, Math.ceil((todayStart - row.modified) / 86_400));
+		const key = back === 0 ? 'today' : back === 1 ? 'yesterday' : String(back);
+		const last = days.at(-1);
+		if (last?.key === key) last.rows.push(row);
+		else
+			days.push({
+				key,
+				label: back === 0 ? 'Today' : back === 1 ? 'Yesterday' : dateLabel(row.modified),
+				rows: [row]
+			});
+	}
+	return days;
+}

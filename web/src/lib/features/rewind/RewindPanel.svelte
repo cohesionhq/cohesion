@@ -9,7 +9,7 @@
 	import History from '@lucide/svelte/icons/history';
 	import { untrack } from 'svelte';
 	import { STATUSES } from '$lib/features/tasks/status';
-	import { shortDate, shortTime } from '$lib/format/dates';
+	import { ago, shortDate, shortTime } from '$lib/format/dates';
 	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 	import {
@@ -26,6 +26,8 @@
 	import { list } from '$lib/ui/list';
 	import Markdown from '$lib/ui/Markdown.svelte';
 	import ResourceState from '$lib/ui/ResourceState.svelte';
+	import AuthorIcon from './AuthorIcon.svelte';
+	import Timeline from './Timeline.svelte';
 	import { toasts } from '$lib/ui/toasts.svelte';
 
 	interface Props {
@@ -136,25 +138,32 @@
 				{#if versions.length === 0}
 					<EmptyState message="No versions yet" compact />
 				{:else}
-					<ul>
-						{#each versions as row (row.id)}
-							<li class="border-b border-border">
-								<button
-									class="flex min-h-11 w-full cursor-pointer flex-wrap items-center gap-x-2 py-2 text-left transition-colors hover:bg-bg-hover"
-									type="button"
-									onclick={() => choose(row)}
-								>
-									<span class="tabular-nums">{when(row)}</span>
-									{#if authorLabel(row)}
-										<span class="text-fg-muted">{authorLabel(row)}</span>
-									{/if}
-									<span class="ml-auto text-xs text-fg-subtle">
-										{row.current ? 'Current' : changeLabel(row)}
-									</span>
-								</button>
-							</li>
-						{/each}
-					</ul>
+					<Timeline
+						rows={versions}
+						key={(row) => String(row.id)}
+						node={(row) => (row.current ? 'current' : row.change === 'deleted' ? 'gone' : 'plain')}
+						onchoose={choose}
+					>
+						{#snippet row(row)}
+							<span class="flex items-center gap-2">
+								<span class="font-medium tabular-nums">{shortTime(row.modified)}</span>
+								{#if row.current}
+									<span class="rounded-sm bg-bg-hover px-1.5 text-2xs font-medium text-fg">Now</span
+									>
+								{:else if changeLabel(row)}
+									<span class="rounded-sm bg-bg-hover px-1.5 text-2xs text-fg-muted"
+										>{changeLabel(row)}</span
+									>
+								{/if}
+								<span class="ml-auto text-xs text-fg-subtle tabular-nums">{ago(row.modified)}</span>
+							</span>
+							{#if authorLabel(row)}
+								<span class="mt-0.5 flex items-center gap-1.5 text-xs text-fg-muted">
+									<AuthorIcon author={row.author} />{authorLabel(row)}
+								</span>
+							{/if}
+						{/snippet}
+					</Timeline>
 				{/if}
 				{#if days}
 					<p class={list.note}>Versions are kept for {days} {days === 1 ? 'day' : 'days'}.</p>
