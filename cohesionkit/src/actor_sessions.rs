@@ -134,13 +134,14 @@ impl ActorSessions {
             model: session.model.clone(),
             effort: session.effort.clone(),
         };
-        if let Err(error) = self.call(&actor, call).await {
+        self.call_or_undo(&actor, call, async {
             self.close(session.id, ActivityOutcome::Failed).await;
             database
                 .send(DeleteActorSessionCommand { id: session.id })
                 .await?;
-            return Err(error);
-        }
+            Ok(())
+        })
+        .await?;
         Ok(database
             .send(GetActorSessionCommand { id: session.id })
             .await?)
@@ -161,11 +162,7 @@ impl ActorSessions {
         let session = database
             .send(GetActorSessionCommand { id: session_id })
             .await?;
-        let actor = database
-            .send(GetActorIncludingDeletedCommand {
-                id: session.actor_id,
-            })
-            .await?;
+        let actor = self.actor_of(&session).await?;
         self.reachable(&actor)?;
         // A subagent is told what it asked about under its session.
         let (addressed, subagent) = match &session.subagent {
@@ -194,26 +191,34 @@ impl ActorSessions {
             content,
             images,
         };
-        if let Err(error) = self.call(&actor, call).await {
+        self.call_or_undo(&actor, call, async {
             database
                 .send(DeleteActorSessionMessageCommand { id: message.id })
                 .await?;
-            match session.status {
-                ActorSessionStatus::Working | ActorSessionStatus::NeedsAttention => {
-                    let put_back = ActorSessionMove::PutBack(session.status);
-                    self.set_status(&session, actor.client_id, put_back).await?;
-                }
-                ActorSessionStatus::Idle
-                | ActorSessionStatus::Failed
-                | ActorSessionStatus::Resolved => {
-                    let put_back = ActorSessionMove::PutBack(session.status);
-                    self.rest(session.id, put_back, ActivityOutcome::Cancelled)
-                        .await?;
-                }
-            }
-            return Err(error);
-        }
+            self.put_back(&session, actor.client_id).await
+        })
+        .await?;
         Ok(message)
+    }
+
+    /// Puts `session` back to the status it had before a message that never
+    /// reached its actor set it working. The stretch of work that message
+    /// opened, if the session was at rest, is cancelled: nothing was done in
+    /// it.
+    async fn put_back(&self, session: &ActorSession, client_id: i64) -> Result<(), ServerError> {
+        let put_back = ActorSessionMove::PutBack(session.status);
+        match session.status {
+            ActorSessionStatus::Working | ActorSessionStatus::NeedsAttention => {
+                self.work(session, client_id, put_back).await?;
+            }
+            ActorSessionStatus::Idle
+            | ActorSessionStatus::Failed
+            | ActorSessionStatus::Resolved => {
+                self.rest(session.id, put_back, ActivityOutcome::Cancelled)
+                    .await?;
+            }
+        }
+        Ok(())
     }
 
     /// Stops what session `session_id` is doing, telling its actor when its
@@ -288,13 +293,7 @@ impl ActorSessions {
     /// Tells session `session`'s actor to stop it, when its client can be
     /// reached; one that can't be stops all the same.
     async fn halt(&self, session: &ActorSession) -> Result<(), ServerError> {
-        let actor = self
-            .inner
-            .database
-            .send(GetActorIncludingDeletedCommand {
-                id: session.actor_id,
-            })
-            .await?;
+        let actor = self.actor_of(session).await?;
         let call = ClientCall::StopActorSession {
             actor: actor.identifier.clone(),
             session_id: session.id,
@@ -321,11 +320,7 @@ impl ActorSessions {
     ) -> Result<ActorSession, ServerError> {
         let database = &self.inner.database;
         let session = self.started(session_id).await?;
-        let actor = database
-            .send(GetActorIncludingDeletedCommand {
-                id: session.actor_id,
-            })
-            .await?;
+        let actor = self.actor_of(&session).await?;
         self.reachable(&actor)?;
         let switched = database
             .send(SetActorSessionModeCommand {
@@ -338,15 +333,16 @@ impl ActorSessions {
             session_id,
             mode,
         };
-        if let Err(error) = self.call(&actor, call).await {
+        self.call_or_undo(&actor, call, async {
             database
                 .send(SetActorSessionModeCommand {
                     session_id,
                     mode: session.mode,
                 })
                 .await?;
-            return Err(error);
-        }
+            Ok(())
+        })
+        .await?;
         Ok(switched)
     }
 
@@ -364,11 +360,7 @@ impl ActorSessions {
         let session = database
             .send(GetActorSessionCommand { id: session_id })
             .await?;
-        let actor = database
-            .send(GetActorIncludingDeletedCommand {
-                id: session.actor_id,
-            })
-            .await?;
+        let actor = self.actor_of(&session).await?;
         if actor.client_id != client_id {
             return Err(ServerError::bad_request(
                 "No actor of this client has this session.",
@@ -655,6 +647,35 @@ impl ActorSessions {
             .map_err(|error| error.naming(&actor.title))
     }
 
+    /// The actor `session` is a session of, which may since have been deleted.
+    async fn actor_of(&self, session: &ActorSession) -> Result<Actor, ServerError> {
+        Ok(self
+            .inner
+            .database
+            .send(GetActorIncludingDeletedCommand {
+                id: session.actor_id,
+            })
+            .await?)
+    }
+
+    /// Makes `call` to `actor`'s client for a write already recorded. When
+    /// the client can't be reached, or refuses, runs `undo` to take the
+    /// write back and answers why the call failed, so a call that didn't
+    /// land leaves nothing behind. Every call that follows a write goes
+    /// through here.
+    async fn call_or_undo(
+        &self,
+        actor: &Actor,
+        call: ClientCall,
+        undo: impl Future<Output = Result<(), ServerError>>,
+    ) -> Result<(), ServerError> {
+        let Err(error) = self.call(actor, call).await else {
+            return Ok(());
+        };
+        undo.await?;
+        Err(error)
+    }
+
     /// Makes `call` to `actor`'s client, saying why not as the user reads it.
     async fn call(&self, actor: &Actor, call: ClientCall) -> Result<(), ServerError> {
         self.inner
@@ -664,6 +685,9 @@ impl ActorSessions {
             .map_err(|error| error.naming(&actor.title))
     }
 }
+
+#[cfg(test)]
+mod tests;
 
 /// What a report from a client stored, which its reply carries.
 #[derive(Debug)]
