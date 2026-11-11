@@ -129,7 +129,9 @@ are in the `web-ui-change` skill.
   digit for a workspace, ⌘, for Settings, and ⌘[ ⌘] or ⌥← ⌥→ and a mouse's
   side buttons for back and forward, which the WebUI harnesses' web view lacks; ⌘/ or
   `?` lists them), and the split view (see [Split view](#split-view)).
-- `src/routes/`: `/` picks a workspace; `/w/[ws]/…` are workspace pages
+- `src/routes/`: `/` picks a workspace, or with none opens the first-run flow
+  (`features/onboarding/`: a workspace, a model provider and an agent, each
+  skippable); `/w/[ws]/…` are workspace pages
   (`ws` is the numeric id), and a workspace opens on its Dashboard
   (`routes.workspace`, the one place that says so; Today stays in the
   sidebar and ⌘K); `/agents`, `/actors` (and `/actors/[session]`, one
@@ -224,7 +226,9 @@ only these exist:
   `text-fg-subtle`, `bg-bg-hover`, `border-border`, `bg-danger/10`.
 - **Spacing** is a 4px step: `p-1` is 4px, `gap-2` 8px, `px-3` 12px.
 - **Type**: `text-3xs` 10px (a dial's percentage only), `text-2xs` 11px, `text-xs` 13, `text-sm` 14 (body), `text-md`
-  15, `text-lg` 20, `text-xl` 28. Every page's header is one bar
+  15, `text-lg` 20, `text-xl` 28, and `text-display` 44, which only the
+  first-run flow's titles take, set bold and tight so that flow reads as its own
+  moment. Every page's header is one bar
   (`ui/PageHeader.svelte`, as tall as a conversation's `ChatHeader`), running to the
   sheet's edges over a hairline, its title `text-md` semibold and its meta beside it
   `text-xs`, its tools at the sheet's right edge; a page that reads in a column (a
