@@ -226,10 +226,12 @@
 	// or started moves only once it leaves and a row never shifts under a click. Each held
 	// row still shows where its session stands, and goes the moment the sidebar stops listing it
 	// (a session resolved from here leaves at once, pointer or not).
-	// Only sessions going on (working, or waiting on the user) and the one open: what's done is
-	// on the Dashboard and the Actors page, so the column stays a list of what is live.
+	// Sessions going on (working, or waiting on the user), finished ones not yet read, and the one
+	// open: a finished session stays until it is read or resolved, so completed work isn't lost.
 	const liveSessions = $derived(
-		actorSessions.filter((session) => isGoing(session) || active(routes.actorSession(session.id)))
+		actorSessions.filter(
+			(session) => isGoing(session) || session.unread || active(routes.actorSession(session.id))
+		)
 	);
 	let heldSessions = $state.raw<ActorSession[] | null>(null);
 	const shownTasks = $derived(
