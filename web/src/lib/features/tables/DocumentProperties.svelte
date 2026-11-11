@@ -67,6 +67,7 @@
 						if (editing === property.id) editing = null;
 					}}
 					onsave={(value) => values.setValue(property.id, value)}
+					onaddoption={(name) => values.addOption(property.id, name)}
 				/>
 			</ItemDetail>
 		{/each}

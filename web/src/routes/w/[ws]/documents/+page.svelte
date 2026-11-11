@@ -635,6 +635,7 @@
 				onformula={(property) => editProperty({ mode: 'formula', property })}
 				onsetbyhand={(property) => run(tables.setPropertyFormula(property.id, null))}
 				onoptions={(property) => editProperty({ mode: 'options', property })}
+				onaddoption={(property, name) => tables.addOption(property.id, name)}
 				onmove={(property, before) => run(tables.moveProperty(property.id, before))}
 				ondelete={(property) => (deletingProperty = property)}
 				onaddproperty={() => editProperty({ mode: 'new' })}
