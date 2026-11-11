@@ -19,6 +19,21 @@ use crate::{
     Read, ReadableDatabase, Write, WriteContainer,
 };
 
+/// The live journal of `workspace_id` for `date`, a `YYYY-MM-DD`, if it has one.
+fn journal_on<'c>(
+    db: impl ReadableDatabase<'c>,
+    workspace_id: i64,
+    date: &str,
+) -> DatabaseCommandResult<Option<Document>> {
+    Ok(db
+        .select_live()
+        .filter("workspace_id = ? AND document_type = ? AND journal_date = ?")
+        .bind(workspace_id)
+        .bind(DocumentType::Journal)
+        .bind(date.to_string())
+        .one()?)
+}
+
 /// The journal for `date`, a `YYYY-MM-DD`; the column's CHECK rejects
 /// anything else when a new journal is stored.
 fn find_or_create_journal(
@@ -26,14 +41,7 @@ fn find_or_create_journal(
     workspace_id: i64,
     date: String,
 ) -> DatabaseCommandResult<Changed<Document>> {
-    let existing: Option<Document> = ctx
-        .db
-        .select_live()
-        .filter("workspace_id = ? AND document_type = ? AND journal_date = ?")
-        .bind(workspace_id)
-        .bind(DocumentType::Journal)
-        .bind(date.clone())
-        .one()?;
+    let existing = journal_on(ctx.db, workspace_id, &date)?;
     match existing {
         Some(document) => Ok(document.invalidating_nothing()),
         None => {
@@ -248,14 +256,7 @@ impl DatabaseCommand for LookupJournalByDateCommand {
     type Access = Read;
     fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Self::Response> {
         ensure_workspace(ctx.db, self.workspace_id)?;
-        Ok(ctx
-            .db
-            .select_live()
-            .filter("workspace_id = ? AND document_type = ? AND journal_date = ?")
-            .bind(self.workspace_id)
-            .bind(DocumentType::Journal)
-            .bind(self.date)
-            .one()?)
+        journal_on(ctx.db, self.workspace_id, &self.date)
     }
 }
 

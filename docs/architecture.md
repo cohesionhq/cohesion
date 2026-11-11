@@ -1529,7 +1529,7 @@ catalog (`ModelCatalog`, `catalog/model_catalog.rs`, from
 `https://models.dev/catalog.json` at start and on `UpdateModelCatalog`), with
 their own context size and prices overriding the catalog's.
 
-**Dialects** (`session/intelligence_session.rs`, `providers/`):
+**Dialects** (`providers/`):
 
 | `Dialect` | Backend | Notes |
 |---|---|---|

@@ -37,6 +37,24 @@ pub struct CachePlan {
     pub shared_items: usize,
     pub tail: CacheLength,
 }
+impl CachePlan {
+    /// Where a transcript of `items` items puts the breakpoint of its
+    /// shared items, and what the rest asks for. A read lands only where an
+    /// earlier request wrote, and the server writes only at the end of the
+    /// latest message, which a thread copying the shared items never
+    /// sends: it follows them with its own. So the last shared item carries
+    /// a breakpoint of its own, whose index is the first answer. Shared
+    /// items that end the transcript are cached as its tail is, the
+    /// request's own breakpoint landing on the same block: there is no
+    /// index, and the tail asks for what the prefix does.
+    pub fn shared_breakpoint(&self, items: usize) -> (Option<usize>, CacheLength) {
+        if self.shared_items > 0 && self.shared_items >= items {
+            (None, self.prefix)
+        } else {
+            (self.shared_items.checked_sub(1), self.tail)
+        }
+    }
+}
 impl Default for CachePlan {
     /// A thread nothing copies, all of it kept for the long cache, so it
     /// stays warm between turns far apart.
@@ -53,4 +71,37 @@ impl Default for CachePlan {
 pub struct RemoteTranscriptState {
     pub conversation_id: String,
     pub cursor: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn plan(prefix: CacheLength, shared_items: usize, tail: CacheLength) -> CachePlan {
+        CachePlan {
+            prefix,
+            shared_items,
+            tail,
+        }
+    }
+
+    #[test]
+    fn no_shared_items_have_no_breakpoint() {
+        let plan = plan(CacheLength::Long, 0, CacheLength::Short);
+        assert_eq!(plan.shared_breakpoint(0), (None, CacheLength::Short));
+        assert_eq!(plan.shared_breakpoint(3), (None, CacheLength::Short));
+    }
+
+    #[test]
+    fn the_last_shared_item_carries_the_breakpoint() {
+        let plan = plan(CacheLength::Long, 2, CacheLength::Short);
+        assert_eq!(plan.shared_breakpoint(3), (Some(1), CacheLength::Short));
+    }
+
+    #[test]
+    fn shared_items_ending_the_transcript_are_cached_as_the_prefix_is() {
+        let plan = plan(CacheLength::Long, 2, CacheLength::Short);
+        assert_eq!(plan.shared_breakpoint(2), (None, CacheLength::Long));
+        assert_eq!(plan.shared_breakpoint(1), (None, CacheLength::Long));
+    }
 }

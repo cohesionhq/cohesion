@@ -528,22 +528,39 @@ pub(super) fn session_keys(
     Ok(keys)
 }
 
-/// The session Cohesion started that `session` is, or is a subagent of at
-/// any depth.
+/// The sessions `session` runs under, the one it is a subagent of first and
+/// the session Cohesion started last; none for a session Cohesion started.
+pub(super) fn ancestors(
+    ctx: &mut CommandContext<'_, Read>,
+    session: &ActorSession,
+) -> DatabaseCommandResult<Vec<ActorSession>> {
+    let mut above = Vec::new();
+    let mut parent = session.subagent.as_ref().map(|s| s.parent_session_id);
+    while let Some(id) = parent {
+        let up = GetActorSessionCommand { id }.handle(ctx)?;
+        parent = up.subagent.as_ref().map(|s| s.parent_session_id);
+        above.push(up);
+    }
+    Ok(above)
+}
+
+/// The id of the session Cohesion started that `session` is, or is a
+/// subagent of at any depth.
 pub(super) fn top_session_id(
     ctx: &mut CommandContext<'_, Read>,
     session: &ActorSession,
 ) -> DatabaseCommandResult<i64> {
-    let mut id = session.id;
-    let mut parent = session.subagent.as_ref().map(|s| s.parent_session_id);
-    while let Some(up) = parent {
-        id = up;
-        parent = GetActorSessionCommand { id: up }
-            .handle(ctx)?
-            .subagent
-            .map(|s| s.parent_session_id);
-    }
-    Ok(id)
+    let above = ancestors(ctx, session)?;
+    Ok(above.last().map_or(session.id, |top| top.id))
+}
+
+/// The session Cohesion started that `session` is, or is a subagent of at
+/// any depth: `session` itself when it has no parent.
+pub(super) fn started_session(
+    ctx: &mut CommandContext<'_, Read>,
+    session: ActorSession,
+) -> DatabaseCommandResult<ActorSession> {
+    Ok(ancestors(ctx, &session)?.pop().unwrap_or(session))
 }
 
 /// Whether `response` is shaped as `request`, of its kind, asks.
