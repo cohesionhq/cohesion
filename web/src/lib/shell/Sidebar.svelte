@@ -4,7 +4,11 @@
 	rail. <600px: a top bar. Labels stay in the DOM (visually hidden) so the
 	rail and bar keep accessible names. It sits on the window's canvas,
 	beside the page's sheet. The workspace's name heads it, Search an icon
-	beside it. Every agent has its own link, drawn with its avatar and its
+	beside it. In the column, the workspace's document folders sit a step in
+	under Documents (nested ones a step further, a table marked as one) and
+	its Inbox and task folders under Tasks, always shown, following the order
+	and titles their pages give them; an open folder reads as current in place
+	of its page. Every agent has its own link, drawn with its avatar and its
 	name shimmering while it works, and in the column an eye that opens beside the pin
 	and blinks twice every 5 seconds, in step with every other, while it
 	follows actor sessions not yet resolved, with how many:
@@ -28,6 +32,7 @@
 	import CheckSquare from '@lucide/svelte/icons/square-check';
 	import Eye from '@lucide/svelte/icons/eye';
 	import FileText from '@lucide/svelte/icons/file-text';
+	import Table2 from '@lucide/svelte/icons/table-2';
 	import Archive from '@lucide/svelte/icons/archive';
 	import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
@@ -45,9 +50,16 @@
 	import { backOut } from 'svelte/easing';
 	import { fade, fly, scale } from 'svelte/transition';
 	import type { ConnectionStatus } from '$lib/protocol/connection.svelte';
-	import type { ActorSession, IntelligenceAgent, IntelligenceAgentTeam } from '$lib/protocol/types';
+	import type {
+		ActorSession,
+		DocumentFolder,
+		IntelligenceAgent,
+		IntelligenceAgentTeam,
+		TaskFolder
+	} from '$lib/protocol/types';
 	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 	import { routes } from '$lib/shell/routes';
+	import { documentFolderRows, taskFolderRows, type FolderRow } from '$lib/shell/sidebarFolders';
 	import { isGoing } from '$lib/stores/actors.svelte';
 	import type { ConnectorKind } from '$lib/stores/connectors.svelte';
 	import AgentCard from '$lib/features/agents/AgentCard.svelte';
@@ -63,6 +75,8 @@
 
 	interface Props {
 		pathname: string;
+		/** The page's query, which says which folder a Documents or Tasks page shows. */
+		search: string;
 		workspaceId: number | null;
 		status: ConnectionStatus;
 		hostname: string | null;
@@ -76,6 +90,10 @@
 		goingActorSessions: number;
 		/** The kinds of resource the workspace shows, each linked to its page, in their order. */
 		kinds: ConnectorKind[];
+		/** The workspace's document folders, flat, each naming its parent. */
+		documentFolders: DocumentFolder[];
+		/** The workspace's task folders, in their order. */
+		taskFolders: TaskFolder[];
 		/** Resolves an actor session: the user is done with it. */
 		onresolve: (session: ActorSession) => void;
 		onsearch: () => void;
@@ -91,6 +109,7 @@
 
 	let {
 		pathname,
+		search,
 		workspaceId,
 		status,
 		hostname,
@@ -99,6 +118,8 @@
 		actorSessions,
 		goingActorSessions,
 		kinds,
+		documentFolders,
+		taskFolders,
 		onresolve,
 		onsearch,
 		onchoosekinds,
@@ -171,14 +192,31 @@
 		running?: number;
 	}
 
-	const workspaceLinks = $derived.by((): Link[] => {
+	const documentRows = $derived(
+		workspaceId === null ? [] : documentFolderRows(workspaceId, documentFolders, pathname, search)
+	);
+	const taskRows = $derived(
+		workspaceId === null ? [] : taskFolderRows(workspaceId, taskFolders, pathname, search)
+	);
+
+	interface WorkspaceLink extends Link {
+		/** The folders that sit under it. */
+		children?: FolderRow[];
+	}
+
+	const workspaceLinks = $derived.by((): WorkspaceLink[] => {
 		if (workspaceId === null) return [];
 		return [
 			{ href: routes.dashboard(workspaceId), label: 'Dashboard', icon: LayoutDashboard },
 			{ href: routes.today(workspaceId), label: 'Today', icon: CalendarDays },
 			{ href: routes.journal(workspaceId), label: 'Journal', icon: NotebookPen },
-			{ href: routes.documents(workspaceId), label: 'Documents', icon: FileText },
-			{ href: routes.tasks(workspaceId), label: 'Tasks', icon: CheckSquare },
+			{
+				href: routes.documents(workspaceId),
+				label: 'Documents',
+				icon: FileText,
+				children: documentRows
+			},
+			{ href: routes.tasks(workspaceId), label: 'Tasks', icon: CheckSquare, children: taskRows },
 			{ href: routes.articles(workspaceId), label: 'Articles', icon: Newspaper },
 			{ href: routes.contacts(workspaceId), label: 'Contacts', icon: BookUser }
 		];
@@ -282,9 +320,9 @@
 	);
 </script>
 
-{#snippet navLink(link: Link)}
+{#snippet navLink(link: Link, childCurrent = false)}
 	{@const Icon = link.icon}
-	{@const current = active(link.href)}
+	{@const current = active(link.href) && !childCurrent}
 	<a
 		class={[linkClass, linkState(current)]}
 		href={link.href}
@@ -295,6 +333,37 @@
 		{#if link.unread}{@render unreadDot()}{/if}
 		{#if link.running}{@render runningCount(link.running)}{/if}
 	</a>
+{/snippet}
+
+<!-- The folders under Documents or Tasks: a step in, text only, with a rule down the left
+     joining them to their page, a nested folder a step further. Hidden on the rail and the top bar,
+     which keep only the page's icon. -->
+{#snippet folderLinks(rows: FolderRow[])}
+	<div class="relative ml-4 flex flex-col gap-px pl-2.5 max-md:hidden">
+		<span class="absolute top-0.5 bottom-0.5 left-0 w-px bg-border" aria-hidden="true"></span>
+		{#each rows as row (row.key)}
+			<a
+				class={[
+					'relative flex h-6.5 items-center gap-2 rounded-sm px-2 text-left text-xs no-underline hover:bg-bg-hover hover:text-fg hover:no-underline',
+					row.current ? 'bg-current-item font-medium text-fg' : 'text-fg-muted'
+				]}
+				style:padding-left="calc(var(--spacing) * 2 + {row.depth * 12}px)"
+				href={row.href}
+				aria-current={row.current ? 'page' : undefined}
+			>
+				<span class="truncate">{row.label}</span>
+				{#if row.table}
+					<span class="sr-only">, table</span>
+					<Table2
+						class="ml-auto flex-none text-fg-subtle"
+						size={12}
+						strokeWidth={1.75}
+						aria-hidden="true"
+					/>
+				{/if}
+			</a>
+		{/each}
+	</div>
 {/snippet}
 
 {#snippet kindLink(ws: number, entry: ConnectorKind, index: number)}
@@ -494,7 +563,9 @@
 		<div class="flex flex-col gap-2 max-sm:flex-row max-sm:gap-px">
 			<div class="flex flex-col gap-px max-sm:flex-row">
 				{#each workspaceLinks as link (link.label)}
-					{@render navLink(link)}
+					{@const childCurrent = link.children?.some((row) => row.current) ?? false}
+					{@render navLink(link, childCurrent)}
+					{#if link.children?.length}{@render folderLinks(link.children)}{/if}
 				{/each}
 			</div>
 			{#if workspaceId !== null}
