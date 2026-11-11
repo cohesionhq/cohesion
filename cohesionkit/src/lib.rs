@@ -4,8 +4,8 @@
 //! the one path to an extension's scoped worker, which installs, restarts
 //! and calls extensions and asks registries daily for updates to them.
 //! `routes` holds how the context carries out each kind of request; `hooks`
-//! runs extension hooks off database events, and `database_formulas`
-//! computes database formulas' outputs off the events that outdate them; `connectors` calls `oauth` and
+//! runs extension hooks off database events, and `table_formulas`
+//! computes table formulas' outputs off the events that outdate them; `connectors` calls `oauth` and
 //! `connector` extensions, refreshes imported resources and gives agent scripts
 //! their connector access; `feeds` reads followed feeds, on request and
 //! hourly; `periodic_cleanup` hourly removes idle model threads, old
@@ -35,7 +35,6 @@ mod capability_store;
 mod client_request;
 mod cohesion_context;
 mod connectors;
-mod database_formulas;
 mod endpoint_relay;
 mod extension_icon;
 mod extension_manager;
@@ -48,6 +47,7 @@ mod presence;
 mod routes;
 mod script_actors;
 mod security;
+mod table_formulas;
 mod web_bundle;
 
 pub use actor_sessions::{ActorSessions, Reported};

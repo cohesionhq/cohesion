@@ -60,10 +60,13 @@ VITE_MOCK=1 npm run dev
 
 Swaps the transport for `src/lib/protocol/mock.ts`, an in-memory daemon with
 seed data modelled on a real daemon's, with people's names made up (three workspaces, journals,
-tasks and tags, documents, databases, contacts, feeds and their articles, agents and their threads, actors,
+tasks and tags, documents and folders, two of them tables, contacts, feeds and their articles, agents and their threads, actors,
 settings).
-No daemon or CLI needed. The tests use the same mock. It has no JavaScript
-engine, so a database formula runs only if it is written in the small part of
+No daemon or CLI needed. The tests use the same mock. It pushes the
+invalidations of tables (`documentTable`, and `documentFolders` as a folder
+becomes a table or stops being one) a moment after the write, as the daemon
+does, and no others. It has no JavaScript
+engine, so a table's formula runs only if it is written in the small part of
 the language `src/lib/protocol/mockFormula.ts` reads (arithmetic, comparisons,
 `??`, `?:` and a few methods over `row`); the formula editor's examples are.
 
@@ -370,7 +373,7 @@ doing, not by how it looks.
   (`features/rewind/Timeline.svelte`), grouped by day.
 - **SidePanel** (`ui/SidePanel.svelte`) is for reading or writing
   something longer without leaving the page; `ItemPanel` on top of it opens
-  every linked item (`cohesion://…`) but a database, which opens its table. An Expand button beside Close floats it
+  every linked item (`cohesion://…`) but a folder, which opens the Documents page at it. An Expand button beside Close floats it
   wider and nearly full height at the middle of the window (Minimize returns it),
   with an item's details in a column beside its text, each scrolling on its own;
   it is gone below 900px and forgotten when the panel closes.
@@ -402,7 +405,10 @@ Every shortcut the page handles has a row in the ⌘/ dialog
   (`src/lib/shell/keys.ts`).
 - **Modifiers**: the app runs in the WebUI harnesses' web view, so ⌘ (Ctrl
   elsewhere) is the base of every app-wide chord (⌘K search, ⌘, Settings, ⌘/
-  shortcuts, ⌘↩ submit). A chord the system or an app already owns (⌘T, N, O,
+  shortcuts, ⌘↩ submit). ⌘N makes what the page lists (a task, or a document,
+  which in a table is a row) and ⇧⌘N a folder, as a native app's File › New does; they are the
+  one exception to the rule that follows, and are handled on the page that
+  makes the item. A chord the system or an app already owns (⌘T, O,
   W, Q, H, M, R, P, S, C, V, X, A, Z) is left alone, and a field's own chords
   take ⌥ (Alt), as the new-task row's do.
 - **Bare keys** work only where focus is not in a field. A menu item names

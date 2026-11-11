@@ -145,7 +145,7 @@
 						onchoose={choose}
 					>
 						{#snippet row(row)}
-							<span class="flex items-baseline gap-2">
+							<span class="flex items-center gap-2">
 								<span class="font-medium tabular-nums">{shortTime(row.modified)}</span>
 								{#if row.current}
 									<span class="rounded-sm bg-bg-hover px-1.5 text-2xs font-medium text-fg">Now</span

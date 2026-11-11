@@ -1,17 +1,18 @@
 <!--
 	The column beside an actor session: its actor, then where that works and
-	the model it runs on, then how full its context is and its actor's plan
-	limits, all as bars, then, when it has subagents or is one, its family:
-	the session Cohesion started and every subagent beneath it, each under the
-	one it runs under and set in by its depth, where it stands and what it is
-	doing, the one open marked, each opening its thread. Where it stands and
-	Resolve stay in the header.
+	the model it runs on, then, when it is a subagent or has any, the session
+	it runs under and the subagents one level down from it, each opening its
+	thread, then how full its context is and its actor's plan limits, all as
+	bars. Only the open session's own relations show, not the whole tree.
+	Where it stands and Resolve stay in the header.
 -->
 <script lang="ts">
 	import { nowSeconds } from '$lib/format/dates';
 	import { tokenCount } from '$lib/format/usage';
 	import type { Actor, ActorSession, PlanUsage } from '$lib/protocol/types';
 	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
+	import CornerDownRight from '@lucide/svelte/icons/corner-down-right';
+	import CornerUpLeft from '@lucide/svelte/icons/corner-up-left';
 	import { routes } from '$lib/shell/routes';
 	import GutterCard from '$lib/ui/GutterCard.svelte';
 	import StatusIcon from '$lib/ui/StatusIcon.svelte';
@@ -26,23 +27,13 @@
 		actor: Actor | null;
 		/** The plan limits its actor draws on. */
 		plan: PlanUsage[];
-		/**
-		 * Its family: the session Cohesion started, then every subagent beneath
-		 * it, each after the one it runs under; none until it loads.
-		 */
-		family: ActorSession[];
+		/** For a subagent, the session one level up, once it has loaded. */
+		above: ActorSession | null;
+		/** The subagents launched from it, one level down, first launched first. */
+		subagents: ActorSession[];
 	}
 
-	let { session, actor, plan, family }: Props = $props();
-
-	/** How deep each member sits below the session Cohesion started, by id. */
-	const depths = $derived(
-		family.reduce<Record<number, number>>((depths, member) => {
-			const above = member.subagent?.parent_session_id;
-			depths[member.id] = above === undefined ? 0 : (depths[above] ?? 0) + 1;
-			return depths;
-		}, {})
-	);
+	let { session, actor, plan, above, subagents }: Props = $props();
 
 	const model = $derived(modelLabel(session, actor));
 	const hasUsage = $derived(session.context !== null || plan.length > 0);
@@ -58,6 +49,35 @@
 		{[actor ? scopeName(actor) : null, model].filter(Boolean).join(' · ')}
 	</p>
 </GutterCard>
+
+<!-- One relation: the way up or down as a corner arrow, where it stands, and its title, opening its
+     thread. -->
+{#snippet relation(member: ActorSession, up: boolean)}
+	{@const Arrow = up ? CornerUpLeft : CornerDownRight}
+	<li>
+		<a
+			class="flex h-7 items-center gap-2 rounded-sm px-1 text-sm text-fg-muted no-underline transition-colors hover:bg-bg-hover hover:text-fg hover:no-underline"
+			href={routes.actorSession(member.id)}
+		>
+			<Arrow class="flex-none text-fg-subtle" size={14} strokeWidth={1.75} aria-hidden="true" />
+			<span class="sr-only">{up ? 'Runs under' : 'Subagent'}:</span>
+			<StatusIcon status={member.status} unread={member.unread} size={12} />
+			<span class="min-w-0 flex-1 truncate">{member.title}</span>
+			<span class="sr-only">, {vocabulary.actorSessionStatus(member.status)}</span>
+		</a>
+	</li>
+{/snippet}
+
+<!-- Above the meters, so moving between relations keeps the list in place. A session with no
+     relations shows none. -->
+{#if above || subagents.length > 0}
+	<GutterGroup>
+		<ul class="-mx-1 flex flex-col" aria-label="Related sessions">
+			{#if above}{@render relation(above, true)}{/if}
+			{#each subagents as member (member.id)}{@render relation(member, false)}{/each}
+		</ul>
+	</GutterGroup>
+{/if}
 
 <!-- One meter: its name and the share used over the bar, and under it what the share is of or
      when it resets, each at the column's text size. -->
@@ -90,32 +110,5 @@
 				)}
 			{/each}
 		</div>
-	</GutterGroup>
-{/if}
-
-<!-- A session alone has no family to show. -->
-{#if family.length > 1}
-	<GutterGroup>
-		<h2 class="text-xs font-medium text-fg-subtle">Session and subagents</h2>
-		<ul class="-mx-1 flex flex-col">
-			{#each family as member (member.id)}
-				{@const open = member.id === session.id}
-				<li>
-					<a
-						class={[
-							'flex h-7 items-center gap-2 rounded-sm pr-1 text-sm no-underline transition-colors hover:bg-bg-hover hover:no-underline',
-							open ? 'bg-bg-hover font-medium text-fg' : 'text-fg-muted hover:text-fg'
-						]}
-						style:padding-left="calc({depths[member.id] ?? 0} * var(--spacing) * 3.5 + var(--spacing))"
-						href={routes.actorSession(member.id)}
-						aria-current={open ? 'page' : undefined}
-					>
-						<StatusIcon status={member.status} unread={member.unread} size={12} />
-						<span class="min-w-0 flex-1 truncate">{member.title}</span>
-						<span class="sr-only">, {vocabulary.actorSessionStatus(member.status)}</span>
-					</a>
-				</li>
-			{/each}
-		</ul>
 	</GutterGroup>
 {/if}

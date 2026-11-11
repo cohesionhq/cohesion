@@ -1,6 +1,7 @@
 import { send as defaultSend } from '$lib/protocol/api';
 import { monthLabel } from '$lib/format/dates';
 import { subtreeIds } from '$lib/features/documents/folderTree';
+import { holdsValues } from '$lib/features/tables/values';
 import type { Document, DocumentFolder, Invalidation, Send } from '$lib/protocol/types';
 import { Draft } from './draft.svelte';
 import { Resource } from './resource.svelte';
@@ -162,8 +163,15 @@ export class DocumentsStore {
 		return doc;
 	}
 
-	/** Files `doc` in `folder_id`, or the Inbox when it's null. */
-	async move(doc: Document, folder_id: number | null): Promise<Document> {
+	/**
+	 * Files `doc` in `folder_id`, or the Inbox when it's null. Leaving a
+	 * table loses the document's values (`moveLosesValues` says whether it
+	 * holds any to lose); going into one gives it none.
+	 */
+	async move(
+		doc: Pick<Document, 'workspace_id' | 'id'>,
+		folder_id: number | null
+	): Promise<Document> {
 		const moved = await this.#send('moveDocument', {
 			workspace_id: doc.workspace_id,
 			document_id: doc.id,
@@ -171,6 +179,40 @@ export class DocumentsStore {
 		});
 		this.#apply(moved);
 		return moved;
+	}
+
+	/**
+	 * Whether moving `doc` to `folder_id` (the Inbox when null) deletes values
+	 * set by hand: it leaves a table, to the Inbox, a plain folder or another
+	 * table, holding some. A formula's outputs alone aren't asked about. The
+	 * one rule every way of moving a document asks before it moves one.
+	 */
+	async moveLosesValues(
+		doc: Pick<Document, 'workspace_id' | 'id' | 'folder_id'>,
+		folder_id: number | null
+	): Promise<boolean> {
+		const from = doc.folder_id;
+		if (from === null || from === folder_id) return false;
+		// A folder known not to be a table holds no values; one not listed here is asked.
+		const listed = this.folders.key === doc.workspace_id ? this.folders.value : [];
+		if (listed.find((f) => f.id === from)?.is_table === false) return false;
+		const key = { workspace_id: doc.workspace_id, folder_id: from };
+		const [properties, row] = await Promise.all([
+			this.#send('listDocumentFolderProperties', key),
+			this.#send('getTableRow', { ...key, document_id: doc.id })
+		]);
+		return holdsValues(row, properties);
+	}
+
+	/** Retitles document `document_id`, wherever it shows. */
+	async renameDocument(
+		workspace_id: number,
+		document_id: number,
+		title: string
+	): Promise<Document> {
+		const doc = await this.#send('renameDocument', { workspace_id, document_id, title });
+		this.#apply(doc);
+		return doc;
 	}
 
 	async createFolder(
@@ -205,6 +247,16 @@ export class DocumentsStore {
 		if (this.folders.key === workspace_id) this.folders.set(folders);
 	}
 
+	/**
+	 * Takes what a column's reply says of folder `folder_id`: its first made it
+	 * a table, deleting its last a plain folder again.
+	 */
+	markTable(folder_id: number, is_table: boolean): void {
+		this.folders.update((list) =>
+			list.map((f) => (f.id === folder_id && f.is_table !== is_table ? { ...f, is_table } : f))
+		);
+	}
+
 	/** Deletes a folder and those inside it; their documents move to the Inbox, as the daemon moves them. */
 	async deleteFolder(workspace_id: number, folder_id: number): Promise<void> {
 		await this.#send('deleteDocumentFolder', { workspace_id, folder_id });
@@ -219,17 +271,24 @@ export class DocumentsStore {
 	}
 
 	/** Renames the open document. */
-	async rename(title: string): Promise<Document> {
+	rename(title: string): Promise<Document> {
 		const { workspace_id, document_id } = this.current.key!;
-		const doc = await this.#send('renameDocument', { workspace_id, document_id, title });
-		this.#apply(doc);
-		return doc;
+		return this.renameDocument(workspace_id, document_id, title);
 	}
 
 	/** Takes what restoring a version of the open document left, over any draft of it. */
 	restored(doc: Document): void {
 		if (this.current.value?.id === doc.id) this.text.reset(doc.contents, doc.modified);
 		this.#apply(doc);
+	}
+
+	/** Deletes document `document_id`, as a table's row is deleted, from wherever it shows. */
+	async deleteDocument(workspace_id: number, document_id: number): Promise<Document> {
+		if (this.current.key?.document_id === document_id) return this.remove();
+		const doc = await this.#send('deleteDocument', { workspace_id, document_id });
+		if (this.list.key === workspace_id)
+			this.list.update((docs) => docs.filter((d) => d.id !== doc.id));
+		return doc;
 	}
 
 	/** Deletes the open document, dropping any unsaved edits to it. */

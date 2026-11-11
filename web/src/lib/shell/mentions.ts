@@ -11,7 +11,7 @@ export const MENTION_ROWS = 8;
 
 /**
  * The items in workspace `ws` (documents and journal entries, tasks,
- * resources), the agents among `agents` and the actor sessions matching
+ * resources, contacts), the agents among `agents` and the actor sessions matching
  * `text`. A search that fails offers nothing of its kind.
  */
 export async function searchMentions(

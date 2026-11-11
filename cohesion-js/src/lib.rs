@@ -30,7 +30,7 @@
 //!
 //! Drawing a Mermaid diagram isn't a script at all: [`ScriptEngine::render_mermaid`]
 //! runs Pele, in a runtime with nothing mounted, on workers of its own.
-//! Neither is a database formula: [`ScriptEngine::evaluate_formula`] calls a
+//! Neither is a table formula: [`ScriptEngine::evaluate_formula`] calls a
 //! property's function with each row's values, likewise with nothing
 //! mounted, on workers that keep the formulas they compiled.
 //!

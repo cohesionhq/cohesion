@@ -1,3 +1,7 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
+
 use cohesion_core::protocol::ShuttingDown;
 
 use crate::WorkTracker;
@@ -56,6 +60,42 @@ fn run_new_holds_work_across_the_future_and_refuses_once_closed() {
             })
             .await;
         assert_eq!(refused, Err(ShuttingDown));
+        assert!(work.pending().is_empty());
+    });
+}
+
+#[test]
+fn a_timer_goes_on_after_a_pass_panics() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let work = WorkTracker::default();
+        let passes = Arc::new(AtomicUsize::new(0));
+        let counted = passes.clone();
+        work.every(
+            "pass",
+            Duration::ZERO,
+            Duration::from_millis(1),
+            move || {
+                let pass = counted.fetch_add(1, Ordering::SeqCst);
+                async move {
+                    assert!(pass > 0, "the first pass panics");
+                }
+            },
+        );
+        let went_on = tokio::time::timeout(Duration::from_secs(5), async {
+            while passes.load(Ordering::SeqCst) < 3 {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        });
+        assert!(
+            went_on.await.is_ok(),
+            "no pass ran after the one that panicked"
+        );
+        work.close();
+        work.idle().await;
         assert!(work.pending().is_empty());
     });
 }

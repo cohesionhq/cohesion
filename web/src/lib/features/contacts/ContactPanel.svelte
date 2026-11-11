@@ -1,8 +1,8 @@
 <!--
 	A contact's panel (`ItemPanel`): its photo, if it has one, then its email
 	addresses and phone numbers, each followed from its link and changed or
-	removed from its ⋯, with buttons to add either, then its notes. The title
-	row's ⋯ edits its names and notes, adds, changes or removes its photo, or
+	removed from its ⋯, with buttons to add either, then its notes and what
+	links to it. Its toolbar copies a link to it; the title row's ⋯ edits its names and notes, adds, changes or removes its photo, or
 	deletes it.
 -->
 <script lang="ts">
@@ -79,7 +79,13 @@
 </script>
 
 {#if contact}
-	<ItemPanel bind:open title={fullName(contact)} icon={BookUser} kind="Contact">
+	<ItemPanel
+		bind:open
+		title={fullName(contact)}
+		icon={BookUser}
+		kind="Contact"
+		link={{ kind: 'contact', ws: workspaceId, id: contact.id }}
+	>
 		{#snippet actions()}
 			<RowMenu
 				label="More for {fullName(contact)}"

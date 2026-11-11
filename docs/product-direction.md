@@ -36,15 +36,25 @@ this page in the same pull request and say so in its description.
   day `task:due`, for cues and extensions. Connector tasks are read-only; extension tasks
   may sync both ways. An agent's conversation and its forks change tasks
   directly; a job only with `cohesion:write`, otherwise it proposes.
-- **Area: Databases.** A workspace's tables of typed values (text, whole
-  number, decimal, currency, checkbox, date), whose columns the user adds,
-  retypes and deletes at any time; a column can be a formula, a JavaScript
-  function of its row. Filtering and sorting happen on the daemon, in SQL; the
-  web UI keeps a table's filters and sort on the page, with no saved views. A
-  row opens over the page with its values and a document of its own, which
-  stays out of the document list. A database and a row can be linked and
-  shown as cards in any text. Web only for now: the iPhone app has no
-  databases.
+- **Area: Documents.** Documents file into folders, which nest; a document
+  in no folder is in the Inbox, and journal entries are never filed. A
+  folder with columns is a table, and each document in it is a row whose
+  title is the document's. A column holds one type of value (text, whole
+  number, decimal, currency, checkbox, date, or a choice of one of the
+  column's own named, colored options), and the user adds, retypes and
+  deletes columns at any time. Deleting the last one makes the folder a plain
+  folder again. A column can be a formula, a JavaScript function of its row,
+  computed when the row changes or, set to update continuously, every hour
+  as well, so one that reads the date stays current.
+  Filtering and sorting happen on the daemon, in SQL; the web UI keeps a
+  table's filters and sort on the page, with no saved views. A row is a
+  document like any other: it opens with its values above its text, search
+  finds it, and Rewind brings it back. Moving a document out of a table, or
+  into another, deletes its values, so the web UI asks first. The web UI's
+  list of all documents leaves out rows, so a large table doesn't bury
+  notes. A folder, and so a table, can be linked and shown as a card in any
+  text. Tables are web only for now: the iPhone app lists their rows as
+  plain documents.
 - **Area: Agents.** One global model tier for agent conversations; jobs run
   at low, medium or high effort, which is the cost control. An agent works
   as its conversation, forks of it, jobs and cues. The conversation and its

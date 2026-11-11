@@ -361,7 +361,7 @@ impl ChatCompletionsResponse {
             let usage = Usage {
                 input_tokens: usage
                     .prompt_tokens
-                    .saturating_sub(cache_reads + cache_writes),
+                    .saturating_sub(cache_reads.saturating_add(cache_writes)),
                 output_tokens: usage.completion_tokens,
                 cache_reads,
                 cache_writes,

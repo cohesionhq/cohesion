@@ -1,7 +1,20 @@
+<!--
+	The Documents page: the folder tree in the nav pane, and the Inbox, every
+	document (All, leaving out the rows of tables) or one folder. A folder
+	that is a table shows as one (`DocumentTable`), its filters and sort the
+	page's own: they go to the daemon with every listing (`listTableRows`),
+	which filters and sorts, and last while the half keeps the folder open. A
+	row opens in the panel over the page. Moving a document goes through
+	`DocumentMover`, which asks first when it would lose values.
+-->
 <script lang="ts">
 	import SearchField from '$lib/ui/SearchField.svelte';
+	import ArrowDown from '@lucide/svelte/icons/arrow-down';
+	import ArrowUp from '@lucide/svelte/icons/arrow-up';
 	import FileText from '@lucide/svelte/icons/file-text';
+	import Funnel from '@lucide/svelte/icons/funnel';
 	import Plus from '@lucide/svelte/icons/plus';
+	import X from '@lucide/svelte/icons/x';
 	import { untrack } from 'svelte';
 	import { localMidnight, nowSeconds, relativeTime } from '$lib/format/dates';
 	import { SEARCH_DEBOUNCE_MS } from '$lib/format/search';
@@ -21,15 +34,42 @@
 		DOCUMENT_DRAG,
 		type DocumentView
 	} from '$lib/features/documents/DocumentFolderTree.svelte';
+	import DocumentMover from '$lib/features/documents/DocumentMover.svelte';
 	import { navPane } from '$lib/features/folders/nav';
-	import { subtreeIds } from '$lib/features/documents/folderTree';
-	import type { DocumentFolder } from '$lib/protocol/types';
+	import { listedIn, subtreeIds, tableIds } from '$lib/features/documents/folderTree';
+	import DocumentTable from '$lib/features/tables/DocumentTable.svelte';
+	import FilterDialog from '$lib/features/tables/FilterDialog.svelte';
+	import PropertyDialog, {
+		type OptionChanges,
+		type PropertyEdit,
+		type PropertyFields
+	} from '$lib/features/tables/PropertyDialog.svelte';
+	import {
+		type ColumnInfo,
+		columnInfo,
+		filterText,
+		sortDirections
+	} from '$lib/features/tables/values';
+	import { pillClass } from '$lib/features/tags/FilterPill.svelte';
+	import type {
+		DocumentFolder,
+		DocumentFolderProperty,
+		TableFilter,
+		TableRow,
+		TableSort
+	} from '$lib/protocol/types';
+	import { linkedItem } from '$lib/shell/linkedItem.svelte';
+	import { NO_QUERY } from '$lib/stores/tables.svelte';
+	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
+	import { copyLinkItems } from '$lib/ui/copyLink';
+	import MoreActions from '$lib/ui/MoreActions.svelte';
 	import { toProtocolError } from '$lib/protocol/errors';
 	import Dialog from '$lib/ui/Dialog.svelte';
 	import Field from '$lib/ui/Field.svelte';
 	import TextInput from '$lib/ui/TextInput.svelte';
+	import { asksForNew, asksForNewFolder } from '$lib/shell/shortcuts.svelte';
 
-	const { documents } = pageStores();
+	const { documents, tables } = pageStores();
 
 	const page = pane();
 
@@ -72,8 +112,9 @@
 	/** The folder new documents go in from here: the one shown, or the Inbox. */
 	const newIn = $derived(typeof view === 'number' ? view : null);
 	const folderTitles = $derived(new Map(documents.folders.value.map((f) => [f.id, f.title])));
-	const inView = (d: Document) =>
-		view === 'all' || d.folder_id === (view === 'inbox' ? null : view);
+	const tableFolders = $derived(tableIds(documents.folders.value));
+	const searching = $derived(query.trim() !== '');
+	const inView = (d: Document) => listedIn(d, view, tableFolders, searching);
 
 	const remote = $derived(documents.list.value.length > SERVER_FILTER_THRESHOLD);
 
@@ -107,7 +148,11 @@
 		creating = true;
 		try {
 			const doc = await documents.create(ws, undefined, undefined, newIn);
-			void page.goto(routes.document(ws, doc.id));
+			// A table's new row is named where it shows; any other document opens.
+			if (isTable) {
+				tables.took(doc);
+				await table?.editTitle(doc.id);
+			} else void page.goto(routes.document(ws, doc.id));
 		} catch (error) {
 			toasts.error(error);
 		} finally {
@@ -119,9 +164,113 @@
 		action.catch((error) => toasts.error(error));
 	}
 
+	let mover = $state<DocumentMover>();
+
+	/** Files a dropped document, or a table's row, through the mover. */
 	function file(document_id: number, folder_id: number | null) {
-		const doc = documents.list.value.find((d) => d.id === document_id);
-		if (doc && doc.folder_id !== folder_id) run(documents.move(doc, folder_id));
+		const row = tables.rows.value.find((r) => r.document_id === document_id);
+		const doc =
+			documents.list.value.find((d) => d.id === document_id) ??
+			(row && {
+				workspace_id: ws,
+				id: row.document_id,
+				folder_id: row.folder_id,
+				title: row.title
+			});
+		if (doc) void mover?.move(doc, folder_id);
+	}
+
+	// ---- A folder that is a table ---------------------------------------------
+
+	const isTable = $derived(folder?.is_table === true);
+
+	$effect(() => {
+		if (!isTable || typeof view !== 'number') return;
+		const [w, f] = [ws, view];
+		untrack(() => void tables.open(w, f));
+		return () => tables.close();
+	});
+
+	/** The shown folder's properties: none until it is a table. */
+	const properties = $derived(
+		isTable && tables.properties.key?.folder_id === view ? tables.properties.value : []
+	);
+	const rows = $derived(isTable && tables.rows.key?.folder_id === view ? tables.rows.value : []);
+	const tableQuery = $derived(tables.query);
+	const sortColumn = $derived(
+		tableQuery.sort ? columnInfo(tableQuery.sort.column, properties) : undefined
+	);
+	const failing = $derived(properties.filter((p) => p.formula?.error));
+
+	let table = $state<DocumentTable>();
+
+	let filtering = $state(false);
+	let filterFrom = $state<ColumnInfo | null>(null);
+
+	function openFilter(column: ColumnInfo | null) {
+		filterFrom = column;
+		filtering = true;
+	}
+
+	function addFilter(filter: TableFilter) {
+		void tables.setQuery({ ...tableQuery, filters: [...tableQuery.filters, filter] });
+	}
+
+	function removeFilter(index: number) {
+		void tables.setQuery({ ...tableQuery, filters: tableQuery.filters.toSpliced(index, 1) });
+	}
+
+	function setSort(sort: TableSort | null) {
+		void tables.setQuery({ ...tableQuery, sort });
+	}
+
+	let propertyEdit = $state<PropertyEdit | null>(null);
+	let propertyOpen = $state(false);
+
+	function editProperty(edit: PropertyEdit) {
+		propertyEdit = edit;
+		propertyOpen = true;
+	}
+
+	async function submitProperty({ name, data_type, formula, options }: PropertyFields) {
+		const edit = propertyEdit;
+		if (edit?.mode === 'rename') return tables.renameProperty(edit.property.id, name);
+		if (edit?.mode === 'type') return tables.setPropertyType(edit.property.id, data_type);
+		if (edit?.mode === 'formula') return tables.setPropertyFormula(edit.property.id, formula);
+		if (folder === null) return;
+		const folder_id = folder.id;
+		await tables.createProperty({ workspace_id: ws, folder_id }, name, data_type, formula, options);
+		// The first column makes the folder a table.
+		documents.markTable(folder_id, true);
+	}
+
+	const optionChanges: OptionChanges = {
+		add: (property_id, name) => tables.addOption(property_id, name),
+		rename: (property_id, option_id, name) => tables.renameOption(property_id, option_id, name),
+		color: (property_id, option_id, color) => tables.setOptionColor(property_id, option_id, color),
+		move: (property_id, option_id, before_id) =>
+			tables.moveOption(property_id, option_id, before_id),
+		remove: (property_id, option_id) => tables.removeOption(property_id, option_id),
+		usage: (property_id, option_id) => tables.optionUsage(property_id, option_id)
+	};
+
+	let deletingProperty = $state<DocumentFolderProperty | null>(null);
+	/** Whether the column being deleted is the table's last. */
+	const deletingLast = $derived(
+		deletingProperty !== null && properties.every((p) => p.id === deletingProperty!.id)
+	);
+
+	async function removeProperty(property: DocumentFolderProperty) {
+		const folder_id = tables.properties.key!.folder_id;
+		await tables.removeProperty(property.id);
+		// Deleting the last makes the folder a plain one again.
+		if (tables.properties.value.length === 0) documents.markTable(folder_id, false);
+	}
+
+	let deletingRow = $state<TableRow | null>(null);
+
+	async function retitle(row: TableRow, title: string) {
+		tables.took(await documents.renameDocument(ws, row.document_id, title));
 	}
 
 	// ---- Folders ------------------------------------------------------------
@@ -167,6 +316,19 @@
 
 	let removingFolder = $state<DocumentFolder | null>(null);
 	let removeFolderOpen = $state(false);
+	/** What deleting the folder does, in words: a table loses its columns and values. */
+	const removeFolderText = $derived.by(() => {
+		const inside = removingFolder
+			? subtreeIds(documents.folders.value, removingFolder.id).filter((id) => tableFolders.has(id))
+			: [];
+		const tablePart =
+			removingFolder && tableFolders.has(removingFolder.id)
+				? ' The table’s columns and values will be deleted too.'
+				: inside.length > 0
+					? ' The columns and values of the tables inside it will be deleted too.'
+					: '';
+		return `Folders inside this folder will also be deleted.${tablePart} The documents in them won’t be deleted and will move to the Inbox.`;
+	});
 
 	async function confirmRemoveFolder() {
 		const target = removingFolder;
@@ -185,16 +347,47 @@
 			folderBusy = false;
 		}
 	}
+
+	/** ⌘N makes a document and ⇧⌘N a folder, unless a dialog is open. */
+	function onWindowKey(event: KeyboardEvent) {
+		if (event.target instanceof HTMLElement && event.target.closest('[role="dialog"]')) return;
+		if (asksForNewFolder(event)) {
+			event.preventDefault();
+			openFolderDialog({ mode: 'new', parent: null });
+		} else if (asksForNew(event) && !creating && !folderGone) {
+			event.preventDefault();
+			void create();
+		}
+	}
 </script>
+
+<svelte:window onkeydown={onWindowKey} />
 
 <PageTitle title={view === 'all' ? 'Documents' : `${viewName} · Documents`} />
 
 <div class="px-(--page-inset)">
 	<PageHeader title={viewName}>
 		{#snippet actions()}
+			{#if isTable}
+				<Button variant="secondary" onclick={() => openFilter(null)}
+					><Funnel size={14} strokeWidth={1.75} aria-hidden="true" />Add filter…</Button
+				>
+			{/if}
 			<Button variant="secondary" disabled={creating || folderGone} onclick={create}
 				><Plus size={15} strokeWidth={1.75} aria-hidden="true" />New document</Button
 			>
+			{#if folder}
+				{@const shown = folder}
+				<MoreActions
+					items={[
+						{ label: 'Add column…', onSelect: () => editProperty({ mode: 'new' }) },
+						...copyLinkItems(() => ({
+							link: { kind: 'document-folder', ws, id: shown.id },
+							title: shown.title
+						})).map((item, i) => ({ ...item, separated: i === 0 }))
+					]}
+				/>
+			{/if}
 		{/snippet}
 	</PageHeader>
 
@@ -223,6 +416,8 @@
 					actionLabel="Back to documents"
 					onaction={() => page.goto(viewHref('all'), { replaceState: true })}
 				/>
+			{:else if isTable}
+				{@render tableView()}
 			{:else if documents.list.error && !documents.list.loaded}
 				<EmptyState {...workspaceLoadError(documents.list.error, () => documents.list.refetch())} />
 			{:else if documents.list.loaded}
@@ -240,7 +435,10 @@
 					</div>
 
 					{#if groups.length === 0}
-						{#if !remote || found !== null}
+						{#if !searching}
+							<!-- All, when every document is a table's row. -->
+							<EmptyState message="No documents" actionLabel="New document" onaction={create} />
+						{:else if !remote || found !== null}
 							<p class="text-fg-muted">No documents match “{query.trim()}”.</p>
 						{/if}
 					{:else}
@@ -340,7 +538,7 @@
 <Dialog
 	bind:open={removeFolderOpen}
 	title="Delete “{removingFolder?.title ?? ''}”?"
-	description="Folders inside this folder will also be deleted. The documents in them won’t be deleted and will move to the Inbox."
+	description={removeFolderText}
 >
 	{#snippet footer()}
 		<Button onclick={() => (removeFolderOpen = false)}>Cancel</Button>
@@ -349,3 +547,113 @@
 		</Button>
 	{/snippet}
 </Dialog>
+
+<DocumentMover bind:this={mover} onmoved={(doc) => tables.took(doc)} />
+
+<PropertyDialog
+	bind:open={propertyOpen}
+	edit={propertyEdit}
+	{properties}
+	onsubmit={submitProperty}
+	{optionChanges}
+/>
+
+<FilterDialog bind:open={filtering} {properties} column={filterFrom} onadd={addFilter} />
+
+<ConfirmDialog
+	subject={deletingProperty}
+	onclose={() => (deletingProperty = null)}
+	title="Delete “{deletingProperty?.name ?? ''}”?"
+	description={deletingLast
+		? `Every document’s value for this column will also be deleted. “${folder?.title ?? ''}” will be a plain folder again, listing its documents.`
+		: 'Every document’s value for this column will also be deleted.'}
+	onconfirm={removeProperty}
+/>
+
+<ConfirmDialog
+	subject={deletingRow}
+	onclose={() => (deletingRow = null)}
+	title="Delete “{deletingRow?.title ?? ''}”?"
+	description="This can’t be undone."
+	onconfirm={async (row) => tables.took(await documents.deleteDocument(ws, row.document_id))}
+/>
+
+{#snippet tableView()}
+	<div class="pb-8">
+		{#if tableQuery.filters.length > 0 || (tableQuery.sort && sortColumn)}
+			<ul class="mb-3 flex flex-wrap items-center gap-1.5" aria-label="Filters and sort">
+				{#if tableQuery.sort && sortColumn}
+					{@const Arrow = tableQuery.sort.descending ? ArrowDown : ArrowUp}
+					{@const text = `${sortColumn.name}: ${sortDirections(sortColumn.data_type)[tableQuery.sort.descending ? 1 : 0]}`}
+					<li class={pillClass('with')}>
+						<Arrow size={12} strokeWidth={2} aria-hidden="true" />
+						<span class="sr-only">Sorted by</span>
+						{text}
+						<button
+							class="-mr-1 inline-flex cursor-pointer rounded-full p-0.5 hover:bg-accent/15"
+							type="button"
+							aria-label="Remove sort"
+							onclick={() => setSort(null)}><X size={12} strokeWidth={2} /></button
+						>
+					</li>
+				{/if}
+				{#each tableQuery.filters as filter, index (index)}
+					{@const column = columnInfo(filter.column, properties)}
+					{#if column}
+						{@const text = filterText(filter, column)}
+						<li class={pillClass('with')}>
+							{text}
+							<button
+								class="-mr-1 inline-flex cursor-pointer rounded-full p-0.5 hover:bg-accent/15"
+								type="button"
+								aria-label="Remove filter: {text}"
+								onclick={() => removeFilter(index)}><X size={12} strokeWidth={2} /></button
+							>
+						</li>
+					{/if}
+				{/each}
+			</ul>
+		{/if}
+
+		{#each failing as property (property.id)}
+			<p class="mb-3 text-xs text-warn">
+				The formula for “{property.name}” failed on some rows. {property.formula?.error}
+			</p>
+		{/each}
+
+		{#if tables.properties.loaded && tables.properties.key?.folder_id === view}
+			<DocumentTable
+				bind:this={table}
+				{properties}
+				{rows}
+				sort={tableQuery.sort}
+				onsort={setSort}
+				onfilter={openFilter}
+				onrename={(property) => editProperty({ mode: 'rename', property })}
+				onretype={(property) => editProperty({ mode: 'type', property })}
+				onformula={(property) => editProperty({ mode: 'formula', property })}
+				onsetbyhand={(property) => run(tables.setPropertyFormula(property.id, null))}
+				onoptions={(property) => editProperty({ mode: 'options', property })}
+				onmove={(property, before) => run(tables.moveProperty(property.id, before))}
+				ondelete={(property) => (deletingProperty = property)}
+				onaddproperty={() => editProperty({ mode: 'new' })}
+				onnewrow={create}
+				onopenrow={(row) => void linkedItem.show({ kind: 'document', ws, id: row.document_id })}
+				workspace={ws}
+				ondeleterow={(row) => (deletingRow = row)}
+				onretitle={retitle}
+				onsetvalue={(row, property, value) => tables.setValue(row.document_id, property.id, value)}
+			/>
+			{#if tables.rows.error}
+				<EmptyState
+					message={tables.rows.error.message}
+					actionLabel="Remove filters"
+					onaction={() => void tables.setQuery({ ...NO_QUERY, sort: tableQuery.sort })}
+					compact
+				/>
+			{:else if tables.rows.loaded && rows.length === 0 && tableQuery.filters.length > 0}
+				<EmptyState message="No matches" detail="Remove a filter to see more rows." compact />
+			{/if}
+		{/if}
+	</div>
+{/snippet}

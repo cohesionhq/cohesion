@@ -17,7 +17,6 @@ export {
 
 /** Where an item a link names goes in the app: its Open page. */
 export function itemLinkRoute(link: ItemLink): string {
-	if (link.kind === 'database-row') return routes.databaseRowItem(link.ws, link.database, link.id);
 	return link.ws === null
 		? routes.item(link.kind, link.id)
 		: routes.workspaceItem(link.kind, link.ws, link.id);
@@ -35,13 +34,12 @@ export const routes = {
 	document: (ws: number, id: number) =>
 		resolve('/w/[ws]/documents/[id]', { ws: String(ws), id: String(id) }),
 	tasks: (ws: number) => resolve('/w/[ws]/tasks', { ws: String(ws) }),
-	databases: (ws: number) => resolve('/w/[ws]/databases', { ws: String(ws) }),
-	database: (ws: number, id: number) =>
-		resolve('/w/[ws]/databases/[id]', { ws: String(ws), id: String(id) }),
-	/** A database's table with row `row` open over it. */
-	databaseRow: (ws: number, database: number, row: number) =>
-		`${routes.database(ws, database)}?row=${row}`,
+	/** The Documents page at a folder, which shows as a table when it is one. */
+	documentFolder: (ws: number, id: number) => `${routes.documents(ws)}?folder=${id}`,
 	contacts: (ws: number) => resolve('/w/[ws]/contacts', { ws: String(ws) }),
+	/** The Contacts page with contact `id`'s panel open. */
+	contact: (ws: number, id: number) =>
+		`${resolve('/w/[ws]/contacts', { ws: String(ws) })}?contact=${id}`,
 	rewind: (ws: number) => resolve('/w/[ws]/rewind', { ws: String(ws) }),
 	/** The Articles page, at one view (`viewParam` spells it) or the one last shown. */
 	articles: (ws: number, view?: string) =>
@@ -57,16 +55,9 @@ export const routes = {
 	/** Finds a linked item and goes to it, as a `cohesion://` link does. */
 	item: (kind: UnscopedItemKind, id: number) =>
 		resolve('/open/[kind=item]/[id]', { kind, id: String(id) }),
-	/** Finds a linked task or document in its workspace and goes to it. */
+	/** Finds a linked task, document, resource, folder or contact in its workspace and goes to it. */
 	workspaceItem: (kind: WorkspaceItemKind, ws: number, id: number) =>
 		resolve('/open/[kind=workspaceitem]/[ws]/[id]', { kind, ws: String(ws), id: String(id) }),
-	/** Finds a linked database row and goes to it. */
-	databaseRowItem: (ws: number, database: number, id: number) =>
-		resolve('/open/database-row/[ws]/[database]/[id]', {
-			ws: String(ws),
-			database: String(database),
-			id: String(id)
-		}),
 	/** A model thread's transcript, read-only. */
 	thread: (id: number) => resolve('/threads/[thread]', { thread: String(id) }),
 	agents: () => resolve('/agents'),

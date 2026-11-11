@@ -20,11 +20,11 @@ mod client;
 mod connector;
 mod connector_account;
 mod contact;
-mod database;
-mod database_formula;
-mod database_row;
 mod document;
 mod document_folder;
+mod document_folder_property;
+mod document_formula;
+mod document_value;
 mod embed;
 mod emoji;
 mod endpoint_model;
@@ -47,6 +47,7 @@ mod notification;
 mod page;
 mod periodic_cleanup;
 mod profile;
+mod property_option;
 mod resource;
 mod rewind;
 mod saved_task_view;
@@ -94,15 +95,15 @@ pub use client::*;
 pub use connector::ListConnectorsCommand;
 pub use connector_account::*;
 pub use contact::*;
-pub use database::*;
-pub use database_formula::{
-    FormulaOutputs, FormulaProperty, ListDatabasesWithStaleFormulasCommand,
-    ListStaleDatabaseRowsCommand, RowStaleness, SetDatabasePropertyFormulaCommand,
-    StaleDatabaseRow, StaleDatabaseRows, StoreDatabaseFormulaOutputsCommand,
-};
-pub use database_row::*;
 pub use document::*;
 pub use document_folder::*;
+pub use document_folder_property::*;
+pub use document_formula::{
+    FormulaOutputs, FormulaProperty, ListStaleTableRowsCommand, ListTablesWithStaleFormulasCommand,
+    MarkContinuousFormulasStaleCommand, RowStaleness, SetDocumentFolderPropertyFormulaCommand,
+    StaleTableRow, StaleTableRows, StoreTableFormulaOutputsCommand,
+};
+pub use document_value::{GetTableRowCommand, ListTableRowsCommand, SetDocumentValueCommand};
 pub use embed::{ResolveEmbedsCommand, ResolveLinkCommand};
 pub use endpoint_model::*;
 pub use extension::*;
@@ -123,6 +124,10 @@ pub use metadata::*;
 pub use notification::SendNotificationCommand;
 pub use periodic_cleanup::PeriodicCleanupCommand;
 pub use profile::*;
+pub use property_option::{
+    CreatePropertyOptionCommand, DeletePropertyOptionCommand, MovePropertyOptionCommand,
+    RenamePropertyOptionCommand, SetPropertyOptionColorCommand,
+};
 pub use resource::*;
 pub use rewind::{
     GetDocumentIncludingDeletedCommand, GetTaskIncludingDeletedCommand, GetVersionCommand,

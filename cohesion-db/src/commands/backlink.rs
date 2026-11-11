@@ -87,8 +87,8 @@ impl DatabaseCommand for FollowLinksCommand {
 }
 
 /// The live items whose text links to the item `link` names, each as
-/// `ResolveLinkCommand` resolves it, by title: a database row's document
-/// as its row. One in a deleted workspace is left out, as it is gone.
+/// `ResolveLinkCommand` resolves it, by title. One in a deleted workspace
+/// is left out, as it is gone.
 #[derive(FromRequest)]
 #[request(BacklinksOfRequest)]
 pub struct BacklinksOfCommand {
@@ -140,8 +140,8 @@ fn source_link(source: LinkTarget) -> Option<ItemLink> {
         }),
         // Only documents' and tasks' links are followed so far.
         LinkKind::Resource
-        | LinkKind::Database
-        | LinkKind::DatabaseRow
+        | LinkKind::DocumentFolder
+        | LinkKind::Contact
         | LinkKind::Agent
         | LinkKind::ActorSession
         | LinkKind::Article => None,

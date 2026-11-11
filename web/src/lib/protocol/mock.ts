@@ -37,14 +37,20 @@ import type {
 	Contact,
 	ContactMethod,
 	ContactMethodKind,
-	Database,
-	DatabaseDataType,
-	DatabaseFilter,
-	DatabaseProperty,
-	DatabaseRow,
-	DatabaseRowEntry,
-	DatabaseSort,
-	DatabaseValue,
+	DocumentFolderProperty,
+	Invalidation,
+	FormulaDefinition,
+	FormulaUpdateMode,
+	IntelligenceAgentColor,
+	NewPropertyOption,
+	PropertyDataType,
+	PropertyOption,
+	PropertyValue,
+	TableColumn,
+	TableCondition,
+	TableFilter,
+	TableRow,
+	TableSort,
 	Photo,
 	Document,
 	DocumentFolder,
@@ -719,18 +725,16 @@ interface MockState {
 	/** Which tag is on which task. */
 	tagged: { tag_id: number; task_id: number }[];
 	savedTaskViews: SavedTaskView[];
-	databases: Database[];
-	/** Every database's; `sort_order` orders one database's. */
-	databaseProperties: DatabaseProperty[];
-	databaseRows: DatabaseRow[];
-	/** One per row and property holding a value, as `database_row_values` holds them. */
-	databaseValues: MockDatabaseValue[];
+	/** Every folder's; `sort_order` orders one folder's. */
+	folderProperties: DocumentFolderProperty[];
+	/** One per document and property holding a value, as `document_values` holds them. */
+	documentValues: MockDocumentValue[];
 }
 
-interface MockDatabaseValue {
-	row_id: number;
+interface MockDocumentValue {
+	document_id: number;
 	property_id: number;
-	value: DatabaseValue;
+	value: PropertyValue;
 }
 
 type MockContactMethod = Omit<ContactMethod, 'workspace_id'>;
@@ -907,13 +911,37 @@ function seed(): MockState {
 				10,
 				1,
 				'Launch plan',
-				'# Launch plan\n\nWhat has to land before the beta, as cards. A link in a sentence, such as [the search notes](cohesion://document/1/5), stays a link.\n\n[Install extension from URL](cohesion://task/1/4)\n[Cohesion-bench](cohesion://task/1/2)\n\n## Who is on it\n\n[Secretary](cohesion://agent/2)\n[the install session](cohesion://actor-session/1)\n\n## Reading\n\n[Notion page](cohesion://resource/1/1)\n[Article](cohesion://article/1)\n\n## Dropped\n\n[Old migration task](cohesion://task/1/999)\n'
+				'# Launch plan\n\nWhat has to land before the beta, as cards. A link in a sentence, such as [the search notes](cohesion://document/1/5), stays a link.\n\n[Install extension from URL](cohesion://task/1/4)\n[Cohesion-bench](cohesion://task/1/2)\n\n## Who is on it\n\n[Secretary](cohesion://agent/2)\n[the install session](cohesion://actor-session/1)\n[Mira Okafor](cohesion://contact/1/1)\n[Tomás Reyes](cohesion://contact/1/2)\n\n## Reading\n\n[Notion page](cohesion://resource/1/1)\n[Article](cohesion://article/1)\n\n## Dropped\n\n[Old migration task](cohesion://task/1/999)\n'
 			)
 		],
 		documentFolders: [
-			{ id: 1, workspace_id: 1, parent_id: null, title: 'Design', sort_order: 1, deleted: false },
-			{ id: 2, workspace_id: 1, parent_id: null, title: 'Research', sort_order: 2, deleted: false },
-			{ id: 3, workspace_id: 1, parent_id: 2, title: 'Search', sort_order: 1, deleted: false }
+			{
+				id: 1,
+				workspace_id: 1,
+				parent_id: null,
+				title: 'Design',
+				sort_order: 1,
+				deleted: false,
+				is_table: false
+			},
+			{
+				id: 2,
+				workspace_id: 1,
+				parent_id: null,
+				title: 'Research',
+				sort_order: 2,
+				deleted: false,
+				is_table: false
+			},
+			{
+				id: 3,
+				workspace_id: 1,
+				parent_id: 2,
+				title: 'Search',
+				sort_order: 1,
+				deleted: false,
+				is_table: false
+			}
 		],
 		folders: [
 			{ id: 1, workspace_id: 1, title: 'Core', sort_order: 1, deleted: false },
@@ -1398,10 +1426,8 @@ function seed(): MockState {
 			] as const
 		).map(([tag_id, task_id]) => ({ tag_id, task_id })),
 		savedTaskViews: [],
-		databases: [],
-		databaseProperties: [],
-		databaseRows: [],
-		databaseValues: []
+		folderProperties: [],
+		documentValues: []
 	};
 }
 
@@ -1485,10 +1511,11 @@ function seedContacts(now: number): Pick<MockState, 'contacts' | 'contactMethods
 	};
 }
 
-// ---- Databases --------------------------------------------------------------
-// The daemon filters and sorts rows in SQL and runs formulas in QuickJS; the
-// mock does both in JS, by the same rules (`database_row.rs`,
-// `database_formula.rs`), reading only a small part of the language for a
+// ---- Tables -----------------------------------------------------------------
+// A document folder with properties is a table, and each document in it a
+// row. The daemon filters and sorts rows in SQL and runs formulas in QuickJS;
+// the mock does both in JS, by the same rules (`document_value.rs`,
+// `document_formula.rs`), reading only a small part of the language for a
 // formula (`mockFormula.ts`).
 
 /** Whether `text` is a real day written `YYYY-MM-DD`. */
@@ -1500,7 +1527,7 @@ function isDay(text: string): boolean {
 }
 
 /** `value` as the daemon stores it, or null for an empty one; throws the daemon's message for a bad one. */
-function checkedDatabaseValue(value: DatabaseValue): DatabaseValue | null {
+function checkedValue(value: PropertyValue): PropertyValue | null {
 	switch (value.type) {
 		case 'text':
 			return value.value === '' ? null : value;
@@ -1515,19 +1542,48 @@ function checkedDatabaseValue(value: DatabaseValue): DatabaseValue | null {
 			if (!isDay(value.value)) throw new Error('A date must be a real day, as YYYY-MM-DD.');
 			return value;
 		case 'checkbox':
+		case 'choice':
 			return value;
 	}
 }
 
-/** A value's text, as `DatabaseValue::text` writes it. */
-function databaseValueText(value: DatabaseValue): string {
+/** A value's text, as a property changing type reads it: a choice's is its option's name. */
+function valueText(property: DocumentFolderProperty, value: PropertyValue): string {
+	if (value.type === 'choice') return optionOfProperty(property, value.value)?.name ?? '';
 	return String(value.value);
 }
 
-/** `text` read as `data_type`, as `DatabaseValue::parse` reads it, or null when it isn't one. */
-function parseDatabaseValue(data_type: DatabaseDataType, text: string): DatabaseValue | null {
+/** A choice's option `option_id`, or null when it has none by that id. */
+function optionOfProperty(property: DocumentFolderProperty, option_id: number) {
+	return property.data_type === 'choice'
+		? (property.options.find((o) => o.id === option_id) ?? null)
+		: null;
+}
+
+/** A property of `data_type` from the fields every type has: a choice with `options`, any other type with none. */
+function typedProperty(
+	base: Omit<DocumentFolderProperty, 'data_type' | 'options'>,
+	data_type: PropertyDataType,
+	options: PropertyOption[] = []
+): DocumentFolderProperty {
+	const { id, folder_id, name, sort_order, formula } = base;
+	const fields = { id, folder_id, name, sort_order, formula };
+	return data_type === 'choice' ? { ...fields, data_type, options } : { ...fields, data_type };
+}
+
+/** The next id for an option, unique across every property's. */
+function nextOptionId(state: MockState): number {
+	return (
+		state.folderProperties
+			.flatMap((p) => (p.data_type === 'choice' ? p.options : []))
+			.reduce((max, o) => Math.max(max, o.id), 0) + 1
+	);
+}
+
+/** `text` read as `data_type`, as `PropertyValue::parse` reads it, or null when it isn't one. */
+function parseValue(data_type: PropertyDataType, text: string): PropertyValue | null {
 	const number = text.trim() === text && text !== '' ? Number(text) : NaN;
-	let value: DatabaseValue | null;
+	let value: PropertyValue | null;
 	switch (data_type) {
 		case 'text':
 		case 'date':
@@ -1544,52 +1600,56 @@ function parseDatabaseValue(data_type: DatabaseDataType, text: string): Database
 			value =
 				text === 'true' || text === 'false' ? { type: 'checkbox', value: text === 'true' } : null;
 			break;
+		case 'choice':
+			// No text is a choice by itself: becoming one makes options of the texts.
+			value = null;
+			break;
 	}
 	try {
-		return value && checkedDatabaseValue(value);
+		return value && checkedValue(value);
 	} catch {
 		return null;
 	}
 }
 
 /** What a value compares as: text ignoring case, a checkbox as 1 or 0, a date by its text. */
-function comparedValue(value: DatabaseValue): string | number {
+function comparedValue(value: PropertyValue): string | number {
 	if (value.type === 'text') return value.value.toLowerCase();
 	if (value.type === 'checkbox') return value.value ? 1 : 0;
 	return value.value;
 }
 
-function databaseProperties(state: MockState, database_id: number): DatabaseProperty[] {
-	return state.databaseProperties
-		.filter((p) => p.database_id === database_id)
+function folderProperties(state: MockState, folder_id: number): DocumentFolderProperty[] {
+	return state.folderProperties
+		.filter((p) => p.folder_id === folder_id)
 		.sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
 }
 
-function databaseValue(
+function documentValue(
 	state: MockState,
-	row_id: number,
+	document_id: number,
 	property_id: number
-): DatabaseValue | null {
+): PropertyValue | null {
 	return (
-		state.databaseValues.find((v) => v.row_id === row_id && v.property_id === property_id)?.value ??
-		null
+		state.documentValues.find((v) => v.document_id === document_id && v.property_id === property_id)
+			?.value ?? null
 	);
 }
 
-function storeDatabaseValue(
+function storeValue(
 	state: MockState,
-	row_id: number,
+	document_id: number,
 	property_id: number,
-	value: DatabaseValue | null
+	value: PropertyValue | null
 ) {
-	state.databaseValues = state.databaseValues.filter(
-		(v) => !(v.row_id === row_id && v.property_id === property_id)
+	state.documentValues = state.documentValues.filter(
+		(v) => !(v.document_id === document_id && v.property_id === property_id)
 	);
-	if (value !== null) state.databaseValues.push({ row_id, property_id, value });
+	if (value !== null) state.documentValues.push({ document_id, property_id, value });
 }
 
 /** `output`, a formula's, as a value of `data_type`; throws when it is of another type. */
-function formulaOutput(data_type: DatabaseDataType, output: unknown): DatabaseValue | null {
+function formulaOutput(data_type: PropertyDataType, output: unknown): PropertyValue | null {
 	if (output === null || output === undefined) return null;
 	const wrong = () => {
 		throw new Error(`The formula returned ${JSON.stringify(output)}, which isn’t of its type.`);
@@ -1598,55 +1658,74 @@ function formulaOutput(data_type: DatabaseDataType, output: unknown): DatabaseVa
 		case 'text':
 		case 'date':
 			if (typeof output !== 'string') wrong();
-			return checkedDatabaseValue({ type: data_type, value: output as string });
+			return checkedValue({ type: data_type, value: output as string });
 		case 'integer':
 		case 'decimal':
 		case 'currency':
 			if (typeof output !== 'number') wrong();
-			return checkedDatabaseValue({ type: data_type, value: output as number });
+			return checkedValue({ type: data_type, value: output as number });
 		case 'checkbox':
 			if (typeof output !== 'boolean') wrong();
 			return { type: 'checkbox', value: output as boolean };
+		case 'choice':
+			// A formula is never a choice.
+			return wrong();
 	}
 }
 
+/** The documents in a folder, deleted ones too, which keep their values; ordered as created. */
+function folderDocuments(state: MockState, folder_id: number): Document[] {
+	return state.documents
+		.filter((d) => d.folder_id === folder_id && d.document_type === 'normal')
+		.sort((a, b) => a.id - b.id);
+}
+
 /**
- * Computes every formula of a database for every row, at once rather than a
- * moment after the write as the daemon does: the mock pushes no
- * invalidations, so the reply to a write carries its outputs.
+ * Computes every formula of a folder for every document in it, at once
+ * rather than a moment after the write as the daemon does, so the reply to
+ * a write carries its outputs.
  */
-function computeFormulas(state: MockState, database_id: number) {
-	const properties = databaseProperties(state, database_id);
+function computeFormulas(state: MockState, folder_id: number) {
+	const properties = folderProperties(state, folder_id);
 	// Of two inputs with one name, the one created first.
 	const inputs = properties.filter((p) => p.formula === null).sort((a, b) => a.id - b.id);
-	const rows = state.databaseRows.filter((r) => r.database_id === database_id);
+	const docs = folderDocuments(state, folder_id);
 	for (const property of properties) {
 		if (property.formula === null) continue;
 		const run = compileMockFormula(property.formula.source);
 		let error: string | null = null;
-		for (const row of rows) {
+		for (const doc of docs) {
 			const input: Record<string, unknown> = {};
-			for (const p of inputs)
-				if (!(p.name in input)) input[p.name] = databaseValue(state, row.id, p.id)?.value ?? null;
-			let value: DatabaseValue | null = null;
+			for (const p of inputs) {
+				if (p.name in input) continue;
+				const value = documentValue(state, doc.id, p.id);
+				// A formula reads a choice as its option's name.
+				input[p.name] =
+					value?.type === 'choice'
+						? (optionOfProperty(p, value.value)?.name ?? null)
+						: (value?.value ?? null);
+			}
+			let value: PropertyValue | null = null;
 			try {
 				if (!run) throw new Error('The mock runs only simple formulas (see mockFormula.ts).');
 				value = formulaOutput(property.data_type, run(input));
 			} catch (e) {
 				error ??= (e instanceof Error ? e.message : String(e)).slice(0, 300);
 			}
-			storeDatabaseValue(state, row.id, property.id, value);
+			storeValue(state, doc.id, property.id, value);
 		}
 		property.formula = { ...property.formula, error };
 	}
 }
 
-/** `row` with its cells, in its database's property order. */
-function databaseEntry(state: MockState, row: DatabaseRow): DatabaseRowEntry {
+/** `doc` as a row of its folder, with its cells in the folder's property order. */
+function tableRow(state: MockState, doc: Document): TableRow {
 	return {
-		...row,
-		cells: databaseProperties(state, row.database_id).flatMap((p) => {
-			const value = databaseValue(state, row.id, p.id);
+		document_id: doc.id,
+		folder_id: doc.folder_id!,
+		title: doc.title,
+		cells: folderProperties(state, doc.folder_id!).flatMap((p) => {
+			const value = documentValue(state, doc.id, p.id);
 			return value === null ? [] : [{ property_id: p.id, value: { ...value } }];
 		})
 	};
@@ -1657,40 +1736,40 @@ function badFilter(message: string): never {
 	throw new ProtocolError('validationFailed', message, 'filters');
 }
 
-/** The test a row's value for `filter`'s property must pass; throws for a filter its type can't take. */
-function databaseFilterTest(
-	property: DatabaseProperty,
-	{ condition }: DatabaseFilter
-): (value: DatabaseValue | null) => boolean {
-	const typed = (value: DatabaseValue) => {
-		if (value.type !== property.data_type)
-			badFilter('A filter’s value must be of its property’s type.');
+/** The test a column's value must pass; throws for a filter its type can't take. */
+function columnTest(
+	data_type: PropertyDataType,
+	title: boolean,
+	condition: TableCondition
+): (value: PropertyValue | null) => boolean {
+	const typed = (value: PropertyValue) => {
+		if (value.type !== data_type) badFilter('A filter’s value must be of its column’s type.');
 		try {
-			checkedDatabaseValue(value);
+			checkedValue(value);
 		} catch (e) {
 			badFilter((e as Error).message);
 		}
 		return comparedValue(value);
 	};
 	const ordered = (
-		value: DatabaseValue,
+		value: PropertyValue,
 		test: (a: string | number, b: string | number) => boolean
 	) => {
-		if (!['integer', 'decimal', 'currency', 'date'].includes(property.data_type))
+		if (title || !['integer', 'decimal', 'currency', 'date'].includes(data_type))
 			badFilter('Only numbers, amounts and dates compare as greater or less.');
 		const bound = typed(value);
-		return (v: DatabaseValue | null) => v !== null && test(comparedValue(v), bound);
+		return (v: PropertyValue | null) => v !== null && test(comparedValue(v), bound);
 	};
 	const contains = (text: string) => {
-		if (property.data_type !== 'text') badFilter('Only text can contain text.');
+		if (data_type !== 'text') badFilter('Only text can contain text.');
 		const lower = text.toLowerCase();
-		return (v: DatabaseValue | null) => v !== null && String(v.value).toLowerCase().includes(lower);
+		return (v: PropertyValue | null) => v !== null && String(v.value).toLowerCase().includes(lower);
 	};
-	const equal = (value: DatabaseValue) => {
+	const equal = (value: PropertyValue) => {
 		const bound = typed(value);
-		return (v: DatabaseValue | null) => v !== null && comparedValue(v) === bound;
+		return (v: PropertyValue | null) => v !== null && comparedValue(v) === bound;
 	};
-	const not = (test: (v: DatabaseValue | null) => boolean) => (v: DatabaseValue | null) => !test(v);
+	const not = (test: (v: PropertyValue | null) => boolean) => (v: PropertyValue | null) => !test(v);
 	switch (condition.kind) {
 		case 'isEmpty':
 			return (v) => v === null;
@@ -1715,85 +1794,121 @@ function databaseFilterTest(
 	}
 }
 
-/** A database's rows meeting every filter, in `sort`'s order (empty values last), ties as added. */
-function listDatabaseRows(
+/** A folder's live documents meeting every filter, in `sort`'s order (empty values last), ties as created. */
+function listTableRows(
 	state: MockState,
-	database_id: number,
-	filters: DatabaseFilter[],
-	sort: DatabaseSort | null | undefined
-): DatabaseRow[] {
-	const properties = databaseProperties(state, database_id);
+	folder_id: number,
+	filters: TableFilter[],
+	sort: TableSort | null | undefined
+): Document[] {
+	const properties = folderProperties(state, folder_id);
 	const propertyOf = (id: number) =>
 		properties.find((p) => p.id === id) ??
 		(() => {
-			throw new ProtocolError('notFound', 'The requested database property wasn’t found.');
+			throw new ProtocolError('notFound', 'The requested document folder property wasn’t found.');
 		})();
-	const tests = filters.map((f) => ({
-		id: f.property_id,
-		test: databaseFilterTest(propertyOf(f.property_id), f)
-	}));
-	const rows = state.databaseRows
-		.filter((r) => r.database_id === database_id)
-		.filter((r) => tests.every(({ id, test }) => test(databaseValue(state, r.id, id))))
-		.sort((a, b) => a.id - b.id);
+	/** What a sort on `column` compares: a choice by where its option sits among its property's. */
+	const sortKey = (column: TableColumn, value: PropertyValue) => {
+		if (column.kind !== 'property' || value.type !== 'choice') return comparedValue(value);
+		const property = propertyOf(column.property_id);
+		return property.data_type === 'choice'
+			? property.options.findIndex((o) => o.id === value.value)
+			: comparedValue(value);
+	};
+	/** What `doc` holds in `column`: its title as text, or its value. */
+	const valueOf = (column: TableColumn) => {
+		if (column.kind === 'title')
+			return (doc: Document): PropertyValue => ({ type: 'text', value: doc.title });
+		const { id } = propertyOf(column.property_id);
+		return (doc: Document) => documentValue(state, doc.id, id);
+	};
+	const tests = filters.map((f) => {
+		const title = f.column.kind === 'title';
+		const type = f.column.kind === 'title' ? 'text' : propertyOf(f.column.property_id).data_type;
+		return { read: valueOf(f.column), test: columnTest(type, title, f.condition) };
+	});
+	const rows = folderDocuments(state, folder_id)
+		.filter((d) => !d.deleted)
+		.filter((d) => tests.every(({ read, test }) => test(read(d))));
 	if (!sort) return rows;
-	const by = propertyOf(sort.property_id).id;
+	const read = valueOf(sort.column);
 	return rows.sort((a, b) => {
-		const va = databaseValue(state, a.id, by);
-		const vb = databaseValue(state, b.id, by);
+		const va = read(a);
+		const vb = read(b);
 		if (va === null || vb === null)
 			return (va === null ? 1 : 0) - (vb === null ? 1 : 0) || a.id - b.id;
-		const [x, y] = [comparedValue(va), comparedValue(vb)];
+		const [x, y] = [sortKey(sort.column, va), sortKey(sort.column, vb)];
 		const order = x < y ? -1 : x > y ? 1 : 0;
 		return (sort.descending ? -order : order) || a.id - b.id;
 	});
 }
 
 /**
- * Two databases in the first workspace: a reading list holding a value of
- * every type and a formula that fails on the row with no rating, and a
- * renovation budget whose total is a formula. The first row has a document,
- * and a document links to the reading list and to one of its rows.
+ * Two table folders in the first workspace: a reading list holding a value
+ * of every type and a formula that fails on the row with no rating, and a
+ * renovation budget whose total is a formula computed continuously. The
+ * first row has notes, and a document links to the reading list and to one
+ * of its rows.
  */
-function seedDatabases(state: MockState) {
+function seedTables(state: MockState) {
 	type Cell = string | number | boolean | null;
 	const add = (
-		id: number,
 		title: string,
-		columns: [string, DatabaseDataType, string?][],
-		rows: Cell[][]
-	) => {
-		state.databases.push({ id, workspace_id: 1, title });
-		const first = state.databaseProperties.length + 1;
-		const properties = columns.map(([name, data_type, formula], i) => ({
-			id: first + i,
-			database_id: id,
-			name,
-			data_type,
-			sort_order: i + 1,
-			formula: formula ? { source: formula, error: null } : null
-		}));
-		state.databaseProperties.push(...properties);
+		columns: [string, PropertyDataType, string?, FormulaUpdateMode?][],
+		rows: [string, ...Cell[]][]
+	): number => {
+		const folder_id = state.documentFolders.reduce((max, f) => Math.max(max, f.id), 0) + 1;
+		state.documentFolders.push({
+			id: folder_id,
+			workspace_id: 1,
+			parent_id: null,
+			title,
+			sort_order: folder_id,
+			deleted: false,
+			is_table: true
+		});
+		const first = state.folderProperties.length + 1;
+		const properties = columns.map(([name, data_type, formula, update_mode], i) =>
+			typedProperty(
+				{
+					id: first + i,
+					folder_id,
+					name,
+					sort_order: i + 1,
+					formula: formula
+						? { source: formula, update_mode: update_mode ?? 'whenChanged', error: null }
+						: null
+				},
+				data_type
+			)
+		);
+		state.folderProperties.push(...properties);
 		const inputs = properties.filter((p) => p.formula === null);
-		for (const cells of rows) {
-			const row = { id: state.databaseRows.length + 1, database_id: id, document_id: null };
-			state.databaseRows.push(row);
+		rows.forEach(([rowTitle, ...cells], i) => {
+			const id = state.documents.reduce((max, d) => Math.max(max, d.id), 0) + 1;
+			state.documents.push({
+				id,
+				workspace_id: 1,
+				document_type: 'normal',
+				title: rowTitle,
+				contents: '',
+				modified: nowSeconds() - (10 + i) * DAY,
+				journal_date: null,
+				deleted: false,
+				folder_id
+			});
 			cells.forEach((cell, i) => {
 				if (cell === null) return;
 				const p = inputs[i];
-				storeDatabaseValue(state, row.id, p.id, {
-					type: p.data_type,
-					value: cell
-				} as DatabaseValue);
+				storeValue(state, id, p.id, { type: p.data_type, value: cell } as PropertyValue);
 			});
-		}
-		computeFormulas(state, id);
+		});
+		computeFormulas(state, folder_id);
+		return folder_id;
 	};
-	add(
-		1,
+	const reading = add(
 		'Reading list',
 		[
-			['Title', 'text'],
 			['Author', 'text'],
 			['Pages', 'integer'],
 			['Rating', 'decimal'],
@@ -1812,14 +1927,12 @@ function seedDatabases(state: MockState) {
 		]
 	);
 	add(
-		2,
 		'Kitchen renovation',
 		[
-			['Item', 'text'],
 			['Supplier', 'text'],
 			['Quantity', 'integer'],
 			['Unit price', 'currency'],
-			['Total', 'currency', '(row) => row.Quantity * row["Unit price"]'],
+			['Total', 'currency', '(row) => row.Quantity * row["Unit price"]', 'continuously'],
 			['Ordered', 'checkbox'],
 			['Delivery', 'date']
 		],
@@ -1831,29 +1944,47 @@ function seedDatabases(state: MockState) {
 			['Paint', null, 3, 24.75, null, null]
 		]
 	);
-	const id = state.documents.reduce((max, d) => Math.max(max, d.id), 0) + 1;
-	state.documents.push({
-		id,
-		workspace_id: 1,
-		document_type: 'databaseRow',
-		title: '',
-		contents:
-			'# Notes\n\nRead it on the train over two weeks. The appendices are worth it.\n\n- Lend to Mira next.\n',
-		modified: nowSeconds() - 5 * DAY,
-		journal_date: null,
-		deleted: false,
-		folder_id: null
+	// A choice on the reading list: where each book is up to.
+	const status = typedProperty(
+		{
+			id: state.folderProperties.length + 1,
+			folder_id: reading,
+			name: 'Status',
+			sort_order: 8,
+			formula: null
+		},
+		'choice',
+		(
+			[
+				['To read', 'blue'],
+				['Reading', 'orange'],
+				['Finished', 'green']
+			] as const
+		).map(([name, color], i) => ({
+			id: i + 1,
+			property_id: state.folderProperties.length + 1,
+			name,
+			color,
+			sort_order: i
+		}))
+	);
+	state.folderProperties.push(status);
+	folderDocuments(state, reading).forEach((doc, i) => {
+		// Finished, finished, reading, to read, finished; the last has none.
+		const option = [3, 3, 2, 1, 3][i];
+		if (option) storeValue(state, doc.id, status.id, { type: 'choice', value: option });
 	});
-	state.databaseRows[0].document_id = id;
+	const [dune, , piranesi] = folderDocuments(state, reading);
+	dune.contents =
+		'# Notes\n\nRead it on the train over two weeks. The appendices are worth it.\n\n- Lend to Mira next.\n';
 	// A document showing the reading list and one of its rows as cards, which
 	// their backlinks list.
 	state.documents.push({
-		id: id + 1,
+		id: state.documents.reduce((max, d) => Math.max(max, d.id), 0) + 1,
 		workspace_id: 1,
 		document_type: 'normal',
 		title: 'Winter reading',
-		contents:
-			'Books for the long evenings.\n\n[Reading list](cohesion://database/1/1)\n\nNext up:\n\n[Piranesi](cohesion://database-row/1/1/3)\n',
+		contents: `Books for the long evenings.\n\n[Reading list](cohesion://document-folder/1/${reading})\n\nNext up:\n\n[Piranesi](cohesion://document/1/${piranesi.id})\n`,
 		modified: nowSeconds() - 2 * DAY,
 		journal_date: null,
 		deleted: false,
@@ -3545,6 +3676,8 @@ export interface Mock {
 	send: Send;
 	sendRaw: (request: RawRequest) => Promise<ReplyFrame>;
 	state: MockState;
+	/** Hears the invalidations the mock pushes after a write; returns an unsubscribe function. */
+	onInvalidate: (listener: (keys: Invalidation[]) => void) => () => void;
 }
 
 const PRIORITY_RANK: Record<TaskPriority, number> = {
@@ -3705,7 +3838,7 @@ function seedRewind(state: MockState, now: number): void {
 export function createMock(): Mock {
 	const state = seed();
 	seedRewind(state, nowSeconds());
-	seedDatabases(state);
+	seedTables(state);
 	const nextId = (rows: { id: number }[]) =>
 		rows.reduce((max, row) => Math.max(max, row.id), 0) + 1;
 	const notFound = (what: string): never => {
@@ -3731,33 +3864,110 @@ export function createMock(): Mock {
 			for (const f of liveDocumentFolders(workspace_id)) if (f.parent_id === ids[i]) ids.push(f.id);
 		return ids;
 	};
-	const databaseOf = (workspace_id: number, database_id: number) => {
+	/** A live folder as the daemon lists it: a table once it has properties. */
+	const listedFolder = (f: DocumentFolder): DocumentFolder => ({
+		...f,
+		is_table: state.folderProperties.some((p) => p.folder_id === f.id)
+	});
+	const tableOf = (workspace_id: number, folder_id: number) => {
 		workspace(workspace_id);
+		return documentFolder(workspace_id, folder_id);
+	};
+	const propertyOf = (workspace_id: number, folder_id: number, property_id: number) => {
+		tableOf(workspace_id, folder_id);
 		return (
-			state.databases.find((d) => d.id === database_id && d.workspace_id === workspace_id) ??
-			notFound('database')
+			state.folderProperties.find((p) => p.id === property_id && p.folder_id === folder_id) ??
+			notFound('document folder property')
 		);
 	};
-	const propertyOf = (workspace_id: number, database_id: number, property_id: number) => {
-		databaseOf(workspace_id, database_id);
-		return (
-			state.databaseProperties.find((p) => p.id === property_id && p.database_id === database_id) ??
-			notFound('database property')
-		);
+	/** Live document `document_id` of folder `folder_id`. */
+	const rowOf = (workspace_id: number, folder_id: number, document_id: number) => {
+		tableOf(workspace_id, folder_id);
+		const d = document(workspace_id, document_id);
+		return d.folder_id === folder_id ? d : notFound('document');
 	};
-	const rowOf = (workspace_id: number, database_id: number, row_id: number) => {
-		databaseOf(workspace_id, database_id);
-		return (
-			state.databaseRows.find((r) => r.id === row_id && r.database_id === database_id) ??
-			notFound('database row')
-		);
+	// The daemon pushes what went stale after a write; the mock pushes the keys
+	// of tables (`documentTable`, and `documentFolders` as a folder becomes a
+	// table or stops being one), so the pages showing them refetch.
+	const invalidateListeners = new Set<(keys: Invalidation[]) => void>();
+	const invalidate = (...keys: Invalidation[]) => {
+		setTimeout(() => {
+			for (const listener of invalidateListeners) listener(keys);
+		}, 0);
+	};
+	/** Pushes `documentTable` of each of `folders` that is a folder. */
+	const tablesChanged = (...folders: (number | null)[]) => {
+		const ids = [...new Set(folders.filter((f): f is number => f !== null))];
+		if (ids.length) invalidate(...ids.map((id) => ({ kind: 'documentTable' as const, id })));
 	};
 	const requirePropertyName = (name: string) => {
 		if (name === '') throw new ProtocolError('validationFailed', 'Name can’t be empty.', 'name');
 	};
-	const requireFormula = (formula: string | null) => {
-		if (formula !== null && formula.trim() === '')
+	const requireFormula = (formula: FormulaDefinition | null) => {
+		if (formula !== null && formula.source.trim() === '')
 			throw new ProtocolError('validationFailed', 'A formula can’t be empty.', 'formula');
+	};
+	const requireNotFormulaChoice = (data_type: PropertyDataType, formula: boolean) => {
+		if (data_type === 'choice' && formula)
+			throw new ProtocolError('validationFailed', 'A formula can’t be a choice.', 'data_type');
+	};
+	/** Puts `next` where property `p` was, as a retyped property is a new object. */
+	const replaceProperty = (p: DocumentFolderProperty, next: DocumentFolderProperty) => {
+		state.folderProperties = state.folderProperties.map((x) => (x.id === p.id ? next : x));
+		return next;
+	};
+	/** Choice property `property_id`; another type has no options to change. */
+	const choiceOf = (workspace_id: number, folder_id: number, property_id: number) => {
+		const p = propertyOf(workspace_id, folder_id, property_id);
+		if (p.data_type !== 'choice')
+			throw new ProtocolError(
+				'validationFailed',
+				'Only a choice property has options.',
+				'property_id'
+			);
+		return p;
+	};
+	/** Refuses an empty option name, or one another of `options` has ignoring case. */
+	const requireOptionName = (
+		options: PropertyOption[],
+		name: string,
+		field: string,
+		except: number | null = null
+	) => {
+		if (name === '') throw new ProtocolError('validationFailed', 'Name can’t be empty.', field);
+		if (options.some((o) => o.id !== except && o.name.toLowerCase() === name.toLowerCase()))
+			throw new ProtocolError(
+				'validationFailed',
+				`This column already has an option named “${name}”.`,
+				field
+			);
+	};
+	/** Appends `added` to choice `p`'s options, each named uniquely. */
+	const addOptions = (
+		p: DocumentFolderProperty & { data_type: 'choice' },
+		added: NewPropertyOption[],
+		field: string
+	) => {
+		for (const { name, color = null } of added) {
+			requireOptionName(p.options, name, field);
+			p.options.push({
+				// Its own options count too: a new property isn't in the state yet.
+				id: Math.max(nextOptionId(state), ...p.options.map((o) => o.id + 1)),
+				property_id: p.id,
+				name,
+				color,
+				sort_order: p.options.reduce((max, o) => Math.max(max, o.sort_order), -1) + 1
+			});
+		}
+	};
+	/** Option `option_id` of choice `p`. */
+	const optionIn = (p: DocumentFolderProperty & { data_type: 'choice' }, option_id: number) =>
+		p.options.find((o) => o.id === option_id) ?? notFound('property option');
+	/** The reply to an option command: the property, after the table is told. */
+	const optionsChanged = (folder_id: number, p: DocumentFolderProperty) => {
+		computeFormulas(state, folder_id);
+		tablesChanged(folder_id);
+		return structuredClone(p);
 	};
 	// A contact as the daemon reads it: its row, with its methods by id.
 	type MockContact = Omit<Contact, 'methods'>;
@@ -3940,45 +4150,39 @@ export function createMock(): Mock {
 		}
 		return false;
 	};
-	/** A database row with its database's properties and its document's excerpt, as the daemon's `database_row` resolves it. */
-	const databaseRowEmbed = (workspace_id: number, database_id: number, row_id: number): Embed => {
-		const database = databaseOf(workspace_id, database_id);
-		const row = rowOf(workspace_id, database_id, row_id);
-		const properties = databaseProperties(state, database_id).map((p) => structuredClone(p));
-		const entry = databaseEntry(state, row);
-		const labelled = properties.find((p) => p.data_type === 'text');
-		const label = labelled ? databaseValue(state, row.id, labelled.id) : null;
-		const document = state.documents.find((d) => d.id === row.document_id && !d.deleted);
-		return {
-			link: `cohesion://database-row/${workspace_id}/${database_id}/${row_id}`,
-			kind: 'databaseRow',
-			workspace_id,
-			title: label?.type === 'text' && label.value.trim() !== '' ? label.value : 'Untitled',
-			excerpt: document ? excerptOf(document.contents) : '',
-			item: { kind: 'databaseRow', row: entry, database_title: database.title, properties }
-		};
-	};
 	/** The live item a `cohesion://` link names, as the daemon's `ResolveLinkCommand` finds it. */
 	const resolveLink = (link: string): Embed => {
 		const target = parseItemLink(link.trim());
-		if (target?.kind === 'database-row')
-			return databaseRowEmbed(target.ws, target.database, target.id);
-		if (target?.kind === 'database') {
-			const database = databaseOf(target.ws, target.id);
-			const rows = state.databaseRows.filter((r) => r.database_id === database.id);
+		if (target?.kind === 'document-folder') {
+			const folder = tableOf(target.ws, target.id);
+			const docs = folderDocuments(state, folder.id).filter((d) => !d.deleted);
 			return {
-				link: `cohesion://database/${target.ws}/${target.id}`,
-				kind: 'database',
+				link: `cohesion://document-folder/${target.ws}/${target.id}`,
+				kind: 'documentFolder',
 				workspace_id: target.ws,
-				title: database.title,
+				title: folder.title,
 				excerpt: '',
 				item: {
-					kind: 'database',
-					database: { ...database },
-					properties: databaseProperties(state, database.id).map((p) => structuredClone(p)),
-					rows: rows.slice(0, 5).map((r) => databaseEntry(state, r)),
-					row_count: rows.length
+					kind: 'documentFolder',
+					folder: listedFolder(folder),
+					properties: folderProperties(state, folder.id).map((p) => structuredClone(p)),
+					rows: docs.slice(0, 5).map((d) => tableRow(state, d)),
+					row_count: docs.length
 				}
+			};
+		}
+		if (target?.kind === 'contact') {
+			workspace(target.ws);
+			const contact = withMethods(contactRow(target.ws, target.id));
+			return {
+				link: `cohesion://contact/${target.ws}/${target.id}`,
+				kind: 'contact',
+				workspace_id: target.ws,
+				title: [contact.first_name, contact.middle_name, contact.last_name]
+					.filter(Boolean)
+					.join(' '),
+				excerpt: excerptOf(contact.notes),
+				item: { kind: 'contact', contact }
 			};
 		}
 		const match =
@@ -4020,12 +4224,6 @@ export function createMock(): Mock {
 						(d) => d.id === id && !d.deleted && (ws === null || d.workspace_id === ws)
 					) ?? notFound('document');
 				workspace(found.workspace_id);
-				// A row's document is part of its row, so it resolves as the row.
-				if (found.document_type === 'databaseRow') {
-					const row =
-						state.databaseRows.find((r) => r.document_id === found.id) ?? notFound('document');
-					return databaseRowEmbed(found.workspace_id, row.database_id, row.id);
-				}
 				return {
 					link: `cohesion://document/${found.workspace_id}/${id}`,
 					kind: found.document_type === 'journal' ? 'journalEntry' : 'document',
@@ -4700,11 +4898,7 @@ export function createMock(): Mock {
 			const q = query.toLowerCase();
 			return state.documents
 				.filter(
-					(d) =>
-						d.workspace_id === workspace_id &&
-						!d.deleted &&
-						d.document_type !== 'databaseRow' &&
-						d.title.toLowerCase().includes(q)
+					(d) => d.workspace_id === workspace_id && !d.deleted && d.title.toLowerCase().includes(q)
 				)
 				.map((d) => ({ ...d }));
 		},
@@ -4714,8 +4908,6 @@ export function createMock(): Mock {
 					(d) =>
 						d.workspace_id === workspace_id &&
 						!d.deleted &&
-						// A database row's document stays out of the list, as the daemon keeps it.
-						d.document_type !== 'databaseRow' &&
 						(document_type == null || d.document_type === document_type) &&
 						(journal_from == null || (d.journal_date !== null && d.journal_date >= journal_from)) &&
 						(journal_to == null || (d.journal_date !== null && d.journal_date < journal_to))
@@ -4741,6 +4933,10 @@ export function createMock(): Mock {
 			};
 			state.documents.push(created);
 			keepDocument(created, 'created');
+			if (folder_id !== null) {
+				computeFormulas(state, folder_id);
+				tablesChanged(folder_id);
+			}
 			return { ...created };
 		},
 		moveDocument: ({ workspace_id, document_id, folder_id = null }) => {
@@ -4748,12 +4944,18 @@ export function createMock(): Mock {
 			if (d.document_type === 'journal')
 				throw new ProtocolError('validationFailed', 'A journal can’t go in a folder.');
 			if (folder_id !== null) documentFolder(workspace_id, folder_id);
+			const from = d.folder_id;
+			if (from === folder_id) return { ...d };
+			// Leaving a folder lets go of its values; arriving in a table brings none.
+			state.documentValues = state.documentValues.filter((v) => v.document_id !== d.id);
 			d.folder_id = folder_id;
+			if (folder_id !== null) computeFormulas(state, folder_id);
+			tablesChanged(from, folder_id);
 			return { ...d };
 		},
 		listDocumentFolders: ({ workspace_id }) => {
 			workspace(workspace_id);
-			return liveDocumentFolders(workspace_id).map((f) => ({ ...f }));
+			return liveDocumentFolders(workspace_id).map(listedFolder);
 		},
 		createDocumentFolder: ({ workspace_id, title, parent_id = null }) => {
 			workspace(workspace_id);
@@ -4771,7 +4973,8 @@ export function createMock(): Mock {
 							.filter((f) => f.workspace_id === workspace_id)
 							.map((f) => f.sort_order)
 					) + 1,
-				deleted: false
+				deleted: false,
+				is_table: false
 			};
 			state.documentFolders.push(created);
 			return { ...created };
@@ -4780,7 +4983,7 @@ export function createMock(): Mock {
 			requireTitle(title);
 			const f = documentFolder(workspace_id, folder_id);
 			f.title = title;
-			return { ...f };
+			return listedFolder(f);
 		},
 		moveDocumentFolder: ({ workspace_id, folder_id, parent_id = null, before_id = null }) => {
 			const f = documentFolder(workspace_id, folder_id);
@@ -4805,212 +5008,261 @@ export function createMock(): Mock {
 			siblings.splice(at, 0, f);
 			f.parent_id = parent_id;
 			siblings.forEach((s, i) => (s.sort_order = i));
-			return liveDocumentFolders(workspace_id).map((s) => ({ ...s }));
+			return liveDocumentFolders(workspace_id).map(listedFolder);
 		},
 		deleteDocumentFolder: ({ workspace_id, folder_id }) => {
 			const f = documentFolder(workspace_id, folder_id);
 			const doomed = documentSubtree(workspace_id, folder_id);
-			// The daemon moves their documents, deleted ones too, to the Inbox.
+			const deleted = listedFolder(f);
+			// The daemon moves their documents, deleted ones too, to the Inbox, and a
+			// table among them loses its properties and its documents their values.
 			for (const d of state.documents)
-				if (d.workspace_id === workspace_id && d.folder_id !== null && doomed.includes(d.folder_id))
+				if (
+					d.workspace_id === workspace_id &&
+					d.folder_id !== null &&
+					doomed.includes(d.folder_id)
+				) {
 					d.folder_id = null;
+					state.documentValues = state.documentValues.filter((v) => v.document_id !== d.id);
+				}
+			state.folderProperties = state.folderProperties.filter((p) => !doomed.includes(p.folder_id));
 			for (const id of doomed) documentFolder(workspace_id, id).deleted = true;
-			return { ...f };
+			tablesChanged(...doomed);
+			return deleted;
 		},
-		listDatabases: ({ workspace_id }) => {
-			workspace(workspace_id);
-			return state.databases
-				.filter((d) => d.workspace_id === workspace_id)
-				.sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase()) || a.id - b.id)
-				.map((d) => ({ ...d }));
+		listDocumentFolderProperties: ({ workspace_id, folder_id }) => {
+			tableOf(workspace_id, folder_id);
+			return folderProperties(state, folder_id).map((p) => structuredClone(p));
 		},
-		getDatabase: ({ workspace_id, database_id }) => ({ ...databaseOf(workspace_id, database_id) }),
-		createDatabase: ({ workspace_id, title }) => {
-			requireTitle(title);
-			workspace(workspace_id);
-			const created: Database = { id: nextId(state.databases), workspace_id, title };
-			state.databases.push(created);
-			return { ...created };
-		},
-		renameDatabase: ({ workspace_id, database_id, title }) => {
-			requireTitle(title);
-			const d = databaseOf(workspace_id, database_id);
-			d.title = title;
-			return { ...d };
-		},
-		deleteDatabase: ({ workspace_id, database_id }) => {
-			const d = databaseOf(workspace_id, database_id);
-			const rows = state.databaseRows.filter((r) => r.database_id === database_id);
-			const ids = rows.map((r) => r.id);
-			const documents = rows.flatMap((r) => (r.document_id === null ? [] : [r.document_id]));
-			state.documents = state.documents.filter((doc) => !documents.includes(doc.id));
-			state.databaseValues = state.databaseValues.filter((v) => !ids.includes(v.row_id));
-			state.databaseRows = state.databaseRows.filter((r) => r.database_id !== database_id);
-			state.databaseProperties = state.databaseProperties.filter(
-				(p) => p.database_id !== database_id
-			);
-			state.databases = state.databases.filter((x) => x.id !== database_id);
-			return { ...d };
-		},
-		listDatabaseProperties: ({ workspace_id, database_id }) => {
-			databaseOf(workspace_id, database_id);
-			return databaseProperties(state, database_id).map((p) => structuredClone(p));
-		},
-		createDatabaseProperty: ({ workspace_id, database_id, name, data_type, formula = null }) => {
+		createDocumentFolderProperty: ({
+			workspace_id,
+			folder_id,
+			name,
+			data_type,
+			formula = null,
+			options
+		}) => {
 			requirePropertyName(name);
 			requireFormula(formula);
-			databaseOf(workspace_id, database_id);
-			const created: DatabaseProperty = {
-				id: nextId(state.databaseProperties),
-				database_id,
-				name,
-				data_type,
-				sort_order:
-					databaseProperties(state, database_id).reduce(
-						(max, p) => Math.max(max, p.sort_order),
-						0
-					) + 1,
-				formula: formula === null ? null : { source: formula, error: null }
-			};
-			state.databaseProperties.push(created);
-			computeFormulas(state, database_id);
+			requireNotFormulaChoice(data_type, formula !== null);
+			if (data_type !== 'choice' && options.length > 0)
+				throw new ProtocolError(
+					'validationFailed',
+					'Only a choice property has options.',
+					'options'
+				);
+			tableOf(workspace_id, folder_id);
+			const first = folderProperties(state, folder_id).length === 0;
+			const created = typedProperty(
+				{
+					id: nextId(state.folderProperties),
+					folder_id,
+					name,
+					sort_order:
+						folderProperties(state, folder_id).reduce((max, p) => Math.max(max, p.sort_order), 0) +
+						1,
+					formula: formula === null ? null : { ...formula, error: null }
+				},
+				data_type
+			);
+			if (created.data_type === 'choice') addOptions(created, options, 'options');
+			state.folderProperties.push(created);
+			computeFormulas(state, folder_id);
+			tablesChanged(folder_id);
+			if (first) invalidate({ kind: 'documentFolders', id: workspace_id });
 			return structuredClone(created);
 		},
-		renameDatabaseProperty: ({ workspace_id, database_id, property_id, name }) => {
+		renameDocumentFolderProperty: ({ workspace_id, folder_id, property_id, name }) => {
 			requirePropertyName(name);
-			const p = propertyOf(workspace_id, database_id, property_id);
+			const p = propertyOf(workspace_id, folder_id, property_id);
 			p.name = name;
-			computeFormulas(state, database_id);
+			computeFormulas(state, folder_id);
+			tablesChanged(folder_id);
 			return structuredClone(p);
 		},
-		setDatabasePropertyType: ({ workspace_id, database_id, property_id, data_type }) => {
-			const p = propertyOf(workspace_id, database_id, property_id);
-			p.data_type = data_type;
-			for (const v of state.databaseValues.filter((v) => v.property_id === property_id))
-				storeDatabaseValue(
-					state,
-					v.row_id,
-					property_id,
-					parseDatabaseValue(data_type, databaseValueText(v.value))
+		setDocumentFolderPropertyType: ({ workspace_id, folder_id, property_id, data_type }) => {
+			const p = propertyOf(workspace_id, folder_id, property_id);
+			requireNotFormulaChoice(data_type, p.formula !== null);
+			if (p.data_type === data_type) return structuredClone(p);
+			// Each value as text, a choice's its option's name; the options go with the old type.
+			const texts = state.documentValues
+				.filter((v) => v.property_id === property_id)
+				.map((v) => ({ document_id: v.document_id, text: valueText(p, v.value) }));
+			const next = replaceProperty(p, typedProperty(p, data_type));
+			if (next.data_type === 'choice') {
+				// An option for each different text, ignoring case, alphabetically, with no color.
+				const names: string[] = [];
+				for (const { text } of texts)
+					if (text !== '' && !names.some((n) => n.toLowerCase() === text.toLowerCase()))
+						names.push(text);
+				names.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()) || (a < b ? -1 : 1));
+				addOptions(
+					next,
+					names.map((name) => ({ name, color: null })),
+					'name'
 				);
-			computeFormulas(state, database_id);
-			return structuredClone(p);
+				for (const { document_id, text } of texts) {
+					const option = next.options.find((o) => o.name.toLowerCase() === text.toLowerCase());
+					storeValue(
+						state,
+						document_id,
+						property_id,
+						option ? { type: 'choice', value: option.id } : null
+					);
+				}
+			} else {
+				for (const { document_id, text } of texts)
+					storeValue(state, document_id, property_id, parseValue(data_type, text));
+			}
+			computeFormulas(state, folder_id);
+			tablesChanged(folder_id);
+			return structuredClone(next);
 		},
-		setDatabasePropertyFormula: ({ workspace_id, database_id, property_id, formula = null }) => {
+		setDocumentFolderPropertyFormula: ({
+			workspace_id,
+			folder_id,
+			property_id,
+			formula = null
+		}) => {
 			requireFormula(formula);
-			const p = propertyOf(workspace_id, database_id, property_id);
+			const p = propertyOf(workspace_id, folder_id, property_id);
+			requireNotFormulaChoice(p.data_type, formula !== null);
+			// The same source with another mode keeps its outputs and error, and computes nothing.
+			if (formula !== null && p.formula?.source === formula.source) {
+				p.formula = { ...p.formula, update_mode: formula.update_mode };
+				tablesChanged(folder_id);
+				return structuredClone(p);
+			}
 			// Becoming a formula drops the values set by hand; no longer one keeps its last outputs.
 			if (formula !== null && p.formula === null)
-				state.databaseValues = state.databaseValues.filter((v) => v.property_id !== property_id);
-			p.formula = formula === null ? null : { source: formula, error: null };
-			computeFormulas(state, database_id);
+				state.documentValues = state.documentValues.filter((v) => v.property_id !== property_id);
+			p.formula = formula === null ? null : { ...formula, error: null };
+			computeFormulas(state, folder_id);
+			tablesChanged(folder_id);
 			return structuredClone(p);
 		},
-		moveDatabaseProperty: ({ workspace_id, database_id, property_id, before_id = null }) => {
-			const moving = propertyOf(workspace_id, database_id, property_id);
-			const others = databaseProperties(state, database_id).filter((p) => p.id !== property_id);
+		moveDocumentFolderProperty: ({ workspace_id, folder_id, property_id, before_id = null }) => {
+			const moving = propertyOf(workspace_id, folder_id, property_id);
+			const others = folderProperties(state, folder_id).filter((p) => p.id !== property_id);
 			const at = before_id === null ? others.length : others.findIndex((p) => p.id === before_id);
 			if (at < 0)
 				throw new ProtocolError(
 					'validationFailed',
-					'The property to go before isn’t in that database.'
+					'The property to go before isn’t in that folder.'
 				);
 			others.splice(at, 0, moving);
 			others.forEach((p, i) => (p.sort_order = i + 1));
+			tablesChanged(folder_id);
 			return others.map((p) => structuredClone(p));
 		},
-		deleteDatabaseProperty: ({ workspace_id, database_id, property_id }) => {
-			const p = propertyOf(workspace_id, database_id, property_id);
-			state.databaseProperties = state.databaseProperties.filter((x) => x.id !== property_id);
-			state.databaseValues = state.databaseValues.filter((v) => v.property_id !== property_id);
-			computeFormulas(state, database_id);
+		deleteDocumentFolderProperty: ({ workspace_id, folder_id, property_id }) => {
+			const p = propertyOf(workspace_id, folder_id, property_id);
+			state.folderProperties = state.folderProperties.filter((x) => x.id !== property_id);
+			state.documentValues = state.documentValues.filter((v) => v.property_id !== property_id);
+			computeFormulas(state, folder_id);
+			tablesChanged(folder_id);
+			if (folderProperties(state, folder_id).length === 0)
+				invalidate({ kind: 'documentFolders', id: workspace_id });
 			return structuredClone(p);
 		},
-		listDatabaseRows: ({ workspace_id, database_id, filters, sort }) => {
-			databaseOf(workspace_id, database_id);
-			return listDatabaseRows(state, database_id, filters, sort).map((r) =>
-				databaseEntry(state, r)
+		createPropertyOption: ({ workspace_id, folder_id, property_id, name, color = null }) => {
+			const p = choiceOf(workspace_id, folder_id, property_id);
+			addOptions(p, [{ name, color }], 'name');
+			return optionsChanged(folder_id, p);
+		},
+		renamePropertyOption: ({ workspace_id, folder_id, property_id, option_id, name }) => {
+			const p = choiceOf(workspace_id, folder_id, property_id);
+			const option = optionIn(p, option_id);
+			requireOptionName(p.options, name, 'name', option_id);
+			option.name = name;
+			return optionsChanged(folder_id, p);
+		},
+		setPropertyOptionColor: ({ workspace_id, folder_id, property_id, option_id, color = null }) => {
+			const p = choiceOf(workspace_id, folder_id, property_id);
+			optionIn(p, option_id).color = color as IntelligenceAgentColor | null;
+			return optionsChanged(folder_id, p);
+		},
+		movePropertyOption: ({ workspace_id, folder_id, property_id, option_id, before_id = null }) => {
+			const p = choiceOf(workspace_id, folder_id, property_id);
+			const moving = optionIn(p, option_id);
+			const others = p.options.filter((o) => o.id !== option_id);
+			const at = before_id === null ? others.length : others.findIndex((o) => o.id === before_id);
+			if (at < 0)
+				throw new ProtocolError(
+					'validationFailed',
+					'The option to go before isn’t in that column.'
+				);
+			others.splice(at, 0, moving);
+			others.forEach((o, i) => (o.sort_order = i));
+			p.options = others;
+			return optionsChanged(folder_id, p);
+		},
+		deletePropertyOption: ({ workspace_id, folder_id, property_id, option_id }) => {
+			const p = choiceOf(workspace_id, folder_id, property_id);
+			optionIn(p, option_id);
+			p.options = p.options.filter((o) => o.id !== option_id);
+			// The values holding it go with it.
+			state.documentValues = state.documentValues.filter(
+				(v) =>
+					!(
+						v.property_id === property_id &&
+						v.value.type === 'choice' &&
+						v.value.value === option_id
+					)
 			);
+			return optionsChanged(folder_id, p);
 		},
-		getDatabaseRow: ({ workspace_id, database_id, row_id }) =>
-			databaseEntry(state, rowOf(workspace_id, database_id, row_id)),
-		createDatabaseRow: ({ workspace_id, database_id }) => {
-			databaseOf(workspace_id, database_id);
-			const row: DatabaseRow = { id: nextId(state.databaseRows), database_id, document_id: null };
-			state.databaseRows.push(row);
-			computeFormulas(state, database_id);
-			return databaseEntry(state, row);
+		listTableRows: ({ workspace_id, folder_id, filters, sort }) => {
+			tableOf(workspace_id, folder_id);
+			return listTableRows(state, folder_id, filters, sort).map((d) => tableRow(state, d));
 		},
-		deleteDatabaseRow: ({ workspace_id, database_id, row_id }) => {
-			const row = rowOf(workspace_id, database_id, row_id);
-			state.databaseRows = state.databaseRows.filter((r) => r.id !== row_id);
-			state.databaseValues = state.databaseValues.filter((v) => v.row_id !== row_id);
-			if (row.document_id !== null)
-				state.documents = state.documents.filter((d) => d.id !== row.document_id);
-			return { ...row };
-		},
-		setDatabaseValue: ({ workspace_id, database_id, row_id, property_id, value = null }) => {
-			const p = propertyOf(workspace_id, database_id, property_id);
+		getTableRow: ({ workspace_id, folder_id, document_id }) =>
+			tableRow(state, rowOf(workspace_id, folder_id, document_id)),
+		setDocumentValue: ({ workspace_id, folder_id, document_id, property_id, value = null }) => {
+			const p = propertyOf(workspace_id, folder_id, property_id);
 			if (p.formula !== null)
 				throw new ProtocolError(
 					'validationFailed',
 					'A formula’s values can’t be set. Change its formula instead.',
 					'property_id'
 				);
-			const row = rowOf(workspace_id, database_id, row_id);
+			const d = rowOf(workspace_id, folder_id, document_id);
 			if (value !== null && value.type !== p.data_type)
 				throw new ProtocolError(
 					'validationFailed',
 					'The value must be of its property’s type.',
 					'value'
 				);
-			let stored: DatabaseValue | null;
+			if (value?.type === 'choice' && optionOfProperty(p, value.value) === null)
+				throw new ProtocolError(
+					'validationFailed',
+					'The option isn’t one of this property’s.',
+					'value'
+				);
+			let stored: PropertyValue | null;
 			try {
-				stored = value && checkedDatabaseValue(value);
+				stored = value && checkedValue(value);
 			} catch (e) {
 				throw new ProtocolError('validationFailed', (e as Error).message, 'value');
 			}
-			storeDatabaseValue(state, row_id, property_id, stored);
-			computeFormulas(state, database_id);
-			return databaseEntry(state, row);
-		},
-		createDatabaseRowDocument: ({ workspace_id, database_id, row_id }) => {
-			const row = rowOf(workspace_id, database_id, row_id);
-			if (row.document_id !== null)
-				throw new ProtocolError('validationFailed', 'This row already has a document.');
-			const created: Document = {
-				id: nextId(state.documents),
-				workspace_id,
-				document_type: 'databaseRow',
-				title: '',
-				contents: '',
-				modified: nowSeconds(),
-				journal_date: null,
-				deleted: false,
-				folder_id: null
-			};
-			state.documents.push(created);
-			keepDocument(created, 'created');
-			row.document_id = created.id;
-			return { ...created };
+			storeValue(state, document_id, property_id, stored);
+			computeFormulas(state, folder_id);
+			tablesChanged(folder_id);
+			return tableRow(state, d);
 		},
 		renameDocument: ({ workspace_id, document_id, title }) => {
 			requireTitle(title);
 			const d = document(workspace_id, document_id);
 			d.title = title;
 			keepDocument(d, 'edited');
+			tablesChanged(d.folder_id);
 			return { ...d };
 		},
 		deleteDocument: ({ workspace_id, document_id }) => {
 			const d = document(workspace_id, document_id);
-			// A row's document goes for good and leaves its row.
-			if (d.document_type === 'databaseRow') {
-				state.documents = state.documents.filter((x) => x.id !== d.id);
-				for (const row of state.databaseRows) if (row.document_id === d.id) row.document_id = null;
-				return { ...d, deleted: true };
-			}
 			d.deleted = true;
 			keepDocument(d, 'deleted');
+			tablesChanged(d.folder_id);
 			return { ...d };
 		},
 
@@ -5058,6 +5310,7 @@ export function createMock(): Mock {
 				modified: nowSeconds()
 			});
 			keepDocument(d, 'restored');
+			tablesChanged(d.folder_id);
 			return { kind: 'document', document: { ...d } };
 		},
 		listDeletedItems: ({ workspace_id }) => {
@@ -5427,7 +5680,7 @@ export function createMock(): Mock {
 				});
 			};
 			for (const d of state.documents)
-				if (d.workspace_id === workspace_id && !d.deleted && d.document_type !== 'databaseRow')
+				if (d.workspace_id === workspace_id && !d.deleted)
 					consider('document', d.id, d.title, d.contents);
 			for (const t of state.tasks)
 				if (t.workspace_id === workspace_id && !t.deleted) consider('task', t.id, t.title, '');
@@ -5435,6 +5688,15 @@ export function createMock(): Mock {
 			for (const a of state.resources)
 				if (a.workspace_id === workspace_id)
 					consider('resource', a.id, a.title, a.content_kind === 'json' ? '' : a.contents);
+			// A contact by its full name, with its notes.
+			for (const c of state.contacts)
+				if (c.workspace_id === workspace_id && !c.deleted)
+					consider(
+						'contact',
+						c.id,
+						[c.first_name, c.middle_name, c.last_name].filter(Boolean).join(' '),
+						c.notes
+					);
 			return hits
 				.sort((a, b) => Number(b.title) - Number(a.title))
 				.map(({ result }, index) => ({ ...result, id: index + 1 }));
@@ -6152,10 +6414,7 @@ export function createMock(): Mock {
 				);
 			const linking: Embed[] = [];
 			for (const d of state.documents) {
-				const self =
-					(target.kind === 'document' && d.id === target.id) ||
-					(target.kind === 'database-row' &&
-						state.databaseRows.some((r) => r.id === target.id && r.document_id === d.id));
+				const self = target.kind === 'document' && d.id === target.id;
 				if (d.deleted || self || !linksTo(d.contents, target)) continue;
 				try {
 					linking.push(structuredClone(resolveLink(`cohesion://document/${d.id}`)));
@@ -6741,7 +7000,12 @@ export function createMock(): Mock {
 		}
 	};
 
-	return { send, sendRaw, state };
+	const onInvalidate = (listener: (keys: Invalidation[]) => void) => {
+		invalidateListeners.add(listener);
+		return () => invalidateListeners.delete(listener);
+	};
+
+	return { send, sendRaw, state, onInvalidate };
 }
 
 /** Refuses an export or import: mock mode has no database file to move. */

@@ -15,10 +15,10 @@ mod cohesion_ui;
 mod connector;
 mod connector_account;
 mod contact;
-mod database;
 mod day_filter;
 mod document;
 mod document_folder;
+mod document_table;
 mod embed;
 mod endpoint_model;
 mod extension;
@@ -80,14 +80,14 @@ pub use connector::{
 };
 pub use connector_account::{AccountHost, ConnectorAccount};
 pub use contact::{Contact, ContactMethod, ContactMethodKind, NewContactMethod};
-pub use database::{
-    Database, DatabaseCell, DatabaseDataType, DatabaseFormula, DatabaseProperty, DatabaseRow,
-    DatabaseRowEntry, DatabaseRowValue, DatabaseValue,
-};
 pub use day_filter::{DayFilter, DayRange};
 pub use document::{Document, DocumentType};
 pub use document_folder::DocumentFolder;
-pub use embed::{DATABASE_PREVIEW_ROWS, Embed, EmbedItem, EmbedKind, excerpt};
+pub use document_table::{
+    DocumentCell, DocumentFolderProperty, DocumentValue, FormulaUpdateMode, PropertyDataType,
+    PropertyFormula, PropertyOption, PropertyType, PropertyValue, TableRow,
+};
+pub use embed::{Embed, EmbedItem, EmbedKind, TABLE_PREVIEW_ROWS, excerpt};
 pub use endpoint_model::EndpointModel;
 pub use extension::{
     Extension, ExtensionHook, ExtensionManifest, ExtensionPermission, ExtensionPermissionKind,

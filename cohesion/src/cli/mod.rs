@@ -9,6 +9,7 @@ mod cli_command;
 mod extension;
 mod intelligence;
 mod journal;
+mod mcp;
 mod noun;
 mod open;
 mod pair;

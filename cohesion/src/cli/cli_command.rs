@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::Subcommand;
 
 use super::{
-    agent, article, extension, intelligence, journal, noun::Noun, open, pair, script, search,
+    agent, article, extension, intelligence, journal, mcp, noun::Noun, open, pair, script, search,
     status::status, tag, task, team, transfer, workspace,
 };
 use crate::{cli_context::Context, cli_error::CliError};
@@ -84,6 +84,9 @@ pub enum CliCommand {
         #[arg(short, long)]
         yes: bool,
     },
+    /// Serve MCP on stdin and stdout for an MCP client such as Claude Code to start. Its
+    /// one tool, `code`, runs a script on cohesiond.
+    Mcp,
     /// Serve the web UI on this machine, open it in your browser, and run until Ctrl-C.
     Open(open::OpenArgs),
 }
@@ -107,6 +110,7 @@ pub async fn run(ctx: &mut Context, command: CliCommand) -> Result<(), CliError>
         CliCommand::Pair => pair::pair(ctx).await,
         CliCommand::Export { file } => transfer::export(ctx, file).await,
         CliCommand::Import { file, yes } => transfer::import(ctx, file, yes).await,
+        CliCommand::Mcp => mcp::run(ctx).await,
         CliCommand::Open(args) => open::run(ctx, args).await,
     }
 }

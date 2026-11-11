@@ -20,7 +20,7 @@
 	} from '$lib/protocol/types';
 	import { workspaceLoadError } from '$lib/shell/loadError';
 	import { routes } from '$lib/shell/routes';
-	import { isTyping } from '$lib/shell/shortcuts.svelte';
+	import { asksForNew, asksForNewFolder, isTyping } from '$lib/shell/shortcuts.svelte';
 	import {
 		parsePriorities,
 		parseSizes,
@@ -468,6 +468,17 @@
 	// ---- Page keys ----------------------------------------------------------
 
 	function onWindowKey(event: KeyboardEvent) {
+		const inDialog = event.target instanceof HTMLElement && event.target.closest('[role="dialog"]');
+		if (!inDialog && asksForNewFolder(event)) {
+			event.preventDefault();
+			openFolderDialog({ mode: 'new' });
+			return;
+		}
+		if (!inDialog && asksForNew(event) && addInput) {
+			event.preventDefault();
+			addInput.focus();
+			return;
+		}
 		if (event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;
 		if (event.key === 'n' && addInput) {
 			event.preventDefault();

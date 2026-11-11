@@ -61,10 +61,9 @@ macro_rules! every_model {
         $check::<RewindWriter>($db);
         $check::<Version>($db);
         $check::<Backlink>($db);
-        $check::<Database>($db);
-        $check::<DatabaseProperty>($db);
-        $check::<DatabaseRow>($db);
-        $check::<DatabaseRowValue>($db);
+        $check::<DocumentFolderProperty>($db);
+        $check::<DocumentValue>($db);
+        $check::<PropertyOption>($db);
     };
 }
 pub(crate) use every_model;

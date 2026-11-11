@@ -93,7 +93,6 @@
 			void actors.messages.load(id);
 			void actors.subagents.load(id);
 			void actors.waiting.load(id);
-			void actors.family.load(id);
 			void actors.list.load();
 			void actors.usage.load();
 			void clients.load();
@@ -103,7 +102,6 @@
 			actors.messages.release();
 			actors.subagents.release();
 			actors.waiting.release();
-			actors.family.release();
 			actors.usage.release();
 			clients.release();
 		};

@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "cohesion",
+    "cohesion-bench",
     "cohesion-core",
     "cohesion-db", "cohesion-intelligence",
     "cohesion-internet",

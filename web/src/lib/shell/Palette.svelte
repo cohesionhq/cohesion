@@ -10,7 +10,6 @@
 <script lang="ts">
 	import { Command, Dialog } from 'bits-ui';
 	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
-	import Table2 from '@lucide/svelte/icons/table-2';
 	import Bot from '@lucide/svelte/icons/bot';
 	import BookUser from '@lucide/svelte/icons/book-user';
 	import History from '@lucide/svelte/icons/history';
@@ -129,12 +128,6 @@
 					run: () => go(routes.documents(id))
 				},
 				{ id: 'tasks', label: 'Tasks', icon: CheckSquare, run: () => go(routes.tasks(id)) },
-				{
-					id: 'databases',
-					label: 'Databases',
-					icon: Table2,
-					run: () => go(routes.databases(id))
-				},
 				{ id: 'articles', label: 'Articles', icon: Newspaper, run: () => go(routes.articles(id)) },
 				{ id: 'contacts', label: 'Contacts', icon: BookUser, run: () => go(routes.contacts(id)) },
 				{ id: 'rewind', label: 'Rewind', icon: History, run: () => go(routes.rewind(id)) },
@@ -304,6 +297,8 @@
 		if (result.entity_kind === 'document')
 			go(routes.document(result.workspace_id, result.entity_id));
 		else if (result.entity_kind === 'resource') void openResource(result);
+		else if (result.entity_kind === 'contact')
+			go(routes.contact(result.workspace_id, result.entity_id));
 		else go(routes.task(result.workspace_id, result.entity_id));
 	}
 
@@ -313,12 +308,14 @@
 		const fts = prefixQuery(q);
 		const id = ws;
 		if (searchTimer) clearTimeout(searchTimer);
+		// Counted before leaving early, so an answer still on its way for a
+		// query since cleared or shortened is dropped too.
+		const generation = ++searchGeneration;
 		if (mode !== 'root' || fts === null || q.length < 2) {
 			results = [];
 			actorResults = [];
 			return;
 		}
-		const generation = ++searchGeneration;
 		// Both answers land on their own; a failed search shows nothing.
 		const answer = <T,>(search: Promise<T[]>, take: (found: T[]) => void) =>
 			search.then(
@@ -461,6 +458,8 @@
 													<FileText size={15} strokeWidth={1.75} />
 												{:else if result.entity_kind === 'resource'}
 													<Layers size={15} strokeWidth={1.75} />
+												{:else if result.entity_kind === 'contact'}
+													<BookUser size={15} strokeWidth={1.75} />
 												{:else}
 													<CheckSquare size={15} strokeWidth={1.75} />
 												{/if}

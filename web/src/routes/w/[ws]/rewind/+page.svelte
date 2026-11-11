@@ -78,8 +78,8 @@
 				>
 					{#snippet row(item)}
 						{@const Icon = icon(item)}
-						<span class="flex items-baseline gap-2">
-							<span class="self-center text-fg-subtle">
+						<span class="flex items-center gap-2">
+							<span class="text-fg-subtle">
 								<Icon size={15} strokeWidth={1.75} aria-label={kindLabel(item)} />
 							</span>
 							<span class="min-w-0 font-medium wrap-anywhere">{name(item)}</span>

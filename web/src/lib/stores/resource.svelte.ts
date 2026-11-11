@@ -54,6 +54,8 @@ export class Resource<T, K = void> {
 	#generation = 0;
 	#hasKey = false;
 	#inflight: Promise<void> | null = null;
+	/** Set while the latest fetch waits on its value, which may predate a write applied meanwhile. */
+	#reading = false;
 	/** Set when a refetch was skipped while released; the next `load` fetches. */
 	#stale = false;
 
@@ -107,11 +109,13 @@ export class Resource<T, K = void> {
 		this.#stale = false;
 		const key = this.key as K;
 		this.loading = true;
+		this.#reading = true;
 		try {
 			const value = await working.load(() => this.#options.fetch(key));
 			if (generation !== this.#generation) return;
 			const show = () => {
 				if (generation !== this.#generation) return;
+				this.#reading = false;
 				this.value = value;
 				this.error = null;
 				this.loaded = true;
@@ -121,6 +125,7 @@ export class Resource<T, K = void> {
 			else show();
 		} catch (error) {
 			if (generation !== this.#generation) return;
+			this.#reading = false;
 			this.error = toProtocolError(error);
 		} finally {
 			if (generation === this.#generation) this.loading = false;
@@ -130,10 +135,21 @@ export class Resource<T, K = void> {
 	/** Replaces the value with one from a mutation reply. */
 	set(value: T): void {
 		this.value = value;
+		this.#supersede();
 	}
 
 	update(change: (value: T) => T): void {
 		this.value = change(this.value);
+		this.#supersede();
+	}
+
+	/**
+	 * The daemon answers requests side by side, so a fetch still waiting may
+	 * have read before the write just applied and would undo it: fetch again,
+	 * which drops it.
+	 */
+	#supersede(): void {
+		if (this.#reading) void this.refetch();
 	}
 
 	/** Background refetch, honouring `canRefetch`. */

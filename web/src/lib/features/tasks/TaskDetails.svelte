@@ -182,7 +182,9 @@
 	/** The task the draft is of; saves go to it in its own workspace. */
 	let subject: Task | null = null;
 	const draft = new Draft(async (content) => {
-		await tasks.describe(subject!, content);
+		const described = await tasks.describe(subject!, content);
+		// A linked task's copy isn't in the page's list, so the panel takes the reply itself.
+		if (described.id === task?.id) took(described);
 		return now();
 	});
 	const save = useAutosave(draft);
@@ -210,8 +212,11 @@
 		});
 	});
 
-	async function start(next: Task) {
+	async function start(opened: Task) {
 		await draft.flush().catch(() => undefined);
+		// The flush may have saved this very task, and another may have opened meanwhile.
+		if (opened.id !== shownId) return;
+		const next = task?.id === opened.id ? task : opened;
 		subject = next;
 		draft.reset(next.description);
 		preview = next.description !== '';

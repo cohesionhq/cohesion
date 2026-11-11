@@ -51,6 +51,21 @@ pub struct Contact {
 }
 
 impl Contact {
+    /// Its names in reading order, first, middle and last, with a space
+    /// between each: its title in an embed and in search
+    /// (`contacts_search_ai`).
+    pub fn full_name(&self) -> String {
+        [
+            Some(self.first_name.as_str()),
+            self.middle_name.as_deref(),
+            Some(self.last_name.as_str()),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(" ")
+    }
+
     /// Its methods, by id, as JSON.
     pub const METHODS_SQL: &str = "(SELECT json_group_array(json_object('id', m.id, \
         'workspace_id', contacts.workspace_id, 'contact_id', m.contact_id, 'kind', m.kind, 'value', m.value, \

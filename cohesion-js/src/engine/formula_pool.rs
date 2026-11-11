@@ -1,4 +1,4 @@
-//! Workers that compute database formulas, off the async runtime. Each keeps
+//! Workers that compute table formulas, off the async runtime. Each keeps
 //! one [`FormulaRuntime`] with the formulas it compiled, started when first
 //! needed and replaced after a job it stopped for time or memory, so a bad
 //! formula costs only itself.
@@ -12,11 +12,11 @@ use crate::formula::{FAILED, Formula, FormulaOutput, FormulaRow, FormulaRun, For
 use crate::sandbox::SandboxOptions;
 
 /// A formula computes rather than waits, so two workers keep one slow
-/// formula from holding up every database without letting formulas take
+/// formula from holding up every table without letting formulas take
 /// over the machine.
 const WORKERS: usize = 2;
 
-/// How many rows one job computes, so the jobs of several databases'
+/// How many rows one job computes, so the jobs of several tables'
 /// passes take turns on the workers.
 pub(super) const ROWS_PER_JOB: usize = 64;
 
@@ -67,6 +67,13 @@ pub(super) struct FormulaPool {
 }
 
 impl FormulaPool {
+    /// Ends every worker's thread once its queue has drained.
+    pub(super) async fn stop(&self) {
+        for worker in self.workers.iter() {
+            worker.stop().await;
+        }
+    }
+
     pub(super) fn new() -> Self {
         Self::with_options(WORKERS, SandboxOptions::FORMULA)
     }

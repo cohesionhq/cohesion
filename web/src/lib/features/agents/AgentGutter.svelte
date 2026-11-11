@@ -52,18 +52,13 @@
 </script>
 
 <!-- Two lines, as the session column's card is: how much context the conversation fills (its name
-     is the header's), then its role and how many sessions it follows, which the sidebar's eye counts. -->
+     is the header's), then its role and, when it follows any, how many sessions, which the sidebar's eye counts. -->
 <GutterCard>
 	<p class="truncate text-sm text-fg">
 		<span class="tabular-nums"><ContextTokens tokens={agent.context_tokens} /></span> tokens in context
 	</p>
 	<p class="truncate text-xs text-fg-muted">
-		{[
-			agent.agent_role,
-			agent.following_count > 0
-				? `Following ${agent.following_count} ${agent.following_count === 1 ? 'session' : 'sessions'}`
-				: 'Following no sessions'
-		]
+		{[agent.agent_role, agent.following_count > 0 && `Monitoring ${agent.following_count}`]
 			.filter(Boolean)
 			.join(' · ')}
 	</p>
