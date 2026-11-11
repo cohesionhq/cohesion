@@ -85,6 +85,12 @@
 	$effect(() => {
 		void value;
 		if (!textarea) return;
+		// Empty, it is its one row, which needs no measuring (and no laying out
+		// of a page still opening).
+		if (!value) {
+			textarea.style.height = '';
+			return;
+		}
 		textarea.style.height = 'auto';
 		textarea.style.height = `${textarea.scrollHeight}px`;
 	});

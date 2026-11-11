@@ -87,3 +87,27 @@ export const routes = {
 	settings: (section?: string) =>
 		section ? resolve('/settings/[section]', { section }) : resolve('/settings')
 };
+
+/**
+ * The pages the sidebar and ⌘K open, whose code the app loads once it's
+ * idle so a first visit doesn't wait on it. An agent's page is the same code
+ * for every agent, so any id names it.
+ */
+export function mainPages(ws: number): string[] {
+	return [
+		routes.dashboard(ws),
+		routes.today(ws),
+		routes.journal(ws),
+		routes.documents(ws),
+		routes.tasks(ws),
+		routes.articles(ws),
+		routes.contacts(ws),
+		routes.rewind(ws),
+		routes.agents(),
+		routes.agent(0),
+		routes.actors(),
+		routes.connectorAccounts(),
+		routes.extensionsInstalled(),
+		routes.settings()
+	];
+}

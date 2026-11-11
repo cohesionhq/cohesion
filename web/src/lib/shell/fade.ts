@@ -127,7 +127,12 @@ function revealer(target: HTMLElement, after: ViewTransition): Reveal {
  * `ready`.
  */
 export function fade(target: HTMLElement, update: () => Promise<void>): Promise<void> {
-	if (!document.startViewTransition) return update();
+	if (!document.startViewTransition) {
+		// Not awaited: SvelteKit's `onNavigate` waits on what this returns, and
+		// its `update` waits on that navigation finishing.
+		update().catch(() => undefined);
+		return Promise.resolve();
+	}
 	navigations += 1;
 	return new Promise((resolve) => {
 		const transition: ViewTransition = crossFade(target, async () => {

@@ -93,6 +93,12 @@ and the rules below, with at most six screenshots in the whole task; the
 last of them go in the pull request for the reviewer. The steps
 are in the `web-ui-change` skill.
 
+A page switch should draw the new page within 50ms, not counting its fade.
+`scripts/page-switch-timing.mjs` times a click on each main page to the
+frame that draws it, in Chromium and WebKit, against a mock build; its
+header says how to run it. Playwright isn't a dependency: install it
+anywhere and point the script at it.
+
 ## Layout
 
 - `src/lib/protocol/`: wire types, the WebSocket `Connection` that carries
