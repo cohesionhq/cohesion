@@ -134,6 +134,28 @@ fn every_kind_has_a_one_line_excerpt() {
         "Count tasks"
     );
     assert_eq!(
+        excerpt(AgentMessageContent::Skill {
+            name: "Weekly review".to_string(),
+            prompt: "Review the week.".to_string(),
+            note: "Keep it short".to_string(),
+        }),
+        "Skill “Weekly review”: Keep it short"
+    );
+    assert_eq!(
+        excerpt(AgentMessageContent::Skill {
+            name: "Weekly review".to_string(),
+            prompt: "Review the week.".to_string(),
+            note: String::new(),
+        }),
+        "Skill “Weekly review”"
+    );
+    assert_eq!(
+        excerpt(AgentMessageContent::UsedSkill {
+            name: "Weekly review".to_string(),
+        }),
+        "Using skill “Weekly review”"
+    );
+    assert_eq!(
         excerpt(AgentMessageContent::Documentation {
             module: "network".to_string()
         }),
@@ -253,6 +275,7 @@ fn every_kind_has_a_one_line_excerpt() {
             text: String::new(),
             attachments: vec![image("aGk="), image("aGV5")],
             forward: None,
+            skill: None,
         })
         .unwrap();
     assert_eq!(images.excerpt, "2 images");
@@ -264,6 +287,7 @@ fn every_kind_has_a_one_line_excerpt() {
             text: "a".repeat(150),
             attachments: Vec::new(),
             forward: None,
+            skill: None,
         })
         .unwrap();
     let reacted = db
@@ -326,6 +350,7 @@ fn a_forward_carries_the_live_item_it_names() {
             text: note.to_string(),
             attachments: Vec::new(),
             forward: Some(target),
+            skill: None,
         })
         .map(|(message, _)| message.message_content)
     };
@@ -425,6 +450,7 @@ fn the_agent_reacts_to_a_forward() {
                 workspace_id: workspace.id,
                 id: document.id,
             }),
+            skill: None,
         })
         .unwrap();
     let reacted = db
@@ -607,6 +633,7 @@ fn attachments_are_counted_listed_and_deleted_with_their_agent() {
             text: String::new(),
             attachments: vec![image("aGk="), image("aGV5")],
             forward: None,
+            skill: None,
         })
         .unwrap();
     assert_eq!(message.attachment_count, 2);
@@ -691,6 +718,7 @@ fn a_message_needs_text_or_valid_images() {
             text: text.to_string(),
             attachments,
             forward: None,
+            skill: None,
         })
     };
     assert!(matches!(

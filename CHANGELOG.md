@@ -7,6 +7,18 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- Agents have skills: prompts you save for one agent or for every agent on
+  a team, from Skills… in an agent's menu or a team's. Type `/` in an
+  agent's message box to run one, with anything you add as a note. An
+  agent also sees the skills it may use (on unless you turn it off for a
+  skill) and runs them itself with the new `use_skill` tool. Clients get
+  `listAgentSkills`, `createAgentSkill`, `updateAgentSkill` and
+  `deleteAgentSkill`, the invalidation `agentSkills`, `skill` on
+  `sendAgentMessage`, and two message kinds: `skill` (the user ran one,
+  keeping its name and prompt) and `usedSkill` (the agent ran one). The
+  iPhone app and other clients that switch on message kinds need the new
+  cases; until then they show the message's excerpt.
+
 - An agent keeps an agenda: the steps it means to take next, in order,
   which it sets out, finishes and clears with the tools `agenda_append`,
   `agenda_finish` and `agenda_reset`. Every thread of its conversation,

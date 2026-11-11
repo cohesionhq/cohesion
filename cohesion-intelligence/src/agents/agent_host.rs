@@ -56,6 +56,9 @@ pub(super) struct AgentHost {
     /// The user's message the thread's `react` tool last reacted to during
     /// the current turn.
     reacted: Arc<Mutex<Option<IntelligenceAgentMessage>>>,
+    /// The list of skills the live thread last heard, in its status or under
+    /// `# Skills changed`.
+    heard_skills: String,
 }
 
 /// What starts a foreground turn, and so how its prompt reads.
@@ -120,6 +123,7 @@ impl AgentHost {
             seen_through: 0,
             sent: Arc::default(),
             reacted: Arc::default(),
+            heard_skills: String::new(),
         })
     }
 
@@ -314,10 +318,18 @@ impl AgentHost {
                     .as_mut()
                     .expect("a live thread")
                     .hear_memories(memories);
+                // Its status lists the skills as they were; a moved thread
+                // hears them in a fresh status instead.
+                let skills =
+                    conversation_session::usable_skills(&self.database, self.agent.id).await?;
+                let listed = agent_transcript::skill_list(&skills);
+                let skills_changed = (!moved && listed != self.heard_skills)
+                    .then(|| agent_transcript::skills_changed(&skills));
+                self.heard_skills = listed;
                 // A thread that moved hears the agenda in its status below;
                 // one that didn't, what another thread changed of it.
                 let agenda = (!moved).then(|| self.foreground.agenda().news()).flatten();
-                let changed = [memories, agenda]
+                let changed = [memories, skills_changed, agenda]
                     .into_iter()
                     .flatten()
                     .collect::<Vec<_>>()
@@ -338,7 +350,7 @@ impl AgentHost {
                     let agenda = self.hear_agenda().await?;
                     format!(
                         "{}\n\n{prompt}",
-                        agent_transcript::status(&cues, &agenda, &Zoned::now())
+                        agent_transcript::status(&cues, &skills, &agenda, &Zoned::now())
                     )
                 } else {
                     prompt
@@ -466,6 +478,8 @@ impl AgentHost {
             .database
             .send(ListAgentCuesCommand { agent_id })
             .await?;
+        let skills = conversation_session::usable_skills(&self.database, agent_id).await?;
+        self.heard_skills = agent_transcript::skill_list(&skills);
 
         let tools = self.tools().await?;
         let session = conversation_session::new_session(&self.messenger, &self.agent, model, tools)
@@ -481,6 +495,7 @@ impl AgentHost {
         let agenda = self.hear_agenda().await?;
         Ok(agent_transcript::status_message(
             &cues,
+            &skills,
             &agenda,
             &self.working_set,
             answering,

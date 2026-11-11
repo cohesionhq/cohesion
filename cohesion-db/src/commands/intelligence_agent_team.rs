@@ -106,8 +106,8 @@ impl DatabaseCommand for RenameAgentTeamCommand {
     }
 }
 
-/// Deletes a team. Its agents stay, on no team, and its memories go with
-/// it.
+/// Deletes a team. Its agents stay, on no team, and its memories and
+/// skills go with it.
 #[derive(FromRequest)]
 #[request(DeleteAgentTeamRequest)]
 pub struct DeleteAgentTeamCommand {
@@ -131,9 +131,13 @@ impl DatabaseCommand for DeleteAgentTeamCommand {
             .filter_eq(IntelligenceAgentTeam::ID, self.team_id)
             .returning_one()
             .found()?;
-        let keys = [Invalidation::AgentTeams, Invalidation::Memories]
-            .into_iter()
-            .chain(members.into_iter().map(Invalidation::Agent));
+        let keys = [
+            Invalidation::AgentTeams,
+            Invalidation::Memories,
+            Invalidation::AgentSkills,
+        ]
+        .into_iter()
+        .chain(members.into_iter().map(Invalidation::Agent));
         Ok(team.invalidating(keys))
     }
 }

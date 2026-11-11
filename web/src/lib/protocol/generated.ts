@@ -726,6 +726,10 @@ export type AgentMemoryChange = 'remembered' | 'forgotten';
  *   provider's cached prompt, and `reason` says why
  *   (`null` on a line written before reasons were kept).
  * - `"agenda"`: the agent added, finished or cleared items of its agenda.
+ * - `"skill"`: the user's message running one of the agent's skills, with
+ *   the skill's name and prompt as they stood when it was sent, and the
+ *   user's note.
+ * - `"usedSkill"`: a skill the agent ran itself with `use_skill`, by name.
  */
 export type AgentMessageContent =
 	| {
@@ -767,7 +771,23 @@ export type AgentMessageContent =
 			kind: 'rebuiltContext';
 			reason?: ContextRebuildReason | null;
 	  }
-	| ({ kind: 'agenda' } & AgentAgendaUpdate);
+	| ({ kind: 'agenda' } & AgentAgendaUpdate)
+	| {
+			kind: 'skill';
+			/** The skill's name when the message was sent. */
+			name: string;
+			/**
+			 * The skill's prompt when the message was sent, so changing or
+			 * deleting the skill later leaves the message as it was.
+			 */
+			prompt: string;
+			/** What the user wrote with it, or empty. */
+			note: string;
+	  }
+	| {
+			kind: 'usedSkill';
+			name: string;
+	  };
 
 /**
  * An agent named in another's conversation, as it was named when it was
@@ -794,6 +814,48 @@ export interface AgentPeer {
  * An older fork may have no trigger, from before wake lines.
  */
 export type AgentRunPart = 'trigger' | 'step' | 'surfaced';
+
+/**
+ * A prompt the user saved for an agent, or for every agent on a team, to
+ * run by name: the user starts it from the composer, and an agent whose
+ * skill `agent_can_use` sees it listed and runs it with `use_skill`.
+ */
+export interface AgentSkill {
+	id: number;
+	/** Whose it is: one agent's, or every agent's on one team. */
+	scope: AgentSkillScope;
+	/** What it is called, unique in its scope ignoring case. */
+	name: string;
+	/**
+	 * One line saying when to use it, which the agent reads in its list;
+	 * `""` when unset.
+	 */
+	description: string;
+	/** What it asks the agent to do. */
+	prompt: string;
+	/**
+	 * Whether the agent sees it listed and may run it itself. The user may
+	 * run any skill.
+	 */
+	agent_can_use: boolean;
+	created_at: number;
+}
+
+/**
+ * Whose a skill is. The table's check gives every row exactly one of an
+ * agent and a team.
+ */
+export type AgentSkillScope =
+	| {
+			kind: 'team';
+			/** The team it belongs to. */
+			team_id: number;
+	  }
+	| {
+			kind: 'agent';
+			/** The agent it belongs to. */
+			agent_id: number;
+	  };
 
 /** What woke an agent apart from its conversation, in a `woke` message. */
 export type AgentWake =
@@ -1303,6 +1365,18 @@ export interface ContextUsage {
 	total_tokens: number;
 }
 
+/** Saves a skill for one agent or for every agent on a team. */
+export interface CreateAgentSkillRequest {
+	scope: AgentSkillScope;
+	/** Unique in its scope, ignoring case. */
+	name: string;
+	/** One line saying when to use it; may be empty. */
+	description: string;
+	prompt: string;
+	/** Whether the agent sees it listed and may run it itself. */
+	agent_can_use: boolean;
+}
+
 /** Creates a team of agents, with none on it yet. */
 export interface CreateAgentTeamRequest {
 	/** Unique among teams, ignoring case. */
@@ -1538,9 +1612,14 @@ export interface DayRange {
 	after?: string | null;
 }
 
+/** Deletes skill `skill_id`. Messages that ran it keep its prompt. */
+export interface DeleteAgentSkillRequest {
+	skill_id: number;
+}
+
 /**
- * Deletes team `team_id`: its agents stay, on no team, and its memories
- * are forgotten.
+ * Deletes team `team_id`: its agents stay, on no team, its memories are
+ * forgotten and its skills deleted.
  */
 export interface DeleteAgentTeamRequest {
 	team_id: number;
@@ -2610,7 +2689,9 @@ export interface IntelligenceAgentMessage {
 	/**
 	 * The message in one line: what a reply quoting it shows, and how a
 	 * client shows a kind it has no view for. Its text, a forward's note (else the item's title), a choice's
-	 * question, a script's title, `Learning about network`, `Asked Scout:
+	 * question, a script's title, `Learning about network`, `Skill “Weekly
+	 * review”: …` (the note after the colon, when there is one), `Using skill
+	 * “Weekly review”`, `Asked Scout:
 	 * …`, `Scout asked: …`, or an error; for the agent's bookkeeping, what
 	 * follows `excerpt_verb`: the memory, the note, the agenda items it
 	 * added, finished or cleared (joined by `; `), or what woke it
@@ -2917,6 +2998,7 @@ export type Invalidation =
 	| { kind: 'savedTaskViews'; id: number }
 	| { kind: 'extensionUpdates' }
 	| { kind: 'memories' }
+	| { kind: 'agentSkills' }
 	| { kind: 'activities' }
 	| { kind: 'actors' }
 	| { kind: 'actorSessions' }
@@ -4418,6 +4500,12 @@ export interface SendAgentMessageRequest {
 	message: string;
 	attachments?: ImageUpload[] | null;
 	forward?: AgentForwardTarget | null;
+	/**
+	 * A skill the agent sees (its own or its team's) to run, with
+	 * `message` as the note; a message runs a skill or forwards an item,
+	 * not both.
+	 */
+	skill?: number | null;
 }
 
 /** Why a command failed; `field` names the offending input when there is one. */
@@ -5219,6 +5307,16 @@ export interface UninstallExtensionRequest {
 	extension_id: number;
 }
 
+/** Changes skill `skill_id`; its scope stays. */
+export interface UpdateAgentSkillRequest {
+	skill_id: number;
+	/** Unique in its scope, ignoring case. */
+	name: string;
+	description: string;
+	prompt: string;
+	agent_can_use: boolean;
+}
+
 /**
  * Replaces contact method `method_id`'s kind and value, which may not be
  * empty, on a live contact in workspace `workspace_id`.
@@ -5950,6 +6048,17 @@ export interface Requests {
 	listMemories: ListMemoriesRequest;
 	/** Forgets memory `memory_id`, returning it. */
 	forgetMemory: ForgetMemoryRequest;
+	/** Lists every skill, each agent's and each team's, by name. */
+	listAgentSkills: NoArgs;
+	/** Saves a skill for one agent or for every agent on a team. */
+	createAgentSkill: CreateAgentSkillRequest;
+	/**
+	 * Changes a skill's name, description, prompt or whether the agent
+	 * may use it.
+	 */
+	updateAgentSkill: UpdateAgentSkillRequest;
+	/** Deletes a skill, returning it. */
+	deleteAgentSkill: DeleteAgentSkillRequest;
 	/** Lists agent `agent_id`'s most recent background runs, newest first. */
 	listAgentRuns: ListAgentRunsRequest;
 	/**
@@ -6521,6 +6630,17 @@ export interface Replies {
 	listMemories: Memory[];
 	/** Forgets memory `memory_id`, returning it. */
 	forgetMemory: Memory;
+	/** Lists every skill, each agent's and each team's, by name. */
+	listAgentSkills: AgentSkill[];
+	/** Saves a skill for one agent or for every agent on a team. */
+	createAgentSkill: AgentSkill;
+	/**
+	 * Changes a skill's name, description, prompt or whether the agent
+	 * may use it.
+	 */
+	updateAgentSkill: AgentSkill;
+	/** Deletes a skill, returning it. */
+	deleteAgentSkill: AgentSkill;
 	/** Lists agent `agent_id`'s most recent background runs, newest first. */
 	listAgentRuns: IntelligenceAgentRun[];
 	/**

@@ -12,6 +12,7 @@ use cohesion_core::{
     value::IntoValue,
 };
 
+use super::agent_skill::SkillsForAgentCommand;
 use super::document::GetDocumentCommand;
 use super::emoji::emoji;
 use super::image_upload::{insert_attachments, validate_images};
@@ -239,12 +240,14 @@ impl DatabaseCommand for UpdateAgentMessageContentCommand {
 
 /// Adds the user's message to an agent's conversation, with the images
 /// attached to it and, when it forwards an item, that item: a `forward`
-/// whose note is `text`, otherwise a `text` message.
+/// whose note is `text`; when it runs one of the agent's skills, a `skill`
+/// whose note is `text`; otherwise a `text` message.
 pub struct CreateUserAgentMessageCommand {
     pub agent_id: i64,
     pub text: String,
     pub attachments: Vec<ImageUpload>,
     pub forward: Option<AgentForwardTarget>,
+    pub skill: Option<i64>,
 }
 impl DatabaseCommand for CreateUserAgentMessageCommand {
     type Access = Write;
@@ -254,7 +257,11 @@ impl DatabaseCommand for CreateUserAgentMessageCommand {
         self,
         ctx: &mut CommandContext<'_>,
     ) -> DatabaseCommandResult<Changed<Self::Response>> {
-        if self.text.trim().is_empty() && self.attachments.is_empty() && self.forward.is_none() {
+        if self.text.trim().is_empty()
+            && self.attachments.is_empty()
+            && self.forward.is_none()
+            && self.skill.is_none()
+        {
             return Err(ValidationError::in_field(
                 "message",
                 "Write a message or attach an image.".to_string(),
@@ -263,12 +270,37 @@ impl DatabaseCommand for CreateUserAgentMessageCommand {
         }
         validate_images(&self.attachments)?;
 
-        let content = match self.forward {
-            Some(target) => AgentMessageContent::Forward {
+        let content = match (self.forward, self.skill) {
+            (Some(_), Some(_)) => {
+                return Err(ValidationError::new(
+                    "A message can forward an item or use a skill, not both.",
+                )
+                .into());
+            }
+            (Some(target), None) => AgentMessageContent::Forward {
                 note: self.text.trim().to_string(),
                 item: forwarded_item(ctx, target)?,
             },
-            None => AgentMessageContent::Text { text: self.text },
+            (None, Some(skill_id)) => {
+                let skill = SkillsForAgentCommand {
+                    agent_id: self.agent_id,
+                }
+                .handle(&mut ctx.as_read())?
+                .into_iter()
+                .find(|skill| skill.id == skill_id)
+                .ok_or_else(|| {
+                    ValidationError::in_field(
+                        "skill",
+                        "This agent doesn't have that skill.".to_string(),
+                    )
+                })?;
+                AgentMessageContent::Skill {
+                    name: skill.name,
+                    prompt: skill.prompt,
+                    note: self.text.trim().to_string(),
+                }
+            }
+            (None, None) => AgentMessageContent::Text { text: self.text },
         };
         insert_message(
             ctx,

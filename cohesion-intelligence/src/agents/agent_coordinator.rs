@@ -75,7 +75,7 @@ impl AgentCoordinator {
     }
 
     /// Foreground: saves the user's message, the images attached to it and
-    /// the item it forwards, if any, then hands it to the turn the agent is running, which takes it in
+    /// the item it forwards or the skill it runs, if any, then hands it to the turn the agent is running, which takes it in
     /// before its next model call, or else queues the agent's turn on it
     /// behind any it is answering, and returns. What the turn posts reaches
     /// clients as the agent's invalidations.
@@ -85,6 +85,7 @@ impl AgentCoordinator {
         message: String,
         attachments: Vec<ImageUpload>,
         forward: Option<AgentForwardTarget>,
+        skill: Option<i64>,
     ) -> Result<(), AgentError> {
         let queued = self.queue(agent_id).await?;
         let (message, attachments) = self
@@ -94,6 +95,7 @@ impl AgentCoordinator {
                 text: message,
                 attachments,
                 forward,
+                skill,
             })
             .await?;
         // Taken in, the message gives up its place in the queue.

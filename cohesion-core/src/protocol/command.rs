@@ -45,9 +45,9 @@ use super::task_requests::*;
 use super::workspace_requests::*;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem,
-    Article, Attachment, CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem,
-    Document, DocumentFolder, DocumentFolderProperty, Embed, EndpointModel, ExtensionHook,
-    ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
+    AgentSkill, Article, Attachment, CatalogModel, Client, Component, Contact, ContactMethod,
+    DeletedItem, Document, DocumentFolder, DocumentFolderProperty, Embed, EndpointModel,
+    ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
     IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
     IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
     RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings, TableRow, Tag,
@@ -572,6 +572,19 @@ pub enum Command {
     /// Forgets memory `memory_id`, returning it.
     #[reply(Memory)]
     ForgetMemory(ForgetMemoryRequest),
+    /// Lists every skill, each agent's and each team's, by name.
+    #[reply(Vec<AgentSkill>, request = ListAgentSkillsRequest)]
+    ListAgentSkills,
+    /// Saves a skill for one agent or for every agent on a team.
+    #[reply(AgentSkill)]
+    CreateAgentSkill(CreateAgentSkillRequest),
+    /// Changes a skill's name, description, prompt or whether the agent
+    /// may use it.
+    #[reply(AgentSkill)]
+    UpdateAgentSkill(UpdateAgentSkillRequest),
+    /// Deletes a skill, returning it.
+    #[reply(AgentSkill)]
+    DeleteAgentSkill(DeleteAgentSkillRequest),
     /// Lists agent `agent_id`'s most recent background runs, newest first.
     #[reply(Vec<IntelligenceAgentRun>)]
     ListAgentRuns(ListAgentRunsRequest),

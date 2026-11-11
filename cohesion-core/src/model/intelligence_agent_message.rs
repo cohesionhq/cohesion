@@ -45,6 +45,10 @@ pub enum IntelligenceAgentMessageSender {
 ///   provider's cached prompt, and `reason` says why
 ///   (`null` on a line written before reasons were kept).
 /// - `"agenda"`: the agent added, finished or cleared items of its agenda.
+/// - `"skill"`: the user's message running one of the agent's skills, with
+///   the skill's name and prompt as they stood when it was sent, and the
+///   user's note.
+/// - `"usedSkill"`: a skill the agent ran itself with `use_skill`, by name.
 #[derive(Serialize, Deserialize, Clone, Debug, TsWire)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AgentMessageContent {
@@ -81,6 +85,18 @@ pub enum AgentMessageContent {
         reason: Option<ContextRebuildReason>,
     },
     Agenda(AgentAgendaUpdate),
+    Skill {
+        /// The skill's name when the message was sent.
+        name: String,
+        /// The skill's prompt when the message was sent, so changing or
+        /// deleting the skill later leaves the message as it was.
+        prompt: String,
+        /// What the user wrote with it, or empty.
+        note: String,
+    },
+    UsedSkill {
+        name: String,
+    },
 }
 
 /// Why an agent's turn started a fresh model thread instead of carrying on
@@ -149,9 +165,13 @@ pub enum AgentMemoryChange {
 }
 
 impl AgentMessageContent {
-    /// Whether it can be reacted to: a text message or a forward.
+    /// Whether it can be reacted to: a text message, a forward or a skill
+    /// the user ran.
     pub fn is_reactable(&self) -> bool {
-        matches!(self, Self::Text { .. } | Self::Forward { .. })
+        matches!(
+            self,
+            Self::Text { .. } | Self::Forward { .. } | Self::Skill { .. }
+        )
     }
 }
 
@@ -335,7 +355,9 @@ pub struct IntelligenceAgentMessage {
     pub reply_to: Option<i64>,
     /// The message in one line: what a reply quoting it shows, and how a
     /// client shows a kind it has no view for. Its text, a forward's note (else the item's title), a choice's
-    /// question, a script's title, `Learning about network`, `Asked Scout:
+    /// question, a script's title, `Learning about network`, `Skill “Weekly
+    /// review”: …` (the note after the colon, when there is one), `Using skill
+    /// “Weekly review”`, `Asked Scout:
     /// …`, `Scout asked: …`, or an error; for the agent's bookkeeping, what
     /// follows `excerpt_verb`: the memory, the note, the agenda items it
     /// added, finished or cleared (joined by `; `), or what woke it
@@ -381,6 +403,10 @@ macro_rules! excerpt_sql {
             WHEN 'choice' THEN intelligence_agent_messages.text \
             WHEN 'codeExecution' THEN intelligence_agent_messages.title \
             WHEN 'documentation' THEN 'Learning about ' || intelligence_agent_messages.text \
+            WHEN 'skill' THEN 'Skill “' || intelligence_agent_messages.title || '”' \
+                || CASE WHEN trim(intelligence_agent_messages.text) = '' THEN '' \
+                ELSE ': ' || intelligence_agent_messages.text END \
+            WHEN 'usedSkill' THEN 'Using skill “' || intelligence_agent_messages.text || '”' \
             WHEN 'memory' THEN intelligence_agent_messages.text \
             WHEN 'askedAgent' THEN 'Asked ' || intelligence_agent_messages.peer_name \
                 || ': ' || intelligence_agent_messages.text \
@@ -418,7 +444,7 @@ impl IntelligenceAgentMessage {
         WHEN intelligence_agent_messages.run_id IS NULL THEN NULL \
         WHEN intelligence_agent_messages.kind IN ('woke', 'askedByAgent') THEN 'trigger' \
         WHEN intelligence_agent_messages.kind IN ('codeExecution', 'documentation', 'memory', \
-            'note', 'agenda', 'askedAgent') THEN 'step' \
+            'note', 'agenda', 'askedAgent', 'usedSkill') THEN 'step' \
         ELSE 'surfaced' END)";
 
     /// The SQL of [`excerpt`](Self::excerpt): the line for each kind with

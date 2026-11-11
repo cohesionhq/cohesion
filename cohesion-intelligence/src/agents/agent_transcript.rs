@@ -13,7 +13,7 @@
 use cohesion_core::model::{
     ActorSession, ActorSessionStop, AgentAgendaChange, AgentAsk, AgentAskReply, AgentChoice,
     AgentCodeExecution, AgentCodeOutcome, AgentForwardedItem, AgentMemoryChange,
-    AgentMessageContent, AgentPeer, AgentWake, Initiative, IntelligenceAgentCue,
+    AgentMessageContent, AgentPeer, AgentSkill, AgentWake, Initiative, IntelligenceAgentCue,
     IntelligenceAgentMessage, IntelligenceAgentMessageSender, Task,
 };
 use cohesion_core::protocol::actor_session_stop_label;
@@ -30,13 +30,14 @@ const PREVIEW_CHARS: usize = 200;
 /// `read_message` returns the rest.
 const EXCERPT_CHARS: usize = 800;
 
-/// The first user turn of a foreground thread: the time and the agent's
-/// cues, and the recent conversation, oldest first, whose last line is the
+/// The first user turn of a foreground thread: the time, the agent's cues
+/// and the skills it may use, and the recent conversation, oldest first, whose last line is the
 /// message to answer, `answering`, when the turn answers one of the user's,
 /// followed by how to answer it, since the lines above read as a chat the
 /// model might otherwise carry on in its final reply.
 pub(super) fn status_message(
     cues: &[IntelligenceAgentCue],
+    skills: &[AgentSkill],
     agenda: &str,
     recent: &[IntelligenceAgentMessage],
     answering: Option<i64>,
@@ -48,15 +49,21 @@ pub(super) fn status_message(
     };
     format!(
         "{}\n\n{}{answer}",
-        status(cues, agenda, now),
+        status(cues, skills, agenda, now),
         recent_conversation(recent, now)
     )
 }
 
-/// The time, the agent's cues and `agenda`, its agenda as the thread hears
-/// it: what a fork's opening leaves out, since the time changes from one
-/// fork to the next and the cues and agenda do as they are set.
-pub(super) fn status(cues: &[IntelligenceAgentCue], agenda: &str, now: &Zoned) -> String {
+/// The time, the agent's cues, the skills it may use and `agenda`, its
+/// agenda as the thread hears it: what a fork's opening leaves out, since the
+/// time changes from one fork to the next and the cues, skills and agenda do
+/// as they are set.
+pub(super) fn status(
+    cues: &[IntelligenceAgentCue],
+    skills: &[AgentSkill],
+    agenda: &str,
+    now: &Zoned,
+) -> String {
     let cues = match cues {
         [] => " none".to_string(),
         cues => cues
@@ -72,7 +79,39 @@ pub(super) fn status(cues: &[IntelligenceAgentCue], agenda: &str, now: &Zoned) -
             })
             .collect(),
     };
-    format!("{}\nYour cues:{cues}\n{agenda}", time(now))
+    format!(
+        "{}\nYour cues:{cues}\n{}\n{agenda}",
+        time(now),
+        skill_list(skills)
+    )
+}
+
+/// The skills the agent may use, `skills`, as its status lists them: each
+/// by name, with the first line of its description when it has one.
+pub(super) fn skill_list(skills: &[AgentSkill]) -> String {
+    let skills: String = match skills {
+        [] => " none".to_string(),
+        skills => skills
+            .iter()
+            .map(|skill| match skill.description.lines().next() {
+                Some(description) if !description.trim().is_empty() => {
+                    format!("\n- \"{}\": {}", skill.name, description.trim())
+                }
+                _ => format!("\n- \"{}\"", skill.name),
+            })
+            .collect(),
+    };
+    format!("Your skills (run one with `use_skill`):{skills}")
+}
+
+/// What a live thread hears when the skills it may use changed since it
+/// last heard: the list as it now stands.
+pub(super) fn skills_changed(skills: &[AgentSkill]) -> String {
+    format!(
+        "# Skills changed\nThe user changed your skills; this replaces the list in your \
+         status.\n{}",
+        skill_list(skills)
+    )
 }
 
 /// The time alone, which a cue's background run opens with.
@@ -121,12 +160,14 @@ pub(super) fn catch_up(
 /// The text of the user's message `message` as a live thread reads it,
 /// after its id (so the agent can react to it) and noting the images that
 /// follow it: `[#42] Thanks!`. A forward's note is followed by the item's
-/// link, which the agent reads it from.
+/// link, which the agent reads it from; a skill's prompt by the user's
+/// note.
 pub(super) fn user_text(message: &IntelligenceAgentMessage) -> String {
     let id = message.id;
     let text = match &message.message_content {
         AgentMessageContent::Text { text } => text.clone(),
         AgentMessageContent::Forward { note, item } => forwarded(note, item),
+        AgentMessageContent::Skill { name, prompt, note } => skill(name, prompt, note),
         _ => return format!("[#{id}]"),
     };
     match (text.as_str(), message.attachment_count) {
@@ -142,6 +183,16 @@ fn forwarded(note: &str, item: &AgentForwardedItem) -> String {
     match note {
         "" => item.reference(),
         note => format!("{note}\n\n{}", item.reference()),
+    }
+}
+
+/// A skill the user ran as the agent reads it: the skill's name and prompt,
+/// then the user's note, if they wrote one.
+fn skill(name: &str, prompt: &str, note: &str) -> String {
+    let skill = format!("Use your skill \"{name}\":\n{prompt}");
+    match note {
+        "" => skill,
+        note => format!("{skill}\n\nThe user added: {note}"),
     }
 }
 
@@ -425,12 +476,15 @@ fn listed_scripts(scripts: &[IntelligenceAgentMessage], now: &Zoned) -> String {
 /// the reaction to it, e.g. `(10:31, 2 images attached, you reacted 👍)`. An
 /// older cue run's scripts follow their line in full, so the agent can reuse or rework
 /// them; its own runs are in its thread already, or summed up by title.
-/// A message's, a forward's or a question between agents' text (with where
-/// the question stands) keeps only its excerpt, a script's result a preview.
+/// A message's, a forward's, a skill's or a question between agents' text
+/// (with where the question stands) keeps only its excerpt, a script's
+/// result a preview.
 pub(super) fn line(message: &IntelligenceAgentMessage, now: &Zoned) -> String {
     let head = head(message, now);
     match &message.message_content {
-        AgentMessageContent::Text { .. } | AgentMessageContent::Forward { .. } => {
+        AgentMessageContent::Text { .. }
+        | AgentMessageContent::Forward { .. }
+        | AgentMessageContent::Skill { .. } => {
             let text = message_text(&message.message_content).expect("it has text");
             format!("{head}: {}", excerpt(&text, message.id, EXCERPT_CHARS))
         }
@@ -533,6 +587,7 @@ pub(super) fn line(message: &IntelligenceAgentMessage, now: &Zoned) -> String {
                 AgentAgendaChange::Reset => format!("{head} cleared your agenda"),
             }
         }
+        AgentMessageContent::UsedSkill { name } => format!("{head} used your skill \"{name}\""),
     }
 }
 
@@ -542,6 +597,7 @@ pub(super) fn message_text(content: &AgentMessageContent) -> Option<String> {
     match content {
         AgentMessageContent::Text { text } => Some(text.clone()),
         AgentMessageContent::Forward { note, item } => Some(forwarded(note, item)),
+        AgentMessageContent::Skill { name, prompt, note } => Some(skill(name, prompt, note)),
         AgentMessageContent::AskedAgent(ask) | AgentMessageContent::AskedByAgent(ask) => {
             Some(ask_text(ask))
         }

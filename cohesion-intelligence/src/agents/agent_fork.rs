@@ -572,9 +572,10 @@ async fn carry_on(
         &brief.now,
     );
     let cues = database.send(ListAgentCuesCommand { agent_id }).await?;
+    let skills = conversation_session::usable_skills(database, agent_id).await?;
     let prompt = format!(
         "{}\n\n{prompt}",
-        agent_transcript::status(&cues, &brief.agenda, &brief.now)
+        agent_transcript::status(&cues, &skills, &brief.agenda, &brief.now)
     );
     Ok(Opened {
         session,
@@ -646,11 +647,12 @@ async fn open_new(
         conversation_session::note_rebuilt(database, agent_id, reason).await?;
     }
     let cues = database.send(ListAgentCuesCommand { agent_id }).await?;
+    let skills = conversation_session::usable_skills(database, agent_id).await?;
     Ok(Opened {
         session,
         prompt: format!(
             "{}\n\n# {}\n{}",
-            agent_transcript::status(&cues, &brief.agenda, &brief.now),
+            agent_transcript::status(&cues, &skills, &brief.agenda, &brief.now),
             brief.heading,
             brief.text
         ),

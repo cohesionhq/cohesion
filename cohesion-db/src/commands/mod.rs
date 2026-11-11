@@ -12,6 +12,7 @@ mod actor_subagent;
 mod agent_agenda;
 mod agent_ask;
 mod agent_name;
+mod agent_skill;
 mod agent_thread_mark;
 mod article;
 mod backlink;
@@ -88,6 +89,7 @@ pub use agent_ask::{
     ASK_STOPPED_REASON, AgentAskRecord, AnswerAgentAskCommand, AskAgentCommand,
     SettleAgentAsksCommand,
 };
+pub use agent_skill::*;
 pub use agent_thread_mark::*;
 pub use article::*;
 pub use backlink::{BacklinksOfCommand, FollowLinksCommand};

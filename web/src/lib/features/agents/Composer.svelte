@@ -3,9 +3,11 @@
 	import ImagePlus from '@lucide/svelte/icons/image-plus';
 	import Square from '@lucide/svelte/icons/square';
 	import type { Snippet } from 'svelte';
-	import type { ImageUpload } from '$lib/protocol/types';
+	import type { AgentSkill, ImageUpload } from '$lib/protocol/types';
+	import { matchingSkills } from '$lib/stores/skills.svelte';
 	import ImageTray from '$lib/ui/ImageTray.svelte';
 	import { attachImages, imageFiles } from '$lib/ui/images';
+	import SkillChip from './SkillChip.svelte';
 
 	interface Props {
 		value: string;
@@ -25,6 +27,10 @@
 		placeholder: string;
 		/** Sits on the page, as the Dashboard's does, rather than floating over a feed: no shadow or blur. */
 		resting?: boolean;
+		/** The skills a `/` at the start of the field offers; none offered when absent. */
+		skills?: AgentSkill[];
+		/** The skill the message runs, shown as a chip above the field; the text is its note. */
+		skill?: AgentSkill | null;
 	}
 
 	let {
@@ -38,7 +44,9 @@
 		leading,
 		focusKey,
 		placeholder,
-		resting = false
+		resting = false,
+		skills,
+		skill = $bindable(null)
 	}: Props = $props();
 
 	const id = $props.id();
@@ -48,7 +56,30 @@
 
 	// Sending while the agent works hands the message to its turn, or queues
 	// it; the feed marks it.
-	const canSend = $derived(value.trim().length > 0 || images.length > 0);
+	const canSend = $derived(value.trim().length > 0 || images.length > 0 || skill !== null);
+
+	// A `/` opening the field, on one line, offers the skills whose names hold
+	// what follows it, until one is picked or Escape puts the list away.
+	let dismissed = $state<string | null>(null);
+	let highlighted = $state(0);
+	const query = $derived(
+		skills && skill === null && /^\/[^\n]*$/.test(value) ? value.slice(1) : null
+	);
+	const offered = $derived(
+		query === null || value === dismissed ? [] : matchingSkills(skills ?? [], query)
+	);
+	const picking = $derived(query !== null && value !== dismissed);
+
+	$effect(() => {
+		void query;
+		highlighted = 0;
+	});
+
+	function pickSkill(picked: AgentSkill) {
+		skill = picked;
+		value = '';
+		textarea?.focus();
+	}
 
 	// Grow with the text, up to the cap in CSS.
 	$effect(() => {
@@ -96,6 +127,32 @@
 	}
 
 	function onkeydown(event: KeyboardEvent) {
+		if (picking) {
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				dismissed = value;
+				return;
+			}
+			if (offered.length > 0 && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+				event.preventDefault();
+				const step = event.key === 'ArrowDown' ? 1 : -1;
+				highlighted = (highlighted + step + offered.length) % offered.length;
+				return;
+			}
+			if (
+				offered.length > 0 &&
+				(event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey && !event.isComposing))
+			) {
+				event.preventDefault();
+				pickSkill(offered[highlighted]);
+				return;
+			}
+		}
+		if (event.key === 'Backspace' && skill && value === '') {
+			event.preventDefault();
+			skill = null;
+			return;
+		}
 		if (event.key === 'Escape' && error) {
 			event.preventDefault();
 			onclearerror();
@@ -123,7 +180,7 @@
      also be pasted or dropped anywhere on it. -->
 <form
 	class={[
-		'pointer-events-auto flex flex-col rounded-lg border p-1.5 transition-[border-color,box-shadow] focus-within:border-border-strong',
+		'pointer-events-auto relative flex flex-col rounded-lg border p-1.5 transition-[border-color,box-shadow] focus-within:border-border-strong',
 		resting
 			? 'border-border-strong/70 bg-bg'
 			: 'border-border bg-[color-mix(in_srgb,var(--bg-floating)_72%,transparent)] shadow-[var(--shadow-floating)] backdrop-blur-xl backdrop-saturate-150',
@@ -134,8 +191,47 @@
 	ondragleave={() => (dragging = false)}
 	{ondrop}
 >
+	{#if picking}
+		<!-- The skills a `/` offers, over the capsule; picking one makes it a chip. -->
+		<div
+			class="overlay-surface absolute inset-x-0 bottom-full mb-2 max-h-72 overflow-y-auto p-1"
+			id="{id}-skills"
+			role="listbox"
+			aria-label="Skills"
+		>
+			{#each offered as option, index (option.id)}
+				<button
+					class={[
+						'flex w-full cursor-pointer flex-col items-start rounded-sm px-2 py-1.5 text-left',
+						index === highlighted ? 'bg-bg-hover' : 'hover:bg-bg-hover'
+					]}
+					id="{id}-skill-{option.id}"
+					type="button"
+					role="option"
+					aria-selected={index === highlighted}
+					tabindex={-1}
+					onmousedown={(event) => event.preventDefault()}
+					onclick={() => pickSkill(option)}
+				>
+					<span class="font-medium">{option.name}</span>
+					{#if option.description}
+						<span class="text-xs text-fg-subtle">{option.description}</span>
+					{/if}
+				</button>
+			{:else}
+				<p class="px-2 py-1.5 text-fg-muted">
+					{(skills ?? []).length === 0 ? 'No skills yet.' : 'No skills match.'}
+				</p>
+			{/each}
+		</div>
+	{/if}
 	{#if images.length > 0}
 		<ImageTray bind:images />
+	{/if}
+	{#if skill}
+		<div class="flex px-1 pt-0.5 pb-1">
+			<SkillChip name={skill.name} prompt={skill.prompt} ondismiss={() => (skill = null)} />
+		</div>
 	{/if}
 	<div class="flex items-end gap-1">
 		<button
@@ -164,6 +260,10 @@
 			{placeholder}
 			aria-label="Message"
 			aria-describedby={error ? `${id}-error` : undefined}
+			aria-controls={picking ? `${id}-skills` : undefined}
+			aria-activedescendant={picking && offered[highlighted]
+				? `${id}-skill-${offered[highlighted].id}`
+				: undefined}
 			{onkeydown}
 			{onpaste}></textarea>
 		<!-- While a turn runs, an empty field offers to stop it; typing turns it back into Send. -->

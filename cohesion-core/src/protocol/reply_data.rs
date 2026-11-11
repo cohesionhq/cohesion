@@ -27,9 +27,9 @@ use super::storage_requests::{
 use super::task_requests::TaskPage;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem,
-    Article, Attachment, CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem,
-    Document, DocumentFolder, DocumentFolderProperty, Embed, EndpointModel, ExtensionHook,
-    ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
+    AgentSkill, Article, Attachment, CatalogModel, Client, Component, Contact, ContactMethod,
+    DeletedItem, Document, DocumentFolder, DocumentFolderProperty, Embed, EndpointModel,
+    ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
     IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
     IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
     RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings, TableRow, Tag,
@@ -113,6 +113,8 @@ pub enum ReplyData {
     Attachments(Vec<Attachment>),
     AgentCues(Vec<IntelligenceAgentCue>),
     AgentAgenda(Vec<AgentAgendaItem>),
+    AgentSkill(AgentSkill),
+    AgentSkills(Vec<AgentSkill>),
     AgentRuns(Vec<IntelligenceAgentRun>),
     Activities(Vec<Activity>),
     Actors(Vec<Actor>),
