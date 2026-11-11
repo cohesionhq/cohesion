@@ -183,8 +183,11 @@ impl AgentTool for AgendaTool {
                 name: "agenda_append",
                 description: format!(
                     "Adds steps to your agenda, in order: what you mean to do. Call it unasked as \
-                     your first call whenever work takes three or more steps or will outlast this \
-                     turn, before any script or message. The agenda is a record, not a queue: it \
+                     your first call, before any script or message, whenever the work will span \
+                     several turns or sessions, will outlast this conversation, or needs a goal \
+                     kept across waits (a dispatched actor session, a cue, the user's feedback, \
+                     network calls and the like); the agenda keeps that goal across them. Short \
+                     work done in one go needs none. The agenda is a record, not a queue: it \
                      runs nothing and queues no work for you, so you still do each step. It lets \
                      the user see what you are working toward and how far you have got, and \
                      keeps your other threads in step. It holds at most {AGENDA_LIMIT} items, \
@@ -213,8 +216,9 @@ impl AgentTool for AgendaTool {
                 name: "agenda_finish",
                 description: "Marks an item of your agenda finished, so the user sees \
                     your progress. Call it in the turn you finish each step, before starting \
-                    the next, not all at the end. The item stays, ticked, until you reset the \
-                    agenda. Returns the agenda as it now stands."
+                    the next, not all at the end; when you wake with open items, carry on from \
+                    the first. The item stays, ticked, until you reset the agenda. Returns the \
+                    agenda as it now stands."
                     .into(),
                 fields: vec![Field {
                     name: "pos",
