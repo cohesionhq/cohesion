@@ -1,15 +1,12 @@
 <!--
-	The column beside an agent's conversation: its context size, role and how many sessions it follows, its agenda,
-	the step it is on marked and finished ones struck through, the actor sessions
+	The column beside an agent's conversation: its context size, role and how many sessions it follows, its agenda
+	as a row of dots opening a card (`AgendaOverview`), the actor sessions
 	not yet resolved that it handed work and follows, each led by where it stands
 	and naming its actor, with Stop following and Resolve on hover or focus, then its cues.
 -->
 <script lang="ts">
 	import Archive from '@lucide/svelte/icons/archive';
 	import BellRing from '@lucide/svelte/icons/bell-ring';
-	import Circle from '@lucide/svelte/icons/circle';
-	import CircleCheck from '@lucide/svelte/icons/circle-check';
-	import CircleDot from '@lucide/svelte/icons/circle-dot';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import { flip } from 'svelte/animate';
 	import { backOut } from 'svelte/easing';
@@ -29,6 +26,7 @@
 	import GutterGroup from '$lib/ui/GutterGroup.svelte';
 	import { motion } from '$lib/ui/motion';
 	import StatusIcon from '$lib/ui/StatusIcon.svelte';
+	import AgendaOverview from './AgendaOverview.svelte';
 	import ContextTokens from './ContextTokens.svelte';
 
 	interface Props {
@@ -46,10 +44,6 @@
 	}
 
 	let { agent, cues, agenda, actors, sessions, onresolve, onunfollow }: Props = $props();
-
-	// The step the agent is on: the first not yet finished.
-	const current = $derived(agenda.find((item) => item.finished_at === null)?.id);
-	const finished = $derived(agenda.filter((item) => item.finished_at !== null).length);
 
 	const actorTitle = (id: number) => actors.find((actor) => actor.id === id)?.title;
 	// A row's Stop following and Resolve, on the canvas their wrapper lays under them.
@@ -77,46 +71,7 @@
 
 {#if agenda.length > 0}
 	<GutterGroup>
-		<h2 class="flex items-baseline justify-between gap-2 text-xs font-medium text-fg-subtle">
-			Agenda
-			<span class="font-normal tabular-nums">{finished} of {agenda.length} done</span>
-		</h2>
-		<ol class="flex flex-col gap-1 text-sm">
-			{#each agenda as item (item.id)}
-				{@const done = item.finished_at !== null}
-				<li
-					class={[
-						'flex items-start gap-2',
-						done ? 'text-fg-subtle' : item.id === current ? 'text-fg' : 'text-fg-muted'
-					]}
-					aria-current={item.id === current ? 'step' : undefined}
-					in:fly={{ y: 8, duration: motion.duration }}
-					animate:flip={{ duration: motion.duration }}
-				>
-					<span class="sr-only">{done ? 'Done' : item.id === current ? 'Next' : 'To do'}, </span>
-					<!-- Centred on the first line, as a followed session's icon is. -->
-					<span class="flex h-5.25 w-4 flex-none items-center justify-center" aria-hidden="true">
-						{#key done}
-							<span
-								class="flex"
-								in:scale={{ start: 0.4, duration: motion.duration, easing: backOut }}
-							>
-								{#if done}
-									<CircleCheck size={14} strokeWidth={1.75} class="text-ok" />
-								{:else if item.id === current}
-									<CircleDot size={14} strokeWidth={1.75} class="text-accent" />
-								{:else}
-									<Circle size={14} strokeWidth={1.75} />
-								{/if}
-							</span>
-						{/key}
-					</span>
-					<span class={['min-w-0 text-balance wrap-anywhere', done && 'line-through']}
-						>{item.text}</span
-					>
-				</li>
-			{/each}
-		</ol>
+		<AgendaOverview {agenda} />
 	</GutterGroup>
 {/if}
 

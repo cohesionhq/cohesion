@@ -2940,9 +2940,10 @@ const WEEK_CHART =
 /** The steps the seeded Core Engineer set out, its first one finished. */
 const AGENDA = [
 	'Add the agenda table and its commands',
-	'Give every thread the agenda tools',
-	'Show the agenda beside the conversation',
-	'Check it in a browser'
+	'Give every thread the agenda tools, with descriptions that say the agenda is a record the user checks in on, not a queue',
+	'Show the agenda beside the conversation, keeping long steps from wrapping down the column',
+	'Run the checks',
+	'Check it in a browser at desktop width, in light and dark mode, and take a screenshot of each'
 ];
 
 function seedAgents(
