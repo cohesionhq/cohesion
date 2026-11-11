@@ -97,8 +97,8 @@ describe('how long a tool or thinking took', () => {
 	it('counts up while it runs', () => {
 		const messages = [message(1, 100, thinking(null))];
 		expect(duration(messages, 0, 'working', 112)).toBe('12s');
-		// A clock behind the daemon's doesn't count below nothing.
-		expect(duration(messages, 0, 'working', 90)).toBe('<1s');
+		// A clock behind the daemon's doesn't count below nothing, and a step under a second shows no time.
+		expect(duration(messages, 0, 'working', 90)).toBeNull();
 	});
 
 	it('runs until the next message when its actor never said', () => {
