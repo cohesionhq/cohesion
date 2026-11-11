@@ -129,6 +129,7 @@ pub struct ActorSession {
     pub status: ActorSessionStatus,
     /// Whether its actor finished a stretch of work, done or failed, since
     /// the user last read it; stopping it, or its client going away, doesn't.
+    /// Resolving it reads it.
     pub unread: bool,
     /// When the user last read it; `null` if they never have.
     pub read_at: Option<i64>,

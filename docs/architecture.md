@@ -1900,8 +1900,11 @@ stateDiagram-v2
 send or shutdown. When the session works again, `StartActivityCommand`
 reopens that row: `running`, its title the session's, progress and
 `ended_at` cleared, its id and `started_at` kept. A trigger (`activities_actor_session_unread`)
-marks the session unread only when its activity ends `succeeded` or `failed`.
-`MarkActorSessionRead` clears it and sets `read_at`.
+marks the session unread only when its activity ends `succeeded` or `failed`;
+`SetActorSessionStatusCommand` does the same when the actor reports `idle` or
+`failed` with no activity open, but never for a subagent or a session
+resolved meanwhile. `MarkActorSessionRead` clears it and sets `read_at`, and
+so does resolving the session.
 
 **Reports from the device** (`actorSessionUpdate`, `ActorSessionReport`
 tagged `kind`), queued per session (64) and handled in order; the session must
