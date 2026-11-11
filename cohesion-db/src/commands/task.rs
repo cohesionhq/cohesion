@@ -67,27 +67,6 @@ fn ensure_folder<'c>(
     }
 }
 
-/// Fails with a validation error unless `workspace_id` has a live task folder
-/// `folder_id`: a task is put only in a folder that lists it.
-fn ensure_folder<'c>(
-    db: impl ReadableDatabase<'c>,
-    workspace_id: i64,
-    folder_id: i64,
-) -> DatabaseCommandResult<()> {
-    let exists = db
-        .select_live::<TaskFolder>()
-        .filter_eq(TaskFolder::WORKSPACE_ID, workspace_id)
-        .filter_eq(TaskFolder::ID, folder_id)
-        .exists()?;
-    if exists {
-        Ok(())
-    } else {
-        Err(CommandError::Validation(ValidationError::new(
-            "That task folder doesn’t exist.",
-        )))
-    }
-}
-
 /// The live tasks some filters cover, in `sort`'s order.
 #[derive(Clone)]
 pub struct TaskListing {
