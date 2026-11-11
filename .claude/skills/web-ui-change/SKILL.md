@@ -20,9 +20,9 @@ cd web && VITE_MOCK=1 npm run dev     # http://localhost:5173
 
 (or `web-mock` in `.claude/launch.json`). It needs no daemon or CLI, so
 nothing you do there touches anyone's data. Run it in the background and
-stop it when you're done. Anything the feature sends needs a handler and
-seed data in `src/lib/protocol/mock.ts`, or mock mode and the store tests
-break. Don't run `scripts/web-dev.sh` yourself: it runs against the
+stop it when you're done. Anything the feature sends needs a handler
+(`src/lib/protocol/mock/handlers/`, in its area's file) and seed data
+(`mock/seed.ts`), or mock mode and the store tests break. Don't run `scripts/web-dev.sh` yourself: it runs against the
 developer's own `dev/` state and blocks until killed, so hand it to the
 person in your report.
 

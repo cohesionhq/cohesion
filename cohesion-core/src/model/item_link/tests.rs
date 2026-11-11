@@ -71,3 +71,35 @@ fn a_document_folder_link_names_its_workspace_then_its_id() {
         })
     );
 }
+
+/// The workspace a link names, when it names one.
+fn workspace_of(link: &ItemLink) -> Option<i64> {
+    match *link {
+        ItemLink::Task { workspace_id, .. } | ItemLink::Document { workspace_id, .. } => {
+            workspace_id
+        }
+        ItemLink::Resource { workspace_id, .. }
+        | ItemLink::DocumentFolder { workspace_id, .. }
+        | ItemLink::Contact { workspace_id, .. } => Some(workspace_id),
+        ItemLink::Agent { .. } | ItemLink::ActorSession { .. } | ItemLink::Article { .. } => None,
+    }
+}
+
+/// The cases the web UI runs too (`link_cases.json`): what a link names
+/// here is what it must name there.
+#[test]
+fn the_shared_link_cases_hold() {
+    let shared: serde_json::Value = serde_json::from_str(include_str!("link_cases.json")).unwrap();
+    for case in shared["links"].as_array().unwrap() {
+        let href = case["href"].as_str().unwrap();
+        let names = match parsed(href) {
+            Err(NotAnItemLink) => serde_json::Value::Null,
+            Ok(link) => serde_json::json!({
+                "kind": link.target().kind,
+                "workspace_id": workspace_of(&link),
+                "id": link.target().id,
+            }),
+        };
+        assert_eq!(names, case["names"], "{href}");
+    }
+}

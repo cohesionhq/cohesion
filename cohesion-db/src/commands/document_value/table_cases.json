@@ -1,0 +1,698 @@
+{
+	"about": "Cases for filtering and sorting a table's rows, run against the daemon (cohesion-db, document_value/tests.rs) and the web UI's mock (web/src/lib/protocol/mock/tableRules.test.ts), so the mock's copy of these rules can't drift. A column is a property's name, or \"$title\" for the documents' titles; a choice value names its option. The daemon's answer is the right one: when a case fails only in the mock, fix the mock.",
+	"properties": [
+		{
+			"name": "Author",
+			"type": "text"
+		},
+		{
+			"name": "Pages",
+			"type": "integer"
+		},
+		{
+			"name": "Rating",
+			"type": "decimal"
+		},
+		{
+			"name": "Price",
+			"type": "currency"
+		},
+		{
+			"name": "Read",
+			"type": "checkbox"
+		},
+		{
+			"name": "Finished",
+			"type": "date"
+		},
+		{
+			"name": "Shelf",
+			"type": "choice",
+			"options": [
+				"Fiction",
+				"History",
+				"Poetry"
+			]
+		}
+	],
+	"rows": [
+		{
+			"title": "Dune",
+			"values": {
+				"Author": {
+					"type": "text",
+					"value": "Herbert"
+				},
+				"Pages": {
+					"type": "integer",
+					"value": 412
+				},
+				"Rating": {
+					"type": "decimal",
+					"value": 4.5
+				},
+				"Price": {
+					"type": "currency",
+					"value": 9.99
+				},
+				"Read": {
+					"type": "checkbox",
+					"value": true
+				},
+				"Finished": {
+					"type": "date",
+					"value": "2026-03-01"
+				},
+				"Shelf": {
+					"type": "choice",
+					"value": "Fiction"
+				}
+			}
+		},
+		{
+			"title": "piranesi",
+			"values": {
+				"Author": {
+					"type": "text",
+					"value": "clarke"
+				},
+				"Pages": {
+					"type": "integer",
+					"value": 245
+				},
+				"Rating": {
+					"type": "decimal",
+					"value": 4.8
+				},
+				"Price": {
+					"type": "currency",
+					"value": 12.5
+				},
+				"Read": {
+					"type": "checkbox",
+					"value": false
+				},
+				"Finished": {
+					"type": "date",
+					"value": "2026-01-15"
+				},
+				"Shelf": {
+					"type": "choice",
+					"value": "Fiction"
+				}
+			}
+		},
+		{
+			"title": "SPQR",
+			"values": {
+				"Author": {
+					"type": "text",
+					"value": "Beard"
+				},
+				"Pages": {
+					"type": "integer",
+					"value": 608
+				},
+				"Rating": {
+					"type": "decimal",
+					"value": 4.1
+				},
+				"Read": {
+					"type": "checkbox",
+					"value": true
+				},
+				"Finished": {
+					"type": "date",
+					"value": "2025-12-31"
+				},
+				"Shelf": {
+					"type": "choice",
+					"value": "History"
+				}
+			}
+		},
+		{
+			"title": "Untitled notes",
+			"values": {}
+		},
+		{
+			"title": "Ariel",
+			"values": {
+				"Author": {
+					"type": "text",
+					"value": "Plath"
+				},
+				"Pages": {
+					"type": "integer",
+					"value": 96
+				},
+				"Rating": {
+					"type": "decimal",
+					"value": 4.5
+				},
+				"Price": {
+					"type": "currency",
+					"value": 9.99
+				},
+				"Shelf": {
+					"type": "choice",
+					"value": "Poetry"
+				}
+			}
+		}
+	],
+	"cases": [
+		{
+			"name": "lists rows in the order they were created",
+			"filters": [],
+			"sort": null,
+			"titles": [
+				"Dune",
+				"piranesi",
+				"SPQR",
+				"Untitled notes",
+				"Ariel"
+			]
+		},
+		{
+			"name": "sorts text ignoring case, empty last",
+			"filters": [],
+			"sort": {
+				"column": "Author",
+				"descending": false
+			},
+			"titles": [
+				"SPQR",
+				"piranesi",
+				"Dune",
+				"Ariel",
+				"Untitled notes"
+			]
+		},
+		{
+			"name": "sorts text descending, empty still last",
+			"filters": [],
+			"sort": {
+				"column": "Author",
+				"descending": true
+			},
+			"titles": [
+				"Ariel",
+				"Dune",
+				"piranesi",
+				"SPQR",
+				"Untitled notes"
+			]
+		},
+		{
+			"name": "sorts whole numbers as numbers",
+			"filters": [],
+			"sort": {
+				"column": "Pages",
+				"descending": false
+			},
+			"titles": [
+				"Ariel",
+				"piranesi",
+				"Dune",
+				"SPQR",
+				"Untitled notes"
+			]
+		},
+		{
+			"name": "sorts decimals descending, ties by creation",
+			"filters": [],
+			"sort": {
+				"column": "Rating",
+				"descending": true
+			},
+			"titles": [
+				"piranesi",
+				"Dune",
+				"Ariel",
+				"SPQR",
+				"Untitled notes"
+			]
+		},
+		{
+			"name": "sorts currency, empties last by creation",
+			"filters": [],
+			"sort": {
+				"column": "Price",
+				"descending": false
+			},
+			"titles": [
+				"Dune",
+				"Ariel",
+				"piranesi",
+				"SPQR",
+				"Untitled notes"
+			]
+		},
+		{
+			"name": "sorts dates descending, later first",
+			"filters": [],
+			"sort": {
+				"column": "Finished",
+				"descending": true
+			},
+			"titles": [
+				"Dune",
+				"piranesi",
+				"SPQR",
+				"Untitled notes",
+				"Ariel"
+			]
+		},
+		{
+			"name": "sorts a choice by its options' order",
+			"filters": [],
+			"sort": {
+				"column": "Shelf",
+				"descending": false
+			},
+			"titles": [
+				"Dune",
+				"piranesi",
+				"SPQR",
+				"Ariel",
+				"Untitled notes"
+			]
+		},
+		{
+			"name": "sorts a choice descending",
+			"filters": [],
+			"sort": {
+				"column": "Shelf",
+				"descending": true
+			},
+			"titles": [
+				"Ariel",
+				"SPQR",
+				"Dune",
+				"piranesi",
+				"Untitled notes"
+			]
+		},
+		{
+			"name": "sorts a checkbox",
+			"filters": [],
+			"sort": {
+				"column": "Read",
+				"descending": false
+			},
+			"titles": [
+				"piranesi",
+				"Dune",
+				"SPQR",
+				"Untitled notes",
+				"Ariel"
+			]
+		},
+		{
+			"name": "sorts titles ignoring case",
+			"filters": [],
+			"sort": {
+				"column": "$title",
+				"descending": false
+			},
+			"titles": [
+				"Ariel",
+				"Dune",
+				"piranesi",
+				"SPQR",
+				"Untitled notes"
+			]
+		},
+		{
+			"name": "text equals ignoring case",
+			"filters": [
+				{
+					"column": "Author",
+					"condition": {
+						"kind": "equals",
+						"value": {
+							"type": "text",
+							"value": "HERBERT"
+						}
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"Dune"
+			]
+		},
+		{
+			"name": "text contains ignoring case",
+			"filters": [
+				{
+					"column": "Author",
+					"condition": {
+						"kind": "contains",
+						"text": "AR"
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"piranesi",
+				"SPQR"
+			]
+		},
+		{
+			"name": "text not containing keeps empty values",
+			"filters": [
+				{
+					"column": "Author",
+					"condition": {
+						"kind": "notContains",
+						"text": "e"
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"Untitled notes",
+				"Ariel"
+			]
+		},
+		{
+			"name": "not equal keeps empty values",
+			"filters": [
+				{
+					"column": "Author",
+					"condition": {
+						"kind": "notEquals",
+						"value": {
+							"type": "text",
+							"value": "plath"
+						}
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"Dune",
+				"piranesi",
+				"SPQR",
+				"Untitled notes"
+			]
+		},
+		{
+			"name": "a whole number greater than",
+			"filters": [
+				{
+					"column": "Pages",
+					"condition": {
+						"kind": "greaterThan",
+						"value": {
+							"type": "integer",
+							"value": 245
+						}
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"Dune",
+				"SPQR"
+			]
+		},
+		{
+			"name": "a whole number less than or equal",
+			"filters": [
+				{
+					"column": "Pages",
+					"condition": {
+						"kind": "lessOrEqual",
+						"value": {
+							"type": "integer",
+							"value": 245
+						}
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"piranesi",
+				"Ariel"
+			]
+		},
+		{
+			"name": "a decimal greater than or equal",
+			"filters": [
+				{
+					"column": "Rating",
+					"condition": {
+						"kind": "greaterOrEqual",
+						"value": {
+							"type": "decimal",
+							"value": 4.5
+						}
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"Dune",
+				"piranesi",
+				"Ariel"
+			]
+		},
+		{
+			"name": "currency equals",
+			"filters": [
+				{
+					"column": "Price",
+					"condition": {
+						"kind": "equals",
+						"value": {
+							"type": "currency",
+							"value": 9.99
+						}
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"Dune",
+				"Ariel"
+			]
+		},
+		{
+			"name": "is empty",
+			"filters": [
+				{
+					"column": "Price",
+					"condition": {
+						"kind": "isEmpty"
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"SPQR",
+				"Untitled notes"
+			]
+		},
+		{
+			"name": "is not empty, sorted",
+			"filters": [
+				{
+					"column": "Price",
+					"condition": {
+						"kind": "isNotEmpty"
+					}
+				}
+			],
+			"sort": {
+				"column": "Pages",
+				"descending": true
+			},
+			"titles": [
+				"Dune",
+				"piranesi",
+				"Ariel"
+			]
+		},
+		{
+			"name": "a date before",
+			"filters": [
+				{
+					"column": "Finished",
+					"condition": {
+						"kind": "lessThan",
+						"value": {
+							"type": "date",
+							"value": "2026-01-15"
+						}
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"SPQR"
+			]
+		},
+		{
+			"name": "a date on or after",
+			"filters": [
+				{
+					"column": "Finished",
+					"condition": {
+						"kind": "greaterOrEqual",
+						"value": {
+							"type": "date",
+							"value": "2026-01-15"
+						}
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"Dune",
+				"piranesi"
+			]
+		},
+		{
+			"name": "a checked checkbox",
+			"filters": [
+				{
+					"column": "Read",
+					"condition": {
+						"kind": "equals",
+						"value": {
+							"type": "checkbox",
+							"value": true
+						}
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"Dune",
+				"SPQR"
+			]
+		},
+		{
+			"name": "an unchecked checkbox",
+			"filters": [
+				{
+					"column": "Read",
+					"condition": {
+						"kind": "equals",
+						"value": {
+							"type": "checkbox",
+							"value": false
+						}
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"piranesi"
+			]
+		},
+		{
+			"name": "a choice is one option",
+			"filters": [
+				{
+					"column": "Shelf",
+					"condition": {
+						"kind": "equals",
+						"value": {
+							"type": "choice",
+							"value": "Fiction"
+						}
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"Dune",
+				"piranesi"
+			]
+		},
+		{
+			"name": "a choice isn't one option, empty included",
+			"filters": [
+				{
+					"column": "Shelf",
+					"condition": {
+						"kind": "notEquals",
+						"value": {
+							"type": "choice",
+							"value": "Fiction"
+						}
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"SPQR",
+				"Untitled notes",
+				"Ariel"
+			]
+		},
+		{
+			"name": "a title contains",
+			"filters": [
+				{
+					"column": "$title",
+					"condition": {
+						"kind": "contains",
+						"text": "UN"
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"Dune",
+				"Untitled notes"
+			]
+		},
+		{
+			"name": "a title is never empty",
+			"filters": [
+				{
+					"column": "$title",
+					"condition": {
+						"kind": "isEmpty"
+					}
+				}
+			],
+			"sort": null,
+			"titles": []
+		},
+		{
+			"name": "every filter must be met",
+			"filters": [
+				{
+					"column": "Shelf",
+					"condition": {
+						"kind": "equals",
+						"value": {
+							"type": "choice",
+							"value": "Fiction"
+						}
+					}
+				},
+				{
+					"column": "Pages",
+					"condition": {
+						"kind": "greaterThan",
+						"value": {
+							"type": "integer",
+							"value": 300
+						}
+					}
+				}
+			],
+			"sort": null,
+			"titles": [
+				"Dune"
+			]
+		}
+	]
+}

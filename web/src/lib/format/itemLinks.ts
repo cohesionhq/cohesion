@@ -127,17 +127,18 @@ export type ItemLink =
 	| { kind: WorkspaceItemKind; ws: number; id: number }
 	| { kind: UnscopedItemKind; ws: null; id: number };
 
-/** What a link to an item (`cohesion://task/3/42`) names, or null for any other href. */
+/**
+ * What a link to an item (`cohesion://task/3/42`) names, or null for any
+ * other href, including one whose id is too long to be one, which the daemon
+ * refuses too.
+ */
 export function parseItemLink(href: string): ItemLink | null {
 	const scoped = WORKSPACE_ITEM_LINK.exec(href);
-	if (scoped)
-		return {
-			kind: scoped[1] as WorkspaceItemKind,
-			ws: Number(scoped[2]),
-			id: Number(scoped[3])
-		};
-	const match = ITEM_LINK.exec(href);
-	return match ? { kind: match[1] as UnscopedItemKind, ws: null, id: Number(match[2]) } : null;
+	const match = scoped ?? ITEM_LINK.exec(href);
+	if (!match) return null;
+	const [ws, id] = scoped ? [Number(match[2]), Number(match[3])] : [null, Number(match[2])];
+	if (!Number.isSafeInteger(id) || (ws !== null && !Number.isSafeInteger(ws))) return null;
+	return { kind: match[1], ws, id } as ItemLink;
 }
 
 /** `link` as written: `cohesion://task/3/42`. */

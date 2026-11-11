@@ -23,8 +23,11 @@ Go through every step, even the ones that end up as "nothing to do":
    `cohesionkit/src/routes/`.
 4. **Generate**: `cd web && npm run generate`, and commit `generated.ts`
    and `vocabulary.json` with the change.
-5. **Web**: the store refetches on its invalidation, and `mock.ts` has
-   seed data and a handler.
+5. **Web**: the store refetches on its invalidation, and the mock has
+   seed data (`protocol/mock/seed.ts`) and a handler in its area's file
+   (`protocol/mock/handlers/`). A rule the mock copies from the daemon
+   (table filters and sorts, link reading) gets a case in
+   `table_cases.json` or `link_cases.json`, which both sides run.
 6. **CLI**, if a person would use it from a terminal, with its line in
    `docs/cli.md`.
 7. **Scripts**, if extensions or agents should reach it.
