@@ -280,7 +280,7 @@ impl DatabaseCommand for DeleteIntelligenceAgentCommand {
             .filter_eq(IntelligenceAgent::ID, self.agent_id)
             .execute()?;
         let key = Invalidation::Agent(agent.id);
-        Ok(agent.invalidating([key, Invalidation::Memories]))
+        Ok(agent.invalidating([key, Invalidation::Memories, Invalidation::AgentSkills]))
     }
 }
 

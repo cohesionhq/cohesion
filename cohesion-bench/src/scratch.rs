@@ -183,6 +183,7 @@ impl Scratch {
                 message,
                 attachments: None,
                 forward: None,
+                skill: None,
             },
         )
         .await
@@ -237,6 +238,7 @@ impl Scratch {
                     message: answer,
                     attachments: None,
                     forward: None,
+                    skill: None,
                 },
             )
             .await

@@ -27,6 +27,7 @@ macro_rules! every_model {
         $check::<IntelligenceAgent>($db);
         $check::<IntelligenceAgentCue>($db);
         $check::<AgentAgendaItem>($db);
+        $check::<AgentSkill>($db);
         $check::<IntelligenceAgentTeam>($db);
         $check::<IntelligenceAgentMessage>($db);
         $check::<IntelligenceAgentRun>($db);

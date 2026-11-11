@@ -62,6 +62,7 @@ impl Route<Intelligence, SendAgentMessageRequest> for CohesionContext {
                 request.message,
                 request.attachments.unwrap_or_default(),
                 request.forward,
+                request.skill,
             )
             .await
             .map_err(agent_error)?;

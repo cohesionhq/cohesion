@@ -78,6 +78,8 @@ import type {
 	IntelligenceThreadMessage,
 	ThreadItem,
 	Memory,
+	AgentSkill,
+	AgentSkillScope,
 	Article,
 	ArticleFilter,
 	ArticleSummary,
@@ -711,6 +713,7 @@ interface MockState {
 	actorSessionMessages: ActorSessionMessage[];
 	actorSessionAttachments: Attachment[];
 	memories: Memory[];
+	agentSkills: AgentSkill[];
 	connectors: MockConnector[];
 	/** The stored definitions, as the `connectors` table holds them. */
 	definitions: Connector[];
@@ -2298,6 +2301,10 @@ function agentExcerpt(content: AgentMessageContent, attachment_count: number): s
 				return content.title;
 			case 'documentation':
 				return `Learning about ${content.module}`;
+			case 'skill':
+				return `Skill “${content.name}”${content.note.trim() ? `: ${content.note}` : ''}`;
+			case 'usedSkill':
+				return `Using skill “${content.name}”`;
 			case 'memory':
 				return content.memory;
 			case 'askedAgent':
@@ -2345,6 +2352,7 @@ function agentRunPart(content: AgentMessageContent, run_id: number | null): Agen
 		case 'note':
 		case 'agenda':
 		case 'askedAgent':
+		case 'usedSkill':
 			return 'step';
 		default:
 			return 'surfaced';
@@ -2949,6 +2957,7 @@ function seedAgents(
 	| 'agentAgenda'
 	| 'agentRuns'
 	| 'memories'
+	| 'agentSkills'
 > {
 	const hour = 3600;
 	return {
@@ -3460,12 +3469,33 @@ function seedAgents(
 			}),
 			agentMessage(58, 1, now - 62, 'agent', 'Nothing urgent. CI finished green.'),
 			// The agent sets out its agenda, then finishes the first item.
-			agentMessage(60, 1, now - 61, 'agent', {
+			agentMessage(59, 1, now - 61, 'agent', {
 				kind: 'agenda',
 				change: 'appended',
 				items: AGENDA
 			}),
-			agentMessage(61, 1, now - 20, 'agent', {
+			agentMessage(60, 1, now - 61, 'user', {
+				kind: 'skill',
+				name: 'Standup',
+				prompt: 'Say what you finished yesterday, what you’re on today and what’s blocking you.',
+				note: 'Keep it to Core.'
+			}),
+			agentMessage(
+				61,
+				1,
+				now - 61,
+				'agent',
+				'Finished the backlinks migration. Today: **Repeating tasks**. Nothing blocking.'
+			),
+			agentMessage(62, 1, now - 61, 'agent', { kind: 'usedSkill', name: 'Release notes' }),
+			agentMessage(
+				63,
+				1,
+				now - 61,
+				'agent',
+				'- **Documents**: tables, with formulas.\n- **Agents**: memories per team.'
+			),
+			agentMessage(64, 1, now - 20, 'agent', {
 				kind: 'agenda',
 				change: 'finished',
 				items: [AGENDA[0]]
@@ -3536,6 +3566,37 @@ function seedAgents(
 			added_at: now - 61,
 			finished_at: index === 0 ? now - 20 : null
 		})),
+		agentSkills: [
+			{
+				id: 1,
+				scope: { kind: 'team', team_id: 1 },
+				name: 'Release notes',
+				description: 'When the user asks what shipped.',
+				prompt:
+					'List what merged to master since the last tag, grouped by area, one plain line each. Leave out refactors and chores.',
+				agent_can_use: true,
+				created_at: now - 4 * DAY
+			},
+			{
+				id: 2,
+				scope: { kind: 'agent', agent_id: 1 },
+				name: 'Triage',
+				description: 'When a bug report comes in.',
+				prompt:
+					'Find where the bug is, say how sure you are, and file a task in Core with the steps to reproduce.',
+				agent_can_use: true,
+				created_at: now - 3 * DAY
+			},
+			{
+				id: 3,
+				scope: { kind: 'agent', agent_id: 1 },
+				name: 'Standup',
+				description: '',
+				prompt: 'Say what you finished yesterday, what you’re on today and what’s blocking you.',
+				agent_can_use: false,
+				created_at: now - 2 * DAY
+			}
+		],
 		agentCues: [
 			{
 				id: 1,
@@ -4484,6 +4545,41 @@ export function createMock(): Mock {
 	const agentTeam = (id: number) =>
 		state.agentTeams.find((t) => t.id === id) ?? notFound('intelligence agent team');
 	// Trimmed, not blank, and unique ignoring case, as the team table holds it.
+	/** A skill's fields as the daemon stores them: trimmed, with a name and a prompt, and the name free in `scope`. */
+	const skillFields = (
+		scope: AgentSkillScope,
+		fields: { name: string; description: string; prompt: string; agent_can_use: boolean },
+		except?: number
+	) => {
+		const name = fields.name.trim();
+		if (name === '') throw new ProtocolError('validationFailed', 'A skill needs a name.', 'name');
+		const prompt = fields.prompt.trim();
+		if (prompt === '')
+			throw new ProtocolError('validationFailed', 'A skill needs a prompt.', 'prompt');
+		const sameScope = (other: AgentSkillScope) =>
+			other.kind === 'agent' && scope.kind === 'agent'
+				? other.agent_id === scope.agent_id
+				: other.kind === 'team' && scope.kind === 'team' && other.team_id === scope.team_id;
+		if (
+			state.agentSkills.some(
+				(s) => s.id !== except && sameScope(s.scope) && s.name.toLowerCase() === name.toLowerCase()
+			)
+		)
+			throw new ProtocolError(
+				'validationFailed',
+				`There's already a skill named “${name}” here.`,
+				'name'
+			);
+		return {
+			name,
+			description: fields.description.trim(),
+			prompt,
+			agent_can_use: fields.agent_can_use
+		};
+	};
+	const byName = (a: AgentSkill, b: AgentSkill) =>
+		a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) || a.id - b.id;
+
 	const teamTitle = (title: string, except?: number) => {
 		const trimmed = title.trim();
 		requireTitle(trimmed);
@@ -6594,6 +6690,9 @@ export function createMock(): Mock {
 			state.memories = state.memories.filter(
 				(m) => m.scope.kind !== 'team' || m.scope.team_id !== team_id
 			);
+			state.agentSkills = state.agentSkills.filter(
+				(s) => s.scope.kind !== 'team' || s.scope.team_id !== team_id
+			);
 			return { ...t };
 		},
 		createIntelligenceAgent: ({
@@ -6666,6 +6765,9 @@ export function createMock(): Mock {
 			state.memories = state.memories.filter(
 				(m) => m.scope.kind !== 'agent' || m.scope.agent_id !== agent_id
 			);
+			state.agentSkills = state.agentSkills.filter(
+				(s) => s.scope.kind !== 'agent' || s.scope.agent_id !== agent_id
+			);
 			return { ...a };
 		},
 		markAgentRead: ({ agent_id }) => {
@@ -6696,10 +6798,31 @@ export function createMock(): Mock {
 				.map((a) => ({ ...a })),
 		// The agent answers with a canned reply; it runs no code here. The
 		// reply is one model call, on a thread of its own.
-		sendAgentMessage: ({ agent_id, message, attachments, forward }) => {
+		sendAgentMessage: ({ agent_id, message, attachments, forward, skill }) => {
 			// The forwarded item, live, as the daemon looks it up.
 			let content: AgentMessageContent = { kind: 'text', text: message };
-			if (forward?.kind === 'task') {
+			if (forward && skill != null)
+				throw new ProtocolError(
+					'validationFailed',
+					'A message can forward an item or use a skill, not both.'
+				);
+			if (skill != null) {
+				// One of the agent's own or its team's, as the daemon checks.
+				const a = agent(agent_id);
+				const found = state.agentSkills.find(
+					(s) =>
+						s.id === skill &&
+						((s.scope.kind === 'agent' && s.scope.agent_id === a.id) ||
+							(s.scope.kind === 'team' && s.scope.team_id === a.team_id))
+				);
+				if (!found)
+					throw new ProtocolError(
+						'validationFailed',
+						'This agent doesn’t have that skill.',
+						'skill'
+					);
+				content = { kind: 'skill', name: found.name, prompt: found.prompt, note: message.trim() };
+			} else if (forward?.kind === 'task') {
 				const { title } = task(forward.workspace_id, forward.id);
 				content = { kind: 'forward', note: message.trim(), item: { ...forward, title } };
 			} else if (forward) {
@@ -6795,6 +6918,29 @@ export function createMock(): Mock {
 			const memory = state.memories.find((m) => m.id === memory_id) ?? notFound('memory');
 			state.memories = state.memories.filter((m) => m.id !== memory_id);
 			return { ...memory };
+		},
+		listAgentSkills: () => state.agentSkills.toSorted(byName).map((s) => structuredClone(s)),
+		createAgentSkill: ({ scope, ...fields }) => {
+			if (scope.kind === 'agent') agent(scope.agent_id);
+			else agentTeam(scope.team_id);
+			const created: AgentSkill = {
+				id: nextId(state.agentSkills),
+				scope,
+				...skillFields(scope, fields),
+				created_at: nowSeconds()
+			};
+			state.agentSkills.push(created);
+			return structuredClone(created);
+		},
+		updateAgentSkill: ({ skill_id, ...fields }) => {
+			const skill = state.agentSkills.find((s) => s.id === skill_id) ?? notFound('agent skill');
+			Object.assign(skill, skillFields(skill.scope, fields, skill_id));
+			return structuredClone(skill);
+		},
+		deleteAgentSkill: ({ skill_id }) => {
+			const skill = state.agentSkills.find((s) => s.id === skill_id) ?? notFound('agent skill');
+			state.agentSkills = state.agentSkills.filter((s) => s.id !== skill_id);
+			return structuredClone(skill);
 		},
 		removeAgentCue: ({ cue_id }) => {
 			if (!state.agentCues.some((c) => c.id === cue_id)) notFound('intelligence agent cue');

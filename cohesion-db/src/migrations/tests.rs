@@ -4,13 +4,13 @@ use cohesion_core::{
         AccountHost, Activity, ActivityStatus, Actor, ActorMessageContent, ActorPermissionDecision,
         ActorSession, ActorSessionMessage, ActorSessionMessageContent, ActorSessionStatus,
         ActorToolKind, ActorUserContent, AgentAgendaItem, AgentCodeOutcome, AgentMessageContent,
-        AgentThreadMark, Article, Attachment, Backlink, CatalogModel, Connector, ConnectorAccount,
-        Contact, ContactMethod, DocumentFolderProperty, DocumentValue, EndpointModel, Extension,
-        ExtensionHook, ExtensionPermission, ExtensionService, ExtensionServiceFunction, Feed,
-        FeedFullPagePolicy, FeedStatus, HookKind, IntelligenceAgent, IntelligenceAgentCue,
-        IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
-        IntelligenceCostEvent, IntelligenceDefault, IntelligenceEffort, IntelligenceEndpoint,
-        IntelligenceSpendLimit, IntelligenceThread, IntelligenceThreadImage,
+        AgentSkill, AgentThreadMark, Article, Attachment, Backlink, CatalogModel, Connector,
+        ConnectorAccount, Contact, ContactMethod, DocumentFolderProperty, DocumentValue,
+        EndpointModel, Extension, ExtensionHook, ExtensionPermission, ExtensionService,
+        ExtensionServiceFunction, Feed, FeedFullPagePolicy, FeedStatus, HookKind,
+        IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun,
+        IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault, IntelligenceEffort,
+        IntelligenceEndpoint, IntelligenceSpendLimit, IntelligenceThread, IntelligenceThreadImage,
         IntelligenceThreadMessage, LinkKind, Memory, MemoryScope, Metadata, PairingOpener, Photo,
         Profile, PropertyOption, PublishedPrecision, Resource, ResourceKind, RewindWriter,
         SavedTaskView, SavedTaskViewPriority, SavedTaskViewSize, SavedTaskViewTag, SecurityEvent,
@@ -413,8 +413,8 @@ const UNMODELED: &[(&str, &str)] = &[("connector_accounts", "authorization")];
 
 /// Nullable columns a `CHECK` or a trigger asks for on a row that otherwise
 /// takes every default: an endpoint that isn't a device's must have a name,
-/// provider, dialect, base URL and cache lifetime, and a connector account that isn't a client's
-/// an extension, identifier, description and credential.
+/// provider, dialect, base URL and cache lifetime, a connector account that isn't a client's
+/// an extension, identifier, description and credential, and a skill an agent or a team.
 const CHECKED: &[(&str, &str)] = &[
     ("intelligence_thread_messages", "text"),
     ("intelligence_agent_messages", "text"),
@@ -426,6 +426,7 @@ const CHECKED: &[(&str, &str)] = &[
     ("articles", "truncated"),
     ("feeds", "added"),
     ("storage_entries", "agent_id"),
+    ("agent_skills", "agent_id"),
     ("intelligence_endpoints", "name"),
     ("intelligence_endpoints", "provider_identifier"),
     ("intelligence_endpoints", "dialect"),

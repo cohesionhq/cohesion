@@ -1,16 +1,16 @@
 use cohesion_core::model::{
-    AgentChoice, AgentCodeExecution, AgentCodeOutcome, AgentMessageContent, AgentWake,
-    ContextRebuildReason, HookKind, Initiative, IntelligenceAgentColor, IntelligenceAgentMessage,
-    IntelligenceAgentMessageSender, IntelligenceEffort, IntelligenceTier, MemoryScope, SpendPeriod,
-    TaskAssignee,
+    AgentChoice, AgentCodeExecution, AgentCodeOutcome, AgentMessageContent, AgentSkillScope,
+    AgentWake, ContextRebuildReason, HookKind, Initiative, IntelligenceAgentColor,
+    IntelligenceAgentMessage, IntelligenceAgentMessageSender, IntelligenceEffort, IntelligenceTier,
+    MemoryScope, SpendPeriod, TaskAssignee,
 };
 use cohesion_db::{
     AddEndpointModelCommand, ClearIntelligenceSpendLimitCommand, Container,
-    CreateAgentMessageCommand, CreateIntelligenceAgentCommand, CreateIntelligenceCostEventCommand,
-    CreateIntelligenceThreadCommand, CreateMemoryCommand, CreateTaskCommand,
-    CreateWorkspaceCommand, DatabaseContext, DatabaseEventTrace, ForkIntelligenceThreadCommand,
-    GetIntelligenceDefaultCommand, GetStorageSettingsCommand, ListAgentCuesCommand,
-    ListAgentMessagesCommand, ListAgentRunsCommand, ListMemoriesCommand,
+    CreateAgentMessageCommand, CreateAgentSkillCommand, CreateIntelligenceAgentCommand,
+    CreateIntelligenceCostEventCommand, CreateIntelligenceThreadCommand, CreateMemoryCommand,
+    CreateTaskCommand, CreateWorkspaceCommand, DatabaseContext, DatabaseEventTrace,
+    ForkIntelligenceThreadCommand, GetIntelligenceDefaultCommand, GetStorageSettingsCommand,
+    ListAgentCuesCommand, ListAgentMessagesCommand, ListAgentRunsCommand, ListMemoriesCommand,
     LookupAgentThreadMarkByAgentCommand, Secrets, SetAgentCueCommand, SetAgentThreadMarkCommand,
     SetIntelligenceDefaultCommand, SetIntelligenceSpendLimitCommand, SetProfileBioCommand,
     SetProfileNameCommand, ShutdownCleanupCommand, UpdateStorageSettingsCommand, WorkTracker,
@@ -808,6 +808,66 @@ fn a_live_thread_keeps_its_prompt_and_hears_memory_changes_in_its_next_message()
             .iter()
             .all(|text| !text.contains("# Memories"))
     );
+}
+
+// A thread's status lists the skills the agent may use; when the user
+// changes them, the live thread's next message lists them again under
+// `# Skills changed`, and a message with no change says nothing of them.
+#[test]
+fn a_live_thread_hears_its_skills_change() {
+    let save = |db: &DatabaseContext, agent_id: i64, name: &str, agent_can_use: bool| {
+        db.send_blocking(CreateAgentSkillCommand {
+            scope: AgentSkillScope::Agent { agent_id },
+            name: name.to_string(),
+            description: String::new(),
+            prompt: format!("Do {name}."),
+            agent_can_use,
+        })
+        .unwrap();
+    };
+    let (model, _) = conversing(
+        // Each turn answers with only its final reply, so it is told once
+        // that the user saw nothing.
+        vec![
+            test_model::text("Hi."),
+            test_model::text("Hi."),
+            test_model::text("Hi again."),
+            test_model::text("Hi again."),
+            test_model::text("Still here."),
+            test_model::text("Still here."),
+        ],
+        |_| {},
+        &["Hello.", "Hello again.", "Still there?"],
+        |db, agent_id, index| match index {
+            0 => save(db, agent_id, "Standup", true),
+            1 => {
+                save(db, agent_id, "Weekly review", true);
+                save(db, agent_id, "Private", false);
+            }
+            _ => {}
+        },
+    );
+    let sent = model.sent();
+    assert_eq!(sent.len(), 6);
+    // The user's messages open calls 0, 2 and 4; each turn's nudge follows.
+    let users = |call: usize| test_model::texts(&sent[call], "user");
+    assert!(
+        users(0)
+            .iter()
+            .any(|text| text.contains("Your skills (run one with `use_skill`):\n- \"Standup\"\n"))
+    );
+    let second = users(2)
+        .into_iter()
+        .find(|text| text.contains("Hello again."))
+        .unwrap();
+    assert!(second.starts_with("# Skills changed\n"), "{second}");
+    assert!(second.contains("- \"Standup\"\n- \"Weekly review\"\n\n# User's message\n"));
+    assert!(!second.contains("Private"));
+    let third = users(4)
+        .into_iter()
+        .find(|text| text.contains("Still there?"))
+        .unwrap();
+    assert!(!third.contains("skills"), "{third}");
 }
 
 // A call to a tool that doesn't exist, such as one of the code tool's

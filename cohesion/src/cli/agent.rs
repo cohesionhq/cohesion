@@ -433,6 +433,7 @@ async fn send(
         message,
         attachments: None,
         forward: None,
+        skill: None,
     };
     let posted = follow_turn(ctx, agent.id, request, !open_in_editor).await?;
     if open_in_editor {
@@ -572,8 +573,9 @@ async fn messages(ctx: &Context, agent: String, limit: i64) -> Result<(), CliErr
 /// code execution as `ran "title"` with its error, or marked cancelled; a documentation lookup
 /// as `learned about module`; a choice as `asked "question" [status]` with its lettered
 /// options; a memory as `remembered: "text"` or `forgot: "text"`; a forward as
-/// `forwarded task "title" #42` with the note; a question between agents as
-/// `asked Ada [status]` or `Ada asked [status]` with the question and any answer.
+/// `forwarded task "title" #42` with the note; a skill as `used skill "name"` with the
+/// user's note; a question between agents as `asked Ada [status]` or `Ada asked [status]`
+/// with the question and any answer.
 fn summary(message: &IntelligenceAgentMessage) -> Vec<String> {
     match &message.message_content {
         AgentMessageContent::Text { text } => {
@@ -663,6 +665,12 @@ fn summary(message: &IntelligenceAgentMessage) -> Vec<String> {
                 AgentAgendaChange::Reset => "cleared the agenda".to_string(),
             }]
         }
+        AgentMessageContent::Skill { name, note, .. } => {
+            let mut lines = vec![format!("used skill \"{name}\"")];
+            lines.extend((!note.is_empty()).then(|| truncate(note, 100)));
+            lines
+        }
+        AgentMessageContent::UsedSkill { name } => vec![format!("used skill \"{name}\"")],
     }
 }
 

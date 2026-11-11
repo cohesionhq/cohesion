@@ -3,6 +3,7 @@ import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 import type {
 	ImageUpload,
 	AgentChoice,
+	AgentSkill,
 	AgentForwardTarget,
 	AgentForwardedItem,
 	HookKind,
@@ -70,9 +71,11 @@ export function messageLine(message: AgentMessage): string {
 
 // ---- Store ------------------------------------------------------------------
 
-/** Whether a saved user message says what a stand-in did: the same text, or the same forward. */
+/** Whether a saved user message says what a stand-in did: the same text, forward or skill. */
 function same(saved: AgentMessage['message_content'], standIn: AgentMessage['message_content']) {
 	if (saved.kind === 'text' && standIn.kind === 'text') return saved.text === standIn.text;
+	if (saved.kind === 'skill' && standIn.kind === 'skill')
+		return saved.name === standIn.name && saved.note === standIn.note;
 	if (saved.kind === 'forward' && standIn.kind === 'forward')
 		return (
 			saved.note === standIn.note &&
@@ -313,8 +316,9 @@ export class AgentsStore {
 	}
 
 	/**
-	 * Sends `text`, with `images` attached and forwarding `forward`'s item if
-	 * given, to agent `agent_id`. A stand-in
+	 * Sends `text`, with `images` attached and forwarding `forward`'s item or
+	 * running `skill` if given, to agent `agent_id`; with a skill, `text` is
+	 * the note. A stand-in
 	 * shows at once, until the feed shows the saved message. Messages go out
 	 * one at a time, each once the daemon accepted the one before, so they
 	 * keep their order; the daemon hands each to the turn the agent is
@@ -328,7 +332,8 @@ export class AgentsStore {
 		agent_id: number,
 		text: string,
 		images: ImageUpload[] = [],
-		forward?: Forward
+		forward?: Forward,
+		skill?: AgentSkill
 	): Promise<void> {
 		const local: AgentMessage = {
 			id: --localId,
@@ -344,7 +349,9 @@ export class AgentsStore {
 			reply_to: null,
 			message_content: forward
 				? { kind: 'forward', note: text, item: forward.item }
-				: { kind: 'text', text },
+				: skill
+					? { kind: 'skill', name: skill.name, prompt: skill.prompt, note: text }
+					: { kind: 'text', text },
 			// A stand-in is never quoted: replies and reactions are to saved messages.
 			excerpt: '',
 			excerpt_verb: null,
@@ -369,7 +376,7 @@ export class AgentsStore {
 				this.#withdraw(local);
 				throw failed;
 			}
-			await this.#deliver(local, text, images, forward?.target);
+			await this.#deliver(local, text, images, forward?.target, skill?.id);
 		})();
 		this.#tails.set(
 			agent_id,
@@ -381,12 +388,13 @@ export class AgentsStore {
 		return sent;
 	}
 
-	/** Sends `text`, `images` and the item `forward` names for the stand-in `local`. */
+	/** Sends `text`, `images` and the item `forward` names or the skill `skill` for the stand-in `local`. */
 	async #deliver(
 		local: AgentMessage,
 		text: string,
 		images: ImageUpload[],
-		forward: AgentForwardTarget | undefined
+		forward: AgentForwardTarget | undefined,
+		skill: number | undefined
 	): Promise<void> {
 		const { agent_id } = local;
 		const shown = () => this.feed.key === agent_id;
@@ -401,7 +409,8 @@ export class AgentsStore {
 				agent_id,
 				message: text,
 				attachments: images.length > 0 ? images : null,
-				forward: forward ?? null
+				forward: forward ?? null,
+				skill: skill ?? null
 			});
 		} catch (error) {
 			this.#withdraw(local);

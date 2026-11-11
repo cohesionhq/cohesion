@@ -4917,6 +4917,118 @@ pub const MIGRATIONS: &[Migration] = &[
             WHERE id = new.agent_id;
         END;",
     },
+    // Skills: prompts the user saves for one agent or for every agent on a
+    // team, which the user runs from the composer and an agent runs with
+    // `use_skill` when the skill lets it. A `skill` message is the user's,
+    // keeping the skill's name (as `title`) and prompt as they stood; a
+    // `usedSkill` line, like `documentation`, leaves the agent read.
+    Migration {
+        name: "agent_skills",
+        sql: "CREATE TABLE agent_skills (
+            id INTEGER PRIMARY KEY,
+            agent_id INTEGER REFERENCES intelligence_agents(id) ON DELETE CASCADE,
+            team_id INTEGER REFERENCES intelligence_agent_teams(id) ON DELETE CASCADE,
+            name TEXT NOT NULL COLLATE NOCASE CHECK (trim(name) <> ''),
+            description TEXT NOT NULL DEFAULT '',
+            prompt TEXT NOT NULL CHECK (trim(prompt) <> ''),
+            agent_can_use BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+            CHECK ((agent_id IS NULL) <> (team_id IS NULL))
+        );
+        CREATE UNIQUE INDEX agent_skills_agent_name ON agent_skills(agent_id, name)
+            WHERE agent_id IS NOT NULL;
+        CREATE UNIQUE INDEX agent_skills_team_name ON agent_skills(team_id, name)
+            WHERE team_id IS NOT NULL;
+
+        CREATE TABLE intelligence_agent_messages_new (
+            id INTEGER PRIMARY KEY,
+            agent_id INTEGER NOT NULL REFERENCES intelligence_agents(id) ON DELETE CASCADE,
+            run_id INTEGER REFERENCES intelligence_agent_runs(id) ON DELETE SET NULL,
+            run_description TEXT,
+            sent_at INTEGER NOT NULL DEFAULT (unixepoch()),
+            sender TEXT NOT NULL,
+            reaction TEXT,
+            reacted_at INTEGER,
+            reply_to INTEGER REFERENCES intelligence_agent_messages(id) ON DELETE SET NULL,
+            kind TEXT NOT NULL CHECK (kind IN ('text', 'codeExecution', 'error', 'documentation',
+                'choice', 'memory', 'forward', 'askedAgent', 'askedByAgent', 'note', 'woke',
+                'rebuiltContext', 'agenda', 'skill', 'usedSkill')),
+            text TEXT,
+            title TEXT,
+            code TEXT,
+            outcome TEXT CHECK (outcome IN ('succeeded', 'failed', 'cancelled')),
+            outcome_text TEXT,
+            options TEXT,
+            context TEXT,
+            selected INTEGER,
+            change TEXT CHECK (change IN ('remembered', 'forgotten')),
+            item_kind TEXT,
+            item_workspace_id INTEGER,
+            item_id INTEGER,
+            peer_id INTEGER,
+            peer_name TEXT,
+            reply TEXT CHECK (reply IN ('waiting', 'answered', 'unanswered')),
+            reply_text TEXT,
+            wake TEXT CHECK (wake IN ('cue', 'actorSession', 'assignedTask')),
+            cue_name TEXT,
+            hook TEXT,
+            actor_session_id INTEGER,
+            stop TEXT,
+            reason TEXT,
+            agenda_change TEXT CHECK (agenda_change IN ('appended', 'finished', 'reset')),
+            agenda TEXT,
+            prompt TEXT,
+            CHECK ((text IS NOT NULL) = (kind NOT IN ('codeExecution', 'woke', 'rebuiltContext'))),
+            CHECK ((outcome IS NOT NULL) = (kind = 'codeExecution')),
+            CHECK ((code IS NOT NULL) = (kind = 'codeExecution')),
+            CHECK ((options IS NOT NULL) = (kind = 'choice')),
+            CHECK ((change IS NOT NULL) = (kind = 'memory')),
+            CHECK ((item_kind IS NOT NULL) = (kind = 'forward')),
+            CHECK ((peer_id IS NOT NULL) = (kind IN ('askedAgent', 'askedByAgent'))),
+            CHECK ((reply IS NOT NULL) = (kind IN ('askedAgent', 'askedByAgent'))),
+            CHECK ((wake IS NOT NULL) = (kind = 'woke')),
+            CHECK ((agenda_change IS NOT NULL) = (kind = 'agenda')),
+            CHECK ((agenda IS NOT NULL) = (kind = 'agenda')),
+            CHECK ((prompt IS NOT NULL) = (kind = 'skill')),
+            CHECK (kind <> 'skill' OR title IS NOT NULL)
+        );
+        INSERT INTO intelligence_agent_messages_new (id, agent_id, run_id, run_description, sent_at,
+                sender, reaction, reacted_at, reply_to, kind, text, title, code, outcome,
+                outcome_text, options, context, selected, change, item_kind, item_workspace_id,
+                item_id, peer_id, peer_name, reply, reply_text, wake, cue_name, hook,
+                actor_session_id, stop, reason, agenda_change, agenda)
+            SELECT id, agent_id, run_id, run_description, sent_at, sender, reaction, reacted_at,
+                reply_to, kind, text, title, code, outcome, outcome_text, options, context,
+                selected, change, item_kind, item_workspace_id, item_id, peer_id, peer_name, reply,
+                reply_text, wake, cue_name, hook, actor_session_id, stop, reason, agenda_change, agenda
+            FROM intelligence_agent_messages;
+        DROP TABLE intelligence_agent_messages;
+        ALTER TABLE intelligence_agent_messages_new RENAME TO intelligence_agent_messages;
+        CREATE INDEX intelligence_agent_messages_agent
+            ON intelligence_agent_messages(agent_id, id);
+        CREATE INDEX intelligence_agent_messages_run ON intelligence_agent_messages(run_id)
+            WHERE run_id IS NOT NULL;
+        CREATE INDEX intelligence_agent_messages_reply_to ON intelligence_agent_messages(reply_to)
+            WHERE reply_to IS NOT NULL;
+        CREATE TRIGGER intelligence_agent_messages_reply_to
+        BEFORE INSERT ON intelligence_agent_messages
+        WHEN new.reply_to IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM intelligence_agent_messages
+            WHERE id = new.reply_to AND agent_id = new.agent_id
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'A reply answers a message of the same conversation.');
+        END;
+        CREATE TRIGGER intelligence_agent_messages_unread AFTER INSERT ON intelligence_agent_messages
+        WHEN new.kind NOT IN ('codeExecution', 'documentation', 'memory', 'askedAgent',
+            'askedByAgent', 'note', 'woke', 'rebuiltContext', 'agenda',
+            'usedSkill')
+        BEGIN
+            UPDATE intelligence_agents
+            SET agent_unread = (new.sender <> 'user'), last_message_at = new.sent_at
+            WHERE id = new.agent_id;
+        END;",
+    },
 ];
 
 #[cfg(test)]

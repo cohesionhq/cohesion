@@ -456,7 +456,7 @@ deleted), `taskList{workspace_id, folder_id}` (null folder is the inbox),
 `connectorAccounts`, `resources(ws)`, `resourceKinds(ws)`, `feeds`,
 `feedArticles`, `intelligence`, `clients`, `security`, `storage`, `profile`,
 `tags(ws)`, `contacts(ws)`, `savedTaskViews(ws)`, `extensionUpdates`,
-`memories`, `activities`, `actors`, `actorSessions`, `actorSession(id)`,
+`memories`, `agentSkills`, `activities`, `actors`, `actorSessions`, `actorSession(id)`,
 `actorUsage`, `backlinks{kind, id}` (what links to one item, by its
 `LinkKind` and id), and `notification{title, message}`, which carries a
 notification that nothing stores. A command names the keys it touched in its `Changed`
@@ -974,7 +974,7 @@ trait DatabaseCommand {
 ```
 
 - `Read` commands get a `ReadContainer`, which has no write builders.
-- `Write<A>` commands get a `WriteContainer` and return `Changed<T>`, the response plus the invalidation keys it touched. The area is one of `WriteArea::UserData` (the default), `IntelligenceSettings`, `AgentSettings` (memories and cues) or `Notifications`.
+- `Write<A>` commands get a `WriteContainer` and return `Changed<T>`, the response plus the invalidation keys it touched. The area is one of `WriteArea::UserData` (the default), `IntelligenceSettings`, `AgentSettings` (memories, cues and skills) or `Notifications`.
 - `CommandContext` carries `db`, `secrets`, `now` (unix seconds at the command's start), `events`, `trace` and the pending keys.
 - `ReadableDatabase` (`query/container_builders.rs`) offers `select`, `select_live` (hides soft-deleted rows; what client reads use), `select_as`, `select_live_as`, `select_column`, `select_id`.
 - After a command commits, its invalidations are broadcast and its events handed to the `DatabaseEventListener` (the `HookManager`), before the reply. After a failure both are dropped.
@@ -1075,6 +1075,7 @@ deleting sets `deleted`, and client reads use `select_live`.
 | `agent_agenda_items` | An agent's agenda ([11](#11-agents-in-the-data-model)): `agent_id`, `position` (from 1), `text`, `added_at`, `finished_at`. |
 | `intelligence_agent_runs` | One per fork: `hook`, `cue_name`, `thread_id`, `outcome` (`running`, `completed`, `failed`), `sender_agent_id`. |
 | `memories` | `memory`, and `agent_id` or `team_id` or neither (global). |
+| `agent_skills` | `name` (unique per agent or team, ignoring case), `description`, `prompt`, `agent_can_use`, and exactly one of `agent_id` and `team_id`. |
 | `agent_thread_marks` | One per agent: which model thread the conversation is on and how far it has heard ([12](#12-how-a-turn-runs)). |
 | `thread_prompts`, `intelligence_threads`, `intelligence_thread_messages`, `intelligence_thread_images` | Model threads: their system prompts (stored once), forks (`parent_thread_id`), a Responses API chain (`remote_id`, `remote_cursor`), and every item sent and received. |
 | `attachments` | Images on an agent message or an actor session message: `media_type`, `data` (a blob). |
@@ -1152,6 +1153,8 @@ erDiagram
   intelligence_agents ||--o{ agent_agenda_items : C
   intelligence_agents ||--o{ intelligence_agent_runs : C
   intelligence_agents ||--o{ memories : C
+  intelligence_agents ||--o{ agent_skills : C
+  intelligence_agent_teams ||--o{ agent_skills : C
   intelligence_agents ||--o| agent_thread_marks : C
   intelligence_agents |o--o{ tasks : N
   intelligence_threads ||--o{ intelligence_thread_messages : C
@@ -1327,13 +1330,14 @@ outside that conversation is a fork of it.
 
 An agent has no model of its own: it uses the `agent` tier's model at every
 turn ([12](#12-how-a-turn-runs)). A **team** (`intelligence_agent_teams`) is a
-named group; deleting it leaves its agents on no team and forgets its
-memories. Requests: `CreateIntelligenceAgent`, `UpdateIntelligenceAgent`,
+named group; deleting it leaves its agents on no team and deletes its
+memories and skills. Requests: `CreateIntelligenceAgent`, `UpdateIntelligenceAgent`,
 `DeleteIntelligenceAgent`, `ListIntelligenceAgents`, `ReorderIntelligenceAgents`,
 `SetAgentPinned`, `SetAgentTeam`, team CRUD, `MarkAgentRead`,
 `ListAgentMessages`, `GetAgentMessage`, `SendAgentMessage`, `StopAgentTurn`,
 `SetAgentMessageReaction`, `RespondToAgentChoice`, `ListAgentCues`, `ListAgentAgenda`,
-`RemoveAgentCue`, `ListMemories`, `ForgetMemory`, `ListAgentRuns`,
+`RemoveAgentCue`, `ListMemories`, `ForgetMemory`, `ListAgentSkills`,
+`CreateAgentSkill`, `UpdateAgentSkill`, `DeleteAgentSkill`, `ListAgentRuns`,
 `ListAgentMessageAttachments` (`cohesion-core/src/protocol/agent_requests.rs`).
 If the `agent` tier has no model, sending a message fails with "No model is
 set for agents; choose one in Settings."
@@ -1378,6 +1382,27 @@ block; each thread's `ForegroundTurn` keeps what it last heard
 `# Agenda changed` before its next model call (through `TurnInput::take`)
 or at the start of its next turn.
 
+**Skills** (`AgentSkill`, `agent_skills`, `cohesion-db/src/commands/agent_skill.rs`)
+are prompts the user saves for a task they ask for often. `AgentSkillScope` is
+`agent{agent_id}` or `team{team_id}`, with no limit on how many. An agent has
+its own and its team's (`SkillsForAgentCommand`); its own wins a name its team's
+share. Only the user writes them (area `AgentSettings`, with no script mount),
+so an agent never changes one.
+
+- The user runs any of an agent's skills: `SendAgentMessage` with `skill`
+  (the id) posts a `skill` message keeping the skill's name and prompt as
+  they stood, with the message as its note. A message forwards an item or
+  runs a skill, not both. The agent reads it as `Use your skill "<name>":`,
+  the prompt, then `The user added: <note>`. The web composer offers them
+  when the field starts with `/`.
+- The agent runs one itself only when `agent_can_use` is set (the default):
+  those skills are listed, by name and the first line of `description`, in
+  every thread's status block ([12](#12-how-a-turn-runs)), and
+  `use_skill(name)` (`agents/skill_tool.rs`) returns the prompt and posts a
+  `usedSkill` line. A skill is only text, so every thread may use one, a turn
+  an event started included. A skill the agent may not use answers as one
+  that doesn't exist, naming those it may.
+
 **Cues** (`IntelligenceAgentCue`, `intelligence_agent_cues`) let an agent
 react to hooks:
 
@@ -1414,11 +1439,15 @@ question from another agent), an optional `run_id` (the fork that posted it),
 | `woke` | What woke a fork: a cue, an actor session stopping, or an assigned task |
 | `rebuiltContext` | Why the conversation moved to a new thread |
 | `agenda` | A change to the agenda: `change` (`appended`, `finished` or `reset`) and `items`, the text of the items it added, finished or cleared |
+| `skill` | The user's message running a skill: its `name` and `prompt` as they stood, and the user's `note` |
+| `usedSkill` | `name`, a skill the agent ran with `use_skill` |
 
 `note`, `woke`, `rebuiltContext` and `agenda` are bookkeeping: they raise no hook and
 don't make the agent unread. Images ride in `attachments`; an agent's scripts
 add them with the `images` global and `send_message`'s `images` argument
 (`agents/image_tray.rs`).
+
+`usedSkill`, like `documentation`, doesn't make the agent unread.
 
 **Reactions.** The user reacts to an agent's `text` or `forward` message with
 any single emoji (clients offer 👍 👎 ❤️ 😂 😮 😢 🎉 🙏); `SetAgentMessageReaction`
@@ -1516,7 +1545,7 @@ Requests connect within 30 s and finish within 10 minutes
 `SystemPrompt::prompt`), in order, most stable first so the provider's cached
 prefix lasts:
 
-1. `FOREGROUND_AGENT_PROMPT`: what an agent in Cohesion is, its context, memories, storage, notes and agenda, working with the user's data, cues, other agents, and replying.
+1. `FOREGROUND_AGENT_PROMPT`: what an agent in Cohesion is, its context, memories, storage, notes and agenda, working with the user's data, cues, skills, other agents, and replying.
 2. `LINKS`: how to write and read `cohesion://task/<ws>/<id>`, `cohesion://document/<ws>/<id>`, `cohesion://resource/<ws>/<id>`, `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and `cohesion://article/<id>`, and that in a document a link alone on its line shows as a card.
 3. "Your voice": its personality and verbosity.
 4. "Your role" and "Your directive", when set.
@@ -1526,11 +1555,11 @@ prefix lasts:
 8. "Memories": the limit, then each memory as `[m12] text`, `[m12] (team) text` or `[m12] (global) text`.
 
 A thread's system prompt is stored once and never changes. What changes
-between turns (the time, the cues, news from forks, memory changes) goes in
-messages instead.
+between turns (the time, the cues, the skills, news from forks, memory
+changes) goes in messages instead.
 
 **The tools.** Every session, the conversation and every fork alike, gets the
-same 15, built by `conversation_session::agent_tools`, so their definitions
+same 16, built by `conversation_session::agent_tools`, so their definitions
 and the cache match:
 
 | Tool | Does |
@@ -1545,6 +1574,7 @@ and the cache match:
 | `read_message(id, start?, end?)` | Reads a message of this conversation by character range, for text a prompt cut short |
 | `remember`, `forget`, `memories` | Memories |
 | `agenda_append(items, pos?)`, `agenda_finish(pos?)`, `agenda_reset()` | The agenda |
+| `use_skill(name)` | Returns one of its skills' prompt to carry out |
 
 The `code-tool` description declares, in brief (each comment's first
 paragraph), the script modules loaded up front (`core`, `agent`, `services`),
@@ -1580,14 +1610,16 @@ refused with a note to use `send_note` or `ask_choice`. Its opening says so
 (`agent_transcript::fork_rights`).
 
 **What the first message holds** (`agent_transcript.rs`). A new thread opens
-with a status block, "Current time: …", the agent's cues and its agenda, then "Recent
+with a status block, "Current time: …", the agent's cues, the skills it may
+use and its agenda, then "Recent
 conversation": the messages most worth keeping (`relevant_set.rs`), each cut at
 800 characters (`EXCERPT_CHARS`; `read_message` reads the rest), then the
 user's message. The relevant set walks back from the newest message, dropping
 scripts and notes older than an hour, until it runs out of a 160,000-character
 budget (`HISTORY_CHARS`) or a message's relevance, which falls with its age
 and position, drops below 0.44. On a live thread a turn instead sends what
-changed: "Memories changed", "Agenda changed", "Since your last reply" (what forks posted), then
+changed: "Memories changed", "Skills changed" (the whole list again, when it
+differs from the one the host last told it), "Agenda changed", "Since your last reply" (what forks posted), then
 "User's message", "User's pick", "User's reaction" or a fork's heading.
 Messages the user sends while a turn runs join it before the next model call.
 
@@ -1714,6 +1746,8 @@ doesn't have or a write its database refuses, never a check inside a mount.
 | `notifications.send` | Yes | Yes | Yes |
 | Set or remove cues | Yes | Refused | No |
 | `remember`, `forget` | Yes | Refused | No |
+| `use_skill` (its skills with `agent_can_use`) | Yes | Yes | No model |
+| Write skills | No: only the user | No | No |
 | `send_message`, `send_note`, `ask_choice`, `react`, `ask_agent` | Yes | Yes (`ask_choice` needs `context` in a fork) | No model |
 | Change its agenda | Yes | Yes | No model |
 | Wake an agent by assigning it a task | Yes | No | No |

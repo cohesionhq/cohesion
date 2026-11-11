@@ -13,7 +13,9 @@
 	message this feed has no view for, as a quiet line of the message's
 	excerpt. Images the user attached show above their message's text. A
 	forward shows "Forwarded" above a link to the item, then the user's note,
-	if any, as its bubble. The
+	if any, as its bubble; a skill the user ran shows as a chip opening its
+	prompt, then the note. A skill the agent ran itself is a
+	"Using skill" row. The
 	user can react to the agent's text messages with an emoji from a bar
 	opened by resting on the react icon under the text, and the agent
 	to the user's messages; a reaction sits under the message it answers, at the edge nearer the screen's.
@@ -38,6 +40,7 @@
 	import CircleAlert from '@lucide/svelte/icons/circle-alert';
 	import SmilePlus from '@lucide/svelte/icons/smile-plus';
 	import Zap from '@lucide/svelte/icons/zap';
+	import WandSparkles from '@lucide/svelte/icons/wand-sparkles';
 	import AlarmClock from '@lucide/svelte/icons/alarm-clock';
 	import { tick, type Component } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -60,6 +63,7 @@
 	import CodeExecution from './CodeExecution.svelte';
 	import ForwardChip from './ForwardChip.svelte';
 	import MemoryPopover from './MemoryPopover.svelte';
+	import SkillChip from './SkillChip.svelte';
 	import { collapseRuns } from './runs';
 	import ToolRow from './ToolRow.svelte';
 	import SentImages from '$lib/ui/SentImages.svelte';
@@ -90,6 +94,8 @@
 	const shaped = new Set([
 		'text',
 		'forward',
+		'skill',
+		'usedSkill',
 		'choice',
 		'codeExecution',
 		'documentation',
@@ -454,6 +460,8 @@
 			<CodeExecution execution={content} />
 		{:else if content.kind === 'documentation'}
 			<ToolRow title={message.excerpt} icon={BookOpen} />
+		{:else if content.kind === 'usedSkill'}
+			<ToolRow title={message.excerpt} icon={WandSparkles} />
 		{:else if content.kind === 'note'}
 			<ToolRow title={messageLine(message)}>
 				<p class="text-sm wrap-anywhere whitespace-pre-wrap text-fg-muted">
@@ -575,9 +583,13 @@
 							{@render memory(message, content)}
 						{:else if quiet(message)}
 							{@render quietLine(message)}
-						{:else if (content.kind === 'text' || content.kind === 'forward') && user}
-							{@const text = content.kind === 'forward' ? content.note : content.text}
-							{#if content.kind === 'forward'}
+						{:else if (content.kind === 'text' || content.kind === 'forward' || content.kind === 'skill') && user}
+							{@const text = content.kind === 'text' ? content.text : content.note}
+							{#if content.kind === 'skill'}
+								<div class={['flex max-w-[70%] justify-end max-sm:max-w-full', text && 'mb-1']}>
+									<SkillChip name={content.name} prompt={content.prompt} />
+								</div>
+							{:else if content.kind === 'forward'}
 								<p class="mb-1 flex items-center gap-1.5 text-xs text-fg-subtle">
 									<Forward class="flex-none" size={12} strokeWidth={1.75} aria-hidden="true" />
 									Forwarded

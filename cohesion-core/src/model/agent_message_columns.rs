@@ -1,7 +1,8 @@
 //! How an agent message's content is stored: `kind` and the columns that kind
 //! sets, rather than JSON. The wire keeps [`AgentMessageContent`]'s tagged
 //! shape; the table's checks hold each kind to its columns. `text`, `title` and
-//! the item columns are shared where kinds say the same sort of thing.
+//! the item columns are shared where kinds say the same sort of thing: a
+//! skill's name is its `title`, as a forwarded item's is.
 
 use cohesion_macros::TextEnum;
 use serde::{Deserialize, Serialize};
@@ -32,6 +33,8 @@ pub enum AgentMessageKind {
     Woke,
     RebuiltContext,
     Agenda,
+    Skill,
+    UsedSkill,
 }
 
 /// How a script's `outcome` column reads.
@@ -91,6 +94,7 @@ struct Columns {
     reason: Option<ContextRebuildReason>,
     agenda_change: Option<AgentAgendaChange>,
     agenda: Option<Vec<String>>,
+    prompt: Option<String>,
 }
 
 impl Columns {
@@ -121,6 +125,7 @@ impl Columns {
             reason: None,
             agenda_change: None,
             agenda: None,
+            prompt: None,
         }
     }
 
@@ -202,6 +207,7 @@ impl ColumnGroup for AgentMessageContent {
         "reason",
         "agenda_change",
         "agenda",
+        "prompt",
     ];
 
     fn from_row(row: &dyn Row) -> Result<Self, RowError> {
@@ -279,6 +285,14 @@ impl ColumnGroup for AgentMessageContent {
                 change: read_column(row, "agenda_change")?,
                 items: read_column::<Json<Vec<String>>>(row, "agenda")?.0,
             }),
+            Kind::Skill => Self::Skill {
+                name: read_column(row, "title")?,
+                prompt: read_column(row, "prompt")?,
+                note: read_column(row, "text")?,
+            },
+            Kind::UsedSkill => Self::UsedSkill {
+                name: read_column(row, "text")?,
+            },
         })
     }
 
@@ -364,6 +378,12 @@ impl ColumnGroup for AgentMessageContent {
                 ..Columns::text(Kind::Agenda, update.changed_text())
             }
             .listing(update.items),
+            Self::Skill { name, prompt, note } => Columns {
+                title: Some(name),
+                prompt: Some(prompt),
+                ..Columns::text(Kind::Skill, note)
+            },
+            Self::UsedSkill { name } => Columns::text(Kind::UsedSkill, name),
         };
         vec![
             columns.kind.into_value(),
@@ -391,6 +411,7 @@ impl ColumnGroup for AgentMessageContent {
             columns.reason.into_value(),
             columns.agenda_change.into_value(),
             columns.agenda.map(Json).into_value(),
+            columns.prompt.into_value(),
         ]
     }
 }

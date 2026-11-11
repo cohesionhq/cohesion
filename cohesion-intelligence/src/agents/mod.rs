@@ -53,6 +53,7 @@ mod react_tool;
 mod read_message_tool;
 mod relevant_set;
 mod reply_tool;
+mod skill_tool;
 mod wake_description;
 
 pub use agent_coordinator::AgentCoordinator;

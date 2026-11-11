@@ -1,11 +1,34 @@
 use cohesion_core::model::{
     AgentAsk, AgentAskReply, AgentCodeExecution, AgentCodeOutcome, AgentForwardedItem,
-    AgentForwardedItemKind, AgentMessageContent, AgentPeer, HookKind, IntelligenceAgentCue,
-    IntelligenceAgentMessageSender, IntelligenceEffort,
+    AgentForwardedItemKind, AgentMessageContent, AgentPeer, AgentSkill, AgentSkillScope, HookKind,
+    IntelligenceAgentCue, IntelligenceAgentMessageSender, IntelligenceEffort,
 };
 
 use super::*;
 use crate::agents::tests::{NOW, choice, message, now, run_note, text};
+
+/// A skill of agent 1's with `description`.
+fn skill(name: &str, description: &str) -> AgentSkill {
+    AgentSkill {
+        id: 1,
+        scope: AgentSkillScope::Agent { agent_id: 1 },
+        name: name.to_string(),
+        description: description.to_string(),
+        prompt: format!("Do {name}."),
+        agent_can_use: true,
+        created_at: NOW,
+    }
+}
+
+fn skills() -> Vec<AgentSkill> {
+    vec![
+        skill("Standup", ""),
+        skill(
+            "Weekly review",
+            "When the user asks how the week went.\nThen more.",
+        ),
+    ]
+}
 
 fn rendered() -> String {
     let execution = AgentCodeExecution {
@@ -47,7 +70,14 @@ fn rendered() -> String {
             "What did you find?",
         ),
     ];
-    status_message(&cues, "Your agenda is empty.", &recent, Some(44), &now())
+    status_message(
+        &cues,
+        &skills(),
+        "Your agenda is empty.",
+        &recent,
+        Some(44),
+        &now(),
+    )
 }
 
 #[test]
@@ -66,6 +96,56 @@ fn status_message_ends_with_the_message_to_answer_and_holds_no_memories() {
     assert!(answer.contains("[#44]"));
     assert!(answer.contains("send_message"));
     assert!(rendered.contains("Triage new tasks"));
+    assert!(rendered.contains(
+        "Your skills (run one with `use_skill`):\n- \"Standup\"\n- \"Weekly review\": When the \
+         user asks how the week went.\n"
+    ));
+}
+
+#[test]
+fn a_status_says_when_there_are_no_skills_and_a_change_lists_them_all() {
+    let rendered = status_message(&[], &[], "Your agenda is empty.", &[], None, &now());
+    assert!(rendered.contains("Your skills (run one with `use_skill`): none"));
+    let changed = skills_changed(&skills());
+    assert!(changed.starts_with("# Skills changed\n"));
+    assert!(
+        changed
+            .ends_with("- \"Standup\"\n- \"Weekly review\": When the user asks how the week went.")
+    );
+}
+
+#[test]
+fn a_skill_the_user_ran_reads_as_its_prompt_then_their_note() {
+    let ran = |note: &str| {
+        message(
+            50,
+            NOW,
+            IntelligenceAgentMessageSender::User,
+            AgentMessageContent::Skill {
+                name: "Standup".to_string(),
+                prompt: "Say what changed.".to_string(),
+                note: note.to_string(),
+            },
+        )
+    };
+    assert_eq!(
+        user_text(&ran("")),
+        "[#50] Use your skill \"Standup\":\nSay what changed."
+    );
+    assert_eq!(
+        user_text(&ran("Only today")),
+        "[#50] Use your skill \"Standup\":\nSay what changed.\n\nThe user added: Only today"
+    );
+    assert!(line(&ran("Only today"), &now()).ends_with("The user added: Only today"));
+    let used = message(
+        51,
+        NOW,
+        IntelligenceAgentMessageSender::Agent,
+        AgentMessageContent::UsedSkill {
+            name: "Standup".to_string(),
+        },
+    );
+    assert!(line(&used, &now()).ends_with(" used your skill \"Standup\""));
 }
 
 // The agent's own text reads as a message it sent, not a reply to copy
@@ -76,7 +156,7 @@ fn the_agents_own_text_reads_as_sent() {
         text(1, NOW - 60, IntelligenceAgentMessageSender::User, "Hi"),
         text(2, NOW - 30, IntelligenceAgentMessageSender::Agent, "Hello"),
     ];
-    let rendered = status_message(&[], "Your agenda is empty.", &recent, None, &now());
+    let rendered = status_message(&[], &[], "Your agenda is empty.", &recent, None, &now());
     let line = rendered
         .lines()
         .find(|line| line.starts_with("[#2]"))
@@ -220,6 +300,7 @@ fn a_forward_reads_as_the_note_then_the_items_link() {
     assert_eq!(user_text(&forward("")), format!("[#50] {reference}"));
     let rendered = status_message(
         &[],
+        &[],
         "Your agenda is empty.",
         &[forward("Look")],
         None,
@@ -318,7 +399,7 @@ fn a_runs_scripts_carry_their_code() {
         ),
         text(3, NOW, IntelligenceAgentMessageSender::User, "Do it"),
     ];
-    let rendered = status_message(&[], "Your agenda is empty.", &recent, None, &now());
+    let rendered = status_message(&[], &[], "Your agenda is empty.", &recent, None, &now());
     let run = rendered.find("[#1]").unwrap();
     let user = rendered.find("[#3]").unwrap();
     let run_code = rendered.find("cohesion.workspace(1).tasks()").unwrap();
@@ -353,7 +434,7 @@ fn failed_turns_show_as_failures() {
             },
         ),
     ];
-    let rendered = status_message(&[], "Your agenda is empty.", &recent, None, &now());
+    let rendered = status_message(&[], &[], "Your agenda is empty.", &recent, None, &now());
     let line = rendered
         .lines()
         .find(|line| line.starts_with("[#2]"))
@@ -368,6 +449,7 @@ fn a_new_thread_reads_the_pick_and_context_from_the_choice() {
     let (pending, _) = choice(1, None);
     let (answered, _) = choice(2, Some(1));
     let rendered = status_message(
+        &[],
         &[],
         "Your agenda is empty.",
         &[pending, answered],

@@ -1,11 +1,12 @@
 //! Requests for agents: creating and configuring them, their conversation,
-//! cues and background runs.
+//! cues, skills and background runs.
 
 use cohesion_macros::TsWire;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    IntelligenceAgentColor, IntelligenceAgentPersonality, IntelligenceAgentVerbosity,
+    AgentSkillScope, IntelligenceAgentColor, IntelligenceAgentPersonality,
+    IntelligenceAgentVerbosity,
 };
 
 /// Creates an agent; it runs on the `agent` tier's default model.
@@ -76,8 +77,8 @@ pub struct RenameAgentTeamRequest {
     pub title: String,
 }
 
-/// Deletes team `team_id`: its agents stay, on no team, and its memories
-/// are forgotten.
+/// Deletes team `team_id`: its agents stay, on no team, its memories are
+/// forgotten and its skills deleted.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct DeleteAgentTeamRequest {
     pub team_id: i64,
@@ -167,6 +168,40 @@ pub struct ForgetMemoryRequest {
     pub memory_id: i64,
 }
 
+/// Lists every skill, each agent's and each team's, by name.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct ListAgentSkillsRequest;
+
+/// Saves a skill for one agent or for every agent on a team.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct CreateAgentSkillRequest {
+    pub scope: AgentSkillScope,
+    /// Unique in its scope, ignoring case.
+    pub name: String,
+    /// One line saying when to use it; may be empty.
+    pub description: String,
+    pub prompt: String,
+    /// Whether the agent sees it listed and may run it itself.
+    pub agent_can_use: bool,
+}
+
+/// Changes skill `skill_id`; its scope stays.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct UpdateAgentSkillRequest {
+    pub skill_id: i64,
+    /// Unique in its scope, ignoring case.
+    pub name: String,
+    pub description: String,
+    pub prompt: String,
+    pub agent_can_use: bool,
+}
+
+/// Deletes skill `skill_id`. Messages that ran it keep its prompt.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct DeleteAgentSkillRequest {
+    pub skill_id: i64,
+}
+
 /// Lists agent `agent_id`'s `limit` most recent background runs, newest
 /// first.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
@@ -190,6 +225,10 @@ pub struct SendAgentMessageRequest {
     pub message: String,
     pub attachments: Option<Vec<ImageUpload>>,
     pub forward: Option<AgentForwardTarget>,
+    /// A skill the agent sees (its own or its team's) to run, with
+    /// `message` as the note; a message runs a skill or forwards an item,
+    /// not both.
+    pub skill: Option<i64>,
 }
 
 /// The item a message to an agent forwards, by the kind its `cohesion://`

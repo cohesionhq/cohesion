@@ -6,6 +6,7 @@ mod actor;
 mod actor_message_columns;
 mod agent_agenda_item;
 mod agent_message_columns;
+mod agent_skill;
 mod agent_thread_mark;
 mod article;
 mod attachment;
@@ -62,6 +63,7 @@ pub use agent_agenda_item::{AGENDA_ITEM_CHARS, AGENDA_LIMIT, AgentAgendaItem};
 pub use agent_message_columns::{
     AgentCodeStatus, AgentMessageKind, AgentReplyStatus, AgentWakeKind,
 };
+pub use agent_skill::{AgentSkill, AgentSkillScope};
 pub use agent_thread_mark::AgentThreadMark;
 pub use article::{
     Article, ArticleCapture, ArticleFetchFailure, ArticleFilter, ArticleSnapshot, ArticleSummary,

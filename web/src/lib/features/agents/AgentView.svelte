@@ -8,11 +8,12 @@
 	import Bot from '@lucide/svelte/icons/bot';
 	import { onMount, tick, untrack } from 'svelte';
 	import { toProtocolError } from '$lib/protocol/errors';
-	import type { ImageUpload, AgentChoice } from '$lib/protocol/types';
+	import type { ImageUpload, AgentChoice, AgentSkill } from '$lib/protocol/types';
 	import { routes } from '$lib/shell/routes';
 	import type { AgentMessage } from '$lib/stores/agents.svelte';
 	import { rememberText, rememberedText } from '$lib/stores/drafts';
 	import { spend } from '$lib/stores/settings/spend.svelte';
+	import { skills, skillsOf } from '$lib/stores/skills.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import EmptyState from '$lib/ui/EmptyState.svelte';
 	import PageHeader from '$lib/ui/PageHeader.svelte';
@@ -28,6 +29,7 @@
 	import CuesDialog from './CuesDialog.svelte';
 	import MemoriesDialog from './MemoriesDialog.svelte';
 	import RunsDialog from './RunsDialog.svelte';
+	import SkillsDialog from './SkillsDialog.svelte';
 	import TeamDialog from './TeamDialog.svelte';
 	import { pane } from '$lib/shell/pane.svelte';
 	import PageTitle from '$lib/shell/PageTitle.svelte';
@@ -48,6 +50,8 @@
 	/** Where this browser keeps the agent's unsent message, set with `draft` so neither runs ahead. */
 	let draftKey = $state<string | null>(null);
 	let images = $state<ImageUpload[]>([]);
+	/** The skill the next message runs, picked with `/` in the composer. */
+	let skill = $state<AgentSkill | null>(null);
 	/** Why the last message sent from here failed; cleared by the next one. */
 	let sendError = $state<string | null>(null);
 	let focusKey = $state(0);
@@ -56,6 +60,7 @@
 	let runsOpen = $state(false);
 	let cuesOpen = $state(false);
 	let memoriesOpen = $state(false);
+	let skillsOpen = $state(false);
 	let newTeamOpen = $state(false);
 	/** The agent "New team…" in its menu moves onto the team once it's made. */
 	let joining = $state<number | null>(null);
@@ -70,6 +75,7 @@
 			draftKey = id === null ? null : `agent.${id}`;
 			draft = draftKey === null ? '' : rememberedText(draftKey);
 			images = [];
+			skill = null;
 			sendError = null;
 			focusKey++;
 		});
@@ -94,14 +100,18 @@
 		void agents.loadList();
 		// Read for the composer's note while a spend limit holds jobs and forks back.
 		void spend.load();
+		// The skills the composer offers on `/`.
+		void skills.load();
 		// Deselect too, so a message from the last agent shown toasts elsewhere.
 		return () => {
 			void agents.open(null);
 			spend.periods.release();
+			skills.list.release();
 		};
 	});
 
 	const agent = $derived(agents.agent(agentId));
+	const agentSkills = $derived(agent ? skillsOf(skills.list.value, agent) : []);
 
 	// An open conversation is a read one, including messages that arrive while it's shown.
 	$effect(() => {
@@ -183,19 +193,22 @@
 		if (agentId === null) return;
 		const text = draft.trim();
 		const attached = images;
+		const using = skill;
 		draft = '';
 		images = [];
+		skill = null;
 		sendError = null;
 		// Sending is a request to see the conversation's end.
 		following = true;
 		try {
-			await agents.sendMessage(agentId, text, attached);
+			await agents.sendMessage(agentId, text, attached, undefined, using ?? undefined);
 		} catch (error) {
 			// Shown under the composer; give the message back so it can be
 			// resent. Those queued behind it fail too, and follow it in order.
 			sendError = toProtocolError(error).message;
 			draft = draft.trim() === '' ? text : text === '' ? draft : `${draft}\n\n${text}`;
 			images = [...images, ...attached];
+			skill ??= using;
 		}
 	}
 
@@ -308,6 +321,7 @@
 									}}
 									onedit={() => (editing = true)}
 									oncues={cues?.length ? () => (cuesOpen = true) : undefined}
+									onskills={() => (skillsOpen = true)}
 									onmemories={() => (memoriesOpen = true)}
 									onruns={() => (runsOpen = true)}
 									ondelete={remove}
@@ -363,6 +377,8 @@
 					<Composer
 						bind:value={draft}
 						bind:images
+						bind:skill
+						skills={agentSkills}
 						error={sendError}
 						placeholder="Message {agent.agent_name}…"
 						onsend={send}
@@ -392,6 +408,7 @@
 {#if agent}
 	<AgentDialog bind:open={editing} {agent} />
 	<MemoriesDialog bind:open={memoriesOpen} {agent} />
+	<SkillsDialog bind:open={skillsOpen} {agent} team={agents.team(agent.team_id)} />
 	<RunsDialog bind:open={runsOpen} agentId={agent.id} />
 	<CuesDialog
 		bind:open={cuesOpen}

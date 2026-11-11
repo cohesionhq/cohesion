@@ -8,13 +8,14 @@
 use std::sync::{Arc, Mutex};
 
 use cohesion_core::model::{
-    AgentMessageContent, ContextRebuildReason, IntelligenceAgent, IntelligenceAgentMessage,
-    IntelligenceAgentMessageSender, Memory,
+    AgentMessageContent, AgentSkill, ContextRebuildReason, IntelligenceAgent,
+    IntelligenceAgentMessage, IntelligenceAgentMessageSender, Memory,
 };
 use cohesion_db::{
     CommandError, CreateAgentMessageCommand, DatabaseContext, GetProfileCommand,
     GetStorageSettingsCommand, ListAgentMessagesCommand, ListAgentTeamsCommand,
-    ListIntelligenceAgentsCommand, ListMemoriesCommand, SetAgentContextTokensCommand, TierModel,
+    ListIntelligenceAgentsCommand, ListMemoriesCommand, SetAgentContextTokensCommand,
+    SkillsForAgentCommand, TierModel,
 };
 use cohesion_js::AgentRole;
 
@@ -34,6 +35,7 @@ use super::message_tool::{MessageKind, MessageTool};
 use super::react_tool::ReactTool;
 use super::read_message_tool::ReadMessageTool;
 use super::reply_tool::ReplyTool;
+use super::skill_tool::UseSkillTool;
 use crate::connected_services::ConnectedServices;
 use crate::session::{Session, SessionConstructionError};
 use crate::system_prompt::{Roster, SystemPrompt};
@@ -124,6 +126,17 @@ pub(super) async fn agent_memories(
             agent_id: Some(agent_id),
         })
         .await
+}
+
+/// The skills agent `agent_id` may use itself, by name: its own and its
+/// team's whose `agent_can_use` is set, its own winning a name.
+pub(super) async fn usable_skills(
+    database: &DatabaseContext,
+    agent_id: i64,
+) -> Result<Vec<AgentSkill>, CommandError> {
+    let mut skills = database.send(SkillsForAgentCommand { agent_id }).await?;
+    skills.retain(|skill| skill.agent_can_use);
+    Ok(skills)
 }
 
 /// The newest of agent `agent_id`'s messages, oldest first, sent before
@@ -297,6 +310,10 @@ fn agent_tools(
             database: database.clone(),
             agent_id,
             kind: AgendaToolKind::Reset,
+        }),
+        Box::new(UseSkillTool {
+            database: database.clone(),
+            agent_id,
         }),
     ]
 }
