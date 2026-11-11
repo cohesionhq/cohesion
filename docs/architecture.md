@@ -2213,7 +2213,13 @@ started, where they are answered. The store holds them in `subagents`,
 `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and
 `cohesion://article/<id>` (`parseItemLink`, `lib/format/itemLinks.ts`, which
 `shell/routes.ts` re-exports; a task or document link without a workspace
-still opens). The daemon finds what a link names (`resolveLink`, through
+still opens). What the web UI knows of each kind is one entry of `ITEM_KINDS`
+in that file: the daemon's name for it, whether a link names it with or
+without its workspace, the invalidation that says one changed, and its noun
+("Task not found"). The link grammar, the `/open` route matchers
+(`src/params/`), and the embed and backlink stores all read it, so a new kind
+is that entry, its icon (`shell/embedIcons.ts`) and the per-kind cases the
+compiler then asks for. The daemon finds what a link names (`resolveLink`, through
 `shell/links.ts`), so neither the panel nor the Open pages search workspaces
 themselves. Following one in the web UI (`ui/Markdown.svelte`,
 `linkedItem.follow`) opens the item over the current page in one side panel,
