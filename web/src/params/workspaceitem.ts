@@ -1,10 +1,5 @@
 import type { ParamMatcher } from '@sveltejs/kit';
-import type { WorkspaceItemKind } from '$lib/shell/routes';
+import { isWorkspaceItemKind } from '$lib/format/itemLinks';
 
 /** The kinds of item a `cohesion://` link opens in the workspace it names. */
-export const match = ((param: string): param is WorkspaceItemKind =>
-	param === 'task' ||
-	param === 'document' ||
-	param === 'resource' ||
-	param === 'document-folder' ||
-	param === 'contact') satisfies ParamMatcher;
+export const match = isWorkspaceItemKind satisfies ParamMatcher;

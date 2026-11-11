@@ -1,11 +1,14 @@
-use cohesion_core::model::{DocumentFolderProperty, PropertyDataType, PropertyValue};
-use cohesion_core::protocol::{TableColumn, TableCondition, TableFilter, TableSort};
+use cohesion_core::model::{DocumentFolderProperty, PropertyDataType, PropertyType, PropertyValue};
+use cohesion_core::protocol::{
+    NewPropertyOption, TableColumn, TableCondition, TableFilter, TableSort,
+};
 
 use crate::commands::document_folder_property::tests::Fixture;
 use crate::{
-    CommandError, CreateDocumentFolderCommand, CreateWorkspaceCommand, DeleteDocumentCommand,
-    GetDocumentCommand, GetTableRowCommand, ListDocumentsCommand, ListTableRowsCommand,
-    MoveDocumentCommand, SearchWorkspaceCommand, SetDocumentValueCommand,
+    CommandError, CreateDocumentFolderCommand, CreateDocumentFolderPropertyCommand,
+    CreateWorkspaceCommand, DeleteDocumentCommand, GetDocumentCommand, GetTableRowCommand,
+    ListDocumentsCommand, ListTableRowsCommand, MoveDocumentCommand, SearchWorkspaceCommand,
+    SetDocumentValueCommand,
 };
 
 /// The column of `property`.
@@ -628,4 +631,125 @@ fn a_value_is_only_set_on_a_document_of_the_propertys_folder() {
         }),
         Err(CommandError::NotFound(_))
     ));
+}
+
+/// A column a shared case names: a property by name, or `$title`.
+fn case_column(properties: &[DocumentFolderProperty], name: &str) -> serde_json::Value {
+    if name == "$title" {
+        return serde_json::json!({ "kind": "title" });
+    }
+    let property = properties
+        .iter()
+        .find(|property| property.name == name)
+        .unwrap_or_else(|| panic!("no property {name}"));
+    serde_json::json!({ "kind": "property", "property_id": property.id })
+}
+
+/// A value a shared case writes, its choice named by its option, as the
+/// wire carries it for the property `name`.
+fn case_value(
+    properties: &[DocumentFolderProperty],
+    name: &str,
+    mut value: serde_json::Value,
+) -> PropertyValue {
+    if value["type"] == "choice" {
+        let property = properties
+            .iter()
+            .find(|property| property.name == name)
+            .unwrap();
+        let PropertyType::Choice { options } = &property.kind else {
+            panic!("{name} isn't a choice");
+        };
+        let option = options
+            .iter()
+            .find(|option| value["value"] == option.name.as_str())
+            .unwrap();
+        value["value"] = option.id.into();
+    }
+    serde_json::from_value(value).unwrap()
+}
+
+/// The cases the web UI's mock runs too (`table_cases.json`): what the
+/// daemon answers here is what the mock must.
+#[test]
+fn the_shared_table_cases_hold() {
+    let shared: serde_json::Value = serde_json::from_str(include_str!("table_cases.json")).unwrap();
+    let f = Fixture::new();
+    let properties: Vec<DocumentFolderProperty> = shared["properties"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|property| {
+            let options = property["options"].as_array().cloned().unwrap_or_default();
+            f.db.send_blocking(CreateDocumentFolderPropertyCommand {
+                workspace_id: f.ws,
+                folder_id: f.folder.id,
+                name: property["name"].as_str().unwrap().to_string(),
+                data_type: serde_json::from_value(property["type"].clone()).unwrap(),
+                formula: None,
+                options: options
+                    .iter()
+                    .map(|name| NewPropertyOption {
+                        name: name.as_str().unwrap().to_string(),
+                        color: None,
+                    })
+                    .collect(),
+            })
+            .unwrap()
+        })
+        .collect();
+    for row in shared["rows"].as_array().unwrap() {
+        let id = f.document_in(Some(f.folder.id), row["title"].as_str().unwrap());
+        for (name, value) in row["values"].as_object().unwrap() {
+            let property = properties.iter().find(|p| &p.name == name).unwrap();
+            let value = case_value(&properties, name, value.clone());
+            f.set(id, property, Some(value)).unwrap();
+        }
+    }
+    for case in shared["cases"].as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        let filters = case["filters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|filter| {
+                let column = filter["column"].as_str().unwrap();
+                let mut condition = filter["condition"].clone();
+                if !condition["value"].is_null() {
+                    let value = case_value(&properties, column, condition["value"].clone());
+                    condition["value"] = serde_json::to_value(value).unwrap();
+                }
+                TableFilter {
+                    column: serde_json::from_value(case_column(&properties, column)).unwrap(),
+                    condition: serde_json::from_value(condition).unwrap(),
+                }
+            })
+            .collect();
+        let sort = (!case["sort"].is_null()).then(|| TableSort {
+            column: serde_json::from_value(case_column(
+                &properties,
+                case["sort"]["column"].as_str().unwrap(),
+            ))
+            .unwrap(),
+            descending: case["sort"]["descending"].as_bool().unwrap(),
+        });
+        let titles: Vec<String> =
+            f.db.send_blocking(ListTableRowsCommand {
+                workspace_id: f.ws,
+                folder_id: f.folder.id,
+                filters,
+                sort,
+            })
+            .unwrap_or_else(|error| panic!("{name}: {error:?}"))
+            .into_iter()
+            .map(|row| row.title)
+            .collect();
+        let expected: Vec<&str> = case["titles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|title| title.as_str().unwrap())
+            .collect();
+        assert_eq!(titles, expected, "{name}");
+    }
 }

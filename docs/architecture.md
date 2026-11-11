@@ -652,7 +652,12 @@ validation on `property_id`.
   created in or moved into the folder (that document), and a property
   created, renamed, retyped, deleted or made a formula or not, or a source
   changed (every document). A folder with no formula marks nothing; a
-  document leaving the folder loses its mark. Continuous formulas are
+  document leaving the folder loses its mark. A write gets its table's
+  invalidation key from `table_changed` (`cohesion-db`'s
+  `commands/document_table.rs`) by saying what it changed (`TableChange`),
+  which is what marks the documents, so a command can't invalidate a table
+  without deciding whether formulas read what it changed; a document
+  leaving goes through `rows_left` the same way. Continuous formulas are
   marked on a timer: `CohesionContext::start_continuous_formulas` runs
   `MarkContinuousFormulasStaleCommand` as the daemon starts and every hour
   after (`WorkTracker::every`, an interval from start, not on the clock's
@@ -2094,7 +2099,9 @@ search of the workspace and actor sessions.
 an in-memory daemon that implements every request with seed data, instead of a
 socket; of the invalidations it pushes only those of tables (`documentTable`,
 and `documentFolders` as a folder becomes a table or stops being one), through
-`connection.invalidated`. Vitest uses the same mock. With `npm run dev`, `.env.development` sets
+`connection.invalidated`. Vitest uses the same mock. Its parts are under
+`protocol/mock/`: the seed data, the state and lookups every area shares
+(`core.ts`), and one file of handlers per area (`handlers/`). With `npm run dev`, `.env.development` sets
 `VITE_DEV_PROXY=1`, so the page doesn't ask for a token.
 
 **Tables** (`routes/w/[ws]/documents/`, `features/tables/`,
@@ -2180,7 +2187,13 @@ so a large table doesn't bury the rest, unless the filter is searching, when a
 row shows with its folder's name like any other. Deleting a folder that is, or
 holds, a table says its columns and values will be deleted too.
 
-The mock filters, sorts and runs formulas in JS, by the daemon's rules; it
+The mock filters, sorts and runs formulas in JS, by the daemon's rules
+(`protocol/mock/tableRules.ts`). Two files of cases keep the copies in step,
+each run by a Rust test and a vitest test: `table_cases.json`
+(`cohesion-db/src/commands/document_value/`) for filtering and sorting, and
+`link_cases.json` (`cohesion-core/src/model/item_link/`) for reading
+`cohesion://` links and finding a text's embeds. The daemon's answer is the
+right one; a rule changed on one side gets a case there. The mock
 reads only a small part of JavaScript for a formula
 (`protocol/mockFormula.ts`: arithmetic, comparisons, `??`, `?:`, a few methods
 and `Math` functions over `row`), and anything else fails every row.
@@ -2208,7 +2221,13 @@ started, where they are answered. The store holds them in `subagents`,
 `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and
 `cohesion://article/<id>` (`parseItemLink`, `lib/format/itemLinks.ts`, which
 `shell/routes.ts` re-exports; a task or document link without a workspace
-still opens). The daemon finds what a link names (`resolveLink`, through
+still opens). What the web UI knows of each kind is one entry of `ITEM_KINDS`
+in that file: the daemon's name for it, whether a link names it with or
+without its workspace, the invalidation that says one changed, and its noun
+("Task not found"). The link grammar, the `/open` route matchers
+(`src/params/`), and the embed and backlink stores all read it, so a new kind
+is that entry, its icon (`shell/embedIcons.ts`) and the per-kind cases the
+compiler then asks for. The daemon finds what a link names (`resolveLink`, through
 `shell/links.ts`), so neither the panel nor the Open pages search workspaces
 themselves. Following one in the web UI (`ui/Markdown.svelte`,
 `linkedItem.follow`) opens the item over the current page in one side panel,
@@ -2788,12 +2807,12 @@ Settings › Security lists the security events.
 | `cohesion-db` | Commands, migrations, triggers, transactions, `CredentialManager`, `Secrets`, transfers and backups; `every_model_matches_the_schema` (`migrations/tests.rs`) | `test_support.rs`: `context()` (a migrated in-memory database, `Container::in_memory()`), `recording_context()` (also collects the events commands raise), `actor_session(db)` |
 | `cohesion-js` (`src/tests.rs`) | The runtime end to end: sandbox isolation, worker survival, deadlines, hooks calling into scripts, read-only enforcement, roles and mounts; the Mermaid and formula workers in their own `tests.rs` | Real scripts against an in-memory database: `database()`, `run(db, script)`, `json(db, script)`, `extension(id)`, with fakes for the access traits |
 | `cohesion-intelligence` | Sessions, agents, forks, caching | `test_model.rs`: a local server speaking Chat Completions that gives scripted answers and records each request; no network |
-| `cohesionkit` | Routes, hooks (`hook_events`, `day_clock`), table formula passes (`table_formulas`), connectors, the extension manager | In-memory contexts |
+| `cohesionkit` | Routes, hooks (`hook_events`, `day_clock`), table formula passes (`table_formulas`), connectors, the extension manager, the client registry (`capability_clients`), and what an actor session leaves when its client refuses a call or is away (`actor_sessions`) | In-memory contexts; `actor_sessions/tests.rs` registers a client and answers its calls itself |
 | `cohesiond` | Sessions (`session/tests.rs`, with a `FakeExchange` in place of a socket), the first-byte timeout, PROXY headers, the unknown-peer cache, the local handshake | tokio's paused time |
 | `cohesion` | Argument definitions, `cohesion open`'s guard, launch link and token | tower's `ServiceExt` |
 | `cohesion-core` | Models (`tests/model.rs`) and core helpers | |
 | `cohesion-bench` | Every bench case fails on its starting data and passes after its `solution.ts` (`every_case_can_fail_and_pass`); a run's metrics match what Cohesion recorded; the scores | A scratch `CohesionContext`, and a local server speaking Chat Completions |
-| `web/` | Stores against the mock daemon, the connection (with an injected WebSocket), formatting and UI helpers (`src/**/*.test.ts`) | Vitest in Node, with `vocabulary.setup.ts`. There are no component or end-to-end tests: components are checked by `svelte-check`, lint and the build, and then by eye in mock mode. |
+| `web/` | Stores against the mock daemon, the cases shared with the daemon (`table_cases.json`, `link_cases.json`), the connection (with an injected WebSocket), formatting and UI helpers (`src/**/*.test.ts`) | Vitest in Node, with `vocabulary.setup.ts`. There are no component or end-to-end tests: components are checked by `svelte-check`, lint and the build, and then by eye in mock mode. |
 
 Unit tests live out of line: `#[cfg(test)] mod tests;` at the end of a file,
 the tests in `foo/tests.rs`, never an inline `mod tests { … }`.

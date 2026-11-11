@@ -27,9 +27,8 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
-	import { elapsed, nowSeconds } from '$lib/format/dates';
+	import { nowSeconds } from '$lib/format/dates';
 	import type {
-		ActorAnswer,
 		ActorSession,
 		ActorSessionMessage,
 		ActorUserContent,
@@ -58,9 +57,18 @@
 	import SessionHeader from './SessionHeader.svelte';
 	import SubagentRow from './SubagentRow.svelte';
 	import { planOf } from './plan';
+	import { BottomFollower } from '$lib/ui/followBottom';
 	import { paneChrome } from '$lib/ui/paneChrome';
 	import UsageRing from './UsageRing.svelte';
 	import { stillRunning, toolIcon } from './tools';
+	import {
+		answersByRequest,
+		duration,
+		launchedBy,
+		shownMessages,
+		spacing,
+		unplaced
+	} from './transcript';
 	import { userText } from './words';
 	import { pane } from '$lib/shell/pane.svelte';
 	import PageTitle from '$lib/shell/PageTitle.svelte';
@@ -114,38 +122,18 @@
 	const session = $derived(actors.session.key === sessionId ? actors.session.value : null);
 	const transcript = $derived(actors.messages.key === sessionId ? actors.messages.value : []);
 	/** The user's answers to each question, by the question's id; they show in its card. */
-	const responses = $derived(
-		new Map(
-			transcript.flatMap(({ content }): [number, ActorAnswer[]][] =>
-				content.sender === 'user' && content.kind === 'answers'
-					? [[content.request_id, content.answers]]
-					: []
-			)
-		)
-	);
+	const responses = $derived(answersByRequest(transcript));
 	/** The transcript as the feed draws it, without the answers its question cards hold. */
-	const messages = $derived(
-		transcript.filter(({ content }) => !(content.sender === 'user' && content.kind === 'answers'))
-	);
+	const messages = $derived(shownMessages(transcript));
 	const actor = $derived(
 		(session && actors.list.value.find((a) => a.id === session.actor_id)) ?? null
 	);
 	/** The subagents launched from it, one level down, first launched first. */
 	const subagents = $derived(actors.subagents.key === sessionId ? actors.subagents.value : []);
 	/** Each subagent by the tool use that launched it, which its line stands in for. */
-	const launchedBy = $derived(
-		new Map(
-			subagents.flatMap((s): [number, ActorSession][] =>
-				s.subagent?.message_id != null ? [[s.subagent.message_id, s]] : []
-			)
-		)
-	);
+	const byLaunch = $derived(launchedBy(subagents));
 	/** The subagents no tool use in the transcript launched, which follow it. */
-	const unplaced = $derived(
-		subagents.filter(
-			(s) => !messages.some((m) => m.id === s.subagent?.message_id && m.content.kind === 'toolUse')
-		)
-	);
+	const trailing = $derived(unplaced(subagents, messages));
 	/** What its subagents ask, at any depth, waiting at the transcript's foot. */
 	const waiting = $derived(actors.waiting.key === sessionId ? actors.waiting.value : []);
 	/** What makes it a subagent, when it is one: its thread is then read-only. */
@@ -192,40 +180,24 @@
 
 	// The feed follows new messages while the reader is at (or near) the
 	// bottom; scrolled up, it leaves them be.
-	let following = true;
-	let lastTop = 0;
-
-	function toBottom() {
-		if (scroller) scroller.scrollTop = scroller.scrollHeight;
-	}
+	const bottom = new BottomFollower();
 
 	function onscroll() {
-		if (!scroller) return;
-		const top = scroller.scrollTop;
-		if (scroller.scrollHeight - top - scroller.clientHeight < 48) following = true;
-		else if (top < lastTop) following = false;
-		lastTop = top;
+		if (scroller) bottom.scrolled(scroller);
 	}
 
 	$effect(() => {
 		void sessionId;
-		following = true;
-		lastTop = 0;
-		untrack(toBottom);
+		bottom.reset();
+		untrack(() => bottom.toBottom(scroller));
 	});
 
 	$effect(() => {
-		if (!scroller || !content) return;
-		const observer = new ResizeObserver(() => {
-			if (following) toBottom();
-		});
-		observer.observe(scroller);
-		observer.observe(content);
-		return () => observer.disconnect();
+		if (scroller && content) return bottom.observe(scroller, content);
 	});
 
 	function say(said: ActorUserContent, attached: ImageUpload[] = []) {
-		following = true;
+		bottom.follow();
 		return actors.say(sessionId, said, attached);
 	}
 
@@ -276,33 +248,8 @@
 		return () => clearInterval(timer);
 	});
 
-	/**
-	 * How long the tool or thinking at `index` took, in whole seconds: until
-	 * its actor said it ended, counting up while it runs. One whose actor
-	 * never said (an older one, or one the session stopped in) is taken to run
-	 * until the next message, and is unknown if it was the last.
-	 */
-	function duration(index: number): string | null {
-		const said = messages[index].content;
-		const start = messages[index].sent_at;
-		if (said.sender === 'actor' && 'ended_at' in said && said.ended_at !== null)
-			return elapsed(said.ended_at - start);
-		if (running(index)) return elapsed(Math.max(0, now - start));
-		const next = messages[index + 1];
-		return next ? elapsed(next.sent_at - start) : null;
-	}
-
-	/** Whether message `index` is a one-line row: a tool the actor ran, or its folded thinking. */
-	const isLine = (index: number) =>
-		['toolUse', 'thinking'].includes(messages[index]?.content.kind ?? '');
-
-	/** How far `index` sits from what came before: wide on a change of speaker, none between one-line rows. */
-	function spacing(index: number): string | false {
-		if (index === 0) return false;
-		if (messages[index].content.sender !== messages[index - 1].content.sender) return 'mt-6';
-		if (isLine(index) && isLine(index - 1)) return 'mt-0';
-		return 'mt-3';
-	}
+	/** How long the tool or thinking at `index` took, counting up while it runs. */
+	const took = (index: number) => duration(messages, index, session?.status, now);
 
 	/** Whether request `message` is settled: the user responded, or the session is no longer going on. */
 	const answered = (message: ActorSessionMessage) =>
@@ -371,7 +318,7 @@
 								class={[
 									'flex min-w-0 flex-col',
 									said.sender === 'user' && 'items-end',
-									spacing(index)
+									spacing(messages, index)
 								]}
 							>
 								{#if said.sender === 'user'}
@@ -407,8 +354,8 @@
 												<Shimmer class="flex-none font-medium text-fg-muted" active={running(index)}
 													>Thinking</Shimmer
 												>
-												{#if duration(index)}
-													<span class="flex-none tabular-nums">{duration(index)}</span>
+												{#if took(index)}
+													<span class="flex-none tabular-nums">{took(index)}</span>
 												{/if}
 											</summary>
 											<div
@@ -417,8 +364,8 @@
 												<Markdown source={said.text} />
 											</div>
 										</details>
-									{:else if said.kind === 'toolUse' && launchedBy.has(message.id)}
-										<SubagentRow session={launchedBy.get(message.id)!} />
+									{:else if said.kind === 'toolUse' && byLaunch.has(message.id)}
+										<SubagentRow session={byLaunch.get(message.id)!} />
 									{:else if said.kind === 'toolUse'}
 										{@const ToolIcon = toolIcon(said.category)}
 										<p class="flex h-6 min-w-0 items-center gap-1.5 text-xs text-fg-subtle">
@@ -429,8 +376,8 @@
 												<span class="min-w-0 truncate font-mono">{said.summary}</span>
 											</Shimmer>
 											<!-- Beside what it timed, not across the column. -->
-											{#if duration(index)}
-												<span class="flex-none tabular-nums">{duration(index)}</span>
+											{#if took(index)}
+												<span class="flex-none tabular-nums">{took(index)}</span>
 											{/if}
 										</p>
 									{:else if said.kind === 'question'}
@@ -480,9 +427,9 @@
 						{/each}
 					</ol>
 
-					{#if unplaced.length > 0}
+					{#if trailing.length > 0}
 						<ul class="mx-auto mt-3 flex w-full max-w-190 flex-col">
-							{#each unplaced as launched (launched.id)}
+							{#each trailing as launched (launched.id)}
 								<li><SubagentRow session={launched} /></li>
 							{/each}
 						</ul>

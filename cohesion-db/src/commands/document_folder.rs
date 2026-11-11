@@ -10,9 +10,8 @@ use cohesion_core::protocol::{
 use cohesion_core::{Document, DocumentFolder, DocumentType, FromRequest};
 
 use crate::changed::{Changed, Invalidates};
-use crate::commands::document::{GetDocumentCommand, changed, table_of};
-use crate::commands::document_formula::formulas_stale;
-use crate::commands::document_value::forget_values;
+use crate::commands::document::{GetDocumentCommand, changed, row_changed};
+use crate::commands::document_table::{TableChange, rows_left};
 use crate::commands::title::ensure_title;
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::{
@@ -288,17 +287,12 @@ impl DatabaseCommand for DeleteDocumentFolderCommand {
         }
         .handle(&mut ctx.as_read())?;
         let doomed = subtree(&folders, self.folder_id);
-        forget_values(ctx.db, &doomed, None)?;
+        let tables = rows_left(ctx.db, &doomed, None)?;
         _ = ctx
             .db
             .delete::<DocumentFolderProperty>()
             .filter_in_values("folder_id", doomed.clone())
             .execute()?;
-        let tables: Vec<Invalidation> = doomed
-            .iter()
-            .copied()
-            .map(Invalidation::DocumentTable)
-            .collect();
         _ = ctx
             .db
             .update::<Document>()
@@ -354,10 +348,10 @@ impl DatabaseCommand for MoveDocumentCommand {
         if document.folder_id == self.folder_id {
             return Ok(document.invalidating_nothing());
         }
-        let left = table_of(&document);
-        if let Some(from) = document.folder_id {
-            forget_values(ctx.db, &[from], Some(document.id))?;
-        }
+        let left = match document.folder_id {
+            Some(from) => rows_left(ctx.db, &[from], Some(document.id))?,
+            None => Vec::new(),
+        };
         let document = ctx
             .db
             .update_live()
@@ -366,10 +360,7 @@ impl DatabaseCommand for MoveDocumentCommand {
             .filter_eq(Document::ID, self.document_id)
             .returning_one()
             .found()?;
-        if let Some(to) = document.folder_id {
-            formulas_stale(ctx, to, Some(document.id))?;
-        }
-        let joined = table_of(&document);
+        let joined = row_changed(ctx, &document, TableChange::RowInputs(document.id))?;
         Ok(changed(ctx, document)?.and(left).and(joined))
     }
 }

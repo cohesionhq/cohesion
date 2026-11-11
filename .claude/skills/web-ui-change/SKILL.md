@@ -20,9 +20,9 @@ cd web && VITE_MOCK=1 npm run dev     # http://localhost:5173
 
 (or `web-mock` in `.claude/launch.json`). It needs no daemon or CLI, so
 nothing you do there touches anyone's data. Run it in the background and
-stop it when you're done. Anything the feature sends needs a handler and
-seed data in `src/lib/protocol/mock.ts`, or mock mode and the store tests
-break. Don't run `scripts/web-dev.sh` yourself: it runs against the
+stop it when you're done. Anything the feature sends needs a handler
+(`src/lib/protocol/mock/handlers/`, in its area's file) and seed data
+(`mock/seed.ts`), or mock mode and the store tests break. Don't run `scripts/web-dev.sh` yourself: it runs against the
 developer's own `dev/` state and blocks until killed, so hand it to the
 person in your report.
 
@@ -44,8 +44,10 @@ Each item is one edit that's easy to forget; the rule behind it is in
   shortcuts").
 - **Any other shortcut**: its handler and its row in
   `ShortcutsDialog.svelte`, in the same commit.
-- **A new link kind** (`cohesion://…`): a panel on `ui/ItemPanel.svelte`
-  and an `/open/…` route.
+- **A new link kind** (`cohesion://…`): an entry in `ITEM_KINDS`
+  (`lib/format/itemLinks.ts`), which the grammar, the `/open/…` matchers
+  and the stores read; its icon in `shell/embedIcons.ts`; and a panel on
+  `ui/ItemPanel.svelte`.
 - **Look and feel**: `aria-label` on icon-only controls, hover-only
   actions shown on touch, `motion.duration` on transitions, nothing under
   `--titlebar-inset`, tokens rather than new values ("Look and feel",

@@ -7,6 +7,8 @@ import type { ItemLink, UnscopedItemKind, WorkspaceItemKind } from '$lib/format/
 // Links to items are read and written in `$lib/format/itemLinks.ts`, which
 // the mock and the stores share.
 export {
+	ITEM_KINDS,
+	itemKindOf,
 	itemLinkHref,
 	parseItemLink,
 	type ItemKind,

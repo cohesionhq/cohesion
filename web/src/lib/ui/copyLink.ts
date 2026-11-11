@@ -2,34 +2,17 @@
 // to paste into a document, where on a line of its own it becomes a card; and
 // "Copy plain link", the `cohesion://` address alone.
 
-import {
-	itemLinkHref,
-	itemLinkMarkdown,
-	type ItemKind,
-	type ItemLink
-} from '$lib/format/itemLinks';
-import type { EmbedKind } from '$lib/protocol/types';
+import { ITEM_KINDS, itemLinkHref, itemLinkMarkdown, type ItemLink } from '$lib/format/itemLinks';
 import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 import type { MenuAction } from './Menu.svelte';
 import { copyToClipboard } from './toasts.svelte';
-
-const embedKinds: Record<ItemKind, EmbedKind> = {
-	task: 'task',
-	document: 'document',
-	resource: 'resource',
-	'document-folder': 'documentFolder',
-	contact: 'contact',
-	agent: 'agent',
-	'actor-session': 'actorSession',
-	article: 'article'
-};
 
 /**
  * Copies `link` as a Markdown link titled `title`, as it is when chosen (an
  * item with no title is called by its kind).
  */
 export function copyItemLink(link: ItemLink, title: string): void {
-	const named = title.trim() === '' ? vocabulary.embedKind(embedKinds[link.kind]) : title;
+	const named = title.trim() === '' ? vocabulary.embedKind(ITEM_KINDS[link.kind].wire) : title;
 	copyToClipboard(itemLinkMarkdown(link, named), 'Copied the link.');
 }
 

@@ -17,8 +17,8 @@ use cohesion_core::protocol::{
 
 use crate::changed::{Changed, Invalidates};
 use crate::commands::document_folder::GetDocumentFolderCommand;
-use crate::commands::document_formula::{ensure_formula, formulas_stale, new_formula};
-use crate::commands::document_value::store_value;
+use crate::commands::document_formula::{ensure_formula, new_formula};
+use crate::commands::document_table::{TableChange, store_value, table_changed};
 use crate::commands::property_option::{add_options, ensure_not_formula_choice};
 use crate::{
     CommandContext, DatabaseCommand, DatabaseCommandResult, Filtered, Found, Read,
@@ -153,11 +153,8 @@ impl DatabaseCommand for CreateDocumentFolderPropertyCommand {
         };
         // A formula is computed for every document; any other property is a
         // new key, empty, in the row every formula reads.
-        formulas_stale(ctx, self.folder_id, None)?;
-        Ok(property.invalidating([
-            Invalidation::DocumentTable(self.folder_id),
-            Invalidation::DocumentFolders(self.workspace_id),
-        ]))
+        let table = table_changed(ctx, self.folder_id, TableChange::Inputs)?;
+        Ok(property.invalidating([table, Invalidation::DocumentFolders(self.workspace_id)]))
     }
 }
 
@@ -188,8 +185,8 @@ impl DatabaseCommand for RenameDocumentFolderPropertyCommand {
             .returning_one()
             .found()?;
         // Formulas read the row by property name.
-        formulas_stale(ctx, self.folder_id, None)?;
-        Ok(property.invalidating([Invalidation::DocumentTable(self.folder_id)]))
+        let table = table_changed(ctx, self.folder_id, TableChange::Inputs)?;
+        Ok(property.invalidating([table]))
     }
 }
 
@@ -267,8 +264,8 @@ impl DatabaseCommand for SetDocumentFolderPropertyTypeCommand {
             }
             property
         };
-        formulas_stale(ctx, self.folder_id, None)?;
-        Ok(property.invalidating([Invalidation::DocumentTable(self.folder_id)]))
+        let table = table_changed(ctx, self.folder_id, TableChange::Inputs)?;
+        Ok(property.invalidating([table]))
     }
 }
 
@@ -361,7 +358,8 @@ impl DatabaseCommand for MoveDocumentFolderPropertyCommand {
                 .filter_eq(DocumentFolderProperty::ID, property_id)
                 .execute()?;
         }
-        Ok(list(ctx)?.invalidating([Invalidation::DocumentTable(self.folder_id)]))
+        let table = table_changed(ctx, self.folder_id, TableChange::Shown)?;
+        Ok(list(ctx)?.invalidating([table]))
     }
 }
 
@@ -393,11 +391,8 @@ impl DatabaseCommand for DeleteDocumentFolderPropertyCommand {
             .delete::<DocumentFolderProperty>()
             .filter_eq(DocumentFolderProperty::ID, property.id)
             .execute()?;
-        formulas_stale(ctx, self.folder_id, None)?;
-        Ok(property.invalidating([
-            Invalidation::DocumentTable(self.folder_id),
-            Invalidation::DocumentFolders(self.workspace_id),
-        ]))
+        let table = table_changed(ctx, self.folder_id, TableChange::Inputs)?;
+        Ok(property.invalidating([table, Invalidation::DocumentFolders(self.workspace_id)]))
     }
 }
 

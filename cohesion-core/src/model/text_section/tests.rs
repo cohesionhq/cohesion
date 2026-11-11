@@ -109,3 +109,24 @@ fn nothing_splits_into_nothing() {
     assert_eq!(text_pieces(""), vec![]);
     assert_eq!(text_pieces("\n \n"), vec![]);
 }
+
+/// The cases the web UI runs too (`item_link/link_cases.json`): the lines
+/// that are embeds here are the ones that must be there.
+#[test]
+fn the_shared_text_cases_hold() {
+    let shared: serde_json::Value =
+        serde_json::from_str(include_str!("../item_link/link_cases.json")).unwrap();
+    for case in shared["texts"].as_array().unwrap() {
+        let text = case["text"].as_str().unwrap();
+        let pieces: Vec<serde_json::Value> = text_pieces(text)
+            .into_iter()
+            .map(|piece| match piece {
+                TextPiece::Markdown(text) => serde_json::json!({ "markdown": text }),
+                TextPiece::Embed { href, label, .. } => {
+                    serde_json::json!({ "embed": { "label": label, "href": href } })
+                }
+            })
+            .collect();
+        assert_eq!(serde_json::Value::Array(pieces), case["pieces"], "{text:?}");
+    }
+}
