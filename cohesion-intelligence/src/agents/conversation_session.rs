@@ -9,13 +9,13 @@ use std::sync::{Arc, Mutex};
 
 use cohesion_core::model::{
     AgentMessageContent, AgentSkill, ContextRebuildReason, IntelligenceAgent,
-    IntelligenceAgentMessage, IntelligenceAgentMessageSender, Memory,
+    IntelligenceAgentMessage, IntelligenceAgentMessageSender, Memory, Workspace,
 };
 use cohesion_db::{
-    CommandError, CreateAgentMessageCommand, DatabaseContext, GetProfileCommand,
-    GetStorageSettingsCommand, ListAgentMessagesCommand, ListAgentTeamsCommand,
-    ListIntelligenceAgentsCommand, ListMemoriesCommand, SetAgentContextTokensCommand,
-    SkillsForAgentCommand, TierModel,
+    CommandError, CreateAgentMessageCommand, DatabaseContext, GetIntelligenceAgentCommand,
+    GetProfileCommand, GetStorageSettingsCommand, GetWorkspaceCommand, ListAgentMessagesCommand,
+    ListAgentTeamsCommand, ListIntelligenceAgentsCommand, ListMemoriesCommand,
+    SetAgentContextTokensCommand, SkillsForAgentCommand, TierModel,
 };
 use cohesion_js::AgentRole;
 
@@ -137,6 +137,25 @@ pub(super) async fn usable_skills(
     let mut skills = database.send(SkillsForAgentCommand { agent_id }).await?;
     skills.retain(|skill| skill.agent_can_use);
     Ok(skills)
+}
+
+/// The workspace the user is in as agent `agent_id` was last told, for its
+/// status; `None` when it never was or that workspace is gone.
+pub(super) async fn user_workspace(
+    database: &DatabaseContext,
+    agent_id: i64,
+) -> Result<Option<Workspace>, CommandError> {
+    let agent = database
+        .send(GetIntelligenceAgentCommand { agent_id })
+        .await?;
+    let Some(id) = agent.workspace_id else {
+        return Ok(None);
+    };
+    match database.send(GetWorkspaceCommand { id }).await {
+        Ok(workspace) => Ok(Some(workspace)),
+        Err(CommandError::NotFound(_)) => Ok(None),
+        Err(e) => Err(e),
+    }
 }
 
 /// The newest of agent `agent_id`'s messages, oldest first, sent before

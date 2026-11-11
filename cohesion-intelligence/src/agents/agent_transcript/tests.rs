@@ -74,6 +74,7 @@ fn rendered() -> String {
         &cues,
         &skills(),
         "Your agenda is empty.",
+        None,
         &recent,
         Some(44),
         &now(),
@@ -104,7 +105,7 @@ fn status_message_ends_with_the_message_to_answer_and_holds_no_memories() {
 
 #[test]
 fn a_status_says_when_there_are_no_skills_and_a_change_lists_them_all() {
-    let rendered = status_message(&[], &[], "Your agenda is empty.", &[], None, &now());
+    let rendered = status_message(&[], &[], "Your agenda is empty.", None, &[], None, &now());
     assert!(rendered.contains("Your skills (run one with `use_skill`): none"));
     let changed = skills_changed(&skills());
     assert!(changed.starts_with("# Skills changed\n"));
@@ -156,7 +157,15 @@ fn the_agents_own_text_reads_as_sent() {
         text(1, NOW - 60, IntelligenceAgentMessageSender::User, "Hi"),
         text(2, NOW - 30, IntelligenceAgentMessageSender::Agent, "Hello"),
     ];
-    let rendered = status_message(&[], &[], "Your agenda is empty.", &recent, None, &now());
+    let rendered = status_message(
+        &[],
+        &[],
+        "Your agenda is empty.",
+        None,
+        &recent,
+        None,
+        &now(),
+    );
     let line = rendered
         .lines()
         .find(|line| line.starts_with("[#2]"))
@@ -302,6 +311,7 @@ fn a_forward_reads_as_the_note_then_the_items_link() {
         &[],
         &[],
         "Your agenda is empty.",
+        None,
         &[forward("Look")],
         None,
         &now(),
@@ -399,7 +409,15 @@ fn a_runs_scripts_carry_their_code() {
         ),
         text(3, NOW, IntelligenceAgentMessageSender::User, "Do it"),
     ];
-    let rendered = status_message(&[], &[], "Your agenda is empty.", &recent, None, &now());
+    let rendered = status_message(
+        &[],
+        &[],
+        "Your agenda is empty.",
+        None,
+        &recent,
+        None,
+        &now(),
+    );
     let run = rendered.find("[#1]").unwrap();
     let user = rendered.find("[#3]").unwrap();
     let run_code = rendered.find("cohesion.workspace(1).tasks()").unwrap();
@@ -434,7 +452,15 @@ fn failed_turns_show_as_failures() {
             },
         ),
     ];
-    let rendered = status_message(&[], &[], "Your agenda is empty.", &recent, None, &now());
+    let rendered = status_message(
+        &[],
+        &[],
+        "Your agenda is empty.",
+        None,
+        &recent,
+        None,
+        &now(),
+    );
     let line = rendered
         .lines()
         .find(|line| line.starts_with("[#2]"))
@@ -452,6 +478,7 @@ fn a_new_thread_reads_the_pick_and_context_from_the_choice() {
         &[],
         &[],
         "Your agenda is empty.",
+        None,
         &[pending, answered],
         None,
         &now(),
@@ -488,4 +515,41 @@ fn a_long_message_is_excerpted_with_how_to_read_the_rest() {
     assert!(!rendered.contains(&"é".repeat(801)));
     assert!(rendered.contains("1200 more characters"));
     assert!(rendered.contains("`read_message` 6 from 800"));
+}
+
+#[test]
+fn the_agent_hears_which_workspace_the_user_is_in_and_when_they_switch() {
+    let core = Workspace {
+        id: 5,
+        title: "Core".to_string(),
+        emoji: None,
+        deleted: false,
+    };
+    let status = status(&[], &[], "Your agenda is empty.", Some(&core), &now());
+    assert!(status.contains("\nThe user is in the \"Core\" workspace (id 5).\n"));
+    let unknown = status_message(&[], &[], "Your agenda is empty.", None, &[], None, &now());
+    assert!(!unknown.contains("workspace"));
+
+    let mut switched = text(44, NOW, IntelligenceAgentMessageSender::User, "Add a task");
+    switched.switched_workspace_id = Some(5);
+    switched.switched_workspace_title = Some("Core".to_string());
+    assert_eq!(
+        user_text(&switched),
+        "User switched to the \"Core\" workspace (id 5).\n[#44] Add a task"
+    );
+    let rendered = status_message(
+        &[],
+        &[],
+        "Your agenda is empty.",
+        Some(&core),
+        std::slice::from_ref(&switched),
+        Some(44),
+        &now(),
+    );
+    assert!(rendered.contains(
+        "# Recent conversation\nUser switched to the \"Core\" workspace (id 5).\n[#44] User"
+    ));
+
+    let stayed = text(45, NOW, IntelligenceAgentMessageSender::User, "And another");
+    assert_eq!(user_text(&stayed), "[#45] And another");
 }

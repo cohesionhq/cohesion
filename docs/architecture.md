@@ -1069,8 +1069,8 @@ deleting sets `deleted`, and client reads use `select_live`.
 | Table | Holds |
 |---|---|
 | `intelligence_agent_teams` | `title`, unique ignoring case. |
-| `intelligence_agents` | `agent_name`, `agent_color`, `agent_emoji`, `agent_personality`, `agent_verbosity`, `agent_role`, `agent_directive`, `team_id`, `pinned`, `sort_order`, `agent_unread`, `last_message_at`, `activity`, `foreground_started`, `context_tokens`. |
-| `intelligence_agent_messages` | An agent's conversation: `sender`, `kind` and its columns, `run_id`, `reply_to`, `reaction`. A trigger marks the agent unread for kinds the user sees. |
+| `intelligence_agents` | `agent_name`, `agent_color`, `agent_emoji`, `agent_personality`, `agent_verbosity`, `agent_role`, `agent_directive`, `team_id`, `workspace_id`, `pinned`, `sort_order`, `agent_unread`, `last_message_at`, `activity`, `foreground_started`, `context_tokens`. |
+| `intelligence_agent_messages` | An agent's conversation: `sender`, `kind` and its columns, `run_id`, `reply_to`, `reaction`, `switched_workspace_id`. A trigger marks the agent unread for kinds the user sees. |
 | `intelligence_agent_cues` | `agent_id`, `name` (unique per agent), `hook`, `script`, `instructions`, `effort`, `set_at`. |
 | `agent_agenda_items` | An agent's agenda ([11](#11-agents-in-the-data-model)): `agent_id`, `position` (from 1), `text`, `added_at`, `finished_at`. |
 | `intelligence_agent_runs` | One per fork: `hook`, `cue_name`, `thread_id`, `outcome` (`running`, `completed`, `failed`), `sender_agent_id`. |
@@ -1323,6 +1323,7 @@ outside that conversation is a fork of it.
 | `role` | What the user wants from it, in a few words (`""` when unset) |
 | `directive` | Rules it always follows (`""` when unset) |
 | `team_id` | Its team, if any |
+| `workspace_id` | The workspace the user was in when they last named one to it, if any: a hint, never a limit on where it works |
 | `activity`, `foreground_started` | What it is doing now and when its current turn started |
 | `context_tokens` | Prompt tokens of its live thread at the last request |
 | `unread`, `last_message_at`, `pinned`, `sort_order` | How clients list it |
@@ -1490,6 +1491,19 @@ or `contact{contact_id}`. On `task:assigned` or `task:create`,
 the agent assigned it itself or the chain was started by an event (an event
 chain never wakes an agent this way).
 
+**Which workspace the user is in.** `SendAgentMessage` may carry
+`workspace_id`, the live workspace the user is in as they send it. When it
+isn't the agent's `workspace_id`, `CreateUserAgentMessageCommand` sets that
+and records it on the message as `switched_workspace_id` (with
+`switched_workspace_title`, read). The agent reads `User switched to the
+"Core" workspace (id 5).` before that message wherever it reads it (a live
+thread's prompt, a message joining a running turn, the recent conversation),
+and every status block (a cue run has none) says `The user is in the "Core"
+workspace (id 5).`
+The system prompt tells it this is a hint for a request that doesn't say
+where, not a limit. A message naming no workspace changes nothing. Clients
+don't send it yet.
+
 **Activity.** While it works, an agent's `activity` shows a rotating word
 ("Thinking", "Working", "Pondering"…), "Learning", "Remembering", "Forgetting",
 "Recalling", "Asking" or a running script's title
@@ -1545,7 +1559,7 @@ Requests connect within 30 s and finish within 10 minutes
 `SystemPrompt::prompt`), in order, most stable first so the provider's cached
 prefix lasts:
 
-1. `FOREGROUND_AGENT_PROMPT`: what an agent in Cohesion is, its context, memories, storage, notes and agenda, working with the user's data, cues, skills, other agents, and replying.
+1. `FOREGROUND_AGENT_PROMPT`: what an agent in Cohesion is, the workspace the user is in as a hint, its context, memories, storage, notes and agenda, working with the user's data, cues, skills, other agents, and replying.
 2. `LINKS`: how to write and read `cohesion://task/<ws>/<id>`, `cohesion://document/<ws>/<id>`, `cohesion://resource/<ws>/<id>`, `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and `cohesion://article/<id>`, and that in a document a link alone on its line shows as a card.
 3. "Your voice": its personality and verbosity.
 4. "Your role" and "Your directive", when set.
@@ -1610,8 +1624,9 @@ refused with a note to use `send_note` or `ask_choice`. Its opening says so
 (`agent_transcript::fork_rights`).
 
 **What the first message holds** (`agent_transcript.rs`). A new thread opens
-with a status block, "Current time: …", the agent's cues, the skills it may
-use and its agenda, then "Recent
+with a status block, "Current time: …", the workspace the user is in (when
+the agent was told one), the agent's cues, the skills it may use and its
+agenda, then "Recent
 conversation": the messages most worth keeping (`relevant_set.rs`), each cut at
 800 characters (`EXCERPT_CHARS`; `read_message` reads the rest), then the
 user's message. The relevant set walks back from the newest message, dropping

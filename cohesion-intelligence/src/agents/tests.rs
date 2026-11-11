@@ -57,6 +57,8 @@ pub(super) fn message(
         reacted_at: None,
         attachment_count: 0,
         reply_to: None,
+        switched_workspace_id: None,
+        switched_workspace_title: None,
         excerpt: String::new(),
         excerpt_verb: None,
         reaction_excerpt: None,

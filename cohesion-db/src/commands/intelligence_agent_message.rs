@@ -3,7 +3,8 @@ use cohesion_core::{
     invalidation::Invalidation,
     model::{
         AgentForwardedItem, AgentForwardedItemKind, AgentMessageContent, Attachment,
-        AttachmentMessage, DocumentType, IntelligenceAgentMessage, IntelligenceAgentMessageSender,
+        AttachmentMessage, DocumentType, IntelligenceAgent, IntelligenceAgentMessage,
+        IntelligenceAgentMessageSender,
     },
     protocol::{
         AgentForwardTarget, GetAgentMessageRequest, ImageUpload,
@@ -16,7 +17,9 @@ use super::agent_skill::SkillsForAgentCommand;
 use super::document::GetDocumentCommand;
 use super::emoji::emoji;
 use super::image_upload::{insert_attachments, validate_images};
+use super::intelligence_agent::GetIntelligenceAgentCommand;
 use super::task::GetTaskCommand;
+use super::workspace::GetWorkspaceCommand;
 use crate::changed::{Changed, Invalidates};
 use crate::retention::days_in_secs;
 use crate::{
@@ -248,6 +251,9 @@ pub struct CreateUserAgentMessageCommand {
     pub attachments: Vec<ImageUpload>,
     pub forward: Option<AgentForwardTarget>,
     pub skill: Option<i64>,
+    /// The live workspace the user is in; when it isn't the agent's
+    /// `workspace_id`, it becomes that and the message records the switch.
+    pub workspace_id: Option<i64>,
 }
 impl DatabaseCommand for CreateUserAgentMessageCommand {
     type Access = Write;
@@ -302,6 +308,10 @@ impl DatabaseCommand for CreateUserAgentMessageCommand {
             }
             (None, None) => AgentMessageContent::Text { text: self.text },
         };
+        let switched = match self.workspace_id {
+            Some(workspace_id) => switched_workspace(ctx, self.agent_id, workspace_id)?,
+            None => None,
+        };
         insert_message(
             ctx,
             CreateAgentMessageCommand {
@@ -315,6 +325,25 @@ impl DatabaseCommand for CreateUserAgentMessageCommand {
             self.attachments,
         )?
         .and_then(|message| {
+            let message = match switched {
+                Some(workspace_id) => {
+                    ctx.db
+                        .update::<IntelligenceAgent>()
+                        .set(IntelligenceAgent::WORKSPACE_ID, workspace_id)
+                        .filter_eq(IntelligenceAgent::ID, self.agent_id)
+                        .execute()?;
+                    ctx.db
+                        .update::<IntelligenceAgentMessage>()
+                        .set(
+                            IntelligenceAgentMessage::SWITCHED_WORKSPACE_ID,
+                            workspace_id,
+                        )
+                        .filter_eq(IntelligenceAgentMessage::ID, message.id)
+                        .returning_one()
+                        .found()?
+                }
+                None => message,
+            };
             let attachments = ListAgentMessageAttachmentsCommand {
                 message_id: message.id,
             }
@@ -322,6 +351,19 @@ impl DatabaseCommand for CreateUserAgentMessageCommand {
             Ok((message, attachments).invalidating_nothing())
         })
     }
+}
+
+/// `workspace_id` when the user switched to it since they last told agent
+/// `agent_id` where they were (or never had), `None` when it is the same;
+/// an error when it is no live workspace.
+fn switched_workspace(
+    ctx: &mut CommandContext<'_>,
+    agent_id: i64,
+    workspace_id: i64,
+) -> Result<Option<i64>, CommandError> {
+    let workspace = GetWorkspaceCommand { id: workspace_id }.handle(&mut ctx.as_read())?;
+    let agent = GetIntelligenceAgentCommand { agent_id }.handle(&mut ctx.as_read())?;
+    Ok((agent.workspace_id != Some(workspace.id)).then_some(workspace.id))
 }
 
 /// Adds `message`, the agent's, with the images in `attachments` it shows

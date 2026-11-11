@@ -229,6 +229,11 @@ pub struct SendAgentMessageRequest {
     /// `message` as the note; a message runs a skill or forwards an item,
     /// not both.
     pub skill: Option<i64>,
+    /// The workspace the user is in as they send it. When it isn't the one
+    /// the agent was last told, the agent reads `User switched to the "…"
+    /// workspace` before the message. A hint for what the user means, never
+    /// a limit on where the agent works; `null` says nothing.
+    pub workspace_id: Option<i64>,
 }
 
 /// The item a message to an agent forwards, by the kind its `cohesion://`

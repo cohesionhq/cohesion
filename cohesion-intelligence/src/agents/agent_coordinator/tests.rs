@@ -91,7 +91,7 @@ impl Crew {
     /// Sends Scout's conversation a message from the user.
     async fn say(&self, words: &str) {
         self.coordinator
-            .send_message(self.scout, words.to_string(), Vec::new(), None, None)
+            .send_message(self.scout, words.to_string(), Vec::new(), None, None, None)
             .await
             .unwrap();
     }

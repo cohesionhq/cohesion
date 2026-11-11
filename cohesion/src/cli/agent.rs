@@ -434,6 +434,7 @@ async fn send(
         attachments: None,
         forward: None,
         skill: None,
+        workspace_id: None,
     };
     let posted = follow_turn(ctx, agent.id, request, !open_in_editor).await?;
     if open_in_editor {

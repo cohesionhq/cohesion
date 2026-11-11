@@ -7,6 +7,14 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- An agent can know which workspace you're in. `sendAgentMessage` takes an
+  optional `workspace_id`; when it differs from the one the agent was last
+  told, the agent reads "User switched to the … workspace" before your
+  message, and its status names the workspace. It's a hint for requests
+  that don't say where, not a limit. Agents gain `workspace_id`, and agent
+  messages `switched_workspace_id` and `switched_workspace_title`. The web
+  UI, the CLI and the iPhone app don't send it yet.
+
 - Agents have skills: prompts you save for one agent or for every agent on
   a team, from Skills… in an agent's menu or a team's. Type `/` in an
   agent's message box to run one, with anything you add as a note. An
