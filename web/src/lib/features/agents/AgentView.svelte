@@ -7,6 +7,7 @@
 <script lang="ts">
 	import Bot from '@lucide/svelte/icons/bot';
 	import { onMount, tick, untrack } from 'svelte';
+	import { BottomFollower } from '$lib/ui/followBottom';
 	import { toProtocolError } from '$lib/protocol/errors';
 	import type { ImageUpload, AgentChoice, AgentSkill } from '$lib/protocol/types';
 	import { routes } from '$lib/shell/routes';
@@ -134,47 +135,20 @@
 	// The feed opens at its newest message and follows new ones while the
 	// reader is at (or near) the bottom; scrolled up, it leaves them be.
 	let content = $state<HTMLElement>();
-	let following = true;
-	let lastTop = 0;
+	const bottom = new BottomFollower();
 
-	function nearBottom(el: HTMLElement): boolean {
-		return el.scrollHeight - el.scrollTop - el.clientHeight < 48;
-	}
-
-	function toBottom() {
-		if (scroller) scroller.scrollTop = scroller.scrollHeight;
-	}
-
-	// Only scrolling up lets go of the bottom. A scroll event lands after
-	// the frame that caused it, so by then the feed may have grown past a
-	// jump to the bottom (the history mounting, a reply rendering); judged
-	// on distance alone, that would read as the reader leaving and strand
-	// the feed partway up.
 	function onscroll() {
-		if (!scroller) return;
-		const top = scroller.scrollTop;
-		if (nearBottom(scroller)) following = true;
-		else if (top < lastTop) following = false;
-		lastTop = top;
+		if (scroller) bottom.scrolled(scroller);
 	}
 
 	$effect(() => {
 		void agentId;
-		following = true;
-		lastTop = 0;
-		untrack(toBottom);
+		bottom.reset();
+		untrack(() => bottom.toBottom(scroller));
 	});
 
-	// Whatever grows the feed (a message, a reply, the working line, a
-	// refetch) or shrinks the viewport keeps a following reader at the bottom.
 	$effect(() => {
-		if (!scroller || !content) return;
-		const observer = new ResizeObserver(() => {
-			if (following) toBottom();
-		});
-		observer.observe(scroller);
-		observer.observe(content);
-		return () => observer.disconnect();
+		if (scroller && content) return bottom.observe(scroller, content);
 	});
 
 	async function loadOlder() {
@@ -199,7 +173,7 @@
 		skill = null;
 		sendError = null;
 		// Sending is a request to see the conversation's end.
-		following = true;
+		bottom.follow();
 		try {
 			await agents.sendMessage(agentId, text, attached, undefined, using ?? undefined);
 		} catch (error) {
@@ -227,7 +201,7 @@
 
 	function pick(message: AgentMessage, choice: AgentChoice, option: number) {
 		// Picking is a request to see the agent's answer.
-		following = true;
+		bottom.follow();
 		return agents.pick(message, choice, option);
 	}
 
