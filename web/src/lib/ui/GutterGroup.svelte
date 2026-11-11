@@ -4,12 +4,21 @@
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { slide } from 'svelte/transition';
+	import { motion } from './motion';
 
-	let { children }: { children: Snippet } = $props();
+	interface Props {
+		children: Snippet;
+		/** Slides open and shut as it comes and goes, rather than appearing at once. */
+		slides?: boolean;
+	}
+
+	let { children, slides = false }: Props = $props();
 </script>
 
 <div
 	class="mx-2 flex flex-none flex-col gap-1.5 pt-3 [&+&]:mt-3 [&+&]:border-t [&+&]:border-border-strong/60"
+	transition:slide={{ duration: slides ? motion.duration : 0 }}
 >
 	{@render children()}
 </div>
