@@ -66,7 +66,7 @@ package, the web UI in `web/`. No crate declares cargo `[features]`.
 | `cohesion-db` | lib | SQLite persistence: `Container` (the rusqlite connection, query builders, migrations), the `DatabaseCommand` trait and every command, `DatabaseContext` (the one database thread), events and `InvalidationWatch`, `GuardedDatabaseContext` (what scripts hold), `CredentialManager`, `Secrets` (the pairing window), `WorkTracker`, `ActivityTracker`, backup, export and import (`transfer.rs`), retention. | cohesion-core |
 | `cohesion-internet` | lib (+ `build.rs`) | Reading the web: `article_snapshot` (a page as Markdown), `feed` (RSS, Atom and JSON Feed, with autodiscovery), `fetch`, `pipeline`, and Coherence, Cohesion's own HTML reader (`coherence/`, whose JSON rules `build.rs` compiles in). Blocking reqwest; knows nothing of the database or scripts. | cohesion-core |
 | `cohesion-internet-harness` | bin, `publish = false` | A tool: `cargo run -p cohesion-internet-harness -- page <url>` or `feed <url>` prints the Markdown the daemon would store, for building Coherence's rules. Nothing depends on it. | cohesion-core, cohesion-internet |
-| `cohesion-js` | lib | The QuickJS script runtime (rquickjs): `ScriptEngine` and its worker pools, `Sandbox`, globals and `Mount`, JS entities, `script_api` (which yields the `.d.ts`), `service_declarations`, `AgentRole`, and the traits a higher crate implements: `ConnectorAccess`, `ServiceAccess`, `ActorAccess`. Strips TypeScript with `swc_ts_fast_strip`; vendors the Pele diagram renderer in `vendor/pele`. | cohesion-core, cohesion-db, cohesion-internet, cohesion-macros |
+| `cohesion-js` | lib | The QuickJS script runtime (rquickjs): `ScriptEngine` and its worker pools, `Sandbox`, globals and `Mount`, JS entities, `script_api` (which yields the `.d.ts`), `service_declarations`, `AgentRole`, and the traits a higher crate implements: `ConnectorAccess`, `ServiceAccess`, `ActorAccess`. Strips TypeScript with its own parser (`sandbox/strip_types`); vendors the Pele diagram renderer in `vendor/pele`. | cohesion-core, cohesion-db, cohesion-internet, cohesion-macros |
 | `cohesion-intelligence` | lib | LLM conversations: provider backends (`providers/`), the models.dev catalog (`catalog/`), `Session` and its tools, `AgentCoordinator` and the agent machinery (`agents/`), `SpendLimits`, and the `AccountCredentials` trait. | cohesion-core, cohesion-db, cohesion-js |
 | `cohesionkit` | lib (+ `build.rs`) | The facade the daemon builds on: `CohesionContext`, the `Route` impls (`routes/`), hooks (`hooks/`), table formula passes (`table_formulas.rs`), `ExtensionManager`, connectors, feeds, periodic cleanup, `Security`, `Presence`, `CapabilityClients`, `ActorSessions`, `EndpointRelay`, `PendingImport`, and `web_bundle` (the web UI compiled into the binary). | all of the above but the harness and the bench |
 | `cohesion-bench` | lib + bin, `publish = false` | A tool: scores language models on Cohesion's agent, tools and script API. Each run of a case builds the daemon's `CohesionContext` on a scratch database, sends the case's prompt to a new agent on the model under test, and checks the result with the case's `validate.ts`; it writes `report.html`, `cases.csv` and `summary.csv` ([24](#24-testing)). Nothing depends on it. | cohesionkit, cohesion-js |
@@ -2564,7 +2564,12 @@ show it; `cohesion script new` and `cohesion script typegen` write
 `cohesion.d.ts`). Agents get it through the code tool's description and the
 `documentation` tool ([12](#12-how-a-turn-runs)). Scripts may be TypeScript:
 types are stripped (`cohesion-js/src/sandbox/strip_types.rs`), and `enum`,
-value namespaces and parameter properties are refused.
+value namespaces and parameter properties are refused. The stripper is
+Cohesion's own: it blanks each type in place, so an exception's line and
+column still point into the script as written, and it reads JavaScript only
+as closely as finding the types takes. QuickJS stays the judge of
+JavaScript, so a script the stripper can't follow is handed on as it stands
+and the syntax error is QuickJS's.
 
 ### 20. Connectors
 
