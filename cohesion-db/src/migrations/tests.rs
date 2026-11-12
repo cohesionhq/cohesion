@@ -3493,3 +3493,19 @@ fn folders_already_there_are_indexed_by_title_unless_deleted() {
         ]
     );
 }
+
+#[test]
+fn feeds_already_there_are_indexed_by_title_unless_deleted() {
+    let mut db = migrated_before("feeds_search");
+    db.connection()
+        .execute_batch(
+            "INSERT INTO feeds (id, url, title, status_state, status_at, added)
+                 VALUES (1, 'https://a', 'Bread weekly', 'refreshed', 0, 0);
+             INSERT INTO feeds (id, url, title, status_state, status_at, added, deleted)
+                 VALUES (2, 'https://b', 'Bread gone', 'refreshed', 0, 0, TRUE);",
+        )
+        .unwrap();
+    db.migrate().unwrap();
+
+    assert_eq!(search(&db, "bread"), [("feed".to_string(), 1)]);
+}

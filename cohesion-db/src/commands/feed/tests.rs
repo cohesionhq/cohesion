@@ -1,14 +1,14 @@
 use cohesion_core::model::{
     ArticleCapture, ArticleFilter, FeedCapture, FeedFullPagePolicy, FeedItemCapture, FeedStatus,
-    Published, PublishedPrecision,
+    Published, PublishedPrecision, SearchEntityKind,
 };
 
 use crate::test_support::{context, recording_context};
 use crate::{
     CreateFeedCommand, CreateWorkspaceCommand, DatabaseContext, DatabaseEventKind,
     DeleteFeedCommand, FeedItemUrlsCommand, ListArticlePageCommand, ListFeedSummariesCommand,
-    MarkArticlesReadCommand, PruneFeedsCommand, RecordFeedCommand, ReorderFeedsCommand,
-    SearchFeedCorpusCommand, SearchWorkspaceCommand, SetArticleReadCommand,
+    MarkArticlesReadCommand, PruneFeedsCommand, RecordFeedCommand, RenameFeedCommand,
+    ReorderFeedsCommand, SearchFeedCorpusCommand, SearchWorkspaceCommand, SetArticleReadCommand,
 };
 
 /// An item at `https://example.com/<slug>` about `text`, published at `published_at`.
@@ -390,4 +390,46 @@ fn feed_and_article_events_follow_what_changed() {
         panic!("unfollowing a feed raises FeedDeleted alone");
     };
     assert_eq!((deleted.id, deleted.deleted), (feed, true));
+}
+
+#[test]
+fn a_live_feed_is_found_by_title_from_every_workspace() {
+    let db = context();
+    let [home, work] = ["home", "work"].map(|title| {
+        db.send_blocking(CreateWorkspaceCommand {
+            title: title.to_string(),
+            emoji: None,
+        })
+        .unwrap()
+        .id
+    });
+    let feed = follow_at(&db, "Bread weekly", vec![item("a", "sourdough", 1)]);
+    let search = |workspace_id: i64, query: &str| -> Vec<(i64, i64)> {
+        db.send_blocking(SearchWorkspaceCommand {
+            workspace_id,
+            query: query.to_string(),
+        })
+        .unwrap()
+        .into_iter()
+        .map(|hit| {
+            assert!(matches!(hit.entity_kind, SearchEntityKind::Feed));
+            (hit.entity_id, hit.workspace_id)
+        })
+        .collect()
+    };
+    // Each workspace finds it, as its own.
+    assert_eq!(search(home, "bread"), [(feed, home)]);
+    assert_eq!(search(work, "bread"), [(feed, work)]);
+
+    db.send_blocking(RenameFeedCommand {
+        feed_id: feed,
+        title: "Rye digest".to_string(),
+    })
+    .unwrap();
+    assert_eq!(search(home, "bread"), []);
+    assert_eq!(search(home, "rye"), [(feed, home)]);
+
+    db.send_blocking(DeleteFeedCommand { feed_id: feed })
+        .unwrap();
+    assert_eq!(search(home, "rye"), []);
 }

@@ -261,3 +261,63 @@ fn search_finds_live_folders_by_title() {
     assert!(search("garden").is_empty());
     assert!(search("allotment").is_empty());
 }
+
+#[test]
+fn search_ranks_an_exact_title_first_then_titles_then_contents() {
+    let db = context();
+    let ws = db
+        .send_blocking(CreateWorkspaceCommand {
+            title: "home".to_string(),
+            emoji: None,
+        })
+        .unwrap()
+        .id;
+    let task = |title: &str, description: &str| {
+        db.send_blocking(CreateTaskCommand {
+            workspace_id: ws,
+            title: title.to_string(),
+            folder_id: None,
+            priority: None,
+            size: None,
+            assignee: None,
+            description: Some(description.to_string()),
+            start_date: None,
+            due_date: None,
+            tag_ids: Vec::new(),
+        })
+        .unwrap()
+        .id
+    };
+    // A short description repeating the word scored above the folder named
+    // exactly that when contents counted alongside the title.
+    let titled = task("Pick default models for tiers", "models models");
+    let mentioned = task("Refresh the catalogue", "The models list. models.");
+    // Unrelated tasks with long descriptions, so "models" is rare, as in a
+    // real workspace.
+    let filler = "Sweep the porch and water the garden before the rain comes. ".repeat(15);
+    for n in 0..200 {
+        task(&format!("Chore {n}"), &filler);
+    }
+    let folder = db
+        .send_blocking(CreateTaskFolderCommand {
+            workspace_id: ws,
+            title: "Models".to_string(),
+        })
+        .unwrap()
+        .id;
+
+    // As the palette asks: each word prefix-matched.
+    let hits: Vec<_> = db
+        .send_blocking(SearchWorkspaceCommand {
+            workspace_id: ws,
+            query: "\"Models\"*".to_string(),
+        })
+        .unwrap()
+        .into_iter()
+        .map(|hit| {
+            let task_folder = matches!(hit.entity_kind, SearchEntityKind::TaskFolder);
+            (task_folder, hit.entity_id)
+        })
+        .collect();
+    assert_eq!(hits, [(true, folder), (false, titled), (false, mentioned)]);
+}

@@ -7,6 +7,11 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- Workspace search ranks every title match above matches only in the
+  text, with the title the query covers most (an exact title such as
+  "Models") first. It also finds feeds by title, from every workspace:
+  `SearchEntityKind` gains `feed`, which the iPhone app has to read. The
+  palette lists feeds from search rather than from its own list.
 - The agenda's card beside an agent's conversation has a Clear agenda
   button. The agent's running threads hear "Agenda was cleared." and the
   transcript shows the usual cleared line. The new `resetAgentAgenda`

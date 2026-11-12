@@ -5144,6 +5144,40 @@ pub const MIGRATIONS: &[Migration] = &[
             key TEXT NOT NULL UNIQUE
         );",
     },
+    // Feeds are in search, by title, while they are live. A feed belongs to
+    // no workspace, so its entry has none and every workspace's search finds
+    // it.
+    Migration {
+        name: "feeds_search",
+        sql: "
+        CREATE TRIGGER feeds_search_ai AFTER INSERT ON feeds WHEN new.deleted = 0
+        BEGIN
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                VALUES ('feed', new.id, NULL);
+            INSERT INTO search_fts (rowid, title, contents)
+                VALUES (last_insert_rowid(), new.title, '');
+        END;
+        CREATE TRIGGER feeds_search_ad AFTER DELETE ON feeds BEGIN
+            DELETE FROM search_fts WHERE rowid =
+                (SELECT id FROM search_entries WHERE entity_kind = 'feed' AND entity_id = old.id);
+            DELETE FROM search_entries WHERE entity_kind = 'feed' AND entity_id = old.id;
+        END;
+        CREATE TRIGGER feeds_search_au AFTER UPDATE OF title, deleted ON feeds BEGIN
+            DELETE FROM search_fts WHERE rowid =
+                (SELECT id FROM search_entries WHERE entity_kind = 'feed' AND entity_id = old.id);
+            DELETE FROM search_entries WHERE entity_kind = 'feed' AND entity_id = old.id;
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                SELECT 'feed', new.id, NULL WHERE new.deleted = 0;
+            INSERT INTO search_fts (rowid, title, contents)
+                SELECT last_insert_rowid(), new.title, '' WHERE new.deleted = 0;
+        END;
+        INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+            SELECT 'feed', id, NULL FROM feeds WHERE deleted = 0;
+        INSERT INTO search_fts (rowid, title, contents)
+            SELECT entry.id, f.title, '' FROM search_entries AS entry
+            INNER JOIN feeds AS f ON f.id = entry.entity_id
+            WHERE entry.entity_kind = 'feed';",
+    },
 ];
 
 #[cfg(test)]
