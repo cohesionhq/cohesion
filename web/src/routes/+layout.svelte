@@ -12,6 +12,7 @@
 	import PaneHost from '$lib/shell/PaneHost.svelte';
 	import SplitView from '$lib/shell/SplitView.svelte';
 	import Notice from '$lib/shell/Notice.svelte';
+	import NewTaskDialog from '$lib/shell/NewTaskDialog.svelte';
 	import Palette from '$lib/shell/Palette.svelte';
 	import { mainPages, routes } from '$lib/shell/routes';
 	import {
@@ -437,6 +438,7 @@
 		</ConversationGutter>
 	</div>
 	<FolderDialogs />
+	<NewTaskDialog />
 	<DocumentMover bind:this={mover} onmoved={(doc) => tables.took(doc)} />
 	<Palette bind:open={paletteOpen} kinds={shownKinds} />
 	{#if workspaces.currentId !== null}

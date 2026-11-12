@@ -23,6 +23,10 @@
 					label: 'Go back / forward in the half in use'
 				},
 				{ keys: [`${keyLabel('alt')}-click`], label: 'Open a link in split view' },
+				{
+					keys: [keyLabel('mod', 'k')],
+					label: 'New task in any workspace: search for “New task”'
+				},
 				{ keys: [keyLabel('mod', 'd')], label: 'Open the folder menu in the heading' },
 				{ keys: [keyLabel('mod', '/')], label: 'Collapse or restore the sidebar' },
 				{ keys: [helpKeys, '?'], label: 'Show these shortcuts' }

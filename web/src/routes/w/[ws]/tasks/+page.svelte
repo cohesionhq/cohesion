@@ -13,6 +13,7 @@
 	import { folderDialogs } from '$lib/shell/folderDialogs.svelte';
 	import { workspaceLoadError } from '$lib/shell/loadError';
 	import { routes } from '$lib/shell/routes';
+	import { newTaskDialog } from '$lib/shell/newTaskDialog.svelte';
 	import { asksForNew, asksForNewFolder, isTyping } from '$lib/shell/shortcuts.svelte';
 	import {
 		parsePriorities,
@@ -404,9 +405,11 @@
 			folderDialogs.request({ kind: 'tasks', mode: 'new' });
 			return;
 		}
-		if (!inDialog && asksForNew(event) && addInput) {
+		// Where the list has no composer (Done, Cancelled), ⌘N opens the new-task dialog instead.
+		if (!inDialog && asksForNew(event)) {
 			event.preventDefault();
-			addInput.focus();
+			if (addInput) addInput.focus();
+			else newTaskDialog.request();
 			return;
 		}
 		if (event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;
