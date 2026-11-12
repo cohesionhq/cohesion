@@ -11,6 +11,7 @@ macro_rules! every_model {
         $check::<SecuritySettings>($db);
         $check::<SecurityEvent>($db);
         $check::<StorageSettings>($db);
+        $check::<EnabledExperiment>($db);
         $check::<Profile>($db);
         $check::<TaskFolder>($db);
         $check::<Task>($db);

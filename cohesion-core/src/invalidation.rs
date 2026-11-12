@@ -61,6 +61,8 @@ pub enum Invalidation {
     Security,
     /// The storage settings changed.
     Storage,
+    /// An experiment was turned on or off.
+    Experiments,
     /// The user's profile changed: their name or photo was set or removed.
     Profile,
     /// A workspace's tags changed: one was created, renamed or deleted.

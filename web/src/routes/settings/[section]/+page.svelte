@@ -2,6 +2,7 @@
 	import AboutSection from '$lib/features/settings/AboutSection.svelte';
 	import DeveloperSection from '$lib/features/settings/DeveloperSection.svelte';
 	import ClientsSection from '$lib/features/settings/ClientsSection.svelte';
+	import ExperimentsSection from '$lib/features/settings/ExperimentsSection.svelte';
 	import IntelligenceSection from '$lib/features/settings/IntelligenceSection.svelte';
 	import MemoriesSection from '$lib/features/settings/MemoriesSection.svelte';
 	import ProfileSection from '$lib/features/settings/ProfileSection.svelte';
@@ -23,6 +24,7 @@
 		storage: StorageSection,
 		clients: ClientsSection,
 		security: SecuritySection,
+		experiments: ExperimentsSection,
 		developer: DeveloperSection,
 		about: AboutSection
 	};

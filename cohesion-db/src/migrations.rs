@@ -5130,6 +5130,15 @@ pub const MIGRATIONS: &[Migration] = &[
             INNER JOIN document_folders AS f ON f.id = entry.entity_id
             WHERE entry.entity_kind = 'documentFolder';",
     },
+    // Experiments: a row for each one a daemon's owner has turned on.
+    Migration {
+        name: "experiments",
+        sql: "
+        CREATE TABLE enabled_experiments (
+            id INTEGER PRIMARY KEY,
+            key TEXT NOT NULL UNIQUE
+        );",
+    },
 ];
 
 #[cfg(test)]

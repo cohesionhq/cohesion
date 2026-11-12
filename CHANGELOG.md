@@ -7,6 +7,10 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- Settings gains an Experiments section, with a switch for each experiment
+  this Cohesion offers; there are none yet. New `listExperiments` and
+  `setExperiment` requests, the `experiments` invalidation and an
+  `enabled_experiments` table back it.
 - The sidebar lists only the folders you pin under Documents and Tasks.
   Every folder is a click away in the switcher under the Documents and Tasks
   pages' titles, which now show breadcrumbs through nested folders; that's

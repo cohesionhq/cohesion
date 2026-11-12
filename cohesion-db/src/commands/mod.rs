@@ -31,6 +31,7 @@ mod document_value;
 mod embed;
 mod emoji;
 mod endpoint_model;
+mod experiment;
 mod extension;
 mod feed;
 mod image_upload;
@@ -111,6 +112,7 @@ pub use document_formula::{
 pub use document_value::{GetTableRowCommand, ListTableRowsCommand, SetDocumentValueCommand};
 pub use embed::{ResolveEmbedsCommand, ResolveLinkCommand};
 pub use endpoint_model::*;
+pub use experiment::*;
 pub use extension::*;
 pub use feed::*;
 pub use image_upload::{MAX_IMAGES, validate_images, validate_photo};

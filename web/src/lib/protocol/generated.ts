@@ -2057,6 +2057,15 @@ export type ErrorCode =
 	| 'notFound'
 	| 'unauthorized';
 
+/** An experiment and whether it is on, as Settings › Experiments lists it. */
+export interface ExperimentSetting {
+	/** [`Experiment::key`]. */
+	key: string;
+	title: string;
+	description: string;
+	enabled: boolean;
+}
+
 /** What an extension's `serviceRequest` returned; `null` for `undefined`. */
 export interface ExtensionCallResult {
 	result: unknown;
@@ -3029,6 +3038,7 @@ export type Invalidation =
 	| { kind: 'clients' }
 	| { kind: 'security' }
 	| { kind: 'storage' }
+	| { kind: 'experiments' }
 	| { kind: 'profile' }
 	| { kind: 'tags'; id: number }
 	| { kind: 'contacts'; id: number }
@@ -4734,6 +4744,15 @@ export interface SetDocumentValueRequest {
 }
 
 /**
+ * Turns the experiment named `key` on or off. Refused for a key no
+ * experiment has.
+ */
+export interface SetExperimentRequest {
+	key: string;
+	enabled: boolean;
+}
+
+/**
  * Enables or disables `hook` for extension `extension_id`. The extension's
  * running sandbox is discarded, and enabling `launch` calls `onLaunch`.
  */
@@ -6055,6 +6074,10 @@ export interface Requests {
 	getStorageSettings: NoArgs;
 	/** Replaces the storage settings. */
 	updateStorageSettings: UpdateStorageSettingsRequest;
+	/** Answers every experiment and whether it is on. */
+	listExperiments: NoArgs;
+	/** Turns an experiment on or off. */
+	setExperiment: SetExperimentRequest;
 	/** Answers how large the database file is. */
 	getDatabaseSize: NoArgs;
 	/** Writes a backup of the database to a new file on the daemon's computer. */
@@ -6651,6 +6674,10 @@ export interface Replies {
 	getStorageSettings: StorageSettings;
 	/** Replaces the storage settings. */
 	updateStorageSettings: StorageSettings;
+	/** Answers every experiment and whether it is on. */
+	listExperiments: ExperimentSetting[];
+	/** Turns an experiment on or off. */
+	setExperiment: ExperimentSetting[];
 	/** Answers how large the database file is. */
 	getDatabaseSize: DatabaseSize;
 	/** Writes a backup of the database to a new file on the daemon's computer. */
