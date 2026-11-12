@@ -21,7 +21,9 @@
 		opensSettings,
 		showsShortcuts,
 		workspaceIndexFor,
-		shortcuts
+		shortcuts,
+		focusesFolderHeading,
+		folderHeadingButton
 	} from '$lib/shell/shortcuts.svelte';
 	import ForwardComposer from '$lib/features/agents/ForwardComposer.svelte';
 	import LinkedItem from '$lib/shell/LinkedItem.svelte';
@@ -233,6 +235,16 @@
 				event.stopPropagation();
 				void goto(routes.settings());
 				return;
+			}
+			if (focusesFolderHeading(event)) {
+				// A page without a folder heading leaves the key to the browser.
+				const heading = folderHeadingButton();
+				if (heading) {
+					event.preventDefault();
+					event.stopPropagation();
+					heading.focus();
+					return;
+				}
 			}
 			const slot = workspaceIndexFor(event);
 			if (slot !== null) {

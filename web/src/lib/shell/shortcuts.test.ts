@@ -5,6 +5,7 @@ import {
 	historyStepForButton,
 	asksForNew,
 	asksForNewFolder,
+	focusesFolderHeading,
 	opensSettings,
 	showsShortcuts,
 	workspaceIndexFor
@@ -99,6 +100,16 @@ describe('asksForNew and asksForNewFolder', () => {
 		expect(asksForNewFolder(press('KeyN', 'N', { metaKey: true, shiftKey: true }))).toBe(true);
 		expect(asksForNewFolder(press('KeyN', 'N', { ctrlKey: true, shiftKey: true }))).toBe(true);
 		expect(asksForNewFolder(press('KeyN', 'n', { metaKey: true }))).toBe(false);
+	});
+});
+
+describe('focusesFolderHeading', () => {
+	it('takes ⌘D or Ctrl+D alone', () => {
+		expect(focusesFolderHeading(press('KeyD', 'd', { metaKey: true }))).toBe(true);
+		expect(focusesFolderHeading(press('KeyD', 'd', { ctrlKey: true }))).toBe(true);
+		expect(focusesFolderHeading(press('KeyD', 'd'))).toBe(false);
+		expect(focusesFolderHeading(press('KeyD', 'D', { metaKey: true, shiftKey: true }))).toBe(false);
+		expect(focusesFolderHeading(press('KeyD', 'd', { metaKey: true, altKey: true }))).toBe(false);
 	});
 });
 
