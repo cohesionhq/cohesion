@@ -91,8 +91,12 @@ pub struct MarkActorSessionReadRequest {
 
 /// Lists what was said in actor session `session_id`, oldest first.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+#[ts_wire(input)]
 pub struct ListActorSessionMessagesRequest {
     pub session_id: i64,
+    /// Only these messages: how a transcript refreshes the ones an
+    /// `actorSessionMessage` invalidation names.
+    pub ids: Option<Vec<i64>>,
 }
 
 /// Hands actor `actor_id` a new session, `prompt`, with any images in

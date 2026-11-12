@@ -113,3 +113,27 @@ describe('actors store', () => {
 		await expect(store.stop(7)).rejects.toThrow();
 	});
 });
+
+describe('an actor session message change', () => {
+	it('refreshes just that message of the transcript, and drops one taken out', async () => {
+		const mock = createMock();
+		const store = createActorsStore(mock.send);
+		await store.messages.load(2);
+		const [first, second] = store.messages.value;
+		mock.state.actorSessionMessages = mock.state.actorSessionMessages.filter(
+			(m) => m.id !== first.id
+		);
+		mock.state.actorSessionMessages.push({ ...second, id: 5000 });
+
+		const keys = store.messages.partlyTouchedBy([
+			{ kind: 'actorSessionMessage', id: { session_id: 2, message_id: first.id } },
+			{ kind: 'actorSessionMessage', id: { session_id: 2, message_id: 5000 } },
+			{ kind: 'actorSessionMessage', id: { session_id: 3, message_id: 5001 } }
+		]);
+		expect(keys).toHaveLength(2);
+		await store.messages.patchFrom(keys);
+		const ids = store.messages.value.map((m) => m.id);
+		expect(ids).not.toContain(first.id);
+		expect(ids.at(-1)).toBe(5000);
+	});
+});

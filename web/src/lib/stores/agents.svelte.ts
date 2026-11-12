@@ -184,8 +184,10 @@ export class AgentsStore {
 				return list;
 			},
 			initial: [],
-			// Removing a model puts the agents that ran on it back on the default.
-			matches: (key) => key.kind === 'agent' || key.kind === 'intelligence'
+			// Removing a model puts the agents that ran on it back on the default,
+			// and a new message can leave its agent unread.
+			matches: (key) =>
+				key.kind === 'agent' || key.kind === 'intelligence' || key.kind === 'agentMessage'
 		});
 		this.teams = new Resource({
 			fetch: () => send('listAgentTeams'),
@@ -206,7 +208,27 @@ export class AgentsStore {
 				};
 			},
 			initial: { messages: [], hasOlder: false },
-			matches: forAgent
+			// A message added or changed refreshes just itself; the agent's other
+			// state (`agent`) isn't in the feed.
+			patch: {
+				matches: (key, agent_id) => key.kind === 'agentMessage' && key.id.agent_id === agent_id,
+				fetch: async (keys, agent_id) => {
+					const ids = keys.flatMap((k) => (k.kind === 'agentMessage' ? [k.id.message_id] : []));
+					const fresh = await send('listAgentMessages', {
+						agent_id,
+						ids,
+						limit: ids.length
+					});
+					return (feed: AgentFeed) => {
+						const kept = feed.messages.filter((m) => m.id > 0 && !fresh.some((f) => f.id === m.id));
+						// One older than the pages loaded stays out until they reach it.
+						const oldest = feed.hasOlder ? (kept[0]?.id ?? 0) : 0;
+						const shown = fresh.filter((f) => f.id >= oldest);
+						const saved = [...kept, ...shown].sort((a, b) => a.id - b.id);
+						return { ...feed, messages: this.#withStandIns(agent_id, saved) };
+					};
+				}
+			}
 		});
 		this.cues = new Resource({
 			fetch: (agent_id) => send('listAgentCues', { agent_id }),

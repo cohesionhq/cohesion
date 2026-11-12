@@ -448,7 +448,9 @@ the time the client hears back.
 **Invalidations.** The daemon pushes what went stale, never the data;
 clients refetch. `Invalidation` (`cohesion-core/src/invalidation.rs`, tagged
 `{kind, id}`) has the keys `workspace(id)`, `intelligenceCostEvents`,
-`agent(id)`, `agentTeams`, `taskFolders(ws)`, `documents(ws)` (one was
+`agent(id)` (its row, cues, agenda or runs),
+`agentMessage{agent_id, message_id}` (one message added or changed: a feed
+refetches just it, `listAgentMessages` with `ids`), `agentTeams`, `taskFolders(ws)`, `documents(ws)` (one was
 created, renamed, moved, pinned or deleted),
 `documentText{workspace_id, document_id}` (one document's text was edited:
 a list refetches just its row, `listDocuments` with `ids`),
@@ -461,12 +463,17 @@ which no list filters or sorts by, so a list refetches just its row),
 `connectorAccounts`, `resources(ws)`, `resourceKinds(ws)`, `feeds`,
 `feedArticles`, `intelligence`, `clients`, `security`, `storage`, `profile`,
 `tags(ws)`, `contacts(ws)`, `savedTaskViews(ws)`, `extensionUpdates`,
-`memories`, `agentSkills`, `activities`, `actors`, `actorSessions`, `actorSession(id)`,
+`memories`, `agentSkills`, `activities`, `actors`, `actorSessions`, `actorSession(id)`
+(the session as a whole: its context, a stretch of work ending, its
+subagents, a subagent's request), `actorSessionMessage{session_id, message_id}`
+(one message added, changed or taken out: a transcript refetches just it,
+`listActorSessionMessages` with `ids`, and no list is touched),
 `actorUsage`, `backlinks{kind, id}` (what links to one item, by its
 `LinkKind` and id), and `notification{title, message}`, which carries a
 notification that nothing stores. A command names the keys it touched in its `Changed`
 response; they go out on a 256-slot broadcast only if it commits. A key
-that names one item of a long list (`documentText`, `taskDescription`) is
+that names one item of a long list (`documentText`, `taskDescription`,
+`agentMessage`, `actorSessionMessage`) is
 raised in place of the list's own, so a client refreshes one row rather than
 the list; the web UI does it through `Resource`'s `patch`.
 `DatabaseContext::publish` sends a key outside any command (a client coming
@@ -506,7 +513,8 @@ Nothing pushes an embed: a client asks again on the item's invalidation,
 `taskList` of the task's workspace or its `taskDescription`, `documents(ws)`
 or the document's `documentText`, `resources(ws)`,
 `contacts(ws)`,
-`documentTable(folder)` for a folder, `agent(id)`, `actorSession(id)` or
+`documentTable(folder)` for a folder, `agent(id)`, `actorSession(id)` or its
+`actorSessionMessage`, or
 `feedArticles`. A link shows as a card
 where it is alone on its line, outside a fenced or indented code block
 (`text_pieces`, `model/text_section.rs`): the line is exactly one link, whose

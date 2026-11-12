@@ -10,8 +10,16 @@ pub enum Invalidation {
     Workspace(i64),
     /// A model call's cost was recorded.
     IntelligenceCostEvents,
-    /// Anything about an agent changed: its row, messages, cues or runs.
+    /// Anything about an agent but its messages changed: its row, cues,
+    /// agenda or runs.
     Agent(i64),
+    /// Message `message_id` in agent `agent_id`'s conversation was added or
+    /// changed (a reaction, an answer, a script's result), so a feed
+    /// refreshes just that message.
+    AgentMessage {
+        agent_id: i64,
+        message_id: i64,
+    },
     /// The teams of agents changed: one was created, renamed or deleted.
     AgentTeams,
     /// A workspace's task folders changed: one was created, renamed or deleted.
@@ -105,8 +113,16 @@ pub enum Invalidation {
     /// The actor sessions changed: one was started, said something, changed
     /// where it stands or ended.
     ActorSessions,
-    /// What was said in actor session `id` changed.
+    /// Actor session `id` changed as a whole: its context, a stretch of its
+    /// work ending, its subagents, or a request from one of them.
     ActorSession(i64),
+    /// Message `message_id` in actor session `session_id`'s transcript was
+    /// added, changed or taken out, so a transcript refreshes just that
+    /// message.
+    ActorSessionMessage {
+        session_id: i64,
+        message_id: i64,
+    },
     /// How much of its limits an actor has used changed: its client
     /// reported it, or the client that did went away.
     ActorUsage,

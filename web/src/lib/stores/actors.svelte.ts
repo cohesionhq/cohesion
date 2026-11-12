@@ -127,7 +127,20 @@ export class ActorsStore {
 		this.messages = new Resource({
 			fetch: (session_id) => send('listActorSessionMessages', { session_id }),
 			initial: [],
-			matches: (key, id) => key.kind === 'actorSession' && key.id === id
+			matches: (key, id) => key.kind === 'actorSession' && key.id === id,
+			// A message added, changed or taken out refreshes just itself: one the
+			// daemon no longer lists was taken out.
+			patch: {
+				matches: (key, id) => key.kind === 'actorSessionMessage' && key.id.session_id === id,
+				fetch: async (keys, session_id) => {
+					const ids = keys.flatMap((k) =>
+						k.kind === 'actorSessionMessage' ? [k.id.message_id] : []
+					);
+					const fresh = await send('listActorSessionMessages', { session_id, ids });
+					return (messages: ActorSessionMessage[]) =>
+						[...messages.filter((m) => !ids.includes(m.id)), ...fresh].sort((a, b) => a.id - b.id);
+				}
+			}
 		});
 		this.subagents = new Resource({
 			fetch: (session_id) => send('listActorSubagents', { session_id }),

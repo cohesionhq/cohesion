@@ -167,6 +167,7 @@ fn a_turn_an_event_started_keeps_the_agenda() {
                 agent_id,
                 before: None,
                 limit: 10,
+                ids: None,
             })
             .await
             .unwrap();

@@ -197,6 +197,7 @@ fn deleting_an_agent_removes_its_cues_runs_and_messages() {
             agent_id: agent.id,
             before: None,
             limit: 10,
+            ids: None
         })
         .unwrap()
         .is_empty()

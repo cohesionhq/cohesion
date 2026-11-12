@@ -37,6 +37,14 @@ under "Unreleased" with any change users would notice.
   for the one item, in place of `documents` or `taskList`, and the web UI
   fetches just that row (`listDocuments` takes `ids`). The iPhone app has to
   listen for the new keys, or it misses edits made elsewhere.
+- A message added to or changed in an agent's conversation or an actor
+  session no longer reloads the whole feed or transcript, nor the agent's
+  cues, agenda and runs, nor the session list. The daemon raises
+  `agentMessage` or `actorSessionMessage` for the one message, in place of
+  `agent` and `actorSession`/`actorSessions`, and the web UI fetches just
+  that message (`listAgentMessages` and `listActorSessionMessages` take
+  `ids`). The iPhone app has to listen for the new keys, or its feeds and
+  transcripts stop updating.
 - New requests: `resolveLinks` resolves many `cohesion://` links at once,
   `listActorSessionAncestors` lists the sessions a subagent runs under, and
   `addEndpointModels` imports several models into an endpoint. `listTasks`

@@ -23,7 +23,10 @@ pub(super) async fn exchange(
     session_id: i64,
 ) -> Result<SessionExchange, CommandError> {
     let messages = database
-        .send(ListActorSessionMessagesCommand { session_id })
+        .send(ListActorSessionMessagesCommand {
+            session_id,
+            ids: None,
+        })
         .await?;
     let prompt = match messages.first().map(|message| &message.content) {
         Some(ActorSessionMessageContent::User(ActorUserContent::Text { text })) => {

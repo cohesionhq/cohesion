@@ -119,10 +119,10 @@ export function actorsHandlers(core: MockCore) {
 			session.read_at = nowSeconds();
 			return { ...session };
 		},
-		listActorSessionMessages: ({ session_id }) => {
+		listActorSessionMessages: ({ session_id, ids }) => {
 			actorSession(session_id);
 			return state.actorSessionMessages
-				.filter((m) => m.session_id === session_id)
+				.filter((m) => m.session_id === session_id && (ids == null || ids.includes(m.id)))
 				.map((m) => structuredClone(m));
 		},
 		listActorSessionMessageAttachments: ({ message_ids }) =>

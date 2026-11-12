@@ -362,7 +362,7 @@ describe('agents store', () => {
 		expect(store.agent(created.id)).toBeNull();
 	});
 
-	it('refetches the list and only the touched agent on an agent invalidation', async () => {
+	it('refetches the list and only the touched agent on an agent invalidation, and a feed by message', async () => {
 		const mock = createMock();
 		const store = createAgentsStore(mock.send);
 		await store.loadList();
@@ -383,8 +383,12 @@ describe('agents store', () => {
 			false
 		);
 
+		// The agent's own key leaves the feed alone; the message's own adds it.
 		await refreshInvalidated([{ kind: 'agent', id: 1 }]);
+		expect(store.feed.value.messages).toHaveLength(before);
+		await refreshInvalidated([{ kind: 'agentMessage', id: { agent_id: 1, message_id: 1000 } }]);
 		expect(store.feed.value.messages).toHaveLength(before + 1);
+		expect(store.feed.value.messages.at(-1)?.id).toBe(1000);
 		expect(store.cues.touchedBy([{ kind: 'agent', id: 1 }])).toBe(true);
 		expect(store.runs.touchedBy([{ kind: 'agent', id: 1 }])).toBe(true);
 		store.list.release();
@@ -448,7 +452,10 @@ describe('agents store', () => {
 			message_content: { kind: 'codeExecution' as const, ...execution }
 		};
 		mock.state.agentMessages.push(saved, ran);
-		await refreshInvalidated([{ kind: 'agent', id: 1 }]);
+		await refreshInvalidated([
+			{ kind: 'agentMessage', id: { agent_id: 1, message_id: 1000 } },
+			{ kind: 'agentMessage', id: { agent_id: 1, message_id: 1001 } }
+		]);
 		expect(store.feed.value.messages.map((m) => m.id).slice(-2)).toEqual([1000, 1001]);
 		expect(store.feed.value.messages.every((m) => m.id > 0)).toBe(true);
 

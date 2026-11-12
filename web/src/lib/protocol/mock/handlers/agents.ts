@@ -170,10 +170,15 @@ export function agentsHandlers(core: MockCore) {
 			a.agent_unread = false;
 			return agentRow(a);
 		},
-		listAgentMessages: ({ agent_id, before, limit }) => {
+		listAgentMessages: ({ agent_id, before, limit, ids }) => {
 			agent(agent_id);
 			const older = state.agentMessages
-				.filter((m) => m.agent_id === agent_id && (before == null || m.id < before))
+				.filter(
+					(m) =>
+						m.agent_id === agent_id &&
+						(before == null || m.id < before) &&
+						(ids == null || ids.includes(m.id))
+				)
 				.sort((a, b) => a.id - b.id);
 			return older.slice(Math.max(0, older.length - limit)).map((m) => ({ ...m }));
 		},

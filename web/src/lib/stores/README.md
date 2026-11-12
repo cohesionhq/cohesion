@@ -38,7 +38,8 @@ The pattern, copied by every store:
    a fetch is in flight queues one more fetch after it, shared by every
    change that lands meanwhile, so a burst of invalidations costs two
    fetches, not one each. A resource holding a long list can take `patch`
-   for keys that name one row (`documentText`, `taskDescription`): it
+   for keys that name one row (`documentText`, `taskDescription`,
+   `agentMessage`, `actorSessionMessage`): it
    fetches just those rows and folds them in, instead of the whole list.
 6. **Release what a screen stops showing.** A component that loads a
    resource only it shows calls `release()` when it unmounts, so hidden data

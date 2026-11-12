@@ -89,7 +89,10 @@ export function touches(key: Invalidation, link: string, embed: Embed | null): b
 			case 'agent':
 				return key.kind === 'agent' && key.id === item.agent.id;
 			case 'actorSession':
-				return key.kind === 'actorSession' && key.id === item.session.id;
+				return (
+					(key.kind === 'actorSession' && key.id === item.session.id) ||
+					(key.kind === 'actorSessionMessage' && key.id.session_id === item.session.id)
+				);
 			case 'article':
 				return key.kind === 'feedArticles';
 			// A folder's rows and columns, or its title and whether it is a table.

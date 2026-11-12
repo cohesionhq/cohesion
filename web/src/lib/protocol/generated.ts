@@ -3086,6 +3086,13 @@ export type Invalidation =
 	| { kind: 'workspace'; id: number }
 	| { kind: 'intelligenceCostEvents' }
 	| { kind: 'agent'; id: number }
+	| {
+			kind: 'agentMessage';
+			id: {
+				agent_id: number;
+				message_id: number;
+			};
+	  }
 	| { kind: 'agentTeams' }
 	| { kind: 'taskFolders'; id: number }
 	| { kind: 'documents'; id: number }
@@ -3133,6 +3140,13 @@ export type Invalidation =
 	| { kind: 'actors' }
 	| { kind: 'actorSessions' }
 	| { kind: 'actorSession'; id: number }
+	| {
+			kind: 'actorSessionMessage';
+			id: {
+				session_id: number;
+				message_id: number;
+			};
+	  }
 	| { kind: 'actorUsage' }
 	| { kind: 'backlinks'; id: LinkTarget }
 	| {
@@ -3222,6 +3236,11 @@ export interface ListActorSessionMessageAttachmentsRequest {
 /** Lists what was said in actor session `session_id`, oldest first. */
 export interface ListActorSessionMessagesRequest {
 	session_id: number;
+	/**
+	 * Only these messages: how a transcript refreshes the ones an
+	 * `actorSessionMessage` invalidation names.
+	 */
+	ids?: number[] | null;
 }
 
 /**
@@ -3267,6 +3286,11 @@ export interface ListAgentMessagesRequest {
 	agent_id: number;
 	before?: number | null;
 	limit: number;
+	/**
+	 * Only these messages: how a feed refreshes the ones an
+	 * `agentMessage` invalidation names.
+	 */
+	ids?: number[] | null;
 }
 
 /**

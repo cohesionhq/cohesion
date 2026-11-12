@@ -86,19 +86,28 @@ fn agent_message_publishes_its_agent() {
         })
         .unwrap();
     let mut subscriber = db.subscribe();
-    db.send_blocking(CreateAgentMessageCommand {
-        agent_id: agent.id,
-        run_id: None,
-        run_description: None,
-        sender: IntelligenceAgentMessageSender::User,
-        content: AgentMessageContent::Text {
-            text: "hello".to_string(),
-        },
-        reply_to: None,
-    })
-    .unwrap();
+    let message = db
+        .send_blocking(CreateAgentMessageCommand {
+            agent_id: agent.id,
+            run_id: None,
+            run_description: None,
+            sender: IntelligenceAgentMessageSender::User,
+            content: AgentMessageContent::Text {
+                text: "hello".to_string(),
+            },
+            reply_to: None,
+        })
+        .unwrap();
     let batch = subscriber.blocking_recv().unwrap();
-    assert_eq!(batch.keys, [Invalidation::Agent(agent.id)]);
+    // The message alone, so a feed refreshes it and not the agent's cues,
+    // agenda and runs.
+    assert_eq!(
+        batch.keys,
+        [Invalidation::AgentMessage {
+            agent_id: agent.id,
+            message_id: message.id,
+        }]
+    );
 }
 
 #[test]

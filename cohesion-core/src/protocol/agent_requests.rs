@@ -137,6 +137,9 @@ pub struct ListAgentMessagesRequest {
     pub agent_id: i64,
     pub before: Option<i64>,
     pub limit: i64,
+    /// Only these messages: how a feed refreshes the ones an
+    /// `agentMessage` invalidation names.
+    pub ids: Option<Vec<i64>>,
 }
 
 /// Fetches agent message `message_id`.

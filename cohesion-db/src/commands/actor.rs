@@ -253,6 +253,7 @@ impl DatabaseCommand for MarkActorSessionReadCommand {
 #[request(ListActorSessionMessagesRequest)]
 pub struct ListActorSessionMessagesCommand {
     pub session_id: i64,
+    pub ids: Option<Vec<i64>>,
 }
 impl DatabaseCommand for ListActorSessionMessagesCommand {
     type Response = Vec<ActorSessionMessage>;
@@ -262,12 +263,15 @@ impl DatabaseCommand for ListActorSessionMessagesCommand {
             id: self.session_id,
         }
         .handle(ctx)?;
-        Ok(ctx
+        let query = ctx
             .db
             .select::<ActorSessionMessage>()
-            .filter_eq(ActorSessionMessage::SESSION_ID, self.session_id)
-            .order("id")
-            .all()?)
+            .filter_eq(ActorSessionMessage::SESSION_ID, self.session_id);
+        let query = match self.ids {
+            Some(ids) => query.filter_in_values("id", ids),
+            None => query,
+        };
+        Ok(query.order("id").all()?)
     }
 }
 
@@ -471,7 +475,7 @@ impl DatabaseCommand for AddActorSessionMessageCommand {
             ActorSessionMessageContent::User(said) => said.responds_to().is_some(),
         };
         let message = insert_message(ctx, session.id, self.content, self.attachments)?;
-        let keys = message_keys(&mut ctx.as_read(), &session, asks)?;
+        let keys = message_keys(&mut ctx.as_read(), &session, message.id, asks)?;
         Ok(message.invalidating(keys))
     }
 }
@@ -480,22 +484,24 @@ impl DatabaseCommand for AddActorSessionMessageCommand {
 /// reports are refused.
 pub const SUBAGENT_MESSAGE_LIMIT: i64 = 2_000;
 
-/// What a message added to, or taken from, `session`'s transcript touches:
-/// the lists and the session, for one Cohesion started; for a subagent, only
-/// its own view, and the session Cohesion started too when the message is a
-/// request or a response, which that session shows.
+/// What message `message_id` added to, changed in or taken from `session`'s
+/// transcript touches: that message, and for a subagent's request or
+/// response, the session Cohesion started too, which shows it. No list
+/// shows anything of a session's messages, so none is touched.
 fn message_keys(
     ctx: &mut CommandContext<'_, Read>,
     session: &ActorSession,
+    message_id: i64,
     asks: bool,
 ) -> DatabaseCommandResult<Vec<Invalidation>> {
+    let message = Invalidation::ActorSessionMessage {
+        session_id: session.id,
+        message_id,
+    };
+    let mut keys = vec![message];
     if session.subagent.is_none() {
-        return Ok(vec![
-            Invalidation::ActorSessions,
-            Invalidation::ActorSession(session.id),
-        ]);
+        return Ok(keys);
     }
-    let mut keys = vec![Invalidation::ActorSession(session.id)];
     if asks {
         keys.push(Invalidation::ActorSession(top_session_id(ctx, session)?));
     }
@@ -705,7 +711,10 @@ impl DatabaseCommand for EndActorSessionMessageCommand {
             .set_group(message.content)
             .filter_eq(ActorSessionMessage::ID, message.id)
             .execute()?;
-        Ok(().invalidating([Invalidation::ActorSession(self.session_id)]))
+        Ok(().invalidating([Invalidation::ActorSessionMessage {
+            session_id: self.session_id,
+            message_id: message.id,
+        }]))
     }
 }
 
@@ -739,7 +748,7 @@ impl DatabaseCommand for DeleteActorSessionMessageCommand {
             ActorSessionMessageContent::Actor(said) => said.request().is_some(),
             ActorSessionMessageContent::User(said) => said.responds_to().is_some(),
         };
-        let keys = message_keys(&mut ctx.as_read(), &session, asks)?;
+        let keys = message_keys(&mut ctx.as_read(), &session, message.id, asks)?;
         Ok(().invalidating(keys))
     }
 }

@@ -76,6 +76,7 @@ fn messages_page_backwards_oldest_first() {
             agent_id,
             before: None,
             limit: 2,
+            ids: None,
         })
         .unwrap();
     assert_eq!(contents(newest), ["3", "4"]);
@@ -85,9 +86,21 @@ fn messages_page_backwards_oldest_first() {
             agent_id,
             before: Some(ids[3]),
             limit: 2,
+            ids: None,
         })
         .unwrap();
     assert_eq!(contents(earlier), ["1", "2"]);
+
+    // A feed refreshing two messages gets just those.
+    let picked = db
+        .send_blocking(ListAgentMessagesCommand {
+            agent_id,
+            before: None,
+            limit: 10,
+            ids: Some(vec![ids[0], ids[4]]),
+        })
+        .unwrap();
+    assert_eq!(contents(picked), ["0", "4"]);
 }
 
 #[test]
@@ -695,6 +708,7 @@ fn the_agents_images_are_checked_counted_and_listed_like_the_users() {
             agent_id,
             before: None,
             limit: 10,
+            ids: None,
         })
         .unwrap()
         .len();
@@ -707,6 +721,7 @@ fn the_agents_images_are_checked_counted_and_listed_like_the_users() {
             agent_id,
             before: None,
             limit: 10,
+            ids: None,
         })
         .unwrap()
         .len();
@@ -747,6 +762,7 @@ fn a_message_needs_text_or_valid_images() {
             agent_id,
             before: None,
             limit: 10,
+            ids: None,
         })
         .unwrap();
     assert!(messages.is_empty());

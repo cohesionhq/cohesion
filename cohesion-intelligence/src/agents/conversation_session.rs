@@ -171,6 +171,7 @@ pub(super) async fn recent(
             agent_id,
             before,
             limit: CATCH_UP_LIMIT,
+            ids: None,
         })
         .await
 }

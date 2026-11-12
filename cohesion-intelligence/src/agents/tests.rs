@@ -233,6 +233,7 @@ fn restarting(
             agent_id,
             before: None,
             limit: 10,
+            ids: None,
         })
         .unwrap();
     (model, feed)
@@ -973,6 +974,7 @@ fn a_failing_cue_posts_its_error_every_time() {
                 agent_id,
                 before: None,
                 limit: 50,
+                ids: None,
             })
             .await
             .unwrap()
@@ -1093,6 +1095,7 @@ fn a_reached_spend_limit_holds_cue_runs_back_and_says_so_once() {
                 agent_id,
                 before: None,
                 limit: 50,
+                ids: None,
             })
             .await
             .unwrap()
@@ -1475,6 +1478,7 @@ fn a_task_assigned_to_an_agent_wakes_a_fork_unless_it_or_a_job_assigned_it() {
             agent_id: scout,
             before: None,
             limit: 10,
+            ids: None,
         })
         .unwrap();
     assert_eq!(feed.len(), 1);
@@ -1561,6 +1565,7 @@ fn the_code_tool_caps_its_output_and_read_message_recovers_the_rest() {
                 agent_id,
                 before: None,
                 limit: 10,
+                ids: None,
             })
             .await
             .unwrap();

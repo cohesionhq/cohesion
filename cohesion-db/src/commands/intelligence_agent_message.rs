@@ -59,6 +59,7 @@ pub struct ListAgentMessagesCommand {
     pub agent_id: i64,
     pub before: Option<i64>,
     pub limit: i64,
+    pub ids: Option<Vec<i64>>,
 }
 impl DatabaseCommand for ListAgentMessagesCommand {
     type Access = Read;
@@ -68,6 +69,9 @@ impl DatabaseCommand for ListAgentMessagesCommand {
         let mut query = ctx.db.select().filter("agent_id = ?").bind(self.agent_id);
         if let Some(before) = self.before {
             query = query.filter("id < ?").bind(before);
+        }
+        if let Some(ids) = self.ids {
+            query = query.filter_in_values("id", ids);
         }
         let mut messages: Vec<IntelligenceAgentMessage> =
             query.order("id DESC").limit(self.limit as u64).all()?;
@@ -165,7 +169,10 @@ pub(super) fn insert_message(
                 message_id: message.id,
             }));
     }
-    let key = Invalidation::Agent(message.agent_id);
+    let key = Invalidation::AgentMessage {
+        agent_id: message.agent_id,
+        message_id: message.id,
+    };
     Ok(message.invalidating([key]))
 }
 
@@ -236,7 +243,10 @@ impl DatabaseCommand for UpdateAgentMessageContentCommand {
             .filter_eq(IntelligenceAgentMessage::ID, self.message_id)
             .returning_one()
             .found()?;
-        let key = Invalidation::Agent(message.agent_id);
+        let key = Invalidation::AgentMessage {
+            agent_id: message.agent_id,
+            message_id: message.id,
+        };
         Ok(message.invalidating([key]))
     }
 }
@@ -531,7 +541,10 @@ fn react(
                 message_id: message.id,
             }));
     }
-    let key = Invalidation::Agent(message.agent_id);
+    let key = Invalidation::AgentMessage {
+        agent_id: message.agent_id,
+        message_id: message.id,
+    };
     Ok(message.invalidating([key]))
 }
 

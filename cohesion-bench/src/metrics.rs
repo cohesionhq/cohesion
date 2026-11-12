@@ -146,6 +146,7 @@ impl Activity {
                 agent_id,
                 before: None,
                 limit: i64::from(u32::MAX),
+                ids: None,
             })
             .await
             .map_err(|e| format!("{e:?}"))?;
