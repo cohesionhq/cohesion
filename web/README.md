@@ -169,7 +169,10 @@ pieces, in `src/lib/shell/`:
   its split across a reload (`sessionStorage`).
 - `PaneHost.svelte` draws a half: its scroller, the header's controls
   (through `ui/paneChrome.ts`, so `PageHeader` and `ChatHeader` stay
-  primitives), and, in the second half, links that open there.
+  primitives), and, in the second half, links that open there. The scroller
+  remembers where each page (path and query) was scrolled to
+  (`scrollMemory.ts`) and returns to it on back, forward or a link; a page not
+  seen yet starts at the top.
 - **A page reads where it is from `pane()`** (`params`, `url`, `state`,
   `goto`, `beforeLeave`), never from `$app/state` or `$app/navigation`, and
   names itself with `PageTitle`, which titles the window only from the main
@@ -286,7 +289,7 @@ only these exist:
   Mac's window controls, the iPad's status bar or the Linux app's header bar, and set
   `--titlebar-inset` on `<html>` to how much of the top they cover (28px
   on a Mac, the safe area on an iPad, the header bar's height on Linux; 0 in a browser). The sidebar pads its
-  top by it and the main pane sits below it. Keep anything clickable out of
+  top by it and the main pane sits below it (a sheet inset lower still while the sidebar is collapsed, since nothing then sits between the card and the window controls). Keep anything clickable out of
   that strip: the Mac WebUI harness lays a window-drag area over it, and the
   Linux one its header bar, with the main menu and window controls at its end.
 - **Avatars**: an agent's emoji or initial on a disc of its color, drawn

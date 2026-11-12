@@ -1,12 +1,11 @@
 <!--
-	An option's color as a small swatch that opens a picker of the agent
-	colors, the palette a task's size also uses, and "No color", which draws
-	the option as a tag is. Picking one closes it.
+	A color from the agents' palette as a small swatch that opens a picker of every color and
+	"No color". A table's options and a task folder take theirs here. Picking one closes it.
 -->
 <script lang="ts">
 	import type { IntelligenceAgentColor } from '$lib/protocol/types';
 	import { options, vocabulary } from '$lib/protocol/vocabulary.svelte';
-	import AgentDot from '$lib/features/agents/AgentDot.svelte';
+	import { agentFill } from '$lib/ui/colors';
 	import Popover from '$lib/ui/Popover.svelte';
 
 	interface Props {
@@ -14,9 +13,11 @@
 		/** What the color is of, for the control's accessible name: "Color of Read". */
 		label: string;
 		onchange: (color: IntelligenceAgentColor | null) => void;
+		/** A smaller swatch and button, for a row's tools. */
+		compact?: boolean;
 	}
 
-	let { color, label, onchange }: Props = $props();
+	let { color, label, onchange, compact = false }: Props = $props();
 
 	let open = $state(false);
 
@@ -31,23 +32,29 @@
 	}
 </script>
 
-{#snippet swatch(value: IntelligenceAgentColor | null)}
-	{#if value}
-		<AgentDot color={value} size="lg" />
-	{:else}
-		<span class="inline-block size-3 flex-none rounded-full border border-border-strong"></span>
-	{/if}
+{#snippet swatch(value: IntelligenceAgentColor | null, small: boolean)}
+	<span
+		class={[
+			'inline-block flex-none rounded-full',
+			small ? 'size-2.5' : 'size-3',
+			value ? agentFill[value] : 'border border-border-strong'
+		]}
+		aria-hidden="true"
+	></span>
 {/snippet}
 
 <Popover bind:open inDialog>
 	{#snippet trigger(props)}
 		<button
-			class="inline-flex size-8 flex-none cursor-pointer items-center justify-center rounded-sm hover:bg-bg-hover data-[state=open]:bg-bg-hover"
+			class={[
+				'inline-flex flex-none cursor-pointer items-center justify-center rounded-sm hover:bg-bg-hover data-[state=open]:bg-bg-hover',
+				compact ? 'size-6' : 'size-8'
+			]}
 			type="button"
 			aria-label={label}
 			{...props}
 		>
-			{@render swatch(color)}
+			{@render swatch(color, compact)}
 		</button>
 	{/snippet}
 	<div class="grid grid-cols-3 gap-1" role="group" aria-label={label}>
@@ -66,7 +73,7 @@
 					]}
 					aria-hidden="true"
 				>
-					{@render swatch(choice.value)}
+					{@render swatch(choice.value, false)}
 				</span>
 			</button>
 		{/each}

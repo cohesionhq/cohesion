@@ -7,11 +7,12 @@
 <script lang="ts">
 	import Columns2 from '@lucide/svelte/icons/columns-2';
 	import X from '@lucide/svelte/icons/x';
-	import type { Snippet } from 'svelte';
+	import { onDestroy, type Snippet } from 'svelte';
 	import { providePageStores, type PageStores } from '$lib/stores/pageStores.svelte';
 	import { setPaneChrome } from '$lib/ui/paneChrome';
 	import { panes, providePane, type Pane, type Side } from './pane.svelte';
 	import { internalHref } from './links';
+	import { ScrollMemory } from './scrollMemory';
 
 	interface Props {
 		side: Side;
@@ -41,6 +42,15 @@
 		controls,
 		hasGutter
 	});
+
+	// Each page comes back to where it was scrolled to.
+	const memory = new ScrollMemory(() => root);
+	$effect(() => {
+		const key = here.url.pathname + here.url.search;
+		// Runs once the new page is in the document.
+		memory.enter(key);
+	});
+	onDestroy(() => memory.destroy());
 
 	function focus() {
 		panes.focused = side;
@@ -86,6 +96,7 @@
 <svelte:element
 	this={side === 'main' ? 'main' : 'section'}
 	bind:this={root}
+	onscroll={() => memory.onscroll()}
 	class={[
 		'relative min-h-0 min-w-0 flex-1 [scrollbar-width:thin] overflow-y-auto rounded-(--sheet-radius) pb-12',
 		side === 'split' &&

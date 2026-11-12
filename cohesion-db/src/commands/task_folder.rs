@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
 use cohesion_core::invalidation::Invalidation;
+use cohesion_core::model::IntelligenceAgentColor;
 use cohesion_core::protocol::{
     CreateTaskFolderRequest, DeleteTaskFolderRequest, ListTaskFoldersRequest,
-    RenameTaskFolderRequest, ReorderTaskFoldersRequest, SetTaskFolderPinnedRequest,
+    RenameTaskFolderRequest, ReorderTaskFoldersRequest, SetTaskFolderColorRequest,
+    SetTaskFolderPinnedRequest,
 };
 use cohesion_core::{FromRequest, Task, TaskFolder};
 
@@ -209,6 +211,31 @@ impl DatabaseCommand for SetTaskFolderPinnedCommand {
             .db
             .update_live()
             .set(TaskFolder::PINNED, self.pinned)
+            .filter_eq(TaskFolder::WORKSPACE_ID, self.workspace_id)
+            .filter_eq(TaskFolder::ID, self.folder_id)
+            .returning_one()
+            .found()?;
+        Ok(folder.invalidating([Invalidation::TaskFolders(self.workspace_id)]))
+    }
+}
+
+/// Sets the color a live task folder is drawn in, or takes it away.
+#[derive(FromRequest)]
+#[request(SetTaskFolderColorRequest)]
+pub struct SetTaskFolderColorCommand {
+    pub workspace_id: i64,
+    pub folder_id: i64,
+    pub color: Option<IntelligenceAgentColor>,
+}
+impl DatabaseCommand for SetTaskFolderColorCommand {
+    type Response = TaskFolder;
+    type Access = Write;
+    fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<TaskFolder>> {
+        ensure_workspace(ctx.db, self.workspace_id)?;
+        let folder: TaskFolder = ctx
+            .db
+            .update_live()
+            .set(TaskFolder::COLOR, self.color)
             .filter_eq(TaskFolder::WORKSPACE_ID, self.workspace_id)
             .filter_eq(TaskFolder::ID, self.folder_id)
             .returning_one()

@@ -2723,7 +2723,7 @@ export interface IntelligenceAgent {
 	following_count: number;
 }
 
-/** The color an agent is drawn in. */
+/** The palette an agent, a task folder or a table's choice is drawn in. */
 export type IntelligenceAgentColor =
 	'blue' | 'green' | 'orange' | 'purple' | 'red' | 'pink' | 'teal' | 'yellow';
 
@@ -5080,6 +5080,16 @@ export interface SetTaskAssigneeRequest {
 	assignee: TaskAssignee | null;
 }
 
+/**
+ * Sets the color task folder `folder_id` in a workspace is drawn in, or
+ * takes it away when `color` is left out.
+ */
+export interface SetTaskFolderColorRequest {
+	workspace_id: number;
+	folder_id: number;
+	color?: IntelligenceAgentColor | null;
+}
+
 /** Pins task folder `folder_id` in a workspace to the sidebar, or unpins it. */
 export interface SetTaskFolderPinnedRequest {
 	workspace_id: number;
@@ -5418,6 +5428,8 @@ export interface TaskFolder {
 	deleted: boolean;
 	/** Whether the folder is pinned to the sidebar, under Tasks. */
 	pinned: boolean;
+	/** The color the folder is drawn in, from the agents' palette, or none. */
+	color: IntelligenceAgentColor | null;
 }
 
 /**
@@ -6100,6 +6112,8 @@ export interface Requests {
 	renameTaskFolder: RenameTaskFolderRequest;
 	/** Pins a task folder to the sidebar, or unpins it. */
 	setTaskFolderPinned: SetTaskFolderPinnedRequest;
+	/** Sets the color a task folder is drawn in, or takes it away. */
+	setTaskFolderColor: SetTaskFolderColorRequest;
 	/** Reorders a workspace's task folders; replies with them in their new order. */
 	reorderTaskFolders: ReorderTaskFoldersRequest;
 	/** Lists a workspace's saved task views, in their order. */
@@ -6730,6 +6744,8 @@ export interface Replies {
 	renameTaskFolder: TaskFolder;
 	/** Pins a task folder to the sidebar, or unpins it. */
 	setTaskFolderPinned: TaskFolder;
+	/** Sets the color a task folder is drawn in, or takes it away. */
+	setTaskFolderColor: TaskFolder;
 	/** Reorders a workspace's task folders; replies with them in their new order. */
 	reorderTaskFolders: TaskFolder[];
 	/** Lists a workspace's saved task views, in their order. */

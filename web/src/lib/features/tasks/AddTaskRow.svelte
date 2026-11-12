@@ -22,6 +22,7 @@
 	import type { Tag, TaskFolder, TaskPriority, TaskSize } from '$lib/protocol/types';
 	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 	import type { NewTaskDetails } from '$lib/stores/tasks.svelte';
+	import { agentText } from '$lib/ui/colors';
 	import Picker, { type PickerItem } from '$lib/ui/Picker.svelte';
 	import TextInput from '$lib/ui/TextInput.svelte';
 	import Textarea from '$lib/ui/Textarea.svelte';
@@ -136,9 +137,9 @@
 	const expanded = $derived(alwaysOpen || focused || changed || Object.values(open).some(Boolean));
 
 	const today = $derived(expanded ? localDay() : '');
-	const folderName = $derived(
-		folder === null ? 'Inbox' : (folders.find((f) => f.id === folder)?.title ?? 'Inbox')
-	);
+	const chosenFolder = $derived(folders.find((f) => f.id === folder));
+	const folderName = $derived(chosenFolder?.title ?? 'Inbox');
+	const folderColor = $derived(chosenFolder?.color ?? null);
 	const tagNames = $derived(
 		tagsOn(tags, chosenTags)
 			.map((t) => t.name)
@@ -398,7 +399,11 @@
 						{#if folder === null}
 							<Inbox size={13} strokeWidth={1.75} />
 						{:else}
-							<Folder size={13} strokeWidth={1.75} />
+							<Folder
+								class={folderColor ? agentText[folderColor] : undefined}
+								size={13}
+								strokeWidth={1.75}
+							/>
 						{/if}
 						<span class="truncate">{folderName}</span>
 					</button>

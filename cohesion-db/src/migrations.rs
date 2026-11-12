@@ -5191,6 +5191,14 @@ pub const MIGRATIONS: &[Migration] = &[
         sql: "
         CREATE INDEX documents_workspace_modified ON documents(workspace_id, modified);",
     },
+    // A task folder can take a color from the agents' palette; folders
+    // already there have none.
+    Migration {
+        name: "task_folder_color",
+        sql: "
+        ALTER TABLE task_folders ADD COLUMN color TEXT CHECK (color IN
+            ('blue', 'green', 'orange', 'purple', 'red', 'pink', 'teal', 'yellow'));",
+    },
 ];
 
 #[cfg(test)]

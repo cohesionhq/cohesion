@@ -1,6 +1,8 @@
 use cohesion_macros::{Fields, Model, TsWire};
 use serde::{Deserialize, Serialize};
 
+use crate::model::IntelligenceAgentColor;
+
 /// A named group of tasks in a workspace.
 #[derive(Clone, Serialize, Deserialize, Model, Fields, TsWire)]
 #[model(table = "task_folders", backup = Included)]
@@ -13,4 +15,6 @@ pub struct TaskFolder {
     pub deleted: bool,
     /// Whether the folder is pinned to the sidebar, under Tasks.
     pub pinned: bool,
+    /// The color the folder is drawn in, from the agents' palette, or none.
+    pub color: Option<IntelligenceAgentColor>,
 }
