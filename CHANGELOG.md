@@ -28,6 +28,10 @@ under "Unreleased" with any change users would notice.
     `extension_ids`.
   - `listAgentMessageAttachments` and `listActorSessionMessageAttachments`
     take `message_ids`.
+- A script's `Document` reads `contents` when the script uses it, so listing
+  documents no longer reads every document's text, and `contents` is always
+  what the document holds now. `JSON.stringify` of a `Document` leaves the
+  text out. To find documents by their text, search the workspace.
 - New requests: `resolveLinks` resolves many `cohesion://` links at once,
   `listActorSessionAncestors` lists the sessions a subagent runs under, and
   `addEndpointModels` imports several models into an endpoint. `listTasks`

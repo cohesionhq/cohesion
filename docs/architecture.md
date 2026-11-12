@@ -635,9 +635,12 @@ takes its values. `ListDocuments` lists documents in tables like any other,
 so a client that keeps them apart filters with `representation`. It and
 `SearchDocuments` answer `DocumentSummary`s, a document without its text but
 with its `opening` (the first 500 characters), so a list stays small however
-long its documents grow; `GetDocument` has the text. Scripts' `documents()`
-still reads whole documents (`ListDocumentsCommand`), and both listings share
-one filter and order.
+long its documents grow; `GetDocument` has the text. Scripts list the same
+summaries: their `Document` (`cohesion-js/src/entities/document.rs`) wraps a
+`DocumentSummary` and reads `contents` from the database each time it is used,
+so it is never a cut or out-of-date copy, and `toJSON` leaves it out.
+`OPENING_CHARS` is the opening's length, which the projection's SQL repeats
+and a test holds the two to.
 
 **Formulas** (`cohesion-db/src/commands/document_formula.rs`,
 `cohesion-js/src/formula.rs`, `cohesionkit/src/table_formulas.rs`). A

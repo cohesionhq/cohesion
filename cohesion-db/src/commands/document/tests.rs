@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use cohesion_core::DocumentType;
+use cohesion_core::model::{DocumentSummary, OPENING_CHARS};
 use cohesion_core::{Document, Named};
 
 use crate::test_support::{context, recording_context};
@@ -329,4 +330,37 @@ fn a_document_can_be_pinned_and_unpinned_without_being_edited() {
         pinned: true,
     });
     assert!(matches!(elsewhere, Err(CommandError::NotFound(_))));
+}
+
+#[test]
+fn a_listed_documents_opening_is_cut_as_a_summary_of_it_is() {
+    let db = context();
+    let workspace_id = db
+        .send_blocking(CreateWorkspaceCommand {
+            title: "w".to_string(),
+            emoji: None,
+        })
+        .unwrap()
+        .id;
+    let document = db
+        .send_blocking(CreateDocumentCommand {
+            workspace_id,
+            title: "Long".to_string(),
+            contents: "é".repeat(OPENING_CHARS + 100),
+            folder_id: None,
+        })
+        .unwrap();
+    let listed = db
+        .send_blocking(ListDocumentsCommand {
+            workspace_id,
+            document_type: None,
+            journal_from: None,
+            journal_to: None,
+            metadata: HashMap::new(),
+            has_metadata: Vec::new(),
+        })
+        .unwrap();
+    // The SQL cut and `From<Document>` must agree, both at `OPENING_CHARS`.
+    assert_eq!(listed[0].opening, DocumentSummary::from(document).opening);
+    assert_eq!(listed[0].opening.chars().count(), OPENING_CHARS);
 }

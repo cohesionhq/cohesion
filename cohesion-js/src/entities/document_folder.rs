@@ -186,7 +186,7 @@ impl JsDocumentFolder {
                 folder_id: Some(self.inner.id),
             },
         )?;
-        Ok(JsDocument::new(document, self.db.clone()))
+        Ok(JsDocument::new(document.into(), self.db.clone()))
     }
 
     /// Creates a folder titled `title` inside this one, last among its

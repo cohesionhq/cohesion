@@ -1886,26 +1886,56 @@ export type DocumentFolderRepresentation = 'list' | 'table';
 
 /**
  * A document as a listing shows it: everything but its full text, with the
- * start of it to show a line of.
+ * start of it to show a line of. Scripts see it as `Document`, whose
+ * `contents` reads the text when asked.
  */
 export interface DocumentSummary {
+	/** Unique, stable identifier. */
 	id: number;
+	/** Id of the workspace this document belongs to. */
 	workspace_id: number;
+	/**
+	 * Whether the document has been soft-deleted.
+	 *
+	 * Listings skip deleted documents, so this is normally `false`.
+	 */
 	deleted: boolean;
+	/** Whether this is an ordinary document or a daily journal. */
 	document_type: DocumentType;
+	/**
+	 * Display name.
+	 *
+	 * Journals are titled with their date, as `YYYY-MM-DD`.
+	 */
 	title: string;
 	/**
-	 * The first 500 characters of the document's text, as plain text /
-	 * Markdown; the whole text when it is shorter.
+	 * The first [`OPENING_CHARS`] characters of the document's text, as
+	 * plain text / Markdown; the whole text when it is shorter.
 	 */
 	opening: string;
-	/** When the contents last changed, in Unix **seconds**. */
+	/**
+	 * When the contents last changed, in Unix **seconds** (not
+	 * milliseconds; in JavaScript use `new Date(modified * 1000)`).
+	 */
 	modified: number;
-	/** For journals, the day the entry belongs to, as `"YYYY-MM-DD"`. */
+	/**
+	 * For journals, the day the entry belongs to, as `"YYYY-MM-DD"`.
+	 *
+	 * `null` for normal documents.
+	 */
 	journal_date: string | null;
-	/** Id of the document folder it is filed in, or `null` in the Inbox. */
+	/**
+	 * Id of the document folder this document is filed in, or `null` when
+	 * it is in the Inbox. In a folder that is a table, the document is a
+	 * row of it.
+	 *
+	 * Always `null` for journals.
+	 */
 	folder_id: number | null;
-	/** Whether it is pinned to the Dashboard. */
+	/**
+	 * Whether the document is pinned to the Dashboard, as part of the
+	 * user's working set.
+	 */
 	pinned: boolean;
 }
 

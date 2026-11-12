@@ -17,7 +17,7 @@ use crate::commands::title::ensure_title;
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::{
     CommandContext, DatabaseCommand, DatabaseCommandResult, DatabaseError, DatabaseEventKind,
-    Filtered, Found, Read, ReadableDatabase, Select, Write, WriteContainer,
+    Filtered, Found, Read, ReadableDatabase, Write, WriteContainer,
 };
 
 /// The live journal of `workspace_id` for `date`, a `YYYY-MM-DD`, if it has one.
@@ -116,12 +116,15 @@ fn create_journal(
         .found()
 }
 
-/// Live documents in a workspace, most recently modified first, optionally
-/// only of `document_type`, only journals dated in
-/// `journal_from..journal_to`, and only those carrying every one of the
-/// `metadata` pairs and `has_metadata` keys. Documents in a table are
-/// listed like any other; a client that keeps them apart reads which
-/// folders show as tables from `DocumentFolder::representation`.
+/// Live documents in a workspace, most recently modified first, without
+/// their full text (`GetDocumentCommand` has it), optionally only of
+/// `document_type`, only journals dated in `journal_from..journal_to`, and
+/// only those carrying every one of the `metadata` pairs and `has_metadata`
+/// keys. Documents in a table are listed like any other; a client that
+/// keeps them apart reads which folders show as tables from
+/// `DocumentFolder::representation`.
+#[derive(FromRequest)]
+#[request(ListDocumentsRequest)]
 pub struct ListDocumentsCommand {
     pub workspace_id: i64,
     pub document_type: Option<DocumentType>,
@@ -131,19 +134,16 @@ pub struct ListDocumentsCommand {
     pub has_metadata: Vec<String>,
 }
 impl DatabaseCommand for ListDocumentsCommand {
-    type Response = Vec<Document>;
+    type Response = Vec<DocumentSummary>;
     type Access = Read;
-    fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Vec<Document>> {
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_, Read>,
+    ) -> DatabaseCommandResult<Vec<DocumentSummary>> {
         ensure_workspace(ctx.db, self.workspace_id)?;
-        Ok(self.narrow(ctx.db.select_live()).all()?)
-    }
-}
-
-impl ListDocumentsCommand {
-    /// `query`, over the documents table, narrowed to what this lists and in
-    /// its order: one listing whether whole documents or summaries are read.
-    fn narrow<'c, P>(self, query: Select<'c, Document, P>) -> Select<'c, Document, P> {
-        let mut query = query
+        let mut query = ctx
+            .db
+            .select_live_as::<DocumentSummary>()
             .filter_eq(Document::WORKSPACE_ID, self.workspace_id)
             .with_metadata(self.metadata)
             .with_metadata_keys(self.has_metadata);
@@ -156,40 +156,7 @@ impl ListDocumentsCommand {
         if let Some(to) = self.journal_to {
             query = query.filter("journal_date < ?").bind(to);
         }
-        query.order("modified DESC")
-    }
-}
-
-/// [`ListDocumentsCommand`]'s documents without their full text, each with
-/// the opening of it: what a client lists them by, which stays small however
-/// long the documents grow.
-#[derive(FromRequest)]
-#[request(ListDocumentsRequest)]
-pub struct ListDocumentSummariesCommand {
-    pub workspace_id: i64,
-    pub document_type: Option<DocumentType>,
-    pub journal_from: Option<String>,
-    pub journal_to: Option<String>,
-    pub metadata: HashMap<String, String>,
-    pub has_metadata: Vec<String>,
-}
-impl DatabaseCommand for ListDocumentSummariesCommand {
-    type Response = Vec<DocumentSummary>;
-    type Access = Read;
-    fn handle(
-        self,
-        ctx: &mut CommandContext<'_, Read>,
-    ) -> DatabaseCommandResult<Vec<DocumentSummary>> {
-        ensure_workspace(ctx.db, self.workspace_id)?;
-        let listing = ListDocumentsCommand {
-            workspace_id: self.workspace_id,
-            document_type: self.document_type,
-            journal_from: self.journal_from,
-            journal_to: self.journal_to,
-            metadata: self.metadata,
-            has_metadata: self.has_metadata,
-        };
-        Ok(listing.narrow(ctx.db.select_live_as()).all()?)
+        Ok(query.order("modified DESC").all()?)
     }
 }
 

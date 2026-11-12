@@ -55,26 +55,66 @@ pub struct Document {
     pub pinned: bool,
 }
 
+/// How many characters of a document's text [`DocumentSummary::opening`]
+/// holds. `ListDocumentsCommand` cuts the same in SQL.
+pub const OPENING_CHARS: usize = 500;
+
 /// A document as a listing shows it: everything but its full text, with the
-/// start of it to show a line of.
-#[derive(Clone, Serialize, Deserialize, Projection, TsWire)]
+/// start of it to show a line of. Scripts see it as `Document`, whose
+/// `contents` reads the text when asked.
+#[derive(Clone, Serialize, Deserialize, Projection, Fields, TsWire)]
 #[projection(of = Document)]
 pub struct DocumentSummary {
+    /// Unique, stable identifier.
     pub id: i64,
+    /// Id of the workspace this document belongs to.
     pub workspace_id: i64,
+    /// Whether the document has been soft-deleted.
+    ///
+    /// Listings skip deleted documents, so this is normally `false`.
     pub deleted: bool,
+    /// Whether this is an ordinary document or a daily journal.
     pub document_type: DocumentType,
+    /// Display name.
+    ///
+    /// Journals are titled with their date, as `YYYY-MM-DD`.
     pub title: String,
-    /// The first 500 characters of the document's text, as plain text /
-    /// Markdown; the whole text when it is shorter.
+    /// The first [`OPENING_CHARS`] characters of the document's text, as
+    /// plain text / Markdown; the whole text when it is shorter.
     #[projection(expr = "substr(documents.contents, 1, 500)")]
+    #[fields(skip)]
     pub opening: String,
-    /// When the contents last changed, in Unix **seconds**.
+    /// When the contents last changed, in Unix **seconds** (not
+    /// milliseconds; in JavaScript use `new Date(modified * 1000)`).
     pub modified: i64,
     /// For journals, the day the entry belongs to, as `"YYYY-MM-DD"`.
+    ///
+    /// `null` for normal documents.
     pub journal_date: Option<String>,
-    /// Id of the document folder it is filed in, or `null` in the Inbox.
+    /// Id of the document folder this document is filed in, or `null` when
+    /// it is in the Inbox. In a folder that is a table, the document is a
+    /// row of it.
+    ///
+    /// Always `null` for journals.
     pub folder_id: Option<i64>,
-    /// Whether it is pinned to the Dashboard.
+    /// Whether the document is pinned to the Dashboard, as part of the
+    /// user's working set.
     pub pinned: bool,
+}
+
+impl From<Document> for DocumentSummary {
+    fn from(document: Document) -> Self {
+        Self {
+            id: document.id,
+            workspace_id: document.workspace_id,
+            deleted: document.deleted,
+            document_type: document.document_type,
+            title: document.title,
+            opening: document.contents.chars().take(OPENING_CHARS).collect(),
+            modified: document.modified,
+            journal_date: document.journal_date,
+            folder_id: document.folder_id,
+            pinned: document.pinned,
+        }
+    }
 }
