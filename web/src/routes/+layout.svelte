@@ -40,6 +40,7 @@
 	import { isGoing } from '$lib/stores/actors.svelte';
 	import { connectors } from '$lib/stores/connectors.svelte';
 	import { refreshAll, refreshInvalidated } from '$lib/stores/resource.svelte';
+	import { skills, skillsOf } from '$lib/stores/skills.svelte';
 	import { workspaces } from '$lib/stores/workspaces.svelte';
 	import Toast from '$lib/ui/Toast.svelte';
 	import { UNREACHABLE_MESSAGE, toasts } from '$lib/ui/toasts.svelte';
@@ -359,6 +360,9 @@
 					agent={gutterAgent}
 					cues={agents.cues.key === gutterAgent.id ? agents.cues.value : []}
 					agenda={agents.agenda.key === gutterAgent.id ? agents.agenda.value : []}
+					skills={skillsOf(skills.list.value, gutterAgent)}
+					onsendskill={(skill) =>
+						agents.sendMessage(agentId, '', [], undefined, skill).catch((e) => toasts.error(e))}
 					actors={actors.list.value}
 					sessions={actors.followedBy(gutterAgent.id)}
 					onclearagenda={() => agents.resetAgenda(agentId).catch((e) => toasts.error(e))}
