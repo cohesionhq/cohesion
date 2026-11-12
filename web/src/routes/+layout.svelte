@@ -20,6 +20,7 @@
 		isTyping,
 		opensSettings,
 		showsShortcuts,
+		workspaceIndexFor,
 		shortcuts
 	} from '$lib/shell/shortcuts.svelte';
 	import ForwardComposer from '$lib/features/agents/ForwardComposer.svelte';
@@ -231,6 +232,16 @@
 				event.preventDefault();
 				event.stopPropagation();
 				void goto(routes.settings());
+				return;
+			}
+			const slot = workspaceIndexFor(event);
+			if (slot !== null) {
+				// A key with no workspace behind it is left alone.
+				const target = workspaces.list.value[slot];
+				if (!target) return;
+				event.preventDefault();
+				event.stopPropagation();
+				void goto(routes.workspace(target.id));
 				return;
 			}
 			const typing = isTyping(event.target);
