@@ -2,8 +2,8 @@
 
 use cohesion_core::model::{SearchEntityKind, SearchResult};
 use cohesion_db::{
-    GetContactCommand, GetDocumentCommand, GetDocumentFolderCommand, GetResourceCommand,
-    GetTaskCommand, GetTaskFolderCommand,
+    GetContactCommand, GetDocumentCommand, GetDocumentFolderCommand, GetFeedCommand,
+    GetResourceCommand, GetTaskCommand, GetTaskFolderCommand,
 };
 use cohesion_macros::js_entity;
 use rquickjs::{Ctx, IntoJs, Value};
@@ -11,6 +11,7 @@ use rquickjs::{Ctx, IntoJs, Value};
 use super::contact::JsContact;
 use super::document::JsDocument;
 use super::document_folder::JsDocumentFolder;
+use super::feed::JsFeed;
 use super::resource::JsResource;
 use super::task::JsTask;
 use super::task_folder::JsTaskFolder;
@@ -24,10 +25,11 @@ impl JsSearchResult {
     /// Loads the item this result points at: a `Document` when `entityKind` is
     /// `"document"`, a `Task` when it is `"task"`, a `Resource` when it is
     /// `"resource"`, a `Contact` when it is `"contact"`, a `TaskFolder` when
-    /// it is `"taskFolder"`, a `DocumentFolder` when it is `"documentFolder"`.
+    /// it is `"taskFolder"`, a `DocumentFolder` when it is `"documentFolder"`,
+    /// a `Feed` when it is `"feed"`.
     ///
     /// Throws if the item no longer exists.
-    #[ts(returns = "Task | Document | Resource | Contact | TaskFolder | DocumentFolder")]
+    #[ts(returns = "Task | Document | Resource | Contact | TaskFolder | DocumentFolder | Feed")]
     pub fn open<'js>(&self, ctx: Ctx<'js>) -> rquickjs::Result<Value<'js>> {
         match self.inner.entity_kind {
             SearchEntityKind::Task => {
@@ -89,6 +91,15 @@ impl JsSearchResult {
                     },
                 )?;
                 JsDocumentFolder::new(folder, self.db.clone()).into_js(&ctx)
+            }
+            SearchEntityKind::Feed => {
+                let feed = self.read(
+                    &ctx,
+                    GetFeedCommand {
+                        feed_id: self.inner.entity_id,
+                    },
+                )?;
+                JsFeed::new(feed, self.db.clone()).into_js(&ctx)
             }
         }
     }

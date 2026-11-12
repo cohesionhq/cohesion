@@ -1,9 +1,9 @@
 <!--
 	⌘K palette, the way to every page: there are no chords that jump to one. Root mode lists routes
 	and actions, the kinds of resource its sidebar shows,
-	every settings section, every feed and every agent (drawn with its avatar), and the workspaces whose title matches (filtered
+	every settings section and every agent (drawn with its avatar), and the workspaces whose title matches (filtered
 	locally), then live search results
-	from the current workspace (its documents, tasks, resources, contacts and folders, a document
+	from the current workspace (its documents, tasks, resources, contacts, folders and the feeds, a document
 	folder drawn as a folder or a table and naming the folders holding it) and among actor sessions; "New task" and "Switch workspace…" switch the palette into a sub-mode
 	instead of opening another dialog. A pick opens in the half of the sheet in use; with ⌥ held it
 	opens in the split view's second half.
@@ -51,7 +51,6 @@
 	import { shortcuts } from '$lib/shell/shortcuts.svelte';
 	import type { ConnectorKind } from '$lib/stores/connectors.svelte';
 	import { viewParam } from '$lib/stores/articles.svelte';
-	import { feeds } from '$lib/stores/feeds.svelte';
 	import { workspaces } from '$lib/stores/workspaces.svelte';
 	import AgentAvatar from '$lib/ui/AgentAvatar.svelte';
 	import IconTile from '$lib/ui/IconTile.svelte';
@@ -162,13 +161,7 @@
 					icon: FolderPlus,
 					// The Tasks page opens its folder dialog for `?new=folder`.
 					run: () => go(`${routes.tasks(id)}?new=folder`)
-				},
-				...feeds.list.value.map((feed) => ({
-					id: `feed-${feed.id}`,
-					label: feed.title,
-					icon: Rss,
-					run: () => go(routes.articles(id, viewParam({ feed: feed.id })))
-				}))
+				}
 			);
 		}
 		list.push(
@@ -300,12 +293,15 @@
 			go(`${routes.tasks(result.workspace_id)}?view=${result.entity_id}`);
 		else if (result.entity_kind === 'documentFolder')
 			go(routes.documentFolder(result.workspace_id, result.entity_id));
+		else if (result.entity_kind === 'feed')
+			go(routes.articles(result.workspace_id, viewParam({ feed: result.entity_id })));
 		else go(routes.task(result.workspace_id, result.entity_id));
 	}
 
 	/** Where a folder hit sits: its page, then the folders holding a document folder. */
 	function folderPlace(result: SearchResult): string {
 		if (result.entity_kind === 'taskFolder') return 'Tasks';
+		if (result.entity_kind === 'feed') return 'Articles';
 		const holding = folderPath(documents.folders.value, result.entity_id).slice(0, -1);
 		return ['Documents', ...holding.map((f) => f.title)].join(' › ');
 	}
@@ -347,8 +343,8 @@
 		}, 150);
 	});
 
-	// Every open starts fresh at the root, with the feeds it lists and the document folders that
-	// say how a folder hit is drawn.
+	// Every open starts fresh at the root, with the document folders that say how a folder hit
+	// is drawn.
 	$effect(() => {
 		if (open) {
 			mode = 'root';
@@ -356,7 +352,6 @@
 			results = [];
 			actorResults = [];
 			if (ws !== null) void untrack(() => documents.folders.load(ws));
-			void untrack(() => feeds.load());
 		}
 	});
 
@@ -476,11 +471,13 @@
 													<Table2 size={15} strokeWidth={1.75} />
 												{:else if result.entity_kind === 'documentFolder' || result.entity_kind === 'taskFolder'}
 													<Folder size={15} strokeWidth={1.75} />
+												{:else if result.entity_kind === 'feed'}
+													<Rss size={15} strokeWidth={1.75} />
 												{:else}
 													<CheckSquare size={15} strokeWidth={1.75} />
 												{/if}
 												<span class={titleClass}>{result.title ?? result.contents}</span>
-												{#if result.entity_kind === 'documentFolder' || result.entity_kind === 'taskFolder'}
+												{#if result.entity_kind === 'documentFolder' || result.entity_kind === 'taskFolder' || result.entity_kind === 'feed'}
 													<span class={snippetClass}>{folderPlace(result)}</span>
 												{:else if result.title && result.contents}
 													<span class={snippetClass}>{matchingLine(result.contents, query)}</span>

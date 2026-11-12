@@ -1218,7 +1218,7 @@ erDiagram
 
 **Triggers** keep rules in the schema: the search indexes
 (`documents_search_*`, `tasks_search_*`, `resources_search_*`,
-`articles_feed_corpus_*`, `actor_sessions_search_*`,
+`feeds_search_*`, `articles_feed_corpus_*`, `actor_sessions_search_*`,
 `actor_session_messages_search_*`); Rewind (`tasks_version_*`,
 `documents_version_*`, `version_writes_write`); deletion times
 (`tasks_deleted_at`, `documents_deleted_at`); and integrity
@@ -1274,7 +1274,7 @@ English stemming, case-insensitive, accents ignored.
 
 | Index | Columns | Covers | Kept by |
 |---|---|---|---|
-| `search_fts` (rows mapped by `search_entries`: `entity_kind`, `entity_id`, `workspace_id`) | `title`, `contents` | Live documents (journal entries and tables' rows included), live tasks (the description as contents), resources (contents only if not JSON), live contacts (the full name as title, the notes as contents; not their emails or phone numbers), live task and document folders (the title only) | `documents_search_*`, `tasks_search_*`, `resources_search_*`, `contacts_search_*`, `task_folders_search_*`, `document_folders_search_*` |
+| `search_fts` (rows mapped by `search_entries`: `entity_kind`, `entity_id`, `workspace_id`) | `title`, `contents` | Live documents (journal entries and tables' rows included), live tasks (the description as contents), resources (contents only if not JSON), live contacts (the full name as title, the notes as contents; not their emails or phone numbers), live task and document folders (the title only), live feeds (the title only, with no workspace) | `documents_search_*`, `tasks_search_*`, `resources_search_*`, `contacts_search_*`, `task_folders_search_*`, `document_folders_search_*`, `feeds_search_*` |
 | `feed_corpus_fts` | `title`, `author`, `contents` | Live articles | `articles_feed_corpus_*` |
 | `actor_sessions_fts` | `title` | Actor sessions | `actor_sessions_search_*` |
 | `actor_session_messages_fts` | `text` | Actor session messages of kind `text`, from either side | `actor_session_messages_search_*` |
@@ -1301,11 +1301,12 @@ internal error.
 
 | Search | Request and command | Ranks by | Returns |
 |---|---|---|---|
-| Workspace | `SearchWorkspace{workspace_id, query}`, `SearchWorkspaceCommand` | `bm25(search_fts, 5.0, 1.0)`: title weighs 5, contents 1 | `Vec<SearchResult>` (`id` of the index entry, `entity_kind` (`document`, `task`, `resource`, `contact`, `taskFolder`, `documentFolder`), `entity_id`, `workspace_id`, `title`, `contents`, `status`: a task's status, `"none"` for the other kinds, read from `tasks` when searched); no paging, no snippet. Scripts: `workspace.search(query)`. CLI: `cohesion search`. |
+| Workspace | `SearchWorkspace{workspace_id, query}`, `SearchWorkspaceCommand` | Title matches before matches only in contents, by `bm25(search_fts, 1.0, 0.0)` (the shortest title holding the query, an exact title, first), then `bm25(search_fts, 5.0, 1.0)`: title weighs 5, contents 1 | `Vec<SearchResult>` (`id` of the index entry, `entity_kind` (`document`, `task`, `resource`, `contact`, `taskFolder`, `documentFolder`, `feed`), `entity_id`, `workspace_id` (for a feed, which has none, the workspace searched), `title`, `contents`, `status`: a task's status, `"none"` for the other kinds, read from `tasks` when searched); no paging, no snippet. Scripts: `workspace.search(query)`. CLI: `cohesion search`. |
 | Corpus (articles) | `SearchFeedCorpus{query, feed_ids?, offset, limit?}`, `SearchFeedCorpusCommand` | `bm25(feed_corpus_fts, 5.0, 2.0, 1.0)` | `FeedCorpusPage{hits, total}`, each hit with a 24-token snippet of the text; 50 a page by default, 500 at most. Scripts: `cohesion.searchCorpus(query, {feedIds})`, the best 200 whole articles. |
 | Actor sessions | `SearchActorSessions{query}`, `SearchActorSessionsCommand` | Title matches at `5.0 * bm25`, message matches at `bm25`; each session's best match, then most recently changed | `Vec<ActorSessionSearchHit>` across every actor, resolved sessions included, with a snippet when a message matched |
 
-Workspace search covers one workspace and never articles; corpus search
+Workspace search covers one workspace, and the feeds, which belong to none,
+and never articles; corpus search
 covers every followed feed and no workspace; actor session search covers every
 actor.
 
@@ -2153,9 +2154,11 @@ Ctrl+/, or `?` when not typing, lists shortcuts; ⌘, or Ctrl+, opens
 settings; ⌘D or Ctrl+D focuses the folder button in a page heading (and leaves
 the key to the browser on a page without one); ⌘[ and ⌘], or ⌘/Alt with the arrow keys, and the mouse's back and
 forward buttons step through history. The palette (`shell/Palette.svelte`,
-bits-ui `Command`) offers routes and actions, folders, resource kinds,
-settings sections, feeds and agents, switching workspace, a new task, and live
-search of the workspace and actor sessions.
+bits-ui `Command`) offers switching workspace, a new task, and what's typed
+matched two ways: in the browser, the routes and actions, resource kinds,
+settings sections, agents and workspaces, which search doesn't index; then
+live search for everything else, the workspace's items, folders and feeds
+(`searchWorkspace`), then actor sessions.
 
 **Mock mode.** `VITE_MOCK=1` makes `api.ts` use `web/src/lib/protocol/mock.ts`,
 an in-memory daemon that implements every request with seed data, instead of a

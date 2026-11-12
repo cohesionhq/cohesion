@@ -4414,10 +4414,10 @@ export interface SearchDocumentRequest {
 
 /**
  * What kind of item a search result points at: `"document"`, `"task"`,
- * `"resource"`, `"contact"`, `"taskFolder"` or `"documentFolder"`.
+ * `"resource"`, `"contact"`, `"taskFolder"`, `"documentFolder"` or `"feed"`.
  */
 export type SearchEntityKind =
-	'document' | 'task' | 'resource' | 'contact' | 'taskFolder' | 'documentFolder';
+	'document' | 'task' | 'resource' | 'contact' | 'taskFolder' | 'documentFolder' | 'feed';
 
 /**
  * Asks every extension with the `registry` permission granted for the
@@ -4443,8 +4443,8 @@ export interface SearchFeedCorpusRequest {
 
 /**
  * One full-text search hit: a snapshot of the matched document's, task's,
- * resource's, contact's or folder's indexed text, plus a pointer back to it.
- * A folder is indexed by its title alone.
+ * resource's, contact's, folder's or feed's indexed text, plus a pointer back
+ * to it. A folder or a feed is indexed by its title alone.
  */
 export interface SearchResult {
 	/**
@@ -4454,22 +4454,26 @@ export interface SearchResult {
 	 */
 	id: number;
 	/**
-	 * Whether the hit is a document, a task, a resource, a contact or a task
-	 * or document folder.
+	 * Whether the hit is a document, a task, a resource, a contact, a task
+	 * or document folder, or a feed.
 	 */
 	entity_kind: SearchEntityKind;
 	/**
-	 * Id of the matched document, task, resource, contact or folder (which one
-	 * depends on the entity kind).
+	 * Id of the matched document, task, resource, contact, folder or feed
+	 * (which one depends on the entity kind).
 	 */
 	entity_id: number;
-	/** Id of the workspace the matched item belongs to. */
+	/**
+	 * Id of the workspace the matched item belongs to; for a feed, which
+	 * belongs to none, the workspace searched.
+	 */
 	workspace_id: number;
 	/** The matched item's title; a contact's full name. */
 	title: string | null;
 	/**
 	 * The matched document's full contents, a Markdown resource's text or a
-	 * contact's notes; always `""` for tasks, folders and JSON resources.
+	 * contact's notes; always `""` for tasks, folders, feeds and JSON
+	 * resources.
 	 */
 	contents: string;
 	/**
