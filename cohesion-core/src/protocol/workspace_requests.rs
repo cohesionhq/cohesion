@@ -37,6 +37,13 @@ pub struct SetWorkspaceEmojiRequest {
     pub emoji: Option<String>,
 }
 
+/// Puts the workspaces in the order of `ids`, first to last.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct ReorderWorkspacesRequest {
+    /// Every live workspace, in its new order.
+    pub ids: Vec<i64>,
+}
+
 /// Search the entire workspace.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct SearchWorkspaceRequest {

@@ -4164,6 +4164,12 @@ export interface ReorderWorkspaceResourceKindsRequest {
 	kind_ids: number[];
 }
 
+/** Puts the workspaces in the order of `ids`, first to last. */
+export interface ReorderWorkspacesRequest {
+	/** Every live workspace, in its new order. */
+	ids: number[];
+}
+
 /**
  * Clears agent `agent_id`'s agenda, as its own `agenda_reset` does; its
  * threads hear it under `# Agenda changed`.
@@ -5733,6 +5739,11 @@ export interface Workspace {
 	/** An emoji shown in place of the title's initial; none when unset. */
 	emoji: string | null;
 	/**
+	 * Where the workspace sits in the list, first to last; listings sort
+	 * by it, then by id.
+	 */
+	sort_order: number;
+	/**
 	 * Whether the workspace has been soft-deleted.
 	 *
 	 * Lookups and listings skip deleted workspaces, so this is normally
@@ -5798,6 +5809,8 @@ export interface Requests {
 	renameWorkspace: RenameWorkspaceRequest;
 	/** Sets or clears a workspace's emoji. */
 	setWorkspaceEmoji: SetWorkspaceEmojiRequest;
+	/** Reorders the workspaces; replies with them in their new order. */
+	reorderWorkspaces: ReorderWorkspacesRequest;
 	/** Fetches the journal for a date in a workspace, if it exists. */
 	getJournal: GetJournalRequest;
 	/** Appends `content` to the journal for a date in a workspace. */
@@ -6405,6 +6418,8 @@ export interface Replies {
 	renameWorkspace: Workspace;
 	/** Sets or clears a workspace's emoji. */
 	setWorkspaceEmoji: Workspace;
+	/** Reorders the workspaces; replies with them in their new order. */
+	reorderWorkspaces: Workspace[];
 	/** Fetches the journal for a date in a workspace, if it exists. */
 	getJournal: Document | null;
 	/** Appends `content` to the journal for a date in a workspace. */

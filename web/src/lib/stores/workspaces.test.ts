@@ -29,6 +29,23 @@ describe('workspaces store', () => {
 		expect(store.currentId).toBeNull();
 	});
 
+	it('reorders, and the order holds on the next fetch', async () => {
+		const mock = createMock();
+		const store = createWorkspacesStore(mock.send);
+		await store.load();
+		await store.reorder([3, 1, 2]);
+		expect(store.list.value.map((w) => w.title)).toEqual(['Containers', 'Cohesion', 'Church']);
+		await store.create('Garden');
+		await store.list.refetch();
+		expect(store.list.value.map((w) => w.title)).toEqual([
+			'Containers',
+			'Cohesion',
+			'Church',
+			'Garden'
+		]);
+		expect(store.pick()).toBe(3);
+	});
+
 	it('a second load joins the fetch in flight', async () => {
 		const store = createWorkspacesStore(createMock().send);
 		const first = store.load();

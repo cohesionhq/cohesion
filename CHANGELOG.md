@@ -7,6 +7,11 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- Workspaces can be reordered in Settings, by dragging a row's handle or
+  with Alt+↑/↓. The order is kept by the daemon, and the workspace
+  switcher, the palette, ⌘1–⌘9 and `cohesion workspace` follow it.
+  Workspaces gain `sort_order`, set with `reorderWorkspaces`; the iPhone
+  app should list workspaces in the order the daemon sends them.
 - Workspace search ranks every title match above matches only in the
   text, with the title the query covers most (an exact title such as
   "Models") first. It also finds feeds by title, from every workspace:

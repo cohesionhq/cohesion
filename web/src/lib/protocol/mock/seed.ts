@@ -596,9 +596,9 @@ export function seed(): MockState {
 		// Modelled on a real daemon's data (the Cohesion tracker, a church
 		// volunteer rota and an empty work workspace), with people made up.
 		workspaces: [
-			{ id: 1, title: 'Cohesion', emoji: '📱', deleted: false },
-			{ id: 2, title: 'Church', emoji: '⛪', deleted: false },
-			{ id: 3, title: 'Containers', emoji: '📦', deleted: false }
+			{ id: 1, title: 'Cohesion', emoji: '📱', sort_order: 0, deleted: false },
+			{ id: 2, title: 'Church', emoji: '⛪', sort_order: 1, deleted: false },
+			{ id: 3, title: 'Containers', emoji: '📦', sort_order: 2, deleted: false }
 		],
 		documents: [
 			journal(
