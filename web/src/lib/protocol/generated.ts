@@ -538,6 +538,15 @@ export interface AddEndpointModelRequest {
 }
 
 /**
+ * Imports each of `model_identifiers` into endpoint `endpoint_id`, in
+ * order, as [`AddEndpointModelRequest`] does with nothing overridden.
+ */
+export interface AddEndpointModelsRequest {
+	endpoint_id: number;
+	model_identifiers: string[];
+}
+
+/**
  * Reads the feed at `url` (http or https) and follows it, last in the
  * order, adding its items to the feed corpus.
  */
@@ -1876,6 +1885,61 @@ export type DocumentFolderProperty = {
 export type DocumentFolderRepresentation = 'list' | 'table';
 
 /**
+ * A document as a listing shows it: everything but its full text, with the
+ * start of it to show a line of. Scripts see it as `Document`, whose
+ * `contents` reads the text when asked.
+ */
+export interface DocumentSummary {
+	/** Unique, stable identifier. */
+	id: number;
+	/** Id of the workspace this document belongs to. */
+	workspace_id: number;
+	/**
+	 * Whether the document has been soft-deleted.
+	 *
+	 * Listings skip deleted documents, so this is normally `false`.
+	 */
+	deleted: boolean;
+	/** Whether this is an ordinary document or a daily journal. */
+	document_type: DocumentType;
+	/**
+	 * Display name.
+	 *
+	 * Journals are titled with their date, as `YYYY-MM-DD`.
+	 */
+	title: string;
+	/**
+	 * The first [`OPENING_CHARS`] characters of the document's text, as
+	 * plain text / Markdown; the whole text when it is shorter.
+	 */
+	opening: string;
+	/**
+	 * When the contents last changed, in Unix **seconds** (not
+	 * milliseconds; in JavaScript use `new Date(modified * 1000)`).
+	 */
+	modified: number;
+	/**
+	 * For journals, the day the entry belongs to, as `"YYYY-MM-DD"`.
+	 *
+	 * `null` for normal documents.
+	 */
+	journal_date: string | null;
+	/**
+	 * Id of the document folder this document is filed in, or `null` when
+	 * it is in the Inbox. In a folder that is a table, the document is a
+	 * row of it.
+	 *
+	 * Always `null` for journals.
+	 */
+	folder_id: number | null;
+	/**
+	 * Whether the document is pinned to the Dashboard, as part of the
+	 * user's working set.
+	 */
+	pinned: boolean;
+}
+
+/**
  * What a document is for; stored as text.
  *
  * - `"normal"`: an ordinary document.
@@ -3022,9 +3086,23 @@ export type Invalidation =
 	| { kind: 'workspace'; id: number }
 	| { kind: 'intelligenceCostEvents' }
 	| { kind: 'agent'; id: number }
+	| {
+			kind: 'agentMessage';
+			id: {
+				agent_id: number;
+				message_id: number;
+			};
+	  }
 	| { kind: 'agentTeams' }
 	| { kind: 'taskFolders'; id: number }
 	| { kind: 'documents'; id: number }
+	| {
+			kind: 'documentText';
+			id: {
+				workspace_id: number;
+				document_id: number;
+			};
+	  }
 	| { kind: 'documentFolders'; id: number }
 	| { kind: 'documentTable'; id: number }
 	| {
@@ -3032,6 +3110,13 @@ export type Invalidation =
 			id: {
 				workspace_id: number;
 				folder_id: number | null;
+			};
+	  }
+	| {
+			kind: 'taskDescription';
+			id: {
+				workspace_id: number;
+				task_id: number;
 			};
 	  }
 	| { kind: 'connectorAccounts' }
@@ -3055,6 +3140,13 @@ export type Invalidation =
 	| { kind: 'actors' }
 	| { kind: 'actorSessions' }
 	| { kind: 'actorSession'; id: number }
+	| {
+			kind: 'actorSessionMessage';
+			id: {
+				session_id: number;
+				message_id: number;
+			};
+	  }
 	| { kind: 'actorUsage' }
 	| { kind: 'backlinks'; id: LinkTarget }
 	| {
@@ -3116,6 +3208,15 @@ export interface ListActivitiesRequest {
 }
 
 /**
+ * Lists the sessions actor session `session_id` runs under as a subagent:
+ * the one it is a subagent of first, the one Cohesion started last; none
+ * for a session Cohesion started.
+ */
+export interface ListActorSessionAncestorsRequest {
+	session_id: number;
+}
+
+/**
  * Lists actor session `session_id`'s family: the session Cohesion started
  * that it is, or runs under at any depth, then every subagent beneath that,
  * each after the one it runs under, first launched first.
@@ -3125,16 +3226,21 @@ export interface ListActorSessionFamilyRequest {
 }
 
 /**
- * Lists the images attached to actor session message `message_id`, in the
- * order sent.
+ * Lists the images attached to each of actor session messages
+ * `message_ids`, by message, each message's in the order sent.
  */
 export interface ListActorSessionMessageAttachmentsRequest {
-	message_id: number;
+	message_ids: number[];
 }
 
 /** Lists what was said in actor session `session_id`, oldest first. */
 export interface ListActorSessionMessagesRequest {
 	session_id: number;
+	/**
+	 * Only these messages: how a transcript refreshes the ones an
+	 * `actorSessionMessage` invalidation names.
+	 */
+	ids?: number[] | null;
 }
 
 /**
@@ -3164,9 +3270,12 @@ export interface ListAgentCuesRequest {
 	agent_id: number;
 }
 
-/** Lists the images attached to message `message_id`, in the order sent. */
+/**
+ * Lists the images attached to each of messages `message_ids`, by message,
+ * each message's in the order sent.
+ */
 export interface ListAgentMessageAttachmentsRequest {
-	message_id: number;
+	message_ids: number[];
 }
 
 /**
@@ -3177,6 +3286,11 @@ export interface ListAgentMessagesRequest {
 	agent_id: number;
 	before?: number | null;
 	limit: number;
+	/**
+	 * Only these messages: how a feed refreshes the ones an
+	 * `agentMessage` invalidation names.
+	 */
+	ids?: number[] | null;
 }
 
 /**
@@ -3257,21 +3371,29 @@ export interface ListDocumentsRequest {
 	journal_from?: string | null;
 	/** Only journals dated before this `"YYYY-MM-DD"`. */
 	journal_to?: string | null;
+	/**
+	 * Only these documents: how a list refreshes the rows a
+	 * `documentText` invalidation names.
+	 */
+	ids?: number[] | null;
 }
 
-/** Lists the models endpoint `endpoint_id` offers, by name. */
+/**
+ * Lists the models endpoint `endpoint_id` offers, by name; every
+ * endpoint's when absent.
+ */
 export interface ListEndpointModelsRequest {
-	endpoint_id: number;
+	endpoint_id?: number | null;
 }
 
-/** Lists the hooks recorded for extension `extension_id`. */
+/** Lists the hooks recorded for each of extensions `extension_ids`. */
 export interface ListExtensionHooksRequest {
-	extension_id: number;
+	extension_ids: number[];
 }
 
-/** Lists the permissions recorded for extension `extension_id`. */
+/** Lists the permissions recorded for each of extensions `extension_ids`. */
 export interface ListExtensionPermissionsRequest {
-	extension_id: number;
+	extension_ids: number[];
 }
 
 /** Lists the `limit` most recent intelligence cost events, newest first. */
@@ -3280,11 +3402,11 @@ export interface ListIntelligenceCostEventsRequest {
 }
 
 /**
- * Lists the memories agent `agent_id` sees: its own and the global ones;
- * only the global ones when absent. Oldest first.
+ * Lists the memories `filter` picks, by scope (an agent's own, then a
+ * team's, then the global ones), each oldest first.
  */
 export interface ListMemoriesRequest {
-	agent_id?: number | null;
+	filter: MemoryFilter;
 }
 
 /**
@@ -3362,6 +3484,12 @@ export interface ListTasksRequest {
 	offset?: number;
 	/** The most tasks to list: 50 when absent, and never over 500. */
 	limit?: number | null;
+	/**
+	 * In place of `offset`, start at the page holding task `around`: the
+	 * one of pages `limit` tasks long that it falls on. `offset` stands
+	 * when the listing doesn't cover the task.
+	 */
+	around?: number | null;
 }
 
 /**
@@ -3456,6 +3584,16 @@ export interface Memory {
 	created_at: number;
 	memory: string;
 }
+
+/**
+ * Which memories a listing returns.
+ *
+ * - `{"seenBy": id}`: what agent `id` sees: its own, then its team's, then
+ *   the global ones.
+ * - `"global"`: the global ones alone.
+ * - `"every"`: every memory, of every agent and team and the global ones.
+ */
+export type MemoryFilter = { seenBy: number } | 'global' | 'every';
 
 /**
  * Who a memory is for. The table's check gives every row at most one of
@@ -4213,6 +4351,26 @@ export interface ResolveEmbedsRequest {
 export interface ResolveLinkRequest {
 	/** As written in Markdown: `cohesion://task/3/42`. */
 	link: string;
+}
+
+/**
+ * Resolves each of `links` as `resolveLink` does, in one request: what a
+ * screen showing many links' cards at once asks. A link to an item deleted
+ * or never made resolves to no embed; text that isn't such a link fails
+ * validation on `link`, failing the whole request.
+ */
+export interface ResolveLinksRequest {
+	links: string[];
+}
+
+/**
+ * One of [`ResolveLinksRequest`]'s links and the item it names, `None`
+ * when that item is deleted or never was.
+ */
+export interface ResolvedLink {
+	/** As the request gave it. */
+	link: string;
+	embed: Embed | null;
 }
 
 /**
@@ -5274,6 +5432,8 @@ export type TaskFolderFilter = 'any' | 'inbox' | number;
 /** One page of a listing: its tasks, and how many the whole listing has. */
 export interface TaskPage {
 	tasks: Task[];
+	/** How many of the covered tasks come before this page's first. */
+	offset: number;
 	/** Every task the listing covers, on any page. */
 	total: number;
 }
@@ -5817,9 +5977,15 @@ export interface Requests {
 	appendToJournal: AppendToJournalRequest;
 	/** Replaces the contents of the journal for a date in a workspace. */
 	editJournal: EditJournalRequest;
-	/** Search documents */
+	/**
+	 * The live documents in a workspace whose title contains a query,
+	 * without their full text.
+	 */
 	searchDocuments: SearchDocumentRequest;
-	/** Lists the live documents in a workspace, most recently modified first. */
+	/**
+	 * Lists the live documents in a workspace, most recently modified first,
+	 * without their full text.
+	 */
 	listDocuments: ListDocumentsRequest;
 	/** Fetches live document `document_id` in a workspace. */
 	getDocument: GetDocumentRequest;
@@ -6015,9 +6181,14 @@ export interface Requests {
 	setIntelligenceEndpointLongCache: SetIntelligenceEndpointLongCacheRequest;
 	/** Imports a model into an endpoint, from the catalog when it lists it. */
 	addEndpointModel: AddEndpointModelRequest;
+	/**
+	 * Imports several models into an endpoint at once, in order, each from
+	 * the catalog when it lists it.
+	 */
+	addEndpointModels: AddEndpointModelsRequest;
 	/** Removes an endpoint's model, unsetting any tier that uses it. */
 	removeEndpointModel: RemoveEndpointModelRequest;
-	/** Lists the models an endpoint offers. */
+	/** Lists the models an endpoint offers, or every endpoint's. */
 	listEndpointModels: ListEndpointModelsRequest;
 	/** Makes an endpoint model the default for a tier. */
 	setIntelligenceDefault: SetIntelligenceDefaultRequest;
@@ -6044,14 +6215,14 @@ export interface Requests {
 	uninstallExtension: UninstallExtensionRequest;
 	/** Lists every installed extension, in the order its hooks run. */
 	listExtensions: NoArgs;
-	/** Lists the permissions recorded for extension `extension_id`. */
+	/** Lists the permissions recorded for some extensions. */
 	listExtensionPermissions: ListExtensionPermissionsRequest;
 	/**
 	 * Enables or disables `permission` for extension `extension_id`,
 	 * restarting its sandbox so the change applies at once.
 	 */
 	setExtensionPermission: SetExtensionPermissionRequest;
-	/** Lists the hooks recorded for extension `extension_id`. */
+	/** Lists the hooks recorded for some extensions. */
 	listExtensionHooks: ListExtensionHooksRequest;
 	/**
 	 * Enables or disables `hook` for extension `extension_id`, restarting
@@ -6198,7 +6369,7 @@ export interface Requests {
 	 * a reaction queues the agent's turn on it.
 	 */
 	setAgentMessageReaction: SetAgentMessageReactionRequest;
-	/** Lists the images attached to a message. */
+	/** Lists the images attached to some agent messages. */
 	listAgentMessageAttachments: ListAgentMessageAttachmentsRequest;
 	/**
 	 * Sends a message to an agent: a running turn takes it in, or it
@@ -6221,8 +6392,8 @@ export interface Requests {
 	/** Removes cue `cue_id`; an agent left with no cues goes idle. */
 	removeAgentCue: RemoveAgentCueRequest;
 	/**
-	 * Lists the memories agent `agent_id` sees, its own and the global
-	 * ones; only the global ones when absent. Oldest first.
+	 * Lists the memories a filter picks: what one agent sees, the global
+	 * ones, or every one. By scope, each oldest first.
 	 */
 	listMemories: ListMemoriesRequest;
 	/** Forgets memory `memory_id`, returning it. */
@@ -6256,6 +6427,11 @@ export interface Requests {
 	listActorSessions: ListActorSessionsRequest;
 	getActorSession: GetActorSessionRequest;
 	/**
+	 * Lists the sessions an actor session runs under as a subagent, nearest
+	 * first.
+	 */
+	listActorSessionAncestors: ListActorSessionAncestorsRequest;
+	/**
 	 * Lists an actor session's subagents, one level down, first launched
 	 * first.
 	 */
@@ -6279,7 +6455,7 @@ export interface Requests {
 	markActorSessionRead: MarkActorSessionReadRequest;
 	/** Lists what was said in an actor session, oldest first. */
 	listActorSessionMessages: ListActorSessionMessagesRequest;
-	/** Lists the images attached to an actor session message. */
+	/** Lists the images attached to some actor session messages. */
 	listActorSessionMessageAttachments: ListActorSessionMessageAttachmentsRequest;
 	/** Hands an actor a new session, through its client. */
 	startActorSession: StartActorSessionRequest;
@@ -6380,6 +6556,11 @@ export interface Requests {
 	 * every kind.
 	 */
 	resolveLink: ResolveLinkRequest;
+	/**
+	 * Resolves several `cohesion://` links at once, each as `resolveLink`
+	 * does, `None` for an item that is gone.
+	 */
+	resolveLinks: ResolveLinksRequest;
 	/** Splits Markdown into its text and its embeds, each resolved. */
 	resolveEmbeds: ResolveEmbedsRequest;
 	/** The items that link to an item, each resolved as `resolveLink` does. */
@@ -6426,10 +6607,16 @@ export interface Replies {
 	appendToJournal: Document;
 	/** Replaces the contents of the journal for a date in a workspace. */
 	editJournal: Document;
-	/** Search documents */
-	searchDocuments: Document[];
-	/** Lists the live documents in a workspace, most recently modified first. */
-	listDocuments: Document[];
+	/**
+	 * The live documents in a workspace whose title contains a query,
+	 * without their full text.
+	 */
+	searchDocuments: DocumentSummary[];
+	/**
+	 * Lists the live documents in a workspace, most recently modified first,
+	 * without their full text.
+	 */
+	listDocuments: DocumentSummary[];
 	/** Fetches live document `document_id` in a workspace. */
 	getDocument: Document;
 	/** Replaces the contents of live document `document_id` in a workspace. */
@@ -6624,9 +6811,14 @@ export interface Replies {
 	setIntelligenceEndpointLongCache: RedactedIntelligenceEndpoint;
 	/** Imports a model into an endpoint, from the catalog when it lists it. */
 	addEndpointModel: EndpointModel;
+	/**
+	 * Imports several models into an endpoint at once, in order, each from
+	 * the catalog when it lists it.
+	 */
+	addEndpointModels: EndpointModel[];
 	/** Removes an endpoint's model, unsetting any tier that uses it. */
 	removeEndpointModel: EndpointModel;
-	/** Lists the models an endpoint offers. */
+	/** Lists the models an endpoint offers, or every endpoint's. */
 	listEndpointModels: EndpointModel[];
 	/** Makes an endpoint model the default for a tier. */
 	setIntelligenceDefault: AcceptedResponse;
@@ -6653,14 +6845,14 @@ export interface Replies {
 	uninstallExtension: AcceptedResponse;
 	/** Lists every installed extension, in the order its hooks run. */
 	listExtensions: ExtensionSummary[];
-	/** Lists the permissions recorded for extension `extension_id`. */
+	/** Lists the permissions recorded for some extensions. */
 	listExtensionPermissions: ExtensionPermission[];
 	/**
 	 * Enables or disables `permission` for extension `extension_id`,
 	 * restarting its sandbox so the change applies at once.
 	 */
 	setExtensionPermission: AcceptedResponse;
-	/** Lists the hooks recorded for extension `extension_id`. */
+	/** Lists the hooks recorded for some extensions. */
 	listExtensionHooks: ExtensionHook[];
 	/**
 	 * Enables or disables `hook` for extension `extension_id`, restarting
@@ -6807,7 +6999,7 @@ export interface Replies {
 	 * a reaction queues the agent's turn on it.
 	 */
 	setAgentMessageReaction: AcceptedResponse;
-	/** Lists the images attached to a message. */
+	/** Lists the images attached to some agent messages. */
 	listAgentMessageAttachments: Attachment[];
 	/**
 	 * Sends a message to an agent: a running turn takes it in, or it
@@ -6830,8 +7022,8 @@ export interface Replies {
 	/** Removes cue `cue_id`; an agent left with no cues goes idle. */
 	removeAgentCue: AcceptedResponse;
 	/**
-	 * Lists the memories agent `agent_id` sees, its own and the global
-	 * ones; only the global ones when absent. Oldest first.
+	 * Lists the memories a filter picks: what one agent sees, the global
+	 * ones, or every one. By scope, each oldest first.
 	 */
 	listMemories: Memory[];
 	/** Forgets memory `memory_id`, returning it. */
@@ -6865,6 +7057,11 @@ export interface Replies {
 	listActorSessions: ActorSession[];
 	getActorSession: ActorSession;
 	/**
+	 * Lists the sessions an actor session runs under as a subagent, nearest
+	 * first.
+	 */
+	listActorSessionAncestors: ActorSession[];
+	/**
 	 * Lists an actor session's subagents, one level down, first launched
 	 * first.
 	 */
@@ -6888,7 +7085,7 @@ export interface Replies {
 	markActorSessionRead: ActorSession;
 	/** Lists what was said in an actor session, oldest first. */
 	listActorSessionMessages: ActorSessionMessage[];
-	/** Lists the images attached to an actor session message. */
+	/** Lists the images attached to some actor session messages. */
 	listActorSessionMessageAttachments: Attachment[];
 	/** Hands an actor a new session, through its client. */
 	startActorSession: ActorSession;
@@ -6989,6 +7186,11 @@ export interface Replies {
 	 * every kind.
 	 */
 	resolveLink: Embed;
+	/**
+	 * Resolves several `cohesion://` links at once, each as `resolveLink`
+	 * does, `None` for an item that is gone.
+	 */
+	resolveLinks: ResolvedLink[];
 	/** Splits Markdown into its text and its embeds, each resolved. */
 	resolveEmbeds: TextSection[];
 	/** The items that link to an item, each resolved as `resolveLink` does. */

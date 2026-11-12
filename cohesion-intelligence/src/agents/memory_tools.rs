@@ -5,7 +5,8 @@
 use cohesion_core::log::Module;
 use cohesion_core::log_error;
 use cohesion_core::model::{
-    AgentMemoryChange, AgentMessageContent, IntelligenceAgentMessageSender, MemoryScope,
+    AgentMemoryChange, AgentMessageContent, IntelligenceAgentMessageSender, MemoryFilter,
+    MemoryScope,
 };
 use cohesion_db::{
     CommandError, CreateAgentMessageCommand, CreateMemoryCommand, DatabaseContext,
@@ -194,7 +195,7 @@ impl AgentTool for ForgetTool {
             let visible = self
                 .database
                 .send(ListMemoriesCommand {
-                    agent_id: Some(self.agent_id),
+                    filter: MemoryFilter::SeenBy(self.agent_id),
                 })
                 .await;
             let seen = match visible {
@@ -258,7 +259,7 @@ impl AgentTool for MemoriesTool {
             let result = self
                 .database
                 .send(ListMemoriesCommand {
-                    agent_id: Some(self.agent_id),
+                    filter: MemoryFilter::SeenBy(self.agent_id),
                 })
                 .await;
             match result {

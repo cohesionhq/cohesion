@@ -260,8 +260,10 @@ fn a_message_keeps_its_images_beside_it_and_takes_them_when_it_goes() {
         .unwrap();
     assert_eq!(message.attachment_count, 2);
     let list = |message_id| {
-        db.send_blocking(ListActorSessionMessageAttachmentsCommand { message_id })
-            .unwrap()
+        db.send_blocking(ListActorSessionMessageAttachmentsCommand {
+            message_ids: vec![message_id],
+        })
+        .unwrap()
     };
     let stored: Vec<String> = list(message.id)
         .into_iter()
@@ -505,6 +507,7 @@ fn a_request_takes_one_response_of_its_kind_and_shape() {
     let messages = db
         .send_blocking(ListActorSessionMessagesCommand {
             session_id: session.id,
+            ids: None,
         })
         .unwrap();
     assert!(
@@ -533,6 +536,7 @@ fn what_the_user_says_after_a_request_passes_it_over() {
     let answered = |id: i64| {
         db.send_blocking(ListActorSessionMessagesCommand {
             session_id: session.id,
+            ids: None,
         })
         .unwrap()
         .into_iter()
@@ -557,7 +561,10 @@ fn stored_tool(
     message_id: i64,
 ) -> (ActorToolKind, Option<i64>) {
     let messages = db
-        .send_blocking(ListActorSessionMessagesCommand { session_id })
+        .send_blocking(ListActorSessionMessagesCommand {
+            session_id,
+            ids: None,
+        })
         .unwrap();
     let message = messages
         .into_iter()
@@ -575,7 +582,10 @@ fn stored_tool(
 /// The end of message `message_id`, a tool or thinking, as read back.
 fn stored_end(db: &DatabaseContext, session_id: i64, message_id: i64) -> Option<i64> {
     let messages = db
-        .send_blocking(ListActorSessionMessagesCommand { session_id })
+        .send_blocking(ListActorSessionMessagesCommand {
+            session_id,
+            ids: None,
+        })
         .unwrap();
     let message = messages
         .into_iter()
@@ -650,6 +660,7 @@ fn thinking_ends_once_and_keeps_its_text() {
     let messages = db
         .send_blocking(ListActorSessionMessagesCommand {
             session_id: session.id,
+            ids: None,
         })
         .unwrap();
     assert!(matches!(
@@ -965,4 +976,23 @@ fn a_resolved_session_stays_resolved_until_it_works_again_and_lists_leave_it_out
     // More to do starts it again, and lists show it.
     set_status(&db, session.id, ActorSessionStatus::Working);
     assert_eq!(listed(&db), [session.id]);
+}
+
+#[test]
+fn a_message_changes_only_itself_not_the_session_or_the_lists() {
+    let db = context();
+    let session = session(&db);
+    let mut batches = db.subscribe();
+    let message = say(&db, session.id, question()).unwrap();
+    let mut keys = Vec::new();
+    while let Ok(batch) = batches.try_recv() {
+        keys.extend(batch.keys.clone());
+    }
+    assert_eq!(
+        keys,
+        [Invalidation::ActorSessionMessage {
+            session_id: session.id,
+            message_id: message.id,
+        }]
+    );
 }

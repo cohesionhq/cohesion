@@ -168,6 +168,33 @@ impl<'c, M: Model, O> Select<'c, M, O> {
             .map(|count| count.unwrap_or(0))
     }
 
+    /// Where the row `id` falls in this query's order, counting from 0, or
+    /// `None` when the query doesn't match it; `limit` and `offset` are
+    /// ignored. Runs one query that numbers the rows without reading them.
+    pub fn position_of(self, id: i64) -> Result<Option<u64>, DatabaseError> {
+        let order = self
+            .order
+            .clone()
+            .unwrap_or_else(|| format!("{}.id", M::TABLE));
+        let mut sql = format!(
+            "SELECT position AS value FROM (SELECT {}.id AS row_id, \
+             ROW_NUMBER() OVER (ORDER BY {order}) - 1 AS position",
+            M::TABLE
+        );
+        self.write_from(&mut sql);
+        sql.push_str(") WHERE row_id = ?");
+        let id = id.into_value();
+        // `order`'s `?`s come first in this text, then the filters'.
+        let params = self
+            .order_params
+            .iter()
+            .chain(self.filter.params.iter())
+            .chain(std::iter::once(&id));
+        self.container
+            .query_row(&sql, params, |row| read_column::<i64>(row, "value"))
+            .map(|position| position.map(|p| p as u64))
+    }
+
     /// The SQL and parameters of this query used as `(SELECT ...)` inside
     /// another's condition.
     pub(super) fn into_subquery(self) -> (String, Vec<Value>) {

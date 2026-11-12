@@ -289,6 +289,7 @@ fn folders_stay_in_their_workspace_and_journals_stay_out() {
             document_type: None,
             journal_from: None,
             journal_to: None,
+            ids: None,
             metadata: HashMap::new(),
             has_metadata: Vec::new(),
         })

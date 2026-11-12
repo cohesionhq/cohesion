@@ -159,7 +159,10 @@ impl Studio {
     /// How many messages session `id` holds.
     async fn said(&self, id: i64) -> usize {
         self.database
-            .send(ListActorSessionMessagesCommand { session_id: id })
+            .send(ListActorSessionMessagesCommand {
+                session_id: id,
+                ids: None,
+            })
             .await
             .unwrap()
             .len()

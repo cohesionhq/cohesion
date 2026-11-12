@@ -86,7 +86,7 @@ impl JsIntelligenceEndpoint {
             .read(
                 &ctx,
                 ListEndpointModelsCommand {
-                    endpoint_id: self.inner.id,
+                    endpoint_id: Some(self.inner.id),
                 },
             )?
             .into_iter()

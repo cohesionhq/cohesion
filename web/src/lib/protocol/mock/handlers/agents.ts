@@ -170,10 +170,15 @@ export function agentsHandlers(core: MockCore) {
 			a.agent_unread = false;
 			return agentRow(a);
 		},
-		listAgentMessages: ({ agent_id, before, limit }) => {
+		listAgentMessages: ({ agent_id, before, limit, ids }) => {
 			agent(agent_id);
 			const older = state.agentMessages
-				.filter((m) => m.agent_id === agent_id && (before == null || m.id < before))
+				.filter(
+					(m) =>
+						m.agent_id === agent_id &&
+						(before == null || m.id < before) &&
+						(ids == null || ids.includes(m.id))
+				)
 				.sort((a, b) => a.id - b.id);
 			return older.slice(Math.max(0, older.length - limit)).map((m) => ({ ...m }));
 		},
@@ -187,9 +192,11 @@ export function agentsHandlers(core: MockCore) {
 			Object.assign(m, reactionExcerpt(m.reaction, m.excerpt));
 			return null;
 		},
-		listAgentMessageAttachments: ({ message_id }) =>
+		listAgentMessageAttachments: ({ message_ids }) =>
 			state.agentAttachments
-				.filter((a) => a.message.kind === 'agent' && a.message.agent_message_id === message_id)
+				.filter(
+					(a) => a.message.kind === 'agent' && message_ids.includes(a.message.agent_message_id)
+				)
 				.map((a) => ({ ...a })),
 		// The agent answers with a canned reply; it runs no code here. The
 		// reply is one model call, on a thread of its own.
@@ -302,11 +309,12 @@ export function agentsHandlers(core: MockCore) {
 			agent(agent_id);
 			return state.agentCues.filter((c) => c.agent_id === agent_id).map((c) => ({ ...c }));
 		},
-		// What the agent sees, its own, then its team's, then the global ones; the global ones alone
-		// without an agent.
-		listMemories: ({ agent_id }) => {
-			const seer = agent_id == null ? null : agent(agent_id);
+		// What the filter picks: what an agent sees, the global ones, or every one; an agent's own
+		// first, then a team's, then the global ones.
+		listMemories: ({ filter }) => {
+			const seer = typeof filter === 'object' ? agent(filter.seenBy) : null;
 			const sees = ({ scope }: Memory) =>
+				filter === 'every' ||
 				scope.kind === 'global' ||
 				(scope.kind === 'agent' && scope.agent_id === seer?.id) ||
 				(scope.kind === 'team' && scope.team_id === seer?.team_id);

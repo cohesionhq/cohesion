@@ -207,6 +207,7 @@ impl Scratch {
                 agent_id: agent.id,
                 before: None,
                 limit: i64::from(u32::MAX),
+                ids: None,
             })
             .await?;
         let last = messages

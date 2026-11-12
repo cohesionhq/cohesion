@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::model::{
     AgentSkillScope, IntelligenceAgentColor, IntelligenceAgentPersonality,
-    IntelligenceAgentVerbosity,
+    IntelligenceAgentVerbosity, MemoryFilter,
 };
 
 /// Creates an agent; it runs on the `agent` tier's default model until
@@ -137,6 +137,9 @@ pub struct ListAgentMessagesRequest {
     pub agent_id: i64,
     pub before: Option<i64>,
     pub limit: i64,
+    /// Only these messages: how a feed refreshes the ones an
+    /// `agentMessage` invalidation names.
+    pub ids: Option<Vec<i64>>,
 }
 
 /// Fetches agent message `message_id`.
@@ -171,12 +174,11 @@ pub struct RemoveAgentCueRequest {
     pub cue_id: i64,
 }
 
-/// Lists the memories agent `agent_id` sees: its own and the global ones;
-/// only the global ones when absent. Oldest first.
+/// Lists the memories `filter` picks, by scope (an agent's own, then a
+/// team's, then the global ones), each oldest first.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
-#[ts_wire(input)]
 pub struct ListMemoriesRequest {
-    pub agent_id: Option<i64>,
+    pub filter: MemoryFilter,
 }
 
 /// Forgets memory `memory_id`.
@@ -280,10 +282,11 @@ pub struct ImageUpload {
     pub data: String,
 }
 
-/// Lists the images attached to message `message_id`, in the order sent.
+/// Lists the images attached to each of messages `message_ids`, by message,
+/// each message's in the order sent.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct ListAgentMessageAttachmentsRequest {
-    pub message_id: i64,
+    pub message_ids: Vec<i64>,
 }
 
 /// Reacts to message `message_id`, one the agent sent, with a single emoji

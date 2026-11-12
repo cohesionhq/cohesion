@@ -449,6 +449,7 @@ fn listed(books: &Books) -> Vec<String> {
             document_type: None,
             journal_from: None,
             journal_to: None,
+            ids: None,
             metadata: Default::default(),
             has_metadata: Vec::new(),
         })

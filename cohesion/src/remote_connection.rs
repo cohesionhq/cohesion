@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use cohesion_core::{
     Host,
@@ -7,6 +8,7 @@ use cohesion_core::{
 use futures_util::{SinkExt, StreamExt};
 use rustls::ClientConfig;
 use tokio::net::TcpStream;
+use tokio::sync::Mutex;
 use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream, tungstenite::Message};
 
 use crate::{
@@ -17,6 +19,17 @@ use crate::{
 /// A WebSocket session with cohesiond over mutual TLS.
 pub type RemoteSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
+/// How long a session may sit unused and still be sent the next request;
+/// an older one is closed and a new one opened.
+const SESSION_REUSE: Duration = Duration::from_secs(60);
+
+/// The session requests go over, kept between them so a command making
+/// several calls pays for one TLS handshake, and when it was last used.
+struct OpenSession {
+    socket: RemoteSocket,
+    used: Instant,
+}
+
 #[derive(Clone)]
 pub struct RemoteConnection {
     http: reqwest::Client,
@@ -25,6 +38,53 @@ pub struct RemoteConnection {
     /// `host:port`, as a URL names the server.
     authority: String,
     pub(crate) base_url: String,
+    /// The session the next request reuses, if one is open; one request at
+    /// a time goes over it.
+    session: Arc<Mutex<Option<OpenSession>>>,
+}
+
+/// Why an exchange over a session ended without a reply.
+enum Exchange {
+    /// Nothing at all came back: the request may never have been read.
+    Unanswered(ConnectionError),
+    /// Something came back first, so the request may have been carried out.
+    Failed(ConnectionError),
+}
+
+impl Exchange {
+    fn into_error(self) -> ConnectionError {
+        match self {
+            Exchange::Unanswered(error) | Exchange::Failed(error) => error,
+        }
+    }
+}
+
+/// Sends `body` over `socket` and reads frames until the reply, skipping
+/// the hello and any invalidations that come first.
+async fn exchange(socket: &mut RemoteSocket, body: &str) -> Result<String, Exchange> {
+    socket
+        .send(Message::text(body))
+        .await
+        .map_err(|error| Exchange::Unanswered(ConnectionError::WebSocket(error)))?;
+    let mut heard = false;
+    while let Some(message) = socket.next().await {
+        let message = match message {
+            Ok(message) => message,
+            Err(error) if heard => return Err(Exchange::Failed(ConnectionError::WebSocket(error))),
+            Err(error) => return Err(Exchange::Unanswered(ConnectionError::WebSocket(error))),
+        };
+        let Message::Text(text) = message else {
+            continue;
+        };
+        heard = true;
+        if is_reply(&text) {
+            return Ok(text.to_string());
+        }
+    }
+    Err(match heard {
+        true => Exchange::Failed(ConnectionError::UnexpectedResponse),
+        false => Exchange::Unanswered(ConnectionError::UnexpectedResponse),
+    })
 }
 
 impl RemoteConnection {
@@ -48,6 +108,7 @@ impl RemoteConnection {
             ws_tls: Arc::new(ws_tls),
             base_url: format!("https://{authority}"),
             authority,
+            session: Arc::default(),
         })
     }
 
@@ -63,27 +124,37 @@ impl RemoteConnection {
         }
     }
 
-    /// Sends `body`, the JSON of a request, over a fresh session and returns the reply
-    /// frame's JSON as sent.
+    /// Sends `body`, the JSON of a request, and returns the reply frame's
+    /// JSON as sent. It goes over the session the last request used when
+    /// that is recent, else over a new one, which is kept for the next.
     async fn send_raw(&self, body: String) -> Result<String, ConnectionError> {
-        let mut socket = self.connect_ws().await?;
-        socket
-            .send(Message::text(body))
-            .await
-            .map_err(ConnectionError::WebSocket)?;
-
-        // The hello and any invalidations can arrive before the reply.
-        while let Some(message) = socket.next().await {
-            let Message::Text(text) = message.map_err(ConnectionError::WebSocket)? else {
-                continue;
-            };
-            if is_reply(&text) {
-                // Best effort: the reply is in hand whether or not the close handshake lands.
-                let _ = socket.close(None).await;
-                return Ok(text.to_string());
+        let mut session = self.session.lock().await;
+        let kept = session
+            .take()
+            .filter(|open| open.used.elapsed() < SESSION_REUSE);
+        if let Some(mut open) = kept {
+            match exchange(&mut open.socket, &body).await {
+                Ok(text) => {
+                    open.used = Instant::now();
+                    *session = Some(open);
+                    return Ok(text);
+                }
+                // Nothing came back over the kept session, so the daemon
+                // closed it (it restarted) before reading the request: send
+                // it again over a new one.
+                Err(Exchange::Unanswered(_)) => {}
+                Err(Exchange::Failed(error)) => return Err(error),
             }
         }
-        Err(ConnectionError::UnexpectedResponse)
+        let mut socket = self.connect_ws().await?;
+        let text = exchange(&mut socket, &body)
+            .await
+            .map_err(Exchange::into_error)?;
+        *session = Some(OpenSession {
+            socket,
+            used: Instant::now(),
+        });
+        Ok(text)
     }
 
     /// Opens a session on cohesiond's `/connect` WebSocket.

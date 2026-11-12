@@ -1,9 +1,10 @@
 // Embeds: the items `cohesion://` links show as cards, resolved by the daemon
-// (`resolveLink`) once per link and shared by every card showing it, in
-// either half of a split view. Each asks again when its item changes.
+// once per link and shared by every card showing it, in either half of a
+// split view. The cards that ask at once go together (`resolveLinks`), and
+// each asks again when its item changes.
 
 import { send as defaultSend } from '$lib/protocol/api';
-import { ProtocolError } from '$lib/protocol/errors';
+import { batched } from '$lib/protocol/batch';
 import type { Embed, Invalidation, Send } from '$lib/protocol/types';
 import { ITEM_KINDS, parseItemLink } from '$lib/format/itemLinks';
 import { Resource } from './resource.svelte';
@@ -12,14 +13,21 @@ import { Resource } from './resource.svelte';
 export type EmbedResource = Resource<Embed | null, string>;
 
 export class EmbedsStore {
-	#send: Send;
+	/** One link's embed; the links asked for at once go as one request. */
+	#resolve: (link: string) => Promise<Embed | null>;
 	/** Each link's embed and how many cards show it. */
 	// Bookkeeping only; each card renders from its own `Resource`.
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	#shown = new Map<string, { embed: EmbedResource; cards: number }>();
 
 	constructor(send: Send) {
-		this.#send = send;
+		this.#resolve = batched(
+			async (links) =>
+				// The batch's answer, read once; nothing renders from it.
+				// eslint-disable-next-line svelte/prefer-svelte-reactivity
+				new Map((await send('resolveLinks', { links })).map((r) => [r.link, r.embed] as const)),
+			() => null
+		);
 	}
 
 	/**
@@ -50,15 +58,6 @@ export class EmbedsStore {
 			}
 		};
 	}
-
-	async #resolve(link: string): Promise<Embed | null> {
-		try {
-			return await this.#send('resolveLink', { link });
-		} catch (error) {
-			if (error instanceof ProtocolError && error.code === 'notFound') return null;
-			throw error;
-		}
-	}
 }
 
 /**
@@ -72,9 +71,17 @@ export function touches(key: Invalidation, link: string, embed: Embed | null): b
 		const { item } = embed;
 		switch (item.kind) {
 			case 'task':
-				return workspaceGone || (key.kind === 'taskList' && key.id.workspace_id === ws);
+				return (
+					workspaceGone ||
+					(key.kind === 'taskList' && key.id.workspace_id === ws) ||
+					(key.kind === 'taskDescription' && key.id.task_id === item.task.id)
+				);
 			case 'document':
-				return workspaceGone || (key.kind === 'documents' && key.id === ws);
+				return (
+					workspaceGone ||
+					(key.kind === 'documents' && key.id === ws) ||
+					(key.kind === 'documentText' && key.id.document_id === item.document.id)
+				);
 			case 'resource':
 				return workspaceGone || (key.kind === 'resources' && key.id === ws);
 			case 'contact':
@@ -82,7 +89,10 @@ export function touches(key: Invalidation, link: string, embed: Embed | null): b
 			case 'agent':
 				return key.kind === 'agent' && key.id === item.agent.id;
 			case 'actorSession':
-				return key.kind === 'actorSession' && key.id === item.session.id;
+				return (
+					(key.kind === 'actorSession' && key.id === item.session.id) ||
+					(key.kind === 'actorSessionMessage' && key.id.session_id === item.session.id)
+				);
 			case 'article':
 				return key.kind === 'feedArticles';
 			// A folder's rows and columns, or its title and whether it is a table.

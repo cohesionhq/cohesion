@@ -535,6 +535,7 @@ impl AgentHost {
                         agent_id,
                         before: None,
                         limit: 1,
+                        ids: None,
                     })
                     .await?
                     .last()

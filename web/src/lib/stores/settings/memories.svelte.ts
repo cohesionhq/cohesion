@@ -46,30 +46,24 @@ export class MemoriesStore {
 	constructor(send: Send) {
 		this.#send = send;
 		this.list = new Resource({
-			// An agent's list holds its team's and the global memories too; each shows once, under
-			// its own heading. A team's are read through its agents, so a team with none shows none.
+			// Every memory shows once, under the heading of its scope.
 			fetch: async () => {
-				const [global, agents, teams] = await Promise.all([
-					send('listMemories', { agent_id: null }),
+				const [memories, agents, teams] = await Promise.all([
+					send('listMemories', { filter: 'every' }),
 					send('listIntelligenceAgents'),
 					send('listAgentTeams')
 				]);
-				const seen = (
-					await Promise.all(agents.map((agent) => send('listMemories', { agent_id: agent.id })))
-				).flat();
-				const teamMemories = (team_id: number) =>
-					seen.filter(
-						(m, i) =>
-							m.scope.kind === 'team' &&
-							m.scope.team_id === team_id &&
-							seen.findIndex((other) => other.id === m.id) === i
-					);
 				return {
-					global,
-					teams: teams.map((team) => ({ team, memories: teamMemories(team.id) })),
+					global: memories.filter((m) => m.scope.kind === 'global'),
+					teams: teams.map((team) => ({
+						team,
+						memories: memories.filter((m) => m.scope.kind === 'team' && m.scope.team_id === team.id)
+					})),
 					agents: agents.map((agent) => ({
 						agent,
-						memories: seen.filter((m) => m.scope.kind === 'agent' && m.scope.agent_id === agent.id)
+						memories: memories.filter(
+							(m) => m.scope.kind === 'agent' && m.scope.agent_id === agent.id
+						)
 					}))
 				};
 			},
@@ -77,7 +71,7 @@ export class MemoriesStore {
 			matches: memoriesChanged
 		});
 		this.seen = new Resource({
-			fetch: (agent_id) => send('listMemories', { agent_id }),
+			fetch: (agent_id) => send('listMemories', { filter: { seenBy: agent_id } }),
 			initial: [],
 			matches: memoriesChanged
 		});
@@ -93,7 +87,7 @@ export class MemoriesStore {
 
 	/** The memories `agent_id` sees now: its own, its team's and the global ones, oldest first. */
 	seenBy(agent_id: number): Promise<Memory[]> {
-		return this.#send('listMemories', { agent_id });
+		return this.#send('listMemories', { filter: { seenBy: agent_id } });
 	}
 
 	/** Forgets a memory; no agent sees it again. */

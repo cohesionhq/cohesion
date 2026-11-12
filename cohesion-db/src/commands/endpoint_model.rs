@@ -3,7 +3,8 @@ use cohesion_core::{
     invalidation::Invalidation,
     model::{CatalogModel, EndpointBackend, EndpointModel, IntelligenceEndpoint},
     protocol::{
-        AddEndpointModelRequest, ListEndpointModelsRequest, ModelPrices, RemoveEndpointModelRequest,
+        AddEndpointModelRequest, AddEndpointModelsRequest, ListEndpointModelsRequest, ModelPrices,
+        RemoveEndpointModelRequest,
     },
 };
 
@@ -106,6 +107,39 @@ impl DatabaseCommand for AddEndpointModelCommand {
     }
 }
 
+/// Imports each of `model_identifiers` into an endpoint, in order, as
+/// [`AddEndpointModelCommand`] does with nothing overridden, in one
+/// transaction: all of them or, if one fails, none.
+#[derive(FromRequest)]
+#[request(AddEndpointModelsRequest)]
+pub struct AddEndpointModelsCommand {
+    pub endpoint_id: i64,
+    pub model_identifiers: Vec<String>,
+}
+impl DatabaseCommand for AddEndpointModelsCommand {
+    type Response = Vec<EndpointModel>;
+    type Access = Write<IntelligenceSettings>;
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_, Self::Access>,
+    ) -> DatabaseCommandResult<Changed<Self::Response>> {
+        let added = self
+            .model_identifiers
+            .into_iter()
+            .map(|model_identifier| {
+                ctx.run(AddEndpointModelCommand {
+                    endpoint_id: self.endpoint_id,
+                    model_identifier,
+                    model_name: None,
+                    context_size: None,
+                    prices: None,
+                })
+            })
+            .collect::<DatabaseCommandResult<Vec<_>>>()?;
+        Ok(added.invalidating([Invalidation::Intelligence]))
+    }
+}
+
 /// Removes an endpoint model; any tier using it is unset by the cascade.
 #[derive(FromRequest)]
 #[request(RemoveEndpointModelRequest)]
@@ -128,18 +162,23 @@ impl DatabaseCommand for RemoveEndpointModelCommand {
     }
 }
 
+/// The models endpoint `endpoint_id` offers, by name; every endpoint's
+/// when `None`.
 #[derive(FromRequest)]
 #[request(ListEndpointModelsRequest)]
 pub struct ListEndpointModelsCommand {
-    pub endpoint_id: i64,
+    pub endpoint_id: Option<i64>,
 }
 impl DatabaseCommand for ListEndpointModelsCommand {
     type Response = Vec<EndpointModel>;
     type Access = Read;
     fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Self::Response> {
-        Ok(endpoint_models(ctx.db)
-            .filter_eq(EndpointModel::ENDPOINT_ID, self.endpoint_id)
-            .all()?)
+        let query = endpoint_models(ctx.db);
+        Ok(match self.endpoint_id {
+            Some(endpoint_id) => query.filter_eq(EndpointModel::ENDPOINT_ID, endpoint_id),
+            None => query,
+        }
+        .all()?)
     }
 }
 

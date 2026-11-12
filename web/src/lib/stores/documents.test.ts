@@ -9,6 +9,7 @@ import {
 	groupByRecency,
 	neighbours
 } from './documents.svelte';
+import { refreshInvalidated } from './resource.svelte';
 
 const doc = (id: number, fields: Partial<Document>): Document => ({
 	id,
@@ -105,7 +106,7 @@ describe('documents store', () => {
 		await store.list.load(1);
 		const created = await store.create(1);
 		expect(created.title).toBe('Untitled');
-		expect(store.list.value[0]).toEqual(created);
+		expect(store.list.value[0].id).toBe(created.id);
 
 		await store.open(1, created.id);
 		await store.rename('Packing list');
@@ -209,7 +210,11 @@ describe('documents store', () => {
 		await store.open(1, 2);
 		store.text.edit('Rewritten');
 		await store.text.flush();
-		expect(store.archive.value.find((d) => d.id === 2)?.contents).toBe('Rewritten');
+		expect(store.archive.value.find((d) => d.id === 2)?.modified).toBe(
+			store.current.value?.modified
+		);
+		await store.archive.refetch();
+		expect(store.archive.value.find((d) => d.id === 2)?.opening).toBe('Rewritten');
 	});
 
 	it('reports a missing document as notFound', async () => {
@@ -264,5 +269,28 @@ describe('documents store', () => {
 		const dune = store.list.value.find((d) => d.title === 'Dune')!;
 		expect(dune.folder_id).toBeNull();
 		expect(mock.state.documentValues.some((v) => v.document_id === dune.id)).toBe(false);
+	});
+});
+
+describe('a document text change', () => {
+	it('refreshes just that row of the list, in its new place', async () => {
+		const mock = createMock();
+		const sent: string[] = [];
+		const send = ((...args: Parameters<typeof mock.send>) => {
+			sent.push(JSON.stringify(args));
+			return mock.send(...args);
+		}) as typeof mock.send;
+		const store = createDocumentsStore(send);
+		await store.list.load(1);
+		const last = store.list.value.at(-1)!;
+		await mock.send('editDocument', { workspace_id: 1, document_id: last.id, contents: 'Fresh' });
+		sent.length = 0;
+
+		await refreshInvalidated([
+			{ kind: 'documentText', id: { workspace_id: 1, document_id: last.id } }
+		]);
+		expect(sent).toHaveLength(1);
+		expect(JSON.parse(sent[0])[1].ids).toEqual([last.id]);
+		expect(store.list.value[0]).toMatchObject({ id: last.id, opening: 'Fresh' });
 	});
 });

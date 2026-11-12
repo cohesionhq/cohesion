@@ -5186,6 +5186,11 @@ pub const MIGRATIONS: &[Migration] = &[
         ALTER TABLE workspaces ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
         UPDATE workspaces SET sort_order = id;",
     },
+    Migration {
+        name: "documents_workspace_modified",
+        sql: "
+        CREATE INDEX documents_workspace_modified ON documents(workspace_id, modified);",
+    },
 ];
 
 #[cfg(test)]

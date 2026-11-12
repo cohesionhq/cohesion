@@ -100,6 +100,7 @@ impl JsWorkspace {
                 document_type: None,
                 journal_from: None,
                 journal_to: None,
+                ids: None,
                 metadata: options.metadata.unwrap_or_default(),
                 has_metadata: options
                     .has_metadata
@@ -210,7 +211,7 @@ impl JsWorkspace {
                 date: journal_date(date),
             },
         )?;
-        Ok(document.map(|document| JsDocument::new(document, self.db.clone())))
+        Ok(document.map(|document| JsDocument::new(document.into(), self.db.clone())))
     }
 
     /// Creates the journal entry for a date if it is missing and returns it,
@@ -228,7 +229,7 @@ impl JsWorkspace {
                 date: journal_date(date),
             },
         )?;
-        Ok(JsDocument::new(document, self.db.clone()))
+        Ok(JsDocument::new(document.into(), self.db.clone()))
     }
 
     /// The deleted tasks Rewind can still bring back, most recently deleted
@@ -285,7 +286,7 @@ impl JsWorkspace {
                         document_id,
                     },
                 )?;
-                Ok(JsDocument::new(document, self.db.clone()))
+                Ok(JsDocument::new(document.into(), self.db.clone()))
             })
             .collect()
     }
@@ -438,7 +439,7 @@ impl JsWorkspace {
                 folder_id: None,
             },
         )?;
-        Ok(JsDocument::new(result, self.db.clone()))
+        Ok(JsDocument::new(result.into(), self.db.clone()))
     }
 
     /// Every live document folder in this workspace, at every depth, in
@@ -563,7 +564,7 @@ impl JsWorkspace {
                 document_id: id,
             },
         )?;
-        Ok(JsDocument::new(document, self.db.clone()))
+        Ok(JsDocument::new(document.into(), self.db.clone()))
     }
 
     #[qjs(rename = "taskFolders")]

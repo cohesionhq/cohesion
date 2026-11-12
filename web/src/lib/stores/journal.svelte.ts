@@ -29,7 +29,9 @@ export class JournalStore {
 				return send('getJournal', { workspace_id, date: this.#date });
 			},
 			initial: null,
-			matches: (key, workspace_id) => key.kind === 'documents' && key.id === workspace_id,
+			matches: (key, workspace_id) =>
+				(key.kind === 'documents' && key.id === workspace_id) ||
+				(key.kind === 'documentText' && key.id.document_id === this.today.value?.id),
 			canRefetch: () => !this.text.dirty && !this.text.saving,
 			onFetched: (doc) => {
 				if (doc) this.text.receive(doc.contents, doc.modified);

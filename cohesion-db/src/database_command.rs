@@ -215,6 +215,9 @@ pub trait Access: sealed::Sealed + Send + 'static {
     /// writes that can reach what Rewind keeps, so the worker notes who it
     /// writes as first.
     const CHANGES_USER_DATA: bool;
+    /// Whether a command with this access only reads, so it may run on a
+    /// read-only connection beside the writer.
+    const READ_ONLY: bool;
     /// The view over `container`.
     fn view(container: &Container) -> Self::Database<'_>;
     /// The response in `output`, its keys added to `invalidations`.
@@ -225,6 +228,7 @@ impl Access for Read {
     type Database<'c> = ReadContainer<'c>;
     type Output<T> = T;
     const CHANGES_USER_DATA: bool = false;
+    const READ_ONLY: bool = true;
 
     fn view(container: &Container) -> ReadContainer<'_> {
         ReadContainer::new(container)
@@ -239,6 +243,7 @@ impl<A: Area> Access for Write<A> {
     type Database<'c> = WriteContainer<'c>;
     type Output<T> = Changed<T>;
     const CHANGES_USER_DATA: bool = matches!(A::AREA, WriteArea::UserData);
+    const READ_ONLY: bool = false;
 
     fn view(container: &Container) -> WriteContainer<'_> {
         WriteContainer::new(container)

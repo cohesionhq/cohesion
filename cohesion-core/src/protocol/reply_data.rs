@@ -10,6 +10,7 @@ use super::connector_requests::{
     ConnectorAuthentication, ConnectorService, ImportableResource, RedactedConnectorAccount,
     ResourceRefreshSummary,
 };
+use super::embed_requests::ResolvedLink;
 use super::extension_requests::{
     ExtensionCallResult, ExtensionPreview, ExtensionSummary, ExtensionUpdate, RegistrySection,
 };
@@ -28,13 +29,13 @@ use super::task_requests::TaskPage;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem,
     AgentSkill, Article, Attachment, CatalogModel, Client, Component, Contact, ContactMethod,
-    DeletedItem, Document, DocumentFolder, DocumentFolderProperty, Embed, EndpointModel,
-    ExperimentSetting, ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent,
-    IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
-    IntelligenceCostEvent, IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit,
-    Profile, Resource, RestoredItem, SavedTaskView, SearchResult, SecuritySettings,
-    StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection, Version, VersionSummary,
-    Workspace, WorkspaceResourceKind,
+    DeletedItem, Document, DocumentFolder, DocumentFolderProperty, DocumentSummary, Embed,
+    EndpointModel, ExperimentSetting, ExtensionHook, ExtensionPermission, Feed, FeedSummary,
+    IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun,
+    IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault, IntelligenceSpend, Memory,
+    OrganizationUnit, Profile, Resource, RestoredItem, SavedTaskView, SearchResult,
+    SecuritySettings, StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection, Version,
+    VersionSummary, Workspace, WorkspaceResourceKind,
 };
 
 /// The payload of a successful reply.
@@ -54,7 +55,7 @@ pub enum ReplyData {
     Workspaces(Vec<Workspace>),
     Workspace(Workspace),
     Document(Document),
-    Documents(Vec<Document>),
+    DocumentSummaries(Vec<DocumentSummary>),
     Journal(Option<Document>),
     DocumentFolders(Vec<DocumentFolder>),
     DocumentFolder(DocumentFolder),
@@ -144,6 +145,7 @@ pub enum ReplyData {
     Article(Box<Article>),
     Embed(Box<Embed>),
     Embeds(Vec<Embed>),
+    ResolvedLinks(Vec<ResolvedLink>),
     TextSections(Vec<TextSection>),
     Feed(Feed),
     Feeds(Vec<Feed>),

@@ -86,19 +86,28 @@ fn agent_message_publishes_its_agent() {
         })
         .unwrap();
     let mut subscriber = db.subscribe();
-    db.send_blocking(CreateAgentMessageCommand {
-        agent_id: agent.id,
-        run_id: None,
-        run_description: None,
-        sender: IntelligenceAgentMessageSender::User,
-        content: AgentMessageContent::Text {
-            text: "hello".to_string(),
-        },
-        reply_to: None,
-    })
-    .unwrap();
+    let message = db
+        .send_blocking(CreateAgentMessageCommand {
+            agent_id: agent.id,
+            run_id: None,
+            run_description: None,
+            sender: IntelligenceAgentMessageSender::User,
+            content: AgentMessageContent::Text {
+                text: "hello".to_string(),
+            },
+            reply_to: None,
+        })
+        .unwrap();
     let batch = subscriber.blocking_recv().unwrap();
-    assert_eq!(batch.keys, [Invalidation::Agent(agent.id)]);
+    // The message alone, so a feed refreshes it and not the agent's cues,
+    // agenda and runs.
+    assert_eq!(
+        batch.keys,
+        [Invalidation::AgentMessage {
+            agent_id: agent.id,
+            message_id: message.id,
+        }]
+    );
 }
 
 #[test]
@@ -223,4 +232,42 @@ fn close_leaves_no_work_marked_running() {
     runtime.block_on(reopened.close());
     let _ = std::fs::remove_file(&path);
     assert_eq!(agent.activity, None);
+}
+
+#[test]
+fn reads_on_a_file_see_each_committed_write_and_fail_once_closed() {
+    let path = std::env::temp_dir().join(format!(
+        "cohesion-readers-{}-{}.db",
+        std::process::id(),
+        unix_now()
+    ));
+    let mut container = Container::open(&path).unwrap();
+    container.migrate().unwrap();
+    let db = DatabaseContext::new(container, Secrets::new(), ());
+    for title in ["one", "two", "three", "four"] {
+        db.send_blocking(CreateWorkspaceCommand {
+            title: title.to_string(),
+            emoji: None,
+        })
+        .unwrap();
+        let titles: Vec<String> = db
+            .send_blocking(ListWorkspacesCommand::default())
+            .unwrap()
+            .into_iter()
+            .map(|workspace| workspace.title)
+            .collect();
+        assert!(titles.contains(&title.to_string()));
+    }
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap();
+    runtime.block_on(db.close());
+    let after = db.send_blocking(ListWorkspacesCommand::default());
+    for suffix in ["", "-wal", "-shm"] {
+        let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+    }
+    assert!(matches!(
+        after,
+        Err(CommandError::Database(DatabaseError::Closed))
+    ));
 }

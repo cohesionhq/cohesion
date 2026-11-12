@@ -305,6 +305,33 @@ export function listTouchedBy(key: Invalidation, { workspace_id, view }: TaskLis
 	return key.id.folder_id === viewFolder(view);
 }
 
+/** Every status, for reading a task whatever it stands at. */
+const EVERY_STATUS: TaskStatus[] = ['incomplete', 'completed', 'cancelled'];
+
+/** Whether `key` names a task in `workspace_id` whose description alone changed. */
+const describedIn = (key: Invalidation, workspace_id: number) =>
+	key.kind === 'taskDescription' && key.id.workspace_id === workspace_id;
+
+/**
+ * Refreshes the rows of a page whose task's description changed: no filter
+ * or sort reads it, so each keeps its place and only its fields are new.
+ */
+function describedRows(send: Send) {
+	return async (keys: Invalidation[], workspace_id: number) => {
+		const ids = keys.flatMap((k) => (k.kind === 'taskDescription' ? [k.id.task_id] : []));
+		const { tasks } = await send('listTasks', {
+			workspace_id,
+			ids,
+			statuses: EVERY_STATUS,
+			limit: ids.length
+		});
+		return (page: TaskPage) => ({
+			...page,
+			tasks: page.tasks.map((t) => tasks.find((fresh) => fresh.id === t.id) ?? t)
+		});
+	};
+}
+
 /** A workspace and the first day after the ones due ("2026-11-08"): `workspace:day`. */
 export type DueKey = `${number}:${string}`;
 
@@ -337,8 +364,12 @@ export class TasksStore {
 					offset,
 					limit
 				}),
-			initial: { tasks: [], total: 0 },
+			initial: { tasks: [], total: 0, offset: 0 },
 			matches: listTouchedBy,
+			patch: {
+				matches: (key, { workspace_id }) => describedIn(key, workspace_id),
+				fetch: (keys, { workspace_id }) => describedRows(send)(keys, workspace_id)
+			},
 			// A filter, the order or the page changing swaps the rows in place.
 			keepsValue: (from, to) => from.workspace_id === to.workspace_id && from.view === to.view
 		});
@@ -353,9 +384,13 @@ export class TasksStore {
 					limit: 20
 				});
 			},
-			initial: { tasks: [], total: 0 },
+			initial: { tasks: [], total: 0, offset: 0 },
 			matches: (key, due) =>
-				key.kind === 'taskList' && key.id.workspace_id === Number(due.split(':')[0])
+				key.kind === 'taskList' && key.id.workspace_id === Number(due.split(':')[0]),
+			patch: {
+				matches: (key, due) => describedIn(key, Number(due.split(':')[0])),
+				fetch: (keys, due) => describedRows(send)(keys, Number(due.split(':')[0]))
+			}
 		});
 	}
 
@@ -414,7 +449,7 @@ export class TasksStore {
 		const { tasks } = await this.#send('listTasks', {
 			ids: [id],
 			workspace_id,
-			statuses: ['incomplete', 'completed', 'cancelled']
+			statuses: EVERY_STATUS
 		});
 		return tasks[0] ?? null;
 	}
@@ -430,12 +465,9 @@ export class TasksStore {
 		id: number
 	): Promise<number> {
 		const args = viewArgs(workspace_id, view, order, tags, priorities, sizes);
-		for (let offset = 0; ; offset += 500) {
-			const { tasks, total } = await this.#send('listTasks', { ...args, offset, limit: 500 });
-			const index = tasks.findIndex((t) => t.id === id);
-			if (index !== -1) return offset + index;
-			if (tasks.length === 0 || offset + tasks.length >= total) return -1;
-		}
+		const { tasks, offset } = await this.#send('listTasks', { ...args, around: id, limit: 500 });
+		const index = tasks.findIndex((t) => t.id === id);
+		return index === -1 ? -1 : offset + index;
 	}
 
 	/**
@@ -464,13 +496,19 @@ export class TasksStore {
 			await this.list.refetch();
 			return task;
 		}
-		this.list.update(({ tasks, total }) => {
+		this.list.update((page) => {
+			const { tasks, total } = page;
 			if (order.descending)
 				return {
+					...page,
 					tasks: offset === 0 ? [task, ...tasks].slice(0, limit) : tasks,
 					total: total + 1
 				};
-			return { tasks: offset + limit > total ? [...tasks, task] : tasks, total: total + 1 };
+			return {
+				...page,
+				tasks: offset + limit > total ? [...tasks, task] : tasks,
+				total: total + 1
+			};
 		});
 		return task;
 	}
@@ -692,9 +730,9 @@ export class TasksStore {
 
 	/** Takes the page's tasks matching `gone` out; the page keeps its place until the next listing, and only the total follows. */
 	#drop(gone: (task: Task) => boolean): void {
-		this.list.update(({ tasks, total }) => {
-			const kept = tasks.filter((t) => !gone(t));
-			return { tasks: kept, total: total - (tasks.length - kept.length) };
+		this.list.update((page) => {
+			const kept = page.tasks.filter((t) => !gone(t));
+			return { ...page, tasks: kept, total: page.total - (page.tasks.length - kept.length) };
 		});
 	}
 }

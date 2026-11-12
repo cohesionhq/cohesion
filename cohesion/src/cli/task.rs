@@ -257,6 +257,7 @@ async fn every_task(
                 descending: false,
                 offset: tasks.len() as u64,
                 limit: Some(500),
+                around: None,
             })
             .await?;
         let last = page.tasks.is_empty();
@@ -335,6 +336,7 @@ async fn find_task(ctx: &Context, workspace_id: i64, task_id: i64) -> Result<Tas
             descending: false,
             offset: 0,
             limit: None,
+            around: None,
         })
         .await?;
     tasks

@@ -1,6 +1,7 @@
 // Extensions: the installed ones with their hooks and permissions, and what
 // registries offer to install.
 
+import { batched, groupBy } from '$lib/protocol/batch';
 import type {
 	ExtensionHook,
 	ExtensionPermission,
@@ -112,13 +113,22 @@ export class ExtensionsStore {
 			initial: [],
 			matches: updatesChanged
 		});
+		// Every row of the list asks for its own grants; they go as one request.
 		this.#permissions = new Grants(
-			(extension_id) => send('listExtensionPermissions', { extension_id }),
+			batched(
+				async (extension_ids) =>
+					groupBy(await send('listExtensionPermissions', { extension_ids }), (p) => p.extension_id),
+				() => []
+			),
 			(p) => p.permission,
 			(extension_id, permission, enabled) => ({ id: 0, extension_id, permission, enabled })
 		);
 		this.#hooks = new Grants(
-			(extension_id) => send('listExtensionHooks', { extension_id }),
+			batched(
+				async (extension_ids) =>
+					groupBy(await send('listExtensionHooks', { extension_ids }), (h) => h.extension_id),
+				() => []
+			),
 			(h) => h.hook,
 			(extension_id, hook, enabled) => ({ id: 0, extension_id, hook, enabled })
 		);

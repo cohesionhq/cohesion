@@ -71,12 +71,18 @@ pub struct ListTasksRequest {
     pub offset: u64,
     /// The most tasks to list: 50 when absent, and never over 500.
     pub limit: Option<u64>,
+    /// In place of `offset`, start at the page holding task `around`: the
+    /// one of pages `limit` tasks long that it falls on. `offset` stands
+    /// when the listing doesn't cover the task.
+    pub around: Option<i64>,
 }
 
 /// One page of a listing: its tasks, and how many the whole listing has.
 #[derive(Serialize, Deserialize, Clone, TsWire)]
 pub struct TaskPage {
     pub tasks: Vec<Task>,
+    /// How many of the covered tasks come before this page's first.
+    pub offset: u64,
     /// Every task the listing covers, on any page.
     pub total: i64,
 }

@@ -2,8 +2,8 @@
 //! into one. A document in no folder is in the Inbox.
 
 use cohesion_core::invalidation::Invalidation;
-use cohesion_core::model::DocumentFolderProperty;
 use cohesion_core::model::DocumentFolderRepresentation;
+use cohesion_core::model::{DocumentFolderProperty, DocumentSummary};
 use cohesion_core::protocol::{
     CreateDocumentFolderRequest, DeleteDocumentFolderRequest, ListDocumentFoldersRequest,
     MoveDocumentFolderRequest, MoveDocumentRequest, RenameDocumentFolderRequest,
@@ -84,19 +84,22 @@ impl DatabaseCommand for ListDocumentFoldersCommand {
 
 /// The live ordinary documents in one folder of a workspace (not the folders
 /// inside it), or in the Inbox when `folder_id` is `None`, most recently
-/// modified first.
+/// modified first, without their full text.
 pub struct ListFiledDocumentsCommand {
     pub workspace_id: i64,
     pub folder_id: Option<i64>,
 }
 impl DatabaseCommand for ListFiledDocumentsCommand {
-    type Response = Vec<Document>;
+    type Response = Vec<DocumentSummary>;
     type Access = Read;
-    fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Vec<Document>> {
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_, Read>,
+    ) -> DatabaseCommandResult<Vec<DocumentSummary>> {
         ensure_workspace(ctx.db, self.workspace_id)?;
         Ok(ctx
             .db
-            .select_live::<Document>()
+            .select_live_as::<DocumentSummary>()
             .filter_eq(Document::WORKSPACE_ID, self.workspace_id)
             .filter_eq(Document::DOCUMENT_TYPE, DocumentType::Normal)
             .filter_eq(Document::FOLDER_ID, self.folder_id)

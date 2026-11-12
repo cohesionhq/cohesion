@@ -11,6 +11,16 @@ export interface ResourceOptions<T, K> {
 	initial: T;
 	/** Whether an invalidation key touches this resource's data for `key`. */
 	matches?: (invalidation: Invalidation, key: K) => boolean;
+	/**
+	 * Keys that touch only part of the value (one row of a long list), and
+	 * how to fetch that part: `fetch` gets the keys that matched and answers
+	 * how to fold what it read into the value. A push that also `matches`
+	 * refetches the whole value instead.
+	 */
+	patch?: {
+		matches: (invalidation: Invalidation, key: K) => boolean;
+		fetch: (keys: Invalidation[], key: K) => Promise<(value: T) => T>;
+	};
 	/** Return false to skip a background refetch (e.g. while there are unsaved edits). */
 	canRefetch?: () => boolean;
 	/** Runs after every successful fetch. */
@@ -54,6 +64,8 @@ export class Resource<T, K = void> {
 	#generation = 0;
 	#hasKey = false;
 	#inflight: Promise<void> | null = null;
+	/** A background refetch waiting for the one in flight, shared by every change that lands meanwhile. */
+	#queued: Promise<void> | null = null;
 	/** Set while the latest fetch waits on its value, which may predate a write applied meanwhile. */
 	#reading = false;
 	/** Set when a refetch was skipped while released; the next `load` fetches. */
@@ -152,10 +164,45 @@ export class Resource<T, K = void> {
 		if (this.#reading) void this.refetch();
 	}
 
-	/** Background refetch, honouring `canRefetch`. */
+	/**
+	 * Background refetch, honouring `canRefetch`. While a fetch is in flight
+	 * it may have read before this change, so one more follows it; a burst of
+	 * changes meanwhile shares that one rather than each starting its own.
+	 */
 	refresh(): Promise<void> {
 		if (this.#options.canRefetch && !this.#options.canRefetch()) return Promise.resolve();
-		return this.refetch();
+		if (!this.#inflight) return this.refetch();
+		this.#queued ??= this.#inflight.then(() => {
+			this.#queued = null;
+			return this.refresh();
+		});
+		return this.#queued;
+	}
+
+	/** The keys among `keys` that touch only part of this resource, for `patchFrom`. */
+	partlyTouchedBy(keys: Invalidation[]): Invalidation[] {
+		const patch = this.#options.patch;
+		if (!this.#hasKey || !patch) return [];
+		return keys.filter((k) => patch.matches(k, this.key as K));
+	}
+
+	/**
+	 * Fetches just the part of the value `keys` touch and folds it in; a
+	 * whole fetch that starts meanwhile wins, and a key change drops it.
+	 */
+	async patchFrom(keys: Invalidation[]): Promise<void> {
+		const patch = this.#options.patch;
+		if (!patch || !this.loaded) return;
+		if (this.#options.canRefetch && !this.#options.canRefetch()) return;
+		const key = this.key as K;
+		const generation = this.#generation;
+		try {
+			const change = await patch.fetch(keys, key);
+			if (generation === this.#generation && Object.is(this.key, key)) this.update(change);
+		} catch {
+			// What the patch would have shown arrives with the next whole fetch.
+			this.markStale();
+		}
 	}
 
 	/** Whether any of `keys` touches this resource. */
@@ -214,9 +261,20 @@ export function refreshAll(): Promise<void> {
 	return Promise.all([...active].map((r) => r.refresh())).then(() => undefined);
 }
 
-/** Refetches the loaded resources an `invalidate` push touches. */
+/**
+ * Refetches the loaded resources an `invalidate` push touches, and patches
+ * the part of those it touches only part of.
+ */
 export function refreshInvalidated(keys: Invalidation[]): Promise<void> {
-	for (const r of released) if (r.touchedBy(keys)) r.markStale();
-	const touched = [...active].filter((r) => r.touchedBy(keys));
-	return Promise.all(touched.map((r) => r.refresh())).then(() => undefined);
+	for (const r of released)
+		if (r.touchedBy(keys) || r.partlyTouchedBy(keys).length > 0) r.markStale();
+	const work: Promise<void>[] = [];
+	for (const r of active) {
+		if (r.touchedBy(keys)) work.push(r.refresh());
+		else {
+			const part = r.partlyTouchedBy(keys);
+			if (part.length > 0) work.push(r.patchFrom(part));
+		}
+	}
+	return Promise.all(work).then(() => undefined);
 }

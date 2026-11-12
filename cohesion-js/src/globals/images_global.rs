@@ -61,7 +61,9 @@ impl ImagesGlobal {
         let attachments = read(
             &ctx,
             &self.database,
-            ListActorSessionMessageAttachmentsCommand { message_id },
+            ListActorSessionMessageAttachmentsCommand {
+                message_ids: vec![message_id],
+            },
         )?;
         if attachments.is_empty() {
             return Err(Exception::throw_reference(

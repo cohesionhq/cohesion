@@ -47,13 +47,13 @@ use super::workspace_requests::*;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem,
     AgentSkill, Article, Attachment, CatalogModel, Client, Component, Contact, ContactMethod,
-    DeletedItem, Document, DocumentFolder, DocumentFolderProperty, Embed, EndpointModel,
-    ExperimentSetting, ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent,
-    IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
-    IntelligenceCostEvent, IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit,
-    Profile, Resource, RestoredItem, SavedTaskView, SearchResult, SecuritySettings,
-    StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection, Version, VersionSummary,
-    Workspace, WorkspaceResourceKind,
+    DeletedItem, Document, DocumentFolder, DocumentFolderProperty, DocumentSummary, Embed,
+    EndpointModel, ExperimentSetting, ExtensionHook, ExtensionPermission, Feed, FeedSummary,
+    IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun,
+    IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault, IntelligenceSpend, Memory,
+    OrganizationUnit, Profile, Resource, RestoredItem, SavedTaskView, SearchResult,
+    SecuritySettings, StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection, Version,
+    VersionSummary, Workspace, WorkspaceResourceKind,
 };
 
 /// Every request a client can send; the `args` of a [`Request`](super::Request).
@@ -110,11 +110,13 @@ pub enum Command {
     /// Replaces the contents of the journal for a date in a workspace.
     #[reply(Document)]
     EditJournal(EditJournalRequest),
-    /// Search documents
-    #[reply(Vec<Document>)]
+    /// The live documents in a workspace whose title contains a query,
+    /// without their full text.
+    #[reply(Vec<DocumentSummary>)]
     SearchDocuments(SearchDocumentRequest),
-    /// Lists the live documents in a workspace, most recently modified first.
-    #[reply(Vec<Document>)]
+    /// Lists the live documents in a workspace, most recently modified first,
+    /// without their full text.
+    #[reply(Vec<DocumentSummary>)]
     ListDocuments(ListDocumentsRequest),
     /// Fetches live document `document_id` in a workspace.
     #[reply(Document)]
@@ -362,10 +364,14 @@ pub enum Command {
     /// Imports a model into an endpoint, from the catalog when it lists it.
     #[reply(EndpointModel)]
     AddEndpointModel(AddEndpointModelRequest),
+    /// Imports several models into an endpoint at once, in order, each from
+    /// the catalog when it lists it.
+    #[reply(Vec<EndpointModel>)]
+    AddEndpointModels(AddEndpointModelsRequest),
     /// Removes an endpoint's model, unsetting any tier that uses it.
     #[reply(EndpointModel)]
     RemoveEndpointModel(RemoveEndpointModelRequest),
-    /// Lists the models an endpoint offers.
+    /// Lists the models an endpoint offers, or every endpoint's.
     #[reply(Vec<EndpointModel>)]
     ListEndpointModels(ListEndpointModelsRequest),
     /// Makes an endpoint model the default for a tier.
@@ -404,14 +410,14 @@ pub enum Command {
     /// Lists every installed extension, in the order its hooks run.
     #[reply(Vec<ExtensionSummary>, request = ListExtensionsRequest)]
     ListExtensions,
-    /// Lists the permissions recorded for extension `extension_id`.
+    /// Lists the permissions recorded for some extensions.
     #[reply(Vec<ExtensionPermission>)]
     ListExtensionPermissions(ListExtensionPermissionsRequest),
     /// Enables or disables `permission` for extension `extension_id`,
     /// restarting its sandbox so the change applies at once.
     #[reply(AcceptedResponse, via = Local)]
     SetExtensionPermission(SetExtensionPermissionRequest),
-    /// Lists the hooks recorded for extension `extension_id`.
+    /// Lists the hooks recorded for some extensions.
     #[reply(Vec<ExtensionHook>)]
     ListExtensionHooks(ListExtensionHooksRequest),
     /// Enables or disables `hook` for extension `extension_id`, restarting
@@ -571,7 +577,7 @@ pub enum Command {
     /// a reaction queues the agent's turn on it.
     #[reply(AcceptedResponse, via = Intelligence)]
     SetAgentMessageReaction(SetAgentMessageReactionRequest),
-    /// Lists the images attached to a message.
+    /// Lists the images attached to some agent messages.
     #[reply(Vec<Attachment>)]
     ListAgentMessageAttachments(ListAgentMessageAttachmentsRequest),
     /// Sends a message to an agent: a running turn takes it in, or it
@@ -597,8 +603,8 @@ pub enum Command {
     /// Removes cue `cue_id`; an agent left with no cues goes idle.
     #[reply(AcceptedResponse, via = Intelligence)]
     RemoveAgentCue(RemoveAgentCueRequest),
-    /// Lists the memories agent `agent_id` sees, its own and the global
-    /// ones; only the global ones when absent. Oldest first.
+    /// Lists the memories a filter picks: what one agent sees, the global
+    /// ones, or every one. By scope, each oldest first.
     #[reply(Vec<Memory>)]
     ListMemories(ListMemoriesRequest),
     /// Forgets memory `memory_id`, returning it.
@@ -636,6 +642,10 @@ pub enum Command {
     ListActorSessions(ListActorSessionsRequest),
     #[reply(ActorSession)]
     GetActorSession(GetActorSessionRequest),
+    /// Lists the sessions an actor session runs under as a subagent, nearest
+    /// first.
+    #[reply(Vec<ActorSession>)]
+    ListActorSessionAncestors(ListActorSessionAncestorsRequest),
     /// Lists an actor session's subagents, one level down, first launched
     /// first.
     #[reply(Vec<ActorSession>)]
@@ -658,7 +668,7 @@ pub enum Command {
     /// Lists what was said in an actor session, oldest first.
     #[reply(Vec<ActorSessionMessage>)]
     ListActorSessionMessages(ListActorSessionMessagesRequest),
-    /// Lists the images attached to an actor session message.
+    /// Lists the images attached to some actor session messages.
     #[reply(Vec<Attachment>)]
     ListActorSessionMessageAttachments(ListActorSessionMessageAttachmentsRequest),
     /// Hands an actor a new session, through its client.
@@ -788,6 +798,10 @@ pub enum Command {
     /// every kind.
     #[reply(Embed)]
     ResolveLink(ResolveLinkRequest),
+    /// Resolves several `cohesion://` links at once, each as `resolveLink`
+    /// does, `None` for an item that is gone.
+    #[reply(Vec<ResolvedLink>)]
+    ResolveLinks(ResolveLinksRequest),
     /// Splits Markdown into its text and its embeds, each resolved.
     #[reply(Vec<TextSection>)]
     ResolveEmbeds(ResolveEmbedsRequest),

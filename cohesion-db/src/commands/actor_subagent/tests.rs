@@ -12,8 +12,8 @@ use crate::test_support::{context, recording_context};
 use crate::{
     AddActorSessionMessageCommand, CommandError, CreateActorSessionCommand, DatabaseContext,
     DatabaseEventKind, DeleteActorSessionCommand, IdentifyLocalClientCommand,
-    ListActorSessionsCommand, ListActorsCommand, SUBAGENT_MESSAGE_LIMIT, ShutdownCleanupCommand,
-    SyncCapabilitiesCommand,
+    ListActorSessionAncestorsCommand, ListActorSessionsCommand, ListActorsCommand,
+    SUBAGENT_MESSAGE_LIMIT, ShutdownCleanupCommand, SyncCapabilitiesCommand,
 };
 
 /// A client named `name` offering one actor, its id and the actor's.
@@ -251,14 +251,29 @@ fn subagents_nest_under_launched_ones_only_so_deep() {
         "parent",
     );
     let mut parent: Option<String> = None;
-    let mut last = top.id;
+    let mut chain = vec![top.id];
     for depth in 1..=SUBAGENT_DEPTH_LIMIT {
         let key = format!("level-{depth}");
         let launched = launch(&db, top.id, &key, launch_as(&key, parent.as_deref(), None)).unwrap();
-        assert_eq!(launched.subagent.unwrap().parent_session_id, last);
-        last = launched.id;
+        assert_eq!(
+            launched.subagent.unwrap().parent_session_id,
+            *chain.last().unwrap()
+        );
+        chain.push(launched.id);
         parent = Some(key);
     }
+    // The deepest lists every session above it, nearest first; the top none.
+    let ancestors = |session_id| {
+        db.send_blocking(ListActorSessionAncestorsCommand { session_id })
+            .unwrap()
+            .into_iter()
+            .map(|session| session.id)
+            .collect::<Vec<_>>()
+    };
+    let deepest = chain.pop().unwrap();
+    chain.reverse();
+    assert_eq!(ancestors(deepest), chain);
+    assert!(ancestors(top.id).is_empty());
     refused_on(
         launch(
             &db,

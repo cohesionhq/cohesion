@@ -1,3 +1,4 @@
+import { batched, groupBy } from '$lib/protocol/batch';
 import { toProtocolError, type ProtocolError } from '$lib/protocol/errors';
 import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 import type {
@@ -163,10 +164,19 @@ export class AgentsStore {
 	 */
 	onNewMessage: ((agent: IntelligenceAgent) => void) | null = null;
 
+	/** Each message's images; the messages on screen ask together, as one request. */
+	#attachmentsOf: (message_id: number) => Promise<Attachment[]>;
 	#send: Send;
 
 	constructor(send: Send) {
 		this.#send = send;
+		this.#attachmentsOf = batched(
+			async (message_ids) =>
+				groupBy(await send('listAgentMessageAttachments', { message_ids }), (a) =>
+					a.message.kind === 'agent' ? a.message.agent_message_id : 0
+				),
+			() => []
+		);
 		this.list = new Resource({
 			fetch: async () => {
 				const list = await send('listIntelligenceAgents');
@@ -174,8 +184,10 @@ export class AgentsStore {
 				return list;
 			},
 			initial: [],
-			// Removing a model puts the agents that ran on it back on the default.
-			matches: (key) => key.kind === 'agent' || key.kind === 'intelligence'
+			// Removing a model puts the agents that ran on it back on the default,
+			// and a new message can leave its agent unread.
+			matches: (key) =>
+				key.kind === 'agent' || key.kind === 'intelligence' || key.kind === 'agentMessage'
 		});
 		this.teams = new Resource({
 			fetch: () => send('listAgentTeams'),
@@ -196,7 +208,27 @@ export class AgentsStore {
 				};
 			},
 			initial: { messages: [], hasOlder: false },
-			matches: forAgent
+			// A message added or changed refreshes just itself; the agent's other
+			// state (`agent`) isn't in the feed.
+			patch: {
+				matches: (key, agent_id) => key.kind === 'agentMessage' && key.id.agent_id === agent_id,
+				fetch: async (keys, agent_id) => {
+					const ids = keys.flatMap((k) => (k.kind === 'agentMessage' ? [k.id.message_id] : []));
+					const fresh = await send('listAgentMessages', {
+						agent_id,
+						ids,
+						limit: ids.length
+					});
+					return (feed: AgentFeed) => {
+						const kept = feed.messages.filter((m) => m.id > 0 && !fresh.some((f) => f.id === m.id));
+						// One older than the pages loaded stays out until they reach it.
+						const oldest = feed.hasOlder ? (kept[0]?.id ?? 0) : 0;
+						const shown = fresh.filter((f) => f.id >= oldest);
+						const saved = [...kept, ...shown].sort((a, b) => a.id - b.id);
+						return { ...feed, messages: this.#withStandIns(agent_id, saved) };
+					};
+				}
+			}
 		});
 		this.cues = new Resource({
 			fetch: (agent_id) => send('listAgentCues', { agent_id }),
@@ -294,7 +326,7 @@ export class AgentsStore {
 		if (message.attachment_count === 0 || this.attachments[id] || this.#fetching.has(id)) return;
 		this.#fetching.add(id);
 		try {
-			this.attachments[id] = await this.#send('listAgentMessageAttachments', { message_id: id });
+			this.attachments[id] = await this.#attachmentsOf(id);
 		} finally {
 			this.#fetching.delete(id);
 		}
@@ -422,7 +454,7 @@ export class AgentsStore {
 		// The daemon saved the message before accepting it, so the refetch
 		// shows the saved copy in place of the stand-in.
 		try {
-			if (shown()) await this.feed.refetch();
+			if (shown()) await this.feed.refresh();
 		} finally {
 			this.#settle(local);
 		}

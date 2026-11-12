@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use cohesion_core::invalidation::Invalidation;
+use cohesion_core::model::DocumentSummary;
 use cohesion_core::protocol::{
     AppendToJournalRequest, CreateDocumentRequest, DeleteDocumentRequest, EditDocumentRequest,
     EditJournalRequest, GetDocumentRequest, GetJournalRequest, ListDocumentsRequest,
@@ -51,8 +52,9 @@ fn find_or_create_journal(
     }
 }
 
-/// Invalidates `document`'s workspace and raises `JournalSaved` for a
-/// journal and `DocumentSaved` for an ordinary document.
+/// Invalidates `document`'s text and raises `JournalSaved` for a journal
+/// and `DocumentSaved` for an ordinary document: what every edit of a
+/// document's text ends in.
 pub(crate) fn saved(
     ctx: &mut CommandContext<'_>,
     document: Document,
@@ -70,12 +72,17 @@ pub(crate) fn saved(
         },
     };
     ctx.events.send(ctx.trace.event(event));
-    changed(ctx, document)
+    ctx.run(FollowLinksCommand::of(&document))?;
+    let key = Invalidation::DocumentText {
+        workspace_id,
+        document_id,
+    };
+    Ok(document.invalidating([key]))
 }
 
 /// Invalidates the workspace `document`, just written, belongs to, and
 /// keeps what it links to ([`FollowLinksCommand`]). Every write of a
-/// document ends here.
+/// document but an edit of its text ([`saved`]) ends here.
 pub(crate) fn changed(
     ctx: &mut CommandContext<'_>,
     document: Document,
@@ -115,12 +122,13 @@ fn create_journal(
         .found()
 }
 
-/// Live documents in a workspace, most recently modified first, optionally
-/// only of `document_type`, only journals dated in
-/// `journal_from..journal_to`, and only those carrying every one of the
-/// `metadata` pairs and `has_metadata` keys. Documents in a table are
-/// listed like any other; a client that keeps them apart reads which
-/// folders show as tables from `DocumentFolder::representation`.
+/// Live documents in a workspace, most recently modified first, without
+/// their full text (`GetDocumentCommand` has it), optionally only of
+/// `document_type`, only journals dated in `journal_from..journal_to`, and
+/// only those carrying every one of the `metadata` pairs and `has_metadata`
+/// keys. Documents in a table are listed like any other; a client that
+/// keeps them apart reads which folders show as tables from
+/// `DocumentFolder::representation`.
 #[derive(FromRequest)]
 #[request(ListDocumentsRequest)]
 pub struct ListDocumentsCommand {
@@ -128,17 +136,21 @@ pub struct ListDocumentsCommand {
     pub document_type: Option<DocumentType>,
     pub journal_from: Option<String>,
     pub journal_to: Option<String>,
+    pub ids: Option<Vec<i64>>,
     pub metadata: HashMap<String, String>,
     pub has_metadata: Vec<String>,
 }
 impl DatabaseCommand for ListDocumentsCommand {
-    type Response = Vec<Document>;
+    type Response = Vec<DocumentSummary>;
     type Access = Read;
-    fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Vec<Document>> {
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_, Read>,
+    ) -> DatabaseCommandResult<Vec<DocumentSummary>> {
         ensure_workspace(ctx.db, self.workspace_id)?;
         let mut query = ctx
             .db
-            .select_live::<Document>()
+            .select_live_as::<DocumentSummary>()
             .filter_eq(Document::WORKSPACE_ID, self.workspace_id)
             .with_metadata(self.metadata)
             .with_metadata_keys(self.has_metadata);
@@ -150,6 +162,9 @@ impl DatabaseCommand for ListDocumentsCommand {
         }
         if let Some(to) = self.journal_to {
             query = query.filter("journal_date < ?").bind(to);
+        }
+        if let Some(ids) = self.ids {
+            query = query.filter_in_values("id", ids);
         }
         Ok(query.order("modified DESC").all()?)
     }
@@ -428,7 +443,8 @@ impl DatabaseCommand for AppendToDocumentCommand {
     }
 }
 
-/// Live documents in a workspace whose title contains `query`.
+/// Live documents in a workspace whose title contains `query`, without
+/// their full text.
 #[derive(FromRequest)]
 #[request(SearchDocumentRequest)]
 pub struct SearchDocumentsCommand {
@@ -436,13 +452,13 @@ pub struct SearchDocumentsCommand {
     pub query: String,
 }
 impl DatabaseCommand for SearchDocumentsCommand {
-    type Response = Vec<Document>;
+    type Response = Vec<DocumentSummary>;
     type Access = Read;
     fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Self::Response> {
         ensure_workspace(ctx.db, self.workspace_id)?;
         Ok(ctx
             .db
-            .select_live()
+            .select_live_as()
             .filter("workspace_id = ? AND title LIKE ?")
             .bind(self.workspace_id)
             .bind(format!("%{}%", self.query))

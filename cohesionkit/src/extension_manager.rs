@@ -27,9 +27,9 @@ use cohesion_core::protocol::{
     ExtensionUpdate, ServerError, SetExtensionHookRequest, SetExtensionPermissionRequest,
 };
 use cohesion_db::{
-    CommandError, DatabaseContext, DeleteExtensionCommand, GetExtensionCommand,
-    GetExtensionPermissionsCommand, GetExtensionQuery, GetExtensionsWithPermissionCommand,
-    InstallExtensionCommand, IsExtensionHookEnabledCommand, SandboxKey, SetExtensionHookCommand,
+    CommandError, DatabaseContext, DeleteExtensionCommand, GetExtensionCommand, GetExtensionQuery,
+    GetExtensionsWithPermissionCommand, InstallExtensionCommand, IsExtensionHookEnabledCommand,
+    ListExtensionPermissionsCommand, SandboxKey, SetExtensionHookCommand,
     SetExtensionPermissionCommand, WriteArea,
 };
 use cohesion_js::{
@@ -459,7 +459,9 @@ impl ExtensionManager {
         let grants = self
             .inner
             .database
-            .send(GetExtensionPermissionsCommand { extension_id })
+            .send(ListExtensionPermissionsCommand {
+                extension_ids: vec![extension_id],
+            })
             .await?;
         Ok((extension, grants))
     }
