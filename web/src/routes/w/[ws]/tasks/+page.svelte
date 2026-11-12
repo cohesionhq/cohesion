@@ -13,6 +13,7 @@
 	import { folderDialogs } from '$lib/shell/folderDialogs.svelte';
 	import { workspaceLoadError } from '$lib/shell/loadError';
 	import { routes } from '$lib/shell/routes';
+	import { newTaskDialog } from '$lib/shell/newTaskDialog.svelte';
 	import { asksForNew, asksForNewFolder, isTyping } from '$lib/shell/shortcuts.svelte';
 	import {
 		parsePriorities,
@@ -404,15 +405,15 @@
 			folderDialogs.request({ kind: 'tasks', mode: 'new' });
 			return;
 		}
-		if (!inDialog && asksForNew(event) && addInput) {
+		if (!inDialog && asksForNew(event)) {
 			event.preventDefault();
-			addInput.focus();
+			newTaskDialog.request();
 			return;
 		}
 		if (event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;
-		if (event.key === 'n' && addInput) {
+		if (event.key === 'n') {
 			event.preventDefault();
-			addInput.focus();
+			newTaskDialog.request();
 		} else if (
 			(event.key === 'j' || event.key === 'ArrowDown') &&
 			(event.target === document.body || event.target === null)

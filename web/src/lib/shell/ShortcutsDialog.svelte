@@ -40,7 +40,7 @@
 		{
 			title: 'Tasks',
 			rows: [
-				{ keys: ['n', keyLabel('mod', 'n')], label: 'New task' },
+				{ keys: ['n', keyLabel('mod', 'n')], label: 'New task in any workspace' },
 				{ keys: [newFolderKeys], label: 'New folder' },
 				{ keys: ['j', 'k'], label: 'Next / previous task' },
 				{ keys: [keyLabel('space')], label: 'Complete or reopen' },

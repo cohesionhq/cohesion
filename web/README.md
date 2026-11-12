@@ -434,7 +434,8 @@ Every shortcut the page handles has a row in the ⌘/ dialog
   (`src/lib/shell/keys.ts`).
 - **Modifiers**: the app runs in the WebUI harnesses' web view, so ⌘ (Ctrl
   elsewhere) is the base of every app-wide chord (⌘K search, ⌘, Settings, ⌘/
-  shortcuts, ⌘↩ submit). ⌘N makes what the page lists (a task, or a document,
+  shortcuts, ⌘↩ submit). ⌘N makes what the page lists (a task, in the new-task dialog,
+  which also opens from ⌘K and can file into any workspace, or a document,
   which in a table is a row) and ⇧⌘N a folder, as a native app's File › New does; they are the
   one exception to the rule that follows, and are handled on the page that
   makes the item. A chord the system or an app already owns (⌘T, O,
