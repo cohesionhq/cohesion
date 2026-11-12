@@ -169,7 +169,10 @@ pieces, in `src/lib/shell/`:
   its split across a reload (`sessionStorage`).
 - `PaneHost.svelte` draws a half: its scroller, the header's controls
   (through `ui/paneChrome.ts`, so `PageHeader` and `ChatHeader` stay
-  primitives), and, in the second half, links that open there.
+  primitives), and, in the second half, links that open there. The scroller
+  remembers where each page (path and query) was scrolled to
+  (`scrollMemory.ts`) and returns to it on back, forward or a link; a page not
+  seen yet starts at the top.
 - **A page reads where it is from `pane()`** (`params`, `url`, `state`,
   `goto`, `beforeLeave`), never from `$app/state` or `$app/navigation`, and
   names itself with `PageTitle`, which titles the window only from the main
