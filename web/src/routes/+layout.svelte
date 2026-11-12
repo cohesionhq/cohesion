@@ -254,6 +254,8 @@
 					event.preventDefault();
 					event.stopPropagation();
 					heading.focus();
+					// Opened, not only focused, so the arrow keys and Enter work at once.
+					if (heading.getAttribute('aria-expanded') !== 'true') heading.click();
 					return;
 				}
 			}

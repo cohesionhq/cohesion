@@ -111,8 +111,7 @@ export function asksForNewFolder(event: Chord): boolean {
 }
 
 /**
-/**
- * Whether a key press asks to focus the folder dropdown in the page's heading: ⌘D (Ctrl+D). It
+ * Whether a key press asks to open the folder dropdown in the page's heading (focusing it first): ⌘D (Ctrl+D). It
  * works in a field too, and takes the key from the browser's "Add bookmark" while a heading is there.
  */
 export function focusesFolderHeading(event: Chord): boolean {
