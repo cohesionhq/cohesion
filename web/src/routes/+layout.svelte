@@ -20,6 +20,7 @@
 		isTyping,
 		opensSettings,
 		showsShortcuts,
+		workspaceIndexFor,
 		shortcuts
 	} from '$lib/shell/shortcuts.svelte';
 	import ForwardComposer from '$lib/features/agents/ForwardComposer.svelte';
@@ -233,6 +234,16 @@
 				void goto(routes.settings());
 				return;
 			}
+			const slot = workspaceIndexFor(event);
+			if (slot !== null) {
+				// A key with no workspace behind it is left alone.
+				const target = workspaces.list.value[slot];
+				if (!target) return;
+				event.preventDefault();
+				event.stopPropagation();
+				void goto(routes.workspace(target.id));
+				return;
+			}
 			const typing = isTyping(event.target);
 			// Back and forward leave a field alone, where the same chords move the caret.
 			const step = typing ? null : historyStepFor(event);
@@ -350,6 +361,7 @@
 					agenda={agents.agenda.key === gutterAgent.id ? agents.agenda.value : []}
 					actors={actors.list.value}
 					sessions={actors.followedBy(gutterAgent.id)}
+					onclearagenda={() => agents.resetAgenda(agentId).catch((e) => toasts.error(e))}
 					onresolve={resolveSession}
 					onunfollow={(session) =>
 						actors.unfollow(session.id, agentId).catch((e) => toasts.error(e))}
@@ -364,6 +376,9 @@
 						? actors.above.value
 						: null}
 					subagents={actors.subagents.key === session.id ? actors.subagents.value : []}
+					monitor={agents.list.value.find((a) => a.id === session.follower?.agent_id) ?? null}
+					onunfollow={(agent) =>
+						actors.unfollow(session.id, agent.id).catch((e) => toasts.error(e))}
 				/>
 			{/if}
 		</ConversationGutter>

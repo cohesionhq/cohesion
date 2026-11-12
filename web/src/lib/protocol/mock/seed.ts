@@ -514,7 +514,8 @@ export function seed(): MockState {
 			modified: day + 18 * 3600,
 			journal_date: ymd(day),
 			deleted: false,
-			folder_id: null
+			folder_id: null,
+			pinned: false
 		};
 	};
 	// Filed in `documentFolders` below: Research holds Search and 8 and 9, Search holds 5, and 6 is in the Inbox.
@@ -528,7 +529,8 @@ export function seed(): MockState {
 		modified: now - id * 3600,
 		journal_date: null,
 		deleted: false,
-		folder_id: filed[id] ?? null
+		folder_id: filed[id] ?? null,
+		pinned: id === 5 || id === 8
 	});
 	const task = (
 		id: number,
@@ -1038,6 +1040,7 @@ export function seed(): MockState {
 			deleted_item_retention_days: 30,
 			memory_limit: 20
 		},
+		experiments: [],
 		versions: [],
 		databaseSize: {
 			bytes: 48_234_496,
@@ -1305,7 +1308,8 @@ export function seedTables(state: MockState) {
 				modified: nowSeconds() - (10 + i) * DAY,
 				journal_date: null,
 				deleted: false,
-				folder_id
+				folder_id,
+				pinned: false
 			});
 			cells.forEach((cell, i) => {
 				if (cell === null) return;
@@ -1398,7 +1402,8 @@ export function seedTables(state: MockState) {
 		modified: nowSeconds() - 2 * DAY,
 		journal_date: null,
 		deleted: false,
-		folder_id: null
+		folder_id: null,
+		pinned: false
 	});
 }
 

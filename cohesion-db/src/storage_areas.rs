@@ -63,6 +63,7 @@ fn placement(table: &str) -> Option<Placement> {
         | "security_settings"
         | "security_events"
         | "storage_settings"
+        | "enabled_experiments"
         | "profile"
         | "catalog_models"
         | "intelligence_endpoints"

@@ -557,7 +557,8 @@ export function createCore() {
 			modified: nowSeconds(),
 			journal_date: date,
 			deleted: false,
-			folder_id: null
+			folder_id: null,
+			pinned: false
 		};
 		state.documents.push(created);
 		return created;

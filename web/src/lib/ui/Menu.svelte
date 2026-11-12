@@ -58,11 +58,11 @@
 		icon?: Snippet<[MenuItem]>;
 		/** Opened from inside a dialog, so the menu must sit above it. */
 		inDialog?: boolean;
-		/** After the items, under a rule (e.g. a field to add one); `close` closes the menu. */
-		footer?: Snippet<[() => void]>;
+		/** Before the items, over a rule (e.g. a field to search them); `close` closes the menu. */
+		top?: Snippet<[() => void]>;
 	}
 
-	let { trigger, items, align = 'end', header, icon, inDialog = false, footer }: Props = $props();
+	let { trigger, items, align = 'end', header, icon, inDialog = false, top }: Props = $props();
 
 	let open = $state(false);
 	const returnFocus = returnFocusFromKeyboard();
@@ -138,6 +138,10 @@
 				<div class="max-w-72 px-2 py-1.5 text-xs text-fg-muted">{@render header()}</div>
 				<DropdownMenu.Separator class="-mx-1 my-1 h-px bg-border" />
 			{/if}
+			{#if top}
+				{@render top(() => (open = false))}
+				<DropdownMenu.Separator class="-mx-1 my-1 h-px bg-border" />
+			{/if}
 			{#each items as item (item.id ?? item.label)}
 				{#if item.separated}
 					<DropdownMenu.Separator class="-mx-1 my-1 h-px bg-border" />
@@ -165,10 +169,6 @@
 					{@render actionItem(item)}
 				{/if}
 			{/each}
-			{#if footer}
-				<DropdownMenu.Separator class="-mx-1 my-1 h-px bg-border" />
-				{@render footer(() => (open = false))}
-			{/if}
 		</DropdownMenu.Content>
 	</DropdownMenu.Portal>
 </DropdownMenu.Root>

@@ -5067,6 +5067,11 @@ pub const MIGRATIONS: &[Migration] = &[
         sql: "ALTER TABLE task_folders ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT FALSE;
         ALTER TABLE document_folders ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT FALSE;",
     },
+    // A document can be pinned to the Dashboard, as the user's working set.
+    Migration {
+        name: "document_pinned",
+        sql: "ALTER TABLE documents ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT FALSE;",
+    },
     // Task and document folders are in search, by title, while they are
     // live, so one search finds them with everything else.
     Migration {
@@ -5129,6 +5134,15 @@ pub const MIGRATIONS: &[Migration] = &[
             SELECT entry.id, f.title, '' FROM search_entries AS entry
             INNER JOIN document_folders AS f ON f.id = entry.entity_id
             WHERE entry.entity_kind = 'documentFolder';",
+    },
+    // Experiments: a row for each one a daemon's owner has turned on.
+    Migration {
+        name: "experiments",
+        sql: "
+        CREATE TABLE enabled_experiments (
+            id INTEGER PRIMARY KEY,
+            key TEXT NOT NULL UNIQUE
+        );",
     },
 ];
 

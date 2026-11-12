@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
@@ -21,7 +22,7 @@
 	import { toProtocolError } from '$lib/protocol/errors';
 	import type { Workspace } from '$lib/protocol/types';
 	import { workspaces } from '$lib/stores/workspaces.svelte';
-	import { routes } from './routes';
+	import { routes, workspaceSwitchRoute } from './routes';
 	import WorkspaceBadge from './WorkspaceBadge.svelte';
 
 	/** Opens the dialog choosing which kinds of resource the sidebar shows. */
@@ -57,7 +58,7 @@
 
 	function switchTo(id: number) {
 		open = false;
-		void goto(routes.workspace(id));
+		void goto(workspaceSwitchRoute(page.url.pathname, id));
 	}
 
 	async function submit(event: SubmitEvent) {

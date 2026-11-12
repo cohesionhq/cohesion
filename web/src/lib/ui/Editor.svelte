@@ -34,7 +34,7 @@
 	import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 	import { javascript } from '@codemirror/lang-javascript';
 	import { markdown } from '@codemirror/lang-markdown';
-	import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
+	import { HighlightStyle, indentUnit, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 	import { Compartment, EditorState, Facet, Prec, RangeSetBuilder } from '@codemirror/state';
 	import {
 		Decoration,
@@ -123,10 +123,10 @@
 		'&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, ::selection':
 			{ backgroundColor: 'var(--selection)' },
 		'.cm-placeholder': { color: 'var(--fg-subtle)' },
-		// A full-size disc in a fixed gutter, half the text's weight in color.
+		// A full-size disc in a narrow fixed gutter, half the text's weight in color.
 		'.cm-bullet': {
 			display: 'inline-block',
-			width: '1em',
+			width: '0.6em',
 			color: 'var(--fg-muted)',
 			fontSize: '1.15em',
 			lineHeight: '1'
@@ -466,6 +466,8 @@
 				extensions: [
 					Prec.highest(keymap.of([{ key: 'Mod-Enter', run: submit }])),
 					history(),
+					// Four spaces a level, so a nested list steps in visibly.
+					indentUnit.of('    '),
 					keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
 					EditorView.lineWrapping,
 					placeholderExt(placeholder),

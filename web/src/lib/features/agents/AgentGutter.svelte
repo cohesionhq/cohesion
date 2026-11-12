@@ -38,12 +38,15 @@
 		actors: Actor[];
 		/** The sessions not yet resolved that the agent follows. */
 		sessions: ActorSession[];
+		/** Clears the agent's agenda. */
+		onclearagenda: () => void;
 		onresolve: (session: ActorSession) => void;
 		/** Has the agent stop following `session`, so it no longer wakes when the session stops. */
 		onunfollow: (session: ActorSession) => void;
 	}
 
-	let { agent, cues, agenda, actors, sessions, onresolve, onunfollow }: Props = $props();
+	let { agent, cues, agenda, actors, sessions, onclearagenda, onresolve, onunfollow }: Props =
+		$props();
 
 	const actorTitle = (id: number) => actors.find((actor) => actor.id === id)?.title;
 	// A row's Stop following and Resolve, on the canvas their wrapper lays under them.
@@ -72,7 +75,7 @@
 {#if agenda.length > 0}
 	<!-- Slides shut when the agent clears its agenda, and open when it sets out a new one. -->
 	<GutterGroup slides>
-		<AgendaOverview {agenda} />
+		<AgendaOverview {agenda} onclear={onclearagenda} />
 	</GutterGroup>
 {/if}
 

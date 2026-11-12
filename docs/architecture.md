@@ -533,6 +533,11 @@ clients list it in their sidebar; the rest are reached from their page.
 the folder's place and (for a document folder) the folders inside it as they
 were, and invalidate `taskFolders(ws)` or `documentFolders(ws)`.
 
+**Pinned documents.** A document's `pinned` says whether the Dashboard lists
+it as part of the user's working set. `SetDocumentPinned{workspace_id,
+document_id, pinned}` sets it without counting as an edit (the modified time
+and versions stay) and invalidates `documents(ws)`.
+
 **Tables** (`cohesion-db/src/commands/document_folder_property.rs` and
 `document_value.rs`, models in `cohesion-core/src/model/document_table.rs`).
 A document folder's properties are a table's columns, and each live
@@ -1053,7 +1058,19 @@ deleting sets `deleted`, and client reads use `select_live`.
 | `security_settings` | One row: `pairing_opened_by`, `alert_new_client`, `revoke_inactive_after_days`. |
 | `security_events` | `kind`, `client_id` (set null when gone), `client_name`, `address`; kept 30 days. |
 | `profile` | One row: the user's `name`, `bio` and photo. |
+| `enabled_experiments` | `key` (unique): a row for each experiment turned on, none for one turned off. |
 | `storage_settings` | One row: `thread_retention_days` (14), `actor_session_retention_days` (7), `memory_limit` (20), `rewind_retention_days` (7), `deleted_item_retention_days` (30); each at least 1. |
+
+**Experiments** (`Experiment`, `cohesion-core/src/model/experiment.rs`) are
+features a daemon's owner turns on or off in Settings › Experiments. The enum
+is the registry and has no variants yet. To offer one, add a variant with its
+`key`, `title` and `description` and put it in `Experiment::ALL`. Rust asks
+`experiment_enabled(db, Experiment::X)` (`cohesion-db`); the web asks
+`experiments.isEnabled('x')` once the store is loaded. To discontinue one,
+delete the variant: the compiler lists every check to remove, and its stored
+switch is ignored and removed by the next `setExperiment`. `listExperiments`
+and `setExperiment` answer every experiment with its state; a change
+invalidates `experiments`.
 
 **Workspaces and their content**
 
@@ -1368,7 +1385,7 @@ memories and skills. Requests: `CreateIntelligenceAgent`, `UpdateIntelligenceAge
 `SetAgentPinned`, `SetAgentTeam`, `SetAgentModel`, team CRUD, `MarkAgentRead`,
 `ListAgentMessages`, `GetAgentMessage`, `SendAgentMessage`, `StopAgentTurn`,
 `SetAgentMessageReaction`, `RespondToAgentChoice`, `ListAgentCues`, `ListAgentAgenda`,
-`RemoveAgentCue`, `ListMemories`, `ForgetMemory`, `ListAgentSkills`,
+`ResetAgentAgenda`, `RemoveAgentCue`, `ListMemories`, `ForgetMemory`, `ListAgentSkills`,
 `CreateAgentSkill`, `UpdateAgentSkill`, `DeleteAgentSkill`, `ListAgentRuns`,
 `ListAgentMessageAttachments` (`cohesion-core/src/protocol/agent_requests.rs`).
 If the agent has no model of its own and the `agent` tier has none, sending a message fails with "No model is
@@ -2184,7 +2201,7 @@ document, adds a document to the folder and starts naming it. Add column
 Inbox and All having none. It opens as a drawer (`SidePanel`), as editing a
 formula does, with the type and where the values come from picked from icon
 tiles (`TilePicker.svelte`), and for a formula its Update mode (When changed
-or Continuously, "Continuously updates every hour."), under the type when
+or Continuously), under the type when
 adding and alone in that column when editing a formula; renaming a column
 and changing its type stay dialogs. On a plain folder it says "This will convert this
 folder to a table.", and its first column makes the folder a table
@@ -2197,7 +2214,9 @@ number, a date picker; a checkbox toggles), read by `features/tables/values.ts`;
 refusal shows under the editor. A choice shows as a pill
 (`ChoicePill.svelte`, a tag's pill in its option's color, `agentChip` in
 `ui/colors.ts`) and opens a menu of its options, each on its number key, with
-Clear on 0; ⇥ passes it by, as a checkbox. A new choice column takes its
+Clear on 0, a field above them that filters them as you type and, when the text
+matches no option, ends the list with `Create status "x"` to add it and pick
+it; ⇥ passes it by, as a checkbox. A new choice column takes its
 options in the drawer under its type, and "Edit options…" opens the same
 drawer with the options alone, saving each change as it is made
 (`OptionsEditor.svelte`, laid out as the tags' list: a color swatch that opens

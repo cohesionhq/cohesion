@@ -23,6 +23,7 @@ mod document_folder;
 mod document_table;
 mod embed;
 mod endpoint_model;
+mod experiment;
 mod extension;
 mod feed;
 mod fetch_columns;
@@ -93,6 +94,7 @@ pub use document_table::{
 };
 pub use embed::{Embed, EmbedItem, EmbedKind, TABLE_PREVIEW_ROWS, excerpt};
 pub use endpoint_model::EndpointModel;
+pub use experiment::{EnabledExperiment, Experiment, ExperimentSetting};
 pub use extension::{
     Extension, ExtensionHook, ExtensionManifest, ExtensionPermission, ExtensionPermissionKind,
     ExtensionService, ExtensionServiceFunction, InstalledService, InstalledServiceFunction,

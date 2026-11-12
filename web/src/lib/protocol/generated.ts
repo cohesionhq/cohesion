@@ -1810,6 +1810,11 @@ export interface Document {
 	 * Always `null` for journals.
 	 */
 	folder_id: number | null;
+	/**
+	 * Whether the document is pinned to the Dashboard, as part of the
+	 * user's working set.
+	 */
+	pinned: boolean;
 }
 
 /** One document's value for one property, on the wire. */
@@ -2056,6 +2061,15 @@ export type ErrorCode =
 	| 'upstreamError'
 	| 'notFound'
 	| 'unauthorized';
+
+/** An experiment and whether it is on, as Settings › Experiments lists it. */
+export interface ExperimentSetting {
+	/** [`Experiment::key`]. */
+	key: string;
+	title: string;
+	description: string;
+	enabled: boolean;
+}
 
 /** What an extension's `serviceRequest` returned; `null` for `undefined`. */
 export interface ExtensionCallResult {
@@ -3029,6 +3043,7 @@ export type Invalidation =
 	| { kind: 'clients' }
 	| { kind: 'security' }
 	| { kind: 'storage' }
+	| { kind: 'experiments' }
 	| { kind: 'profile' }
 	| { kind: 'tags'; id: number }
 	| { kind: 'contacts'; id: number }
@@ -4149,6 +4164,14 @@ export interface ReorderWorkspaceResourceKindsRequest {
 	kind_ids: number[];
 }
 
+/**
+ * Clears agent `agent_id`'s agenda, as its own `agenda_reset` does; its
+ * threads hear it under `# Agenda changed`.
+ */
+export interface ResetAgentAgendaRequest {
+	agent_id: number;
+}
+
 /** Fetches live article `article_id`'s page again and replaces its snapshot. */
 export interface ResnapshotArticleRequest {
 	article_id: number;
@@ -4721,6 +4744,17 @@ export interface SetDocumentFolderRepresentationRequest {
 }
 
 /**
+ * Pins live document `document_id` in a workspace to the Dashboard, or
+ * unpins it. The document's contents and modified time are left as they
+ * are.
+ */
+export interface SetDocumentPinnedRequest {
+	workspace_id: number;
+	document_id: number;
+	pinned: boolean;
+}
+
+/**
  * Sets live document `document_id`'s value for property `property_id` of
  * its folder, which must be of the property's type, or empties it when
  * `value` is absent; refused for a formula, whose values are computed.
@@ -4731,6 +4765,15 @@ export interface SetDocumentValueRequest {
 	document_id: number;
 	property_id: number;
 	value?: PropertyValue | null;
+}
+
+/**
+ * Turns the experiment named `key` on or off. Refused for a key no
+ * experiment has.
+ */
+export interface SetExperimentRequest {
+	key: string;
+	enabled: boolean;
 }
 
 /**
@@ -5769,6 +5812,8 @@ export interface Requests {
 	createDocument: CreateDocumentRequest;
 	/** Retitles live document `document_id` in a workspace. */
 	renameDocument: RenameDocumentRequest;
+	/** Pins a document to the Dashboard, or unpins it. */
+	setDocumentPinned: SetDocumentPinnedRequest;
 	/** Deletes document `document_id` in a workspace. */
 	deleteDocument: DeleteDocumentRequest;
 	/** Files a document into a folder, or the Inbox. */
@@ -6055,6 +6100,10 @@ export interface Requests {
 	getStorageSettings: NoArgs;
 	/** Replaces the storage settings. */
 	updateStorageSettings: UpdateStorageSettingsRequest;
+	/** Answers every experiment and whether it is on. */
+	listExperiments: NoArgs;
+	/** Turns an experiment on or off. */
+	setExperiment: SetExperimentRequest;
 	/** Answers how large the database file is. */
 	getDatabaseSize: NoArgs;
 	/** Writes a backup of the database to a new file on the daemon's computer. */
@@ -6147,6 +6196,11 @@ export interface Requests {
 	listAgentCues: ListAgentCuesRequest;
 	/** Lists agent `agent_id`'s agenda, in order, finished items included. */
 	listAgentAgenda: ListAgentAgendaRequest;
+	/**
+	 * Clears agent `agent_id`'s agenda; its threads hear that it was
+	 * cleared.
+	 */
+	resetAgentAgenda: ResetAgentAgendaRequest;
 	/** Removes cue `cue_id`; an agent left with no cues goes idle. */
 	removeAgentCue: RemoveAgentCueRequest;
 	/**
@@ -6365,6 +6419,8 @@ export interface Replies {
 	createDocument: Document;
 	/** Retitles live document `document_id` in a workspace. */
 	renameDocument: Document;
+	/** Pins a document to the Dashboard, or unpins it. */
+	setDocumentPinned: Document;
 	/** Deletes document `document_id` in a workspace. */
 	deleteDocument: Document;
 	/** Files a document into a folder, or the Inbox. */
@@ -6651,6 +6707,10 @@ export interface Replies {
 	getStorageSettings: StorageSettings;
 	/** Replaces the storage settings. */
 	updateStorageSettings: StorageSettings;
+	/** Answers every experiment and whether it is on. */
+	listExperiments: ExperimentSetting[];
+	/** Turns an experiment on or off. */
+	setExperiment: ExperimentSetting[];
 	/** Answers how large the database file is. */
 	getDatabaseSize: DatabaseSize;
 	/** Writes a backup of the database to a new file on the daemon's computer. */
@@ -6743,6 +6803,11 @@ export interface Replies {
 	listAgentCues: IntelligenceAgentCue[];
 	/** Lists agent `agent_id`'s agenda, in order, finished items included. */
 	listAgentAgenda: AgentAgendaItem[];
+	/**
+	 * Clears agent `agent_id`'s agenda; its threads hear that it was
+	 * cleared.
+	 */
+	resetAgentAgenda: AcceptedResponse;
 	/** Removes cue `cue_id`; an agent left with no cues goes idle. */
 	removeAgentCue: AcceptedResponse;
 	/**

@@ -13,6 +13,7 @@
 			rows: [
 				{ keys: [keyLabel('mod', 'k')], label: 'Search or jump to…' },
 				{ keys: [keyLabel('mod', ',')], label: 'Settings' },
+				{ keys: [`${keyLabel('mod', '1')}–${keyLabel('mod', '9')}`], label: 'Switch workspace' },
 				{
 					keys: isMac
 						? [keyLabel('mod', '['), keyLabel('mod', ']')]

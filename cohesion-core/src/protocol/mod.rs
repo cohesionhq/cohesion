@@ -17,6 +17,7 @@ mod document_requests;
 mod document_table_requests;
 mod embed_requests;
 mod envelope;
+mod experiment_requests;
 mod extension_requests;
 mod feed_requests;
 mod intelligence_requests;
@@ -57,6 +58,7 @@ pub use envelope::{
     CallResult, ClientFrame, ClientHello, Frame, Hello, Outcome, PROTOCOL_VERSION, RegisterRequest,
     Reply, Request, ServerMessage, Subscribe,
 };
+pub use experiment_requests::*;
 pub use extension_requests::*;
 pub use feed_requests::*;
 pub use intelligence_requests::*;

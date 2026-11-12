@@ -7,8 +7,9 @@ use cohesion_core::log_error;
 use cohesion_core::model::IntelligenceAgent;
 use cohesion_core::protocol::{
     AcceptedResponse, DeleteIntelligenceAgentRequest, Intelligence, RemoveAgentCueRequest,
-    RespondToAgentChoiceRequest, Route, SendAgentMessageRequest, ServerError,
-    SetAgentMessageReactionRequest, StopAgentTurnRequest, UpdateIntelligenceAgentRequest,
+    ResetAgentAgendaRequest, RespondToAgentChoiceRequest, Route, SendAgentMessageRequest,
+    ServerError, SetAgentMessageReactionRequest, StopAgentTurnRequest,
+    UpdateIntelligenceAgentRequest,
 };
 use cohesion_db::{DeleteIntelligenceAgentCommand, UpdateIntelligenceAgentCommand};
 use cohesion_intelligence::{AgentError, SessionConstructionError};
@@ -45,6 +46,19 @@ impl Route<Intelligence, RemoveAgentCueRequest> for CohesionContext {
     async fn route(&self, request: RemoveAgentCueRequest) -> Result<AcceptedResponse, ServerError> {
         self.agents
             .remove_cue(request.cue_id)
+            .await
+            .map_err(agent_error)?;
+        Ok(AcceptedResponse {})
+    }
+}
+
+impl Route<Intelligence, ResetAgentAgendaRequest> for CohesionContext {
+    async fn route(
+        &self,
+        request: ResetAgentAgendaRequest,
+    ) -> Result<AcceptedResponse, ServerError> {
+        self.agents
+            .reset_agenda(request.agent_id)
             .await
             .map_err(agent_error)?;
         Ok(AcceptedResponse {})

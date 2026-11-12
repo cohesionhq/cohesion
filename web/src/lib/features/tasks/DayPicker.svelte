@@ -2,7 +2,8 @@
 	A popover that picks a task's start or due day, with a switch between
 	the two: type a phrase (the field has focus on open) ("fri", "oct 20", "in 3 days") and press Enter,
 	take a quick option, or pick from the month calendar. The start stays on
-	or before the due day.
+	or before the due day. With `single` it picks one plain day, kept in `due`,
+	without the switch or the start.
 -->
 <script lang="ts">
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
@@ -24,6 +25,8 @@
 		due: string | null;
 		/** The day the picker opens on. */
 		initial?: Which;
+		/** Picks one day, kept in `due`, instead of a task's start and due days. */
+		single?: boolean;
 		onchange: (start: string | null, due: string | null) => void;
 		/** Where focus goes when the picker closes, instead of its trigger. */
 		returnTo?: HTMLElement;
@@ -36,6 +39,7 @@
 		start,
 		due,
 		initial = 'due',
+		single = false,
 		onchange,
 		returnTo,
 		trigger
@@ -43,9 +47,9 @@
 
 	let which = $state<Which>('due');
 
-	const label = $derived(which === 'start' ? 'Start' : 'Due');
+	const label = $derived(single ? 'Day' : which === 'start' ? 'Start' : 'Due');
 	const value = $derived(which === 'start' ? start : due);
-	const min = $derived(which === 'due' ? start : null);
+	const min = $derived(which === 'due' && !single ? start : null);
 	const max = $derived(which === 'start' ? due : null);
 
 	let text = $state('');
@@ -97,7 +101,7 @@
 	$effect(() => {
 		if (!open) return;
 		text = '';
-		which = initial;
+		which = single ? 'due' : initial;
 	});
 </script>
 
@@ -121,26 +125,28 @@
 			}}
 			{...returnFocusFromKeyboard(returnTo)}
 		>
-			<div class="flex gap-1" role="group" aria-label="Day to set">
-				{#each ['start', 'due'] as const as day (day)}
-					<button
-						class={[
-							'flex-1 cursor-pointer rounded-sm px-2 py-1 text-xs',
-							which === day
-								? 'bg-bg-hover font-medium text-fg'
-								: 'text-fg-muted hover:bg-bg-hover hover:text-fg'
-						]}
-						type="button"
-						aria-pressed={which === day}
-						onclick={() => {
-							which = day;
-							text = '';
-						}}
-					>
-						{day === 'start' ? 'Start' : 'Due'}
-					</button>
-				{/each}
-			</div>
+			{#if !single}
+				<div class="flex gap-1" role="group" aria-label="Day to set">
+					{#each ['start', 'due'] as const as day (day)}
+						<button
+							class={[
+								'flex-1 cursor-pointer rounded-sm px-2 py-1 text-xs',
+								which === day
+									? 'bg-bg-hover font-medium text-fg'
+									: 'text-fg-muted hover:bg-bg-hover hover:text-fg'
+							]}
+							type="button"
+							aria-pressed={which === day}
+							onclick={() => {
+								which = day;
+								text = '';
+							}}
+						>
+							{day === 'start' ? 'Start' : 'Due'}
+						</button>
+					{/each}
+				</div>
+			{/if}
 			<form onsubmit={submit}>
 				<TextInput
 					bind:value={text}

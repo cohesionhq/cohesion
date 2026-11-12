@@ -50,6 +50,34 @@ export interface RowDocumentKey {
 /** Every row, in the order the documents were created. */
 export const NO_QUERY: TableQuery = { filters: [], sort: null };
 
+const SORTS_KEY = 'cohesion.tableSorts';
+
+function storedSorts(): Record<string, TableSort> {
+	try {
+		return JSON.parse(localStorage.getItem(SORTS_KEY) ?? '{}') as Record<string, TableSort>;
+	} catch {
+		return {};
+	}
+}
+
+/** The sort a table was last listed in, so reopening it lands there; none at first. */
+export function rememberedSort(key: TableKey): TableSort | null {
+	const stored = storedSorts()[`${key.workspace_id}/${key.folder_id}`];
+	return stored?.column && typeof stored.descending === 'boolean' ? stored : null;
+}
+
+export function rememberSort(key: TableKey, sort: TableSort | null): void {
+	try {
+		const sorts = storedSorts();
+		const id = `${key.workspace_id}/${key.folder_id}`;
+		if (sort) sorts[id] = sort;
+		else delete sorts[id];
+		localStorage.setItem(SORTS_KEY, JSON.stringify(sorts));
+	} catch {
+		// Remembering the sort is a convenience; ignore blocked storage.
+	}
+}
+
 const sameQuery = (a: TableQuery, b: TableQuery) =>
 	JSON.stringify(a.filters) === JSON.stringify(b.filters) &&
 	JSON.stringify(a.sort) === JSON.stringify(b.sort);
@@ -221,7 +249,9 @@ export class TablesStore {
 		const same = current?.workspace_id === workspace_id && current.folder_id === folder_id;
 		const key = same && current ? current : { workspace_id, folder_id };
 		const rows =
-			same && this.rows.key?.folder_id === folder_id ? this.rows.key : { ...key, ...NO_QUERY };
+			same && this.rows.key?.folder_id === folder_id
+				? this.rows.key
+				: { ...key, ...NO_QUERY, sort: rememberedSort(key) };
 		await Promise.all([this.properties.load(key), this.rows.load(rows)]);
 	}
 
@@ -234,6 +264,7 @@ export class TablesStore {
 	/** Lists the open table's rows under `query`, which the daemon applies. */
 	setQuery(query: TableQuery): Promise<void> {
 		const key = this.rows.key!;
+		rememberSort(key, query.sort);
 		if (sameQuery(key, query)) return this.rows.load(key);
 		return this.rows.load({ workspace_id: key.workspace_id, folder_id: key.folder_id, ...query });
 	}
