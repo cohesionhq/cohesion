@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createMock } from '$lib/protocol/mock';
 import type { DocumentFolderProperty, TableRow } from '$lib/protocol/types';
 import { createDocumentsStore } from './documents.svelte';
-import { createTablesStore } from './tables.svelte';
+import { createTablesStore, rememberedSort } from './tables.svelte';
 
 /** Each row's value for `property_id`, as the rows are listed. */
 const column = (rows: TableRow[], property_id: number) =>
@@ -73,6 +73,26 @@ describe('tables store', () => {
 		expect(store.query.filters).toHaveLength(1);
 		await store.open(1, KITCHEN);
 		expect(store.query).toEqual({ filters: [], sort: null });
+	});
+
+	it('returns a table to the sort it last had, per folder, after a reload', async () => {
+		const data = new Map<string, string>();
+		vi.stubGlobal('localStorage', {
+			getItem: (k: string) => data.get(k) ?? null,
+			setItem: (k: string, v: string) => void data.set(k, v)
+		});
+		const store = createTablesStore(createMock().send);
+		await store.open(1, KITCHEN);
+		await store.setQuery({ filters: [], sort: { column: { kind: 'title' }, descending: true } });
+		const reloaded = createTablesStore(createMock().send);
+		await reloaded.open(1, KITCHEN);
+		expect(reloaded.query.sort).toEqual({ column: { kind: 'title' }, descending: true });
+		await reloaded.open(1, READING);
+		expect(reloaded.query.sort).toBeNull();
+		await reloaded.open(1, KITCHEN);
+		await reloaded.setQuery({ filters: [], sort: null });
+		expect(rememberedSort({ workspace_id: 1, folder_id: KITCHEN })).toBeNull();
+		vi.unstubAllGlobals();
 	});
 
 	it('shows the daemon’s refusal of a filter its type can’t take', async () => {
