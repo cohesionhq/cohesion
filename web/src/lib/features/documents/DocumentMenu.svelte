@@ -92,18 +92,20 @@
 	<Menu
 		items={[
 			{ label: preview ? 'Edit' : 'Preview', onSelect: () => (preview = !preview) },
-			{
-				label: 'Copy as Markdown',
-				onSelect: () => copyToClipboard(draft.draft, 'Copied as Markdown.')
-			},
 			...(onpin
-				? [{ label: pinned ? 'Unpin from Dashboard' : 'Pin to Dashboard', onSelect: onpin }]
+				? [
+						{
+							label: pinned ? 'Unpin from Dashboard' : 'Pin to Dashboard',
+							separated: true,
+							onSelect: onpin
+						}
+					]
 				: []),
-			...copyLinkItems(() => ({ link: forwardedLink(forward), title: forward.title })),
 			...(destinations && onmove
 				? [
 						{
 							label: 'Move to',
+							separated: !onpin,
 							items: destinations.map((d) => ({
 								id: d.id ?? 'inbox',
 								label: d.title,
@@ -113,12 +115,18 @@
 						}
 					]
 				: []),
+			{
+				label: 'Copy as Markdown',
+				separated: true,
+				onSelect: () => copyToClipboard(draft.draft, 'Copied as Markdown.')
+			},
+			...copyLinkItems(() => ({ link: forwardedLink(forward), title: forward.title })),
 			forwarding.submenu(() => {
 				// The agent reads the saved copy, so save what's typed first.
 				draft.flush().catch(() => undefined);
 				return forward;
 			}),
-			{ label: 'Delete…', danger: true, onSelect: () => (confirming = true) }
+			{ label: 'Delete…', danger: true, separated: true, onSelect: () => (confirming = true) }
 		]}
 	>
 		{#snippet trigger(props)}
