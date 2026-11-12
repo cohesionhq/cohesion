@@ -23,7 +23,9 @@
 		workspaceIndexFor,
 		shortcuts,
 		focusesFolderHeading,
-		folderHeadingButton
+		folderHeadingButton,
+		togglesEditing,
+		isTypingInField
 	} from '$lib/shell/shortcuts.svelte';
 	import ForwardComposer from '$lib/features/agents/ForwardComposer.svelte';
 	import LinkedItem from '$lib/shell/LinkedItem.svelte';
@@ -246,6 +248,13 @@
 					heading.focus();
 					return;
 				}
+			}
+			// A page with no document editor, or a plain field, leaves the key alone.
+			if (togglesEditing(event) && shortcuts.toggleEditing && !isTypingInField(event.target)) {
+				event.preventDefault();
+				event.stopPropagation();
+				shortcuts.toggleEditing();
+				return;
 			}
 			const slot = workspaceIndexFor(event);
 			if (slot !== null) {

@@ -8,6 +8,7 @@
 		forwardedLink,
 		forwarding
 	} from '$lib/features/agents/forward.svelte';
+	import { shortcuts } from '$lib/shell/shortcuts.svelte';
 	import RewindButton from '$lib/features/rewind/RewindButton.svelte';
 	import type { Restored, RewindItem } from '$lib/stores/rewind.svelte';
 	import { shortTime } from '$lib/format/dates';
@@ -56,6 +57,15 @@
 		pinned = false,
 		onpin
 	}: Props = $props();
+
+	// ⌘E flips the page between editing and preview while this menu is on it.
+	$effect(() => {
+		const toggle = () => (preview = !preview);
+		shortcuts.toggleEditing = toggle;
+		return () => {
+			if (shortcuts.toggleEditing === toggle) shortcuts.toggleEditing = null;
+		};
+	});
 
 	let confirming = $state(false);
 	let busy = $state(false);

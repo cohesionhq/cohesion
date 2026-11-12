@@ -7,6 +7,7 @@ import {
 	asksForNewFolder,
 	focusesFolderHeading,
 	opensSettings,
+	togglesEditing,
 	showsShortcuts,
 	workspaceIndexFor
 } from './shortcuts.svelte';
@@ -110,6 +111,16 @@ describe('focusesFolderHeading', () => {
 		expect(focusesFolderHeading(press('KeyD', 'd'))).toBe(false);
 		expect(focusesFolderHeading(press('KeyD', 'D', { metaKey: true, shiftKey: true }))).toBe(false);
 		expect(focusesFolderHeading(press('KeyD', 'd', { metaKey: true, altKey: true }))).toBe(false);
+	});
+});
+
+describe('togglesEditing', () => {
+	it('takes ⌘E or Ctrl+E alone', () => {
+		expect(togglesEditing(press('KeyE', 'e', { metaKey: true }))).toBe(true);
+		expect(togglesEditing(press('KeyE', 'e', { ctrlKey: true }))).toBe(true);
+		expect(togglesEditing(press('KeyE', 'e'))).toBe(false);
+		expect(togglesEditing(press('KeyE', 'E', { metaKey: true, shiftKey: true }))).toBe(false);
+		expect(togglesEditing(press('KeyE', 'e', { metaKey: true, altKey: true }))).toBe(false);
 	});
 });
 

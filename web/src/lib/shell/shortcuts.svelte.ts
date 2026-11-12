@@ -5,6 +5,8 @@
 class Shortcuts {
 	/** The "Keyboard shortcuts" dialog. */
 	open = $state(false);
+	/** Flips the open document between its editor and its preview; set while a document editor page shows, else null. */
+	toggleEditing: (() => void) | null = null;
 }
 
 export const shortcuts = new Shortcuts();
@@ -97,6 +99,7 @@ export function asksForNewFolder(event: Chord): boolean {
 }
 
 /**
+/**
  * Whether a key press asks to focus the folder dropdown in the page's heading: ⌘D (Ctrl+D). It
  * works in a field too, and takes the key from the browser's "Add bookmark" while a heading is there.
  */
@@ -115,6 +118,20 @@ export function folderHeadingButton(): HTMLElement | null {
 	return document.querySelector<HTMLElement>('[data-folder-heading]');
 }
 
+/**
+ * Whether a key press asks to toggle editing: ⌘E (Ctrl+E), by the physical key. The layout leaves it
+ * to a plain field (see `isTypingInField`), where Ctrl+E can move the caret.
+ */
+export function togglesEditing(event: Chord): boolean {
+	return (
+		(event.metaKey || event.ctrlKey) &&
+		!(event.metaKey && event.ctrlKey) &&
+		!event.altKey &&
+		!event.shiftKey &&
+		event.code === 'KeyE'
+	);
+}
+
 /** Which way a mouse's side button steps through history: its back button (3) or forward one (4). */
 export function historyStepForButton(button: number): -1 | 1 | null {
 	if (button === 3) return -1;
@@ -131,4 +148,9 @@ export function isTyping(target: EventTarget | null): boolean {
 			'input, textarea, select, [contenteditable], [role="dialog"], [role="menu"], [role="listbox"]'
 		) !== null
 	);
+}
+
+/** Whether a key press is in a plain field, not the document editor: an input, textarea or select. */
+export function isTypingInField(target: EventTarget | null): boolean {
+	return target instanceof HTMLElement && target.closest('input, textarea, select') !== null;
 }
