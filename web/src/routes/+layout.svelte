@@ -376,6 +376,9 @@
 						? actors.above.value
 						: null}
 					subagents={actors.subagents.key === session.id ? actors.subagents.value : []}
+					monitor={agents.list.value.find((a) => a.id === session.follower?.agent_id) ?? null}
+					onunfollow={(agent) =>
+						actors.unfollow(session.id, agent.id).catch((e) => toasts.error(e))}
 				/>
 			{/if}
 		</ConversationGutter>

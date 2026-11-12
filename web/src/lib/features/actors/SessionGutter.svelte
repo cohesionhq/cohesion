@@ -2,17 +2,19 @@
 	The column beside an actor session: its actor, then where that works and
 	the model it runs on, then, when it is a subagent or has any, the session
 	it runs under and the subagents one level down from it, each opening its
-	thread, then how full its context is and its actor's plan limits, all as
+	thread, then the agent monitoring it, with a button to stop it, then how full its context is and its actor's plan limits, all as
 	bars. Only the open session's own relations show, not the whole tree.
 	Where it stands and Resolve stay in the header.
 -->
 <script lang="ts">
 	import { nowSeconds } from '$lib/format/dates';
 	import { tokenCount } from '$lib/format/usage';
-	import type { Actor, ActorSession, PlanUsage } from '$lib/protocol/types';
+	import type { Actor, ActorSession, IntelligenceAgent, PlanUsage } from '$lib/protocol/types';
 	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 	import CornerDownRight from '@lucide/svelte/icons/corner-down-right';
 	import CornerUpLeft from '@lucide/svelte/icons/corner-up-left';
+	import EyeOff from '@lucide/svelte/icons/eye-off';
+	import AgentDot from '$lib/features/agents/AgentDot.svelte';
 	import { routes } from '$lib/shell/routes';
 	import GutterCard from '$lib/ui/GutterCard.svelte';
 	import StatusIcon from '$lib/ui/StatusIcon.svelte';
@@ -31,9 +33,13 @@
 		above: ActorSession | null;
 		/** The subagents launched from it, one level down, first launched first. */
 		subagents: ActorSession[];
+		/** The agent monitoring it, once the agents have loaded; `null` when none does. */
+		monitor: IntelligenceAgent | null;
+		/** Has `monitor` stop following the session, so it no longer wakes when the session stops. */
+		onunfollow: (agent: IntelligenceAgent) => void;
 	}
 
-	let { session, actor, plan, above, subagents }: Props = $props();
+	let { session, actor, plan, above, subagents, monitor, onunfollow }: Props = $props();
 
 	const model = $derived(modelLabel(session, actor));
 	const hasUsage = $derived(session.context !== null || plan.length > 0);
@@ -76,6 +82,31 @@
 			{#if above}{@render relation(above, true)}{/if}
 			{#each subagents as member (member.id)}{@render relation(member, false)}{/each}
 		</ul>
+	</GutterGroup>
+{/if}
+
+<!-- The agent that wakes when the session stops, opening its conversation, with Stop following
+     on hover or focus, always shown on a touch screen. -->
+{#if monitor}
+	<GutterGroup>
+		<h2 class="text-xs font-medium text-fg-subtle">Monitored by</h2>
+		<div class="group/monitor relative">
+			<a
+				class="flex h-7 items-center gap-2 text-sm text-fg-muted no-underline hover:text-fg hover:no-underline touch:pr-8"
+				href={routes.agent(monitor.id)}
+			>
+				<AgentDot color={monitor.agent_color} />
+				<span class="min-w-0 flex-1 truncate">{monitor.agent_name}</span>
+			</a>
+			<button
+				type="button"
+				class="absolute top-1/2 right-0 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md border-0 bg-canvas text-fg-subtle opacity-0 group-focus-within/monitor:opacity-100 group-hover/monitor:opacity-100 hover:bg-bg-hover hover:text-fg touch:opacity-100"
+				aria-label="Stop {monitor.agent_name} following “{session.title}”"
+				onclick={() => onunfollow(monitor)}
+			>
+				<EyeOff size={14} strokeWidth={1.75} />
+			</button>
+		</div>
 	</GutterGroup>
 {/if}
 
