@@ -461,7 +461,7 @@
 				</Field>
 			{/if}
 			{#if withFormula}
-				<Field label="Update mode" help="Continuously updates every hour.">
+				<Field label="Update mode">
 					<TilePicker
 						class={split ? 'group-data-expanded/panel:grid-cols-1' : undefined}
 						label="Update mode"

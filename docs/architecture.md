@@ -2184,7 +2184,7 @@ document, adds a document to the folder and starts naming it. Add column
 Inbox and All having none. It opens as a drawer (`SidePanel`), as editing a
 formula does, with the type and where the values come from picked from icon
 tiles (`TilePicker.svelte`), and for a formula its Update mode (When changed
-or Continuously, "Continuously updates every hour."), under the type when
+or Continuously), under the type when
 adding and alone in that column when editing a formula; renaming a column
 and changing its type stay dialogs. On a plain folder it says "This will convert this
 folder to a table.", and its first column makes the folder a table
