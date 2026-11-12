@@ -1,7 +1,7 @@
 <!--
 	The Tasks page's switcher, under its heading: All and the Inbox, the folders, Done and
 	Cancelled, then the saved views, and "New folder…". Typing in the filter lists the folders
-	and views whose names match. A folder pins to the sidebar, renames or deletes from its tools;
+	and views whose names match. A folder is drawn in its color, and pins to the sidebar, takes a color, renames or deletes from its tools;
 	a view renames or deletes. Folders and views reorder by dragging, or with Alt+↑/↓.
 -->
 <script lang="ts">
@@ -26,10 +26,12 @@
 		switcherTool,
 		switcherTools
 	} from '$lib/features/folders/nav';
-	import type { SavedTaskView, TaskFolder } from '$lib/protocol/types';
+	import type { IntelligenceAgentColor, SavedTaskView, TaskFolder } from '$lib/protocol/types';
 	import { folderDialogs } from '$lib/shell/folderDialogs.svelte';
 	import { savedViewQuery, type TaskView } from '$lib/stores/tasks.svelte';
 	import { Reorderable } from '$lib/ui/reorder.svelte';
+	import ColorPicker from '$lib/ui/ColorPicker.svelte';
+	import { agentText } from '$lib/ui/colors';
 	import SearchField from '$lib/ui/SearchField.svelte';
 
 	interface Props {
@@ -46,6 +48,7 @@
 		/** Called as a saved view is opened, so the page takes its order. */
 		onpickview: (view: SavedTaskView) => void;
 		onpin: (folder: TaskFolder, pinned: boolean) => void;
+		oncolor: (folder: TaskFolder, color: IntelligenceAgentColor | null) => void;
 		/** Every folder's id, in the order the user put them. */
 		onreorderfolders: (folderIds: number[]) => void;
 		/** Every saved view's id, in the order the user put them. */
@@ -61,6 +64,7 @@
 		onpick,
 		onpickview,
 		onpin,
+		oncolor,
 		onreorderfolders,
 		onreorderviews
 	}: Props = $props();
@@ -128,7 +132,14 @@
 			onclick={onpick}
 			onkeydown={(e) => q === '' && folderOrder.key(e, index)}
 		>
-			<Folder size={14} strokeWidth={1.75} aria-hidden="true" />
+			{#if folder.color}
+				<!-- The link quiets every icon, so a colored one takes its color from a wrapper. -->
+				<span class={['inline-flex flex-none', agentText[folder.color]]}>
+					<Folder class="text-current!" size={14} strokeWidth={1.75} aria-hidden="true" />
+				</span>
+			{:else}
+				<Folder size={14} strokeWidth={1.75} aria-hidden="true" />
+			{/if}
 			<span class="truncate">{folder.title}</span>
 		</a>
 		<span class={switcherTools}>
@@ -144,6 +155,12 @@
 						aria-hidden="true"
 					/>{/if}
 			</button>
+			<ColorPicker
+				color={folder.color}
+				label="Color of {folder.title}"
+				onchange={(color) => oncolor(folder, color)}
+				compact
+			/>
 			<button
 				class={switcherTool}
 				type="button"

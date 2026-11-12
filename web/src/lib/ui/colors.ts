@@ -1,5 +1,5 @@
 // The one place an agent colour becomes a class. Agents pick one, as do a
-// task size and a table's option; a tile standing in for a missing icon (an
+// task size, a task folder and a table's option; a tile standing in for a missing icon (an
 // extension, a connected service) is given one hashed from a stable string,
 // so it never changes.
 
@@ -15,6 +15,18 @@ export const agentFill: Record<IntelligenceAgentColor, string> = {
 	pink: 'bg-agent-pink',
 	teal: 'bg-agent-teal',
 	yellow: 'bg-agent-yellow'
+};
+
+/** Text, or an icon's stroke, in an agent colour. */
+export const agentText: Record<IntelligenceAgentColor, string> = {
+	blue: 'text-agent-blue',
+	green: 'text-agent-green',
+	orange: 'text-agent-orange',
+	purple: 'text-agent-purple',
+	red: 'text-agent-red',
+	pink: 'text-agent-pink',
+	teal: 'text-agent-teal',
+	yellow: 'text-agent-yellow'
 };
 
 /** A chip in an agent colour: the colour as text on a faint wash of it. */

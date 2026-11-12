@@ -453,6 +453,7 @@
 					onpick={() => (switching = false)}
 					onpickview={(v) => rememberOrder({ sort: v.sort, descending: v.descending })}
 					onpin={(f, pinned) => run(tasks.setFolderPinned(ws, f.id, pinned))}
+					oncolor={(f, color) => run(tasks.setFolderColor(ws, f.id, color))}
 					onreorderfolders={(ids) => run(tasks.reorderFolders(ws, ids))}
 					onreorderviews={(ids) => run(tasks.reorderViews(ws, ids))}
 				/>

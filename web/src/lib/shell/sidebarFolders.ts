@@ -1,7 +1,7 @@
 // The pinned folders the sidebar lists under Documents and Tasks, and which of them is open.
 
 import { folderTree, type FolderNode } from '$lib/features/documents/folderTree';
-import type { DocumentFolder, TaskFolder } from '$lib/protocol/types';
+import type { DocumentFolder, IntelligenceAgentColor, TaskFolder } from '$lib/protocol/types';
 import { routes } from '$lib/shell/routes';
 
 export interface FolderRow {
@@ -13,6 +13,8 @@ export interface FolderRow {
 	current: boolean;
 	/** Whether it is a table (a document folder with properties). */
 	table: boolean;
+	/** The color its icon is drawn in; a document folder has none. */
+	color: IntelligenceAgentColor | null;
 }
 
 /** The pinned document folders, in reading order; current while the Documents page shows it. */
@@ -33,7 +35,8 @@ export function documentFolderRows(
 			href: routes.documentFolder(ws, folder.id),
 			label: folder.title,
 			current: open === String(folder.id),
-			table: folder.representation === 'table'
+			table: folder.representation === 'table',
+			color: null
 		}));
 }
 
@@ -54,6 +57,7 @@ export function taskFolderRows(
 			href: `${base}?view=${f.id}`,
 			label: f.title,
 			current: view === String(f.id),
-			table: false
+			table: false,
+			color: f.color
 		}));
 }

@@ -695,20 +695,69 @@ export function seed(): MockState {
 			}
 		],
 		folders: [
-			{ id: 1, workspace_id: 1, title: 'Core', pinned: true, sort_order: 1, deleted: false },
-			{ id: 2, workspace_id: 1, title: 'WebUI', pinned: true, sort_order: 2, deleted: false },
-			{ id: 3, workspace_id: 1, title: 'Plus', pinned: false, sort_order: 3, deleted: false },
-			{ id: 4, workspace_id: 1, title: 'Cloud', pinned: false, sort_order: 4, deleted: false },
-			{ id: 5, workspace_id: 1, title: 'JavaScript', pinned: false, sort_order: 5, deleted: false },
+			{
+				id: 1,
+				workspace_id: 1,
+				title: 'Core',
+				color: 'blue',
+				pinned: true,
+				sort_order: 1,
+				deleted: false
+			},
+			{
+				id: 2,
+				workspace_id: 1,
+				title: 'WebUI',
+				color: 'purple',
+				pinned: true,
+				sort_order: 2,
+				deleted: false
+			},
+			{
+				id: 3,
+				workspace_id: 1,
+				title: 'Plus',
+				color: 'orange',
+				pinned: false,
+				sort_order: 3,
+				deleted: false
+			},
+			{
+				id: 4,
+				workspace_id: 1,
+				title: 'Cloud',
+				color: null,
+				pinned: false,
+				sort_order: 4,
+				deleted: false
+			},
+			{
+				id: 5,
+				workspace_id: 1,
+				title: 'JavaScript',
+				color: 'yellow',
+				pinned: false,
+				sort_order: 5,
+				deleted: false
+			},
 			{
 				id: 6,
 				workspace_id: 1,
 				title: 'WebUI Harnesses',
+				color: 'teal',
 				pinned: false,
 				sort_order: 6,
 				deleted: false
 			},
-			{ id: 7, workspace_id: 2, title: 'PCO', pinned: false, sort_order: 1, deleted: false }
+			{
+				id: 7,
+				workspace_id: 2,
+				title: 'PCO',
+				color: null,
+				pinned: false,
+				sort_order: 1,
+				deleted: false
+			}
 		],
 		tasks: [
 			{

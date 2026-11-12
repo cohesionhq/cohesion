@@ -2,6 +2,7 @@ import { send as defaultSend } from '$lib/protocol/api';
 import type {
 	CreateTaskRequest,
 	DayFilter,
+	IntelligenceAgentColor,
 	Invalidation,
 	ListTasksRequest,
 	SavedTaskView,
@@ -643,6 +644,17 @@ export class TasksStore {
 	/** Pins a folder to the sidebar, or unpins it. */
 	async setFolderPinned(workspace_id: number, folder_id: number, pinned: boolean): Promise<void> {
 		const folder = await this.#send('setTaskFolderPinned', { workspace_id, folder_id, pinned });
+		if (this.folders.key === workspace_id)
+			this.folders.update((list) => list.map((f) => (f.id === folder_id ? folder : f)));
+	}
+
+	/** Sets the color a folder is drawn in, or takes it away with `null`. */
+	async setFolderColor(
+		workspace_id: number,
+		folder_id: number,
+		color: IntelligenceAgentColor | null
+	): Promise<void> {
+		const folder = await this.#send('setTaskFolderColor', { workspace_id, folder_id, color });
 		if (this.folders.key === workspace_id)
 			this.folders.update((list) => list.map((f) => (f.id === folder_id ? folder : f)));
 	}

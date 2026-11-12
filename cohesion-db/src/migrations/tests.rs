@@ -3509,3 +3509,32 @@ fn feeds_already_there_are_indexed_by_title_unless_deleted() {
 
     assert_eq!(search(&db, "bread"), [("feed".to_string(), 1)]);
 }
+
+#[test]
+fn task_folders_already_there_have_no_color_and_take_only_the_palettes() {
+    let mut db = migrated_before("task_folder_color");
+    db.connection()
+        .execute_batch(
+            "INSERT INTO workspaces (id, title) VALUES (1, 'w');
+             INSERT INTO task_folders (id, workspace_id, title, sort_order)
+                 VALUES (1, 1, 'Errands', 1);",
+        )
+        .unwrap();
+    db.migrate().unwrap();
+
+    let color: Option<String> = db
+        .connection()
+        .query_row("SELECT color FROM task_folders WHERE id = 1", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(color, None);
+    db.connection()
+        .execute("UPDATE task_folders SET color = 'teal' WHERE id = 1", [])
+        .unwrap();
+    assert!(
+        db.connection()
+            .execute("UPDATE task_folders SET color = 'beige' WHERE id = 1", [])
+            .is_err()
+    );
+}

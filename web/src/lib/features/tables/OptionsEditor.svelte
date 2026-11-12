@@ -1,6 +1,6 @@
 <!--
 	A choice column's options, as a list to edit in place, laid out as the
-	tags' list is: each row a color (`OptionColor`), a name that reads as text
+	tags' list is: each row a color (`ColorPicker`), a name that reads as text
 	until hovered or focused (Enter or leaving the field saves it, and Enter
 	goes on to the next option), and a delete button; rows reorder by their
 	handles or with Alt+↑/↓. The "Add option" line that ends the list adds
@@ -28,7 +28,7 @@
 	import { Reorderable } from '$lib/ui/reorder.svelte';
 	import TextInput from '$lib/ui/TextInput.svelte';
 	import { toasts } from '$lib/ui/toasts.svelte';
-	import OptionColor from './OptionColor.svelte';
+	import ColorPicker from '$lib/ui/ColorPicker.svelte';
 
 	interface Props {
 		options: EditedOption[];
@@ -155,7 +155,7 @@
 					>
 						<GripVertical size={14} strokeWidth={1.75} />
 					</span>
-					<OptionColor
+					<ColorPicker
 						color={option.color}
 						label="Color of {option.name}"
 						onchange={(color) => oncolor(option, color)}

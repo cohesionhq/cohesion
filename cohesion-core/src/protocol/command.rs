@@ -243,6 +243,9 @@ pub enum Command {
     /// Pins a task folder to the sidebar, or unpins it.
     #[reply(TaskFolder)]
     SetTaskFolderPinned(SetTaskFolderPinnedRequest),
+    /// Sets the color a task folder is drawn in, or takes it away.
+    #[reply(TaskFolder)]
+    SetTaskFolderColor(SetTaskFolderColorRequest),
     /// Reorders a workspace's task folders; replies with them in their new order.
     #[reply(Vec<TaskFolder>)]
     ReorderTaskFolders(ReorderTaskFoldersRequest),
