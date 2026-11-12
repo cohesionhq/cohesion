@@ -21,6 +21,10 @@
 					label: 'Go back / forward in the half in use'
 				},
 				{ keys: [`${keyLabel('alt')}-click`], label: 'Open a link in split view' },
+				{
+					keys: [keyLabel('mod', 'k')],
+					label: 'New task in any workspace: search for “New task”'
+				},
 				{ keys: [keyLabel('mod', 'd')], label: 'Focus the folder menu in the heading' },
 				{ keys: [keyLabel('mod', '/'), '?'], label: 'Show these shortcuts' }
 			]
@@ -40,7 +44,7 @@
 		{
 			title: 'Tasks',
 			rows: [
-				{ keys: ['n', keyLabel('mod', 'n')], label: 'New task in any workspace' },
+				{ keys: ['n', keyLabel('mod', 'n')], label: 'New task' },
 				{ keys: [newFolderKeys], label: 'New folder' },
 				{ keys: ['j', 'k'], label: 'Next / previous task' },
 				{ keys: [keyLabel('space')], label: 'Complete or reopen' },

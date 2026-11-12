@@ -1,17 +1,17 @@
 <!--
 	The new-task dialog: the Tasks page's composer (`AddTaskRow`) in a modal, with the workspace it
-	files into chosen first. It starts in the current workspace and takes any other; the composer
+	files into named in a quiet line above it. It starts in the current workspace and takes any other; the composer
 	chooses the folder, priority, size, tags, days and description from that workspace's own.
 -->
 <script lang="ts">
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import AddTaskRow from '$lib/features/tasks/AddTaskRow.svelte';
 	import { send } from '$lib/protocol/api';
 	import type { Tag, TaskFolder } from '$lib/protocol/types';
 	import type { NewTaskDetails } from '$lib/stores/tasks.svelte';
 	import { workspaces } from '$lib/stores/workspaces.svelte';
 	import Dialog from '$lib/ui/Dialog.svelte';
-	import Field from '$lib/ui/Field.svelte';
-	import Select from '$lib/ui/Select.svelte';
+	import Picker, { type PickerItem } from '$lib/ui/Picker.svelte';
 	import { toasts } from '$lib/ui/toasts.svelte';
 	import { newTaskDialog } from './newTaskDialog.svelte';
 
@@ -20,8 +20,12 @@
 	let tags = $state<Tag[]>([]);
 	let element = $state<HTMLInputElement>();
 
-	const options = $derived(
-		workspaces.list.value.map((w) => ({ value: String(w.id), label: w.title }))
+	const items = $derived<PickerItem[]>(
+		workspaces.list.value.map((w) => ({
+			id: w.id,
+			label: w.title,
+			checked: String(w.id) === workspaceId
+		}))
 	);
 	const chosen = $derived(workspaces.list.value.find((w) => String(w.id) === workspaceId) ?? null);
 
@@ -73,13 +77,34 @@
 </script>
 
 <Dialog bind:open={newTaskDialog.open} title="New task" size="wide">
-	<div class="flex flex-col gap-3">
-		{#if options.length > 1}
-			<Field label="Workspace" for="new-task-workspace">
-				<Select id="new-task-workspace" bind:value={workspaceId} {options} />
-			</Field>
-		{/if}
+	<div class="flex flex-col gap-2">
 		{#if chosen !== null}
+			<!-- A quiet line, not a field: the workspace shows only when there is another to pick. -->
+			<div class="-mt-2 flex items-center gap-1 text-xs text-fg-subtle">
+				{#if items.length > 1}
+					in
+					<Picker
+						{items}
+						onpick={(id) => (workspaceId = String(id))}
+						placeholder="Find a workspace"
+						empty="No matches."
+						inDialog
+						returnTo={element}
+					>
+						{#snippet trigger(props)}
+							<button
+								class="inline-flex h-5 max-w-48 cursor-pointer items-center gap-0.5 rounded-sm px-1 text-fg-muted hover:bg-bg-hover hover:text-fg data-[state=open]:bg-bg-hover"
+								type="button"
+								aria-label="Workspace: {chosen.title}"
+								{...props}
+							>
+								<span class="truncate">{chosen.title}</span>
+								<ChevronDown size={12} strokeWidth={1.75} />
+							</button>
+						{/snippet}
+					</Picker>
+				{/if}
+			</div>
 			{#key chosen.id}
 				<AddTaskRow
 					bind:element

@@ -405,15 +405,17 @@
 			folderDialogs.request({ kind: 'tasks', mode: 'new' });
 			return;
 		}
+		// Where the list has no composer (Done, Cancelled), ⌘N opens the new-task dialog instead.
 		if (!inDialog && asksForNew(event)) {
 			event.preventDefault();
-			newTaskDialog.request();
+			if (addInput) addInput.focus();
+			else newTaskDialog.request();
 			return;
 		}
 		if (event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;
-		if (event.key === 'n') {
+		if (event.key === 'n' && addInput) {
 			event.preventDefault();
-			newTaskDialog.request();
+			addInput.focus();
 		} else if (
 			(event.key === 'j' || event.key === 'ArrowDown') &&
 			(event.target === document.body || event.target === null)
