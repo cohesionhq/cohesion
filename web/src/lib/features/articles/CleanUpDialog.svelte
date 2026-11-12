@@ -7,8 +7,8 @@
 	import Checkbox from '$lib/ui/Checkbox.svelte';
 	import Dialog from '$lib/ui/Dialog.svelte';
 	import Field from '$lib/ui/Field.svelte';
-	import TextInput from '$lib/ui/TextInput.svelte';
 	import { toasts } from '$lib/ui/toasts.svelte';
+	import DayField from '$lib/features/tasks/DayField.svelte';
 
 	interface Props {
 		open?: boolean;
@@ -54,7 +54,7 @@
 >
 	<form id="clean-up-form" class="flex flex-col gap-4" onsubmit={submit}>
 		<Field label="Published before" for="clean-up-day">
-			<TextInput id="clean-up-day" type="date" bind:value={day} required />
+			<DayField id="clean-up-day" bind:value={day} />
 		</Field>
 		<fieldset class="flex flex-col gap-1.5">
 			<legend class="mb-1.5 text-xs text-fg-muted">Feeds</legend>

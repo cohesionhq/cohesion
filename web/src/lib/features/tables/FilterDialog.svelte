@@ -11,6 +11,7 @@
 	import Field from '$lib/ui/Field.svelte';
 	import Select from '$lib/ui/Select.svelte';
 	import TextInput from '$lib/ui/TextInput.svelte';
+	import DayField from '$lib/features/tasks/DayField.svelte';
 	import {
 		type ColumnInfo,
 		columnKey,
@@ -119,18 +120,30 @@
 				</Field>
 			{:else if choice && choice.takes !== 'nothing'}
 				<Field label="Value" for="filter-value" {error}>
-					<TextInput
-						id="filter-value"
-						bind:value={text}
-						type={chosen.data_type === 'date' && choice.takes === 'value' ? 'date' : 'text'}
-						inputmode={chosen.data_type === 'integer'
-							? 'numeric'
-							: isNumeric(chosen.data_type)
-								? 'decimal'
-								: undefined}
-						autocomplete="off"
-						oninput={() => (error = null)}
-					/>
+					{#if chosen.data_type === 'date' && choice.takes === 'value'}
+						<DayField
+							id="filter-value"
+							bind:value={
+								() => text,
+								(day) => {
+									text = day;
+									error = null;
+								}
+							}
+						/>
+					{:else}
+						<TextInput
+							id="filter-value"
+							bind:value={text}
+							inputmode={chosen.data_type === 'integer'
+								? 'numeric'
+								: isNumeric(chosen.data_type)
+									? 'decimal'
+									: undefined}
+							autocomplete="off"
+							oninput={() => (error = null)}
+						/>
+					{/if}
 				</Field>
 			{/if}
 		{/if}
