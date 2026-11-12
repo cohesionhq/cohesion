@@ -16,10 +16,6 @@ export const navCount = 'flex-none px-2 text-xs text-fg-subtle tabular-nums';
 export const navHeading =
 	'mt-4 px-2 pb-1 text-xs font-medium text-fg-subtle first:mt-0 max-md:hidden';
 
-/** An icon button at a row's end, such as a folder's rename button. */
-export const navTool =
-	'inline-flex size-6 cursor-pointer items-center justify-center rounded-sm text-fg-subtle hover:text-fg';
-
 /** A quiet button ending a group, such as "New folder…": a row on the folders' rhythm, in the sidebar's "New agent" grey. */
 export const navAction =
 	'flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-left text-fg-subtle hover:bg-bg-hover hover:text-fg';

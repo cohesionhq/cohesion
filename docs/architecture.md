@@ -2140,8 +2140,8 @@ and `documentFolders` as a folder's representation changes), through
 
 **Tables** (`routes/w/[ws]/documents/`, `features/tables/`,
 `stores/tables.svelte.ts`). A document folder with columns is a table
-(`DocumentFolder.representation` is `table`); there is no Databases page. The folder tree marks
-a table with a table icon, and the Documents page shows a table folder as one
+(`DocumentFolder.representation` is `table`); there is no Databases page. The sidebar marks
+a table folder with a table icon, and the Documents page shows a table folder as one
 (`DocumentTable.svelte`) instead of its list: the title first, edited in place
 as a rename (`renameDocument`), then a column per property in its order, its
 header a menu to sort (the type's two directions or none), filter, rename,
@@ -2211,8 +2211,8 @@ each keep their row in a `DocumentValues` of the store (`panel`, `page`), and
 a write in the table, the panel or the page updates the others from its reply.
 
 **Moving a document** goes through `DocumentMover.svelte`, whichever way it
-is moved: a document from a list or a table's row dropped on the folder tree
-(`DOCUMENT_DRAG`), and "Move to" on a document's page. Leaving a table deletes
+is moved: a document from a list or a table's row dropped on a document folder
+in the sidebar (`DOCUMENT_DRAG`), and "Move to" on a document's page. Leaving a table deletes
 the document's values, so when it holds any set by hand
 (`DocumentsStore.moveLosesValues`, the one rule), it asks "Move “Dune” to
 the Inbox?", saying the values it has in the table will be removed; with

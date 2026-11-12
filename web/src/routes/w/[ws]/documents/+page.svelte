@@ -1,11 +1,10 @@
 <!--
-	The Documents page: the folder tree in the nav pane, and the Inbox, every
+	The Documents page: the Inbox, every
 	document (All, leaving out the rows of tables) or one folder. A folder
 	that is a table shows as one (`DocumentTable`), its filters and sort the
 	page's own: they go to the daemon with every listing (`listTableRows`),
 	which filters and sorts, and last while the half keeps the folder open. A
-	row opens in the panel over the page. Moving a document goes through
-	`DocumentMover`, which asks first when it would lose values.
+	row opens in the panel over the page.
 -->
 <script lang="ts">
 	import SearchField from '$lib/ui/SearchField.svelte';
@@ -30,13 +29,8 @@
 	import { pane } from '$lib/shell/pane.svelte';
 	import PageTitle from '$lib/shell/PageTitle.svelte';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
-	import DocumentFolderTree, {
-		DOCUMENT_DRAG,
-		type DocumentView
-	} from '$lib/features/documents/DocumentFolderTree.svelte';
-	import DocumentMover from '$lib/features/documents/DocumentMover.svelte';
-	import { navPane } from '$lib/features/folders/nav';
-	import { listedIn, subtreeIds, tableIds } from '$lib/features/documents/folderTree';
+	import { DOCUMENT_DRAG } from '$lib/features/documents/drag';
+	import { type DocumentView, listedIn, tableIds } from '$lib/features/documents/folderTree';
 	import DocumentTable from '$lib/features/tables/DocumentTable.svelte';
 	import FilterDialog from '$lib/features/tables/FilterDialog.svelte';
 	import PropertyDialog, {
@@ -52,21 +46,17 @@
 	} from '$lib/features/tables/values';
 	import { pillClass } from '$lib/features/tags/FilterPill.svelte';
 	import type {
-		DocumentFolder,
 		DocumentFolderProperty,
 		TableFilter,
 		TableRow,
 		TableSort
 	} from '$lib/protocol/types';
+	import { folderDialogs } from '$lib/shell/folderDialogs.svelte';
 	import { linkedItem } from '$lib/shell/linkedItem.svelte';
 	import { NO_QUERY } from '$lib/stores/tables.svelte';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
 	import { copyLinkItems } from '$lib/ui/copyLink';
 	import MoreActions from '$lib/ui/MoreActions.svelte';
-	import { toProtocolError } from '$lib/protocol/errors';
-	import Dialog from '$lib/ui/Dialog.svelte';
-	import Field from '$lib/ui/Field.svelte';
-	import TextInput from '$lib/ui/TextInput.svelte';
 	import { asksForNew, asksForNewFolder } from '$lib/shell/shortcuts.svelte';
 
 	const { documents, tables } = pageStores();
@@ -164,22 +154,6 @@
 		action.catch((error) => toasts.error(error));
 	}
 
-	let mover = $state<DocumentMover>();
-
-	/** Files a dropped document, or a table's row, through the mover. */
-	function file(document_id: number, folder_id: number | null) {
-		const row = tables.rows.value.find((r) => r.document_id === document_id);
-		const doc =
-			documents.list.value.find((d) => d.id === document_id) ??
-			(row && {
-				workspace_id: ws,
-				id: row.document_id,
-				folder_id: row.folder_id,
-				title: row.title
-			});
-		if (doc) void mover?.move(doc, folder_id);
-	}
-
 	// ---- A folder that is a table ---------------------------------------------
 
 	const isTable = $derived(folder?.representation === 'table');
@@ -274,87 +248,12 @@
 		tables.took(await documents.renameDocument(ws, row.document_id, title));
 	}
 
-	// ---- Folders ------------------------------------------------------------
-
-	let folderDialog = $state<
-		| { mode: 'new'; parent: DocumentFolder | null }
-		| { mode: 'rename'; folder: DocumentFolder }
-		| null
-	>(null);
-	let folderOpen = $state(false);
-	let folderTitle = $state('');
-	let folderError = $state<string | null>(null);
-	let folderBusy = $state(false);
-
-	function openFolderDialog(next: NonNullable<typeof folderDialog>) {
-		folderDialog = next;
-		folderTitle = next.mode === 'rename' ? next.folder.title : '';
-		folderError = null;
-		folderOpen = true;
-	}
-
-	async function submitFolder(event: SubmitEvent) {
-		event.preventDefault();
-		const title = folderTitle.trim();
-		if (folderDialog === null || title === '') return;
-		folderBusy = true;
-		try {
-			if (folderDialog.mode === 'new') {
-				const created = await documents.createFolder(ws, title, folderDialog.parent?.id ?? null);
-				void page.goto(viewHref(created.id));
-			} else {
-				await documents.renameFolder(ws, folderDialog.folder.id, title);
-			}
-			folderOpen = false;
-		} catch (error) {
-			const e = toProtocolError(error);
-			if (e.code === 'validationFailed') folderError = e.message;
-			else toasts.error(e);
-		} finally {
-			folderBusy = false;
-		}
-	}
-
-	let removingFolder = $state<DocumentFolder | null>(null);
-	let removeFolderOpen = $state(false);
-	/** What deleting the folder does, in words: a table loses its columns and values. */
-	const removeFolderText = $derived.by(() => {
-		const inside = removingFolder
-			? subtreeIds(documents.folders.value, removingFolder.id).filter((id) => tableFolders.has(id))
-			: [];
-		const tablePart =
-			removingFolder && tableFolders.has(removingFolder.id)
-				? ' The table’s columns and values will be deleted too.'
-				: inside.length > 0
-					? ' The columns and values of the tables inside it will be deleted too.'
-					: '';
-		return `Folders inside this folder will also be deleted.${tablePart} The documents in them won’t be deleted and will move to the Inbox.`;
-	});
-
-	async function confirmRemoveFolder() {
-		const target = removingFolder;
-		if (target === null) return;
-		// The folder shown goes if it's this one or inside it.
-		const shownGoes =
-			typeof view === 'number' && subtreeIds(documents.folders.value, target.id).includes(view);
-		folderBusy = true;
-		try {
-			await documents.deleteFolder(ws, target.id);
-			removeFolderOpen = false;
-			if (shownGoes) void page.goto(viewHref('inbox'), { replaceState: true });
-		} catch (error) {
-			toasts.error(error);
-		} finally {
-			folderBusy = false;
-		}
-	}
-
 	/** ⌘N makes a document and ⇧⌘N a folder, unless a dialog is open. */
 	function onWindowKey(event: KeyboardEvent) {
 		if (event.target instanceof HTMLElement && event.target.closest('[role="dialog"]')) return;
 		if (asksForNewFolder(event)) {
 			event.preventDefault();
-			openFolderDialog({ mode: 'new', parent: null });
+			folderDialogs.request({ kind: 'documents', mode: 'new', parent: null });
 		} else if (asksForNew(event) && !creating && !folderGone) {
 			event.preventDefault();
 			void create();
@@ -392,164 +291,99 @@
 		{/snippet}
 	</PageHeader>
 
-	<div class="flex gap-6 max-md:flex-col max-md:gap-0">
-		<aside class={navPane}>
-			<DocumentFolderTree
-				folders={documents.folders.value}
-				current={view}
-				href={viewHref}
-				onnew={(parent) => openFolderDialog({ mode: 'new', parent })}
-				onrename={(f) => openFolderDialog({ mode: 'rename', folder: f })}
-				ondelete={(f) => {
-					removingFolder = f;
-					removeFolderOpen = true;
-				}}
-				onmove={(f, parent_id, before_id) =>
-					run(documents.moveFolder(ws, f.id, parent_id, before_id))}
-				onfile={file}
+	<div class="min-w-0 flex-1">
+		{#if folderGone}
+			<EmptyState
+				message="Folder not found"
+				actionLabel="Back to documents"
+				onaction={() => page.goto(viewHref('all'), { replaceState: true })}
 			/>
-		</aside>
+		{:else if isTable}
+			{@render tableView()}
+		{:else if documents.list.error && !documents.list.loaded}
+			<EmptyState {...workspaceLoadError(documents.list.error, () => documents.list.refetch())} />
+		{:else if documents.list.loaded}
+			{#if documents.list.value.length === 0}
+				<EmptyState message="No documents yet" actionLabel="New document" onaction={create} />
+			{:else if view !== 'all' && !documents.list.value.some(inView)}
+				<EmptyState message="No documents" actionLabel="New document" onaction={create} />
+			{:else}
+				<div class="mb-5">
+					<SearchField
+						bind:value={query}
+						placeholder="Filter by title"
+						label="Filter documents by title"
+					/>
+				</div>
 
-		<div class="min-w-0 flex-1">
-			{#if folderGone}
-				<EmptyState
-					message="Folder not found"
-					actionLabel="Back to documents"
-					onaction={() => page.goto(viewHref('all'), { replaceState: true })}
-				/>
-			{:else if isTable}
-				{@render tableView()}
-			{:else if documents.list.error && !documents.list.loaded}
-				<EmptyState {...workspaceLoadError(documents.list.error, () => documents.list.refetch())} />
-			{:else if documents.list.loaded}
-				{#if documents.list.value.length === 0}
-					<EmptyState message="No documents yet" actionLabel="New document" onaction={create} />
-				{:else if view !== 'all' && !documents.list.value.some(inView)}
-					<EmptyState message="No documents" actionLabel="New document" onaction={create} />
-				{:else}
-					<div class="mb-5">
-						<SearchField
-							bind:value={query}
-							placeholder="Filter by title"
-							label="Filter documents by title"
-						/>
-					</div>
-
-					{#if groups.length === 0}
-						{#if !searching}
-							<!-- All, when every document is a table's row. -->
-							<EmptyState message="No documents" actionLabel="New document" onaction={create} />
-						{:else if !remote || found !== null}
-							<p class="text-fg-muted">No documents match “{query.trim()}”.</p>
-						{/if}
-					{:else}
-						{#each groups as group (group.key)}
-							<section class="[&+section]:mt-6" aria-labelledby="group-{group.key}">
-								<!-- Headed as the Dashboard's sections are: the day, a count, a hairline. -->
-								<h2 class={list.heading} id="group-{group.key}">
-									{group.label}<span class={list.count}>{group.items.length}</span>
-								</h2>
-								<ul>
-									{#each group.items as doc (doc.id)}
-										{@const line = excerpt(doc.contents, 140, doc.title)}
-										<!-- Two lines, as an article's row: the title, then where the text starts. -->
-										<li class="border-border not-first:border-t">
-											<a
-												class="group flex items-start gap-3 py-2.5 text-fg hover:no-underline"
-												href={routes.document(ws, doc.id)}
-												ondragstart={(e) => {
-													e.dataTransfer?.setData(DOCUMENT_DRAG, String(doc.id));
-													if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
-												}}
-											>
-												<FileText
-													class="mt-0.5 flex-none text-fg-subtle"
-													size={16}
-													strokeWidth={1.75}
-													aria-hidden="true"
-												/>
-												<span class="flex min-w-0 flex-1 flex-col gap-0.5">
-													<span class="flex items-baseline justify-between gap-4">
-														<span class="min-w-0 truncate transition-colors group-hover:text-accent"
-															>{doc.title}</span
-														>
-														<span class="flex flex-none gap-3 text-xs text-fg-subtle tabular-nums">
-															{#if view === 'all'}
-																<!-- Across folders, each row names where it's filed. -->
-																<span
-																	>{doc.folder_id === null
-																		? 'Inbox'
-																		: (folderTitles.get(doc.folder_id) ?? '')}</span
-																>
-															{/if}
-															<span>{relativeTime(doc.modified, now)}</span>
-														</span>
-													</span>
-													<span
-														class={[
-															'max-w-170 truncate text-xs',
-															line ? 'text-fg-subtle' : 'text-fg-subtle/70'
-														]}>{line || 'Empty'}</span
-													>
-												</span>
-											</a>
-										</li>
-									{/each}
-								</ul>
-							</section>
-						{/each}
+				{#if groups.length === 0}
+					{#if !searching}
+						<!-- All, when every document is a table's row. -->
+						<EmptyState message="No documents" actionLabel="New document" onaction={create} />
+					{:else if !remote || found !== null}
+						<p class="text-fg-muted">No documents match “{query.trim()}”.</p>
 					{/if}
+				{:else}
+					{#each groups as group (group.key)}
+						<section class="[&+section]:mt-6" aria-labelledby="group-{group.key}">
+							<!-- Headed as the Dashboard's sections are: the day, a count, a hairline. -->
+							<h2 class={list.heading} id="group-{group.key}">
+								{group.label}<span class={list.count}>{group.items.length}</span>
+							</h2>
+							<ul>
+								{#each group.items as doc (doc.id)}
+									{@const line = excerpt(doc.contents, 140, doc.title)}
+									<!-- Two lines, as an article's row: the title, then where the text starts. -->
+									<li class="border-border not-first:border-t">
+										<a
+											class="group flex items-start gap-3 py-2.5 text-fg hover:no-underline"
+											href={routes.document(ws, doc.id)}
+											ondragstart={(e) => {
+												e.dataTransfer?.setData(DOCUMENT_DRAG, String(doc.id));
+												if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+											}}
+										>
+											<FileText
+												class="mt-0.5 flex-none text-fg-subtle"
+												size={16}
+												strokeWidth={1.75}
+												aria-hidden="true"
+											/>
+											<span class="flex min-w-0 flex-1 flex-col gap-0.5">
+												<span class="flex items-baseline justify-between gap-4">
+													<span class="min-w-0 truncate transition-colors group-hover:text-accent"
+														>{doc.title}</span
+													>
+													<span class="flex flex-none gap-3 text-xs text-fg-subtle tabular-nums">
+														{#if view === 'all'}
+															<!-- Across folders, each row names where it's filed. -->
+															<span
+																>{doc.folder_id === null
+																	? 'Inbox'
+																	: (folderTitles.get(doc.folder_id) ?? '')}</span
+															>
+														{/if}
+														<span>{relativeTime(doc.modified, now)}</span>
+													</span>
+												</span>
+												<span
+													class={[
+														'max-w-170 truncate text-xs',
+														line ? 'text-fg-subtle' : 'text-fg-subtle/70'
+													]}>{line || 'Empty'}</span
+												>
+											</span>
+										</a>
+									</li>
+								{/each}
+							</ul>
+						</section>
+					{/each}
 				{/if}
 			{/if}
-		</div>
+		{/if}
 	</div>
 </div>
-
-<Dialog
-	bind:open={folderOpen}
-	title={folderDialog?.mode === 'rename'
-		? 'Rename folder'
-		: folderDialog?.parent
-			? `New folder in “${folderDialog.parent.title}”`
-			: 'New folder'}
->
-	<form id="document-folder-form" onsubmit={submitFolder}>
-		<Field label="Title" for="document-folder-title" error={folderError}>
-			<TextInput
-				id="document-folder-title"
-				bind:value={folderTitle}
-				autocomplete="off"
-				oninput={() => (folderError = null)}
-			/>
-		</Field>
-	</form>
-	{#snippet footer()}
-		<Button onclick={() => (folderOpen = false)}>Cancel</Button>
-		<Button
-			variant="primary"
-			type="submit"
-			form="document-folder-form"
-			disabled={folderBusy || folderTitle.trim() === ''}
-		>
-			{folderDialog?.mode === 'rename' ? 'Rename' : 'Create'}
-		</Button>
-	{/snippet}
-</Dialog>
-
-<Dialog
-	bind:open={removeFolderOpen}
-	title="Delete “{removingFolder?.title ?? ''}”?"
-	description={removeFolderText}
->
-	{#snippet footer()}
-		<Button onclick={() => (removeFolderOpen = false)}>Cancel</Button>
-		<Button variant="danger-quiet" disabled={folderBusy} onclick={confirmRemoveFolder}>
-			Delete
-		</Button>
-	{/snippet}
-</Dialog>
-
-<DocumentMover bind:this={mover} onmoved={(doc) => tables.took(doc)} />
 
 <PropertyDialog
 	bind:open={propertyOpen}

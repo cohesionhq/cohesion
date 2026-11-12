@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { DocumentFolder, TaskFolder } from '$lib/protocol/types';
+import type { DocumentFolder, SavedTaskView, TaskFolder } from '$lib/protocol/types';
 import { routes } from './routes';
-import { documentFolderRows, taskFolderRows } from './sidebarFolders';
+import { documentFolderRows, savedViewRows, taskFolderRows } from './sidebarFolders';
 
 const docFolder = (
 	id: number,
@@ -42,20 +42,26 @@ describe('documentFolderRows', () => {
 		docFolder(5, 'Old', null, 4, { deleted: true })
 	];
 
-	it('lists live folders in reading order, nested ones a step in', () => {
+	it('lists the Inbox, then live folders in reading order, nested ones a step in', () => {
 		const rows = documentFolderRows(1, folders, '/', '');
 		expect(rows.map((r) => [r.label, r.depth, r.table])).toEqual([
+			['Inbox', 0, false],
 			['Design', 0, false],
 			['Research', 0, false],
 			['Search', 1, false],
 			['Reading list', 0, true]
 		]);
-		expect(rows[3].href).toBe(routes.documentFolder(1, 4));
+		expect(rows[4].href).toBe(routes.documentFolder(1, 4));
 	});
 
 	it('marks the folder the Documents page shows', () => {
 		const rows = documentFolderRows(1, folders, routes.documents(1), '?folder=3');
 		expect(rows.filter((r) => r.current).map((r) => r.label)).toEqual(['Search']);
+	});
+
+	it('marks the Inbox while the Documents page shows it', () => {
+		const rows = documentFolderRows(1, folders, routes.documents(1), '?folder=inbox');
+		expect(rows.filter((r) => r.current).map((r) => r.label)).toEqual(['Inbox']);
 	});
 
 	it('marks nothing on another page with the same query', () => {
@@ -92,5 +98,42 @@ describe('taskFolderRows', () => {
 
 	it('marks nothing when the Tasks page opens without a view', () => {
 		expect(taskFolderRows(1, folders, routes.tasks(1), '').some((r) => r.current)).toBe(false);
+	});
+});
+
+describe('savedViewRows', () => {
+	const view = (id: number, name: string, extra: Partial<SavedTaskView> = {}): SavedTaskView => ({
+		id,
+		workspace_id: 1,
+		name,
+		scope: 'all',
+		tags: { with: [], without: [] },
+		priorities: [],
+		sizes: [],
+		sort: 'created',
+		descending: false,
+		sort_order: id,
+		...extra
+	});
+
+	it('opens each view on the list, tags, priorities and sizes it keeps', () => {
+		const rows = savedViewRows(
+			1,
+			[view(1, 'Plain'), view(2, 'Tagged', { scope: 3, tags: { with: [7], without: [8] } })],
+			routes.tasks(1),
+			''
+		);
+		expect(rows.map((r) => [r.label, r.href])).toEqual([
+			['Plain', `${routes.tasks(1)}?view=all`],
+			['Tagged', `${routes.tasks(1)}?view=3&tag=7&without=8`]
+		]);
+	});
+
+	it('marks the view whose address the page has', () => {
+		const rows = savedViewRows(1, [view(1, 'Plain')], routes.tasks(1), '?view=all');
+		expect(rows[0].current).toBe(true);
+		expect(savedViewRows(1, [view(1, 'Plain')], routes.tasks(1), '?view=done')[0].current).toBe(
+			false
+		);
 	});
 });

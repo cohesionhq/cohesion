@@ -1,23 +1,14 @@
 <script lang="ts">
 	import { tick, untrack } from 'svelte';
-	import FolderNav from '$lib/features/folders/FolderNav.svelte';
-	import { navHeading, navItem, navLink, navPane } from '$lib/features/folders/nav';
 	import AddTaskRow from '$lib/features/tasks/AddTaskRow.svelte';
-	import SavedViewsNav from '$lib/features/tasks/SavedViewsNav.svelte';
+	import ViewsMenu from '$lib/features/tasks/ViewsMenu.svelte';
 	import SortMenu from '$lib/features/tasks/SortMenu.svelte';
 	import TaskDetails from '$lib/features/tasks/TaskDetails.svelte';
 	import TaskFilters from '$lib/features/tasks/TaskFilters.svelte';
 	import TagsDialog from '$lib/features/tags/TagsDialog.svelte';
 	import TaskRow from '$lib/features/tasks/TaskRow.svelte';
-	import { toProtocolError } from '$lib/protocol/errors';
-	import type {
-		SavedTaskView,
-		Task,
-		TaskFolder,
-		TaskPriority,
-		TaskSize,
-		TaskStatus
-	} from '$lib/protocol/types';
+	import type { Task, TaskPriority, TaskSize, TaskStatus } from '$lib/protocol/types';
+	import { folderDialogs } from '$lib/shell/folderDialogs.svelte';
 	import { workspaceLoadError } from '$lib/shell/loadError';
 	import { routes } from '$lib/shell/routes';
 	import { asksForNew, asksForNewFolder, isTyping } from '$lib/shell/shortcuts.svelte';
@@ -46,10 +37,8 @@
 	import Button from '$lib/ui/Button.svelte';
 	import Dialog from '$lib/ui/Dialog.svelte';
 	import EmptyState from '$lib/ui/EmptyState.svelte';
-	import Field from '$lib/ui/Field.svelte';
 	import PageHeader from '$lib/ui/PageHeader.svelte';
 	import Pager, { rememberedPageSize } from '$lib/ui/Pager.svelte';
-	import TextInput from '$lib/ui/TextInput.svelte';
 	import { toasts } from '$lib/ui/toasts.svelte';
 	import { pane } from '$lib/shell/pane.svelte';
 	import PageTitle from '$lib/shell/PageTitle.svelte';
@@ -189,21 +178,20 @@
 	// ---- Saved views --------------------------------------------------------
 
 	const filters = $derived({ view, tags, priorities: priorityParam, sizes: sizeParam, order });
-	// The saved view keeping exactly what's shown, which the nav marks instead of its list.
+	// The saved view keeping exactly what's shown, which the Views menu marks instead of its list.
 	const saved = $derived(
 		tasks.views.key === ws ? (tasks.views.value.find((v) => savedAs(v, filters)) ?? null) : null
 	);
-	const shown = $derived(saved === null ? view : null);
 
-	function savedHref(v: SavedTaskView): string {
-		return `${viewHref(v.scope)}${tagsQuery(v.tags)}${prioritiesQuery(v.priorities)}${sizesQuery(v.sizes)}`;
-	}
-
-	// The link carries the list, tags, priorities and sizes; the order is the page's own.
-	function pickSaved(v: SavedTaskView) {
-		order = { sort: v.sort, descending: v.descending };
-		rememberOrder(order);
-	}
+	// A saved view picked in the sidebar leaves its order as the remembered one; take it.
+	$effect(() => {
+		void page.url;
+		untrack(() => {
+			const remembered = rememberedOrder();
+			if (remembered.sort !== order.sort || remembered.descending !== order.descending)
+				order = remembered;
+		});
+	});
 
 	async function setTagged(task: Task, tag_id: number, tagged: boolean) {
 		tasks.takeTagged(await taskTags.setTagged(ws, tag_id, task.id, tagged));
@@ -392,78 +380,16 @@
 		}
 	}
 
-	// ---- Folders ------------------------------------------------------------
-
-	let folderDialog = $state<{ mode: 'new' } | { mode: 'rename'; folder: TaskFolder } | null>(null);
-	let folderOpen = $state(false);
-	let folderTitle = $state('');
-	let folderError = $state<string | null>(null);
-	let folderBusy = $state(false);
-
-	function openFolderDialog(next: NonNullable<typeof folderDialog>) {
-		folderDialog = next;
-		folderTitle = next.mode === 'rename' ? next.folder.title : '';
-		folderError = null;
-		folderOpen = true;
-	}
-
-	async function submitFolder(event: SubmitEvent) {
-		event.preventDefault();
-		const title = folderTitle.trim();
-		if (folderDialog === null || title === '') return;
-		folderBusy = true;
-		try {
-			if (folderDialog.mode === 'new') {
-				const created = await tasks.createFolder(ws, title);
-				void page.goto(viewHref(created.id));
-			} else {
-				await tasks.renameFolder(ws, folderDialog.folder.id, title);
-			}
-			folderOpen = false;
-		} catch (error) {
-			const e = toProtocolError(error);
-			if (e.code === 'validationFailed') folderError = e.message;
-			else toasts.error(e);
-		} finally {
-			folderBusy = false;
-		}
-	}
-
 	// The palette's "New folder" lands here with `?new=folder`.
 	$effect(() => {
 		if (page.url.searchParams.get('new') !== 'folder') return;
 		untrack(() => {
-			openFolderDialog({ mode: 'new' });
+			folderDialogs.request({ kind: 'tasks', mode: 'new' });
 			const url = new URL(page.url);
 			url.searchParams.delete('new');
 			void page.goto(`${url.pathname}${url.search}`, { replaceState: true, keepFocus: true });
 		});
 	});
-
-	const folderById = (id: number) => tasks.folders.value.find((f) => f.id === id)!;
-
-	let removingFolder = $state<TaskFolder | null>(null);
-	let removeFolderOpen = $state(false);
-
-	function openRemoveFolder(target: TaskFolder) {
-		removingFolder = target;
-		removeFolderOpen = true;
-	}
-
-	async function confirmRemoveFolder() {
-		const target = removingFolder;
-		if (target === null) return;
-		folderBusy = true;
-		try {
-			await tasks.deleteFolder(ws, target.id);
-			removeFolderOpen = false;
-			if (view === target.id) void page.goto(viewHref('inbox'), { replaceState: true });
-		} catch (error) {
-			toasts.error(error);
-		} finally {
-			folderBusy = false;
-		}
-	}
 
 	// ---- Page keys ----------------------------------------------------------
 
@@ -471,7 +397,7 @@
 		const inDialog = event.target instanceof HTMLElement && event.target.closest('[role="dialog"]');
 		if (!inDialog && asksForNewFolder(event)) {
 			event.preventDefault();
-			openFolderDialog({ mode: 'new' });
+			folderDialogs.request({ kind: 'tasks', mode: 'new' });
 			return;
 		}
 		if (!inDialog && asksForNew(event) && addInput) {
@@ -520,133 +446,98 @@
 				/>
 				<SortMenu {order} onchange={setOrder} {showIds} onshowids={setShowIds} />
 			{/if}
+			<ViewsMenu
+				views={tasks.views.value}
+				list={view}
+				current={saved?.id ?? null}
+				onlist={(v) => page.goto(viewHref(v))}
+				oncreate={(name) => tasks.createView(ws, name, filters)}
+				onupdate={(v) => tasks.updateView(ws, v.id, filters)}
+			/>
 		{/snippet}
 	</PageHeader>
-	<div class="flex gap-6 max-md:flex-col max-md:gap-0">
-		<aside class={navPane}>
-			<div class="flex flex-col gap-4 max-md:gap-1">
-				<FolderNav
+	<!-- Picking a view fades this column alone (see the root layout). -->
+	<div class="min-w-0 flex-1" data-view-query="view">
+		{#if folderGone}
+			<EmptyState
+				message="Folder not found"
+				actionLabel="Back to inbox"
+				onaction={() => page.goto(viewHref('inbox'), { replaceState: true })}
+			/>
+		{:else}
+			{#if viewStatus(view) === 'incomplete'}
+				<AddTaskRow
+					bind:element={addInput}
+					{viewName}
 					folders={tasks.folders.value}
-					current={typeof shown === 'number' ? shown : null}
-					href={viewHref}
-					onnew={() => openFolderDialog({ mode: 'new' })}
-					onrename={(f) => openFolderDialog({ mode: 'rename', folder: folderById(f.id) })}
-					ondelete={(f) => openRemoveFolder(folderById(f.id))}
-					onreorder={(ids) => tasks.reorderFolders(ws, ids).catch((e) => toasts.error(e))}
-				>
-					{#snippet before()}
-						<!-- The lists across folders first, unlabelled as Articles' and Settings' first rows
-						     are, then the folders under their label. -->
-						{#each [['inbox', 'Inbox'], ['all', 'All'], ['done', 'Done'], ['cancelled', 'Cancelled']] as const as [v, label] (v)}
-							<li class={navItem}>
-								<a
-									class={navLink}
-									href={viewHref(v)}
-									aria-current={shown === v ? 'page' : undefined}>{label}</a
-								>
-							</li>
-						{/each}
-						<li class={navHeading}>Folders</li>
-					{/snippet}
-				</FolderNav>
-
-				<SavedViewsNav
-					views={tasks.views.value}
-					current={saved?.id ?? null}
-					href={savedHref}
-					onpick={pickSaved}
-					oncreate={(name) => tasks.createView(ws, name, filters)}
-					onupdate={(v) => tasks.updateView(ws, v.id, filters)}
-					onrename={(v, name) => tasks.renameView(ws, v.id, name)}
-					ondelete={(v) => tasks.deleteView(ws, v.id)}
-					onreorder={(ids) => tasks.reorderViews(ws, ids).catch((e) => toasts.error(e))}
+					tags={taskTags.list.value}
+					folderId={viewFolder(view)}
+					tagIds={newTaskTags}
+					startPriority={newTaskPriority}
+					startSize={newTaskSize}
+					oncreate={(title, details) => tasks.create(title, details)}
+					oncreatetag={(name) => taskTags.create(ws, name)}
+					ondown={() => focusRow(0)}
 				/>
-			</div>
-		</aside>
-
-		<!-- Picking a view fades this column alone (see the root layout). -->
-		<div class="min-w-0 flex-1" data-view-query="view">
-			{#if folderGone}
-				<EmptyState
-					message="Folder not found"
-					actionLabel="Back to inbox"
-					onaction={() => page.goto(viewHref('inbox'), { replaceState: true })}
-				/>
-			{:else}
-				{#if viewStatus(view) === 'incomplete'}
-					<AddTaskRow
-						bind:element={addInput}
-						{viewName}
-						folders={tasks.folders.value}
-						tags={taskTags.list.value}
-						folderId={viewFolder(view)}
-						tagIds={newTaskTags}
-						startPriority={newTaskPriority}
-						startSize={newTaskSize}
-						oncreate={(title, details) => tasks.create(title, details)}
-						oncreatetag={(name) => taskTags.create(ws, name)}
-						ondown={() => focusRow(0)}
-					/>
-				{/if}
-
-				{#if tasks.list.error && !tasks.list.loaded}
-					<EmptyState {...workspaceLoadError(tasks.list.error, () => tasks.list.refetch())} />
-				{:else if tasks.list.loaded}
-					{#if rows.length === 0}
-						{#if view === 'done'}
-							<EmptyState
-								message="No finished tasks yet"
-								actionLabel="Show open tasks"
-								onaction={() => page.goto(viewHref('all'))}
-							/>
-						{:else if view === 'cancelled'}
-							<EmptyState
-								message="No cancelled tasks"
-								actionLabel="Show open tasks"
-								onaction={() => page.goto(viewHref('all'))}
-							/>
-						{:else}
-							<!-- The add field just above is the action. -->
-							<EmptyState compact message="No tasks here" />
-						{/if}
-					{:else}
-						<ul bind:this={listEl} aria-label="{viewName} tasks">
-							{#each rows as task, index (task.id)}
-								<TaskRow
-									{task}
-									highlighted={highlighted === task.id}
-									folder={folderOf(task)}
-									showId={showIds}
-									ontoggle={() => run(tasks.toggle(task))}
-									onrename={(title) => tasks.rename(task.id, title)}
-									onstatus={(status) => setStatus(task, status)}
-									onpriority={(priority) => run(tasks.setPriority(task, priority))}
-									onschedule={(start, due) => run(tasks.schedule(task, start, due))}
-									ondetails={() => openDetails(task)}
-									{destinations}
-									onmove={(folder_id) => moveTo(task, folder_id)}
-									tags={taskTags.list.value}
-									ontag={(tag_id, tagged) => run(setTagged(task, tag_id, tagged))}
-									onmanagetags={() => (managingTags = true)}
-									contacts={contacts.list.value}
-									onassign={(assignee) => run(tasks.setAssignee(task, assignee))}
-									onsize={(size) => run(tasks.setSize(task, size))}
-									ondelete={() => openDelete(task)}
-									onnavigate={(delta) => navigate(index, delta)}
-								/>
-							{/each}
-						</ul>
-					{/if}
-					<Pager
-						{offset}
-						{limit}
-						total={tasks.list.value.total}
-						onpage={showPage}
-						onsize={showSize}
-					/>
-				{/if}
 			{/if}
-		</div>
+
+			{#if tasks.list.error && !tasks.list.loaded}
+				<EmptyState {...workspaceLoadError(tasks.list.error, () => tasks.list.refetch())} />
+			{:else if tasks.list.loaded}
+				{#if rows.length === 0}
+					{#if view === 'done'}
+						<EmptyState
+							message="No finished tasks yet"
+							actionLabel="Show open tasks"
+							onaction={() => page.goto(viewHref('all'))}
+						/>
+					{:else if view === 'cancelled'}
+						<EmptyState
+							message="No cancelled tasks"
+							actionLabel="Show open tasks"
+							onaction={() => page.goto(viewHref('all'))}
+						/>
+					{:else}
+						<!-- The add field just above is the action. -->
+						<EmptyState compact message="No tasks here" />
+					{/if}
+				{:else}
+					<ul bind:this={listEl} aria-label="{viewName} tasks">
+						{#each rows as task, index (task.id)}
+							<TaskRow
+								{task}
+								highlighted={highlighted === task.id}
+								folder={folderOf(task)}
+								showId={showIds}
+								ontoggle={() => run(tasks.toggle(task))}
+								onrename={(title) => tasks.rename(task.id, title)}
+								onstatus={(status) => setStatus(task, status)}
+								onpriority={(priority) => run(tasks.setPriority(task, priority))}
+								onschedule={(start, due) => run(tasks.schedule(task, start, due))}
+								ondetails={() => openDetails(task)}
+								{destinations}
+								onmove={(folder_id) => moveTo(task, folder_id)}
+								tags={taskTags.list.value}
+								ontag={(tag_id, tagged) => run(setTagged(task, tag_id, tagged))}
+								onmanagetags={() => (managingTags = true)}
+								contacts={contacts.list.value}
+								onassign={(assignee) => run(tasks.setAssignee(task, assignee))}
+								onsize={(size) => run(tasks.setSize(task, size))}
+								ondelete={() => openDelete(task)}
+								onnavigate={(delta) => navigate(index, delta)}
+							/>
+						{/each}
+					</ul>
+				{/if}
+				<Pager
+					{offset}
+					{limit}
+					total={tasks.list.value.total}
+					onpage={showPage}
+					onsize={showSize}
+				/>
+			{/if}
+		{/if}
 	</div>
 </div>
 
@@ -668,45 +559,5 @@
 	{#snippet footer()}
 		<Button onclick={() => (deleteOpen = false)}>Cancel</Button>
 		<Button variant="danger-quiet" disabled={deleteBusy} onclick={confirmDelete}>Delete</Button>
-	{/snippet}
-</Dialog>
-
-<Dialog
-	bind:open={folderOpen}
-	title={folderDialog?.mode === 'rename' ? 'Rename folder' : 'New folder'}
->
-	<form id="task-folder-form" onsubmit={submitFolder}>
-		<Field label="Title" for="task-folder-title" error={folderError}>
-			<TextInput
-				id="task-folder-title"
-				bind:value={folderTitle}
-				autocomplete="off"
-				oninput={() => (folderError = null)}
-			/>
-		</Field>
-	</form>
-	{#snippet footer()}
-		<Button onclick={() => (folderOpen = false)}>Cancel</Button>
-		<Button
-			variant="primary"
-			type="submit"
-			form="task-folder-form"
-			disabled={folderBusy || folderTitle.trim() === ''}
-		>
-			{folderDialog?.mode === 'rename' ? 'Rename' : 'Create'}
-		</Button>
-	{/snippet}
-</Dialog>
-
-<Dialog
-	bind:open={removeFolderOpen}
-	title="Delete “{removingFolder?.title ?? ''}”?"
-	description="All tasks in this folder will also be deleted."
->
-	{#snippet footer()}
-		<Button onclick={() => (removeFolderOpen = false)}>Cancel</Button>
-		<Button variant="danger-quiet" disabled={folderBusy} onclick={confirmRemoveFolder}>
-			Delete
-		</Button>
 	{/snippet}
 </Dialog>
