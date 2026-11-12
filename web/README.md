@@ -263,6 +263,7 @@ only these exist:
   hairlines and inset a little from its edges (`ui/GutterCard.svelte`, `ui/GutterGroup.svelte`): for an agent its context size and what it is doing, its
   agenda (a row of dots, finished ones green and the step it is on in indigo, easing as steps are added or ticked
   and sliding shut when it is cleared), its
+  skills (a "Skills" heading with how many, whose card lists them on hover, a click on one sending a message with just that skill), its
   actor sessions not yet resolved, each with an eye-off icon to stop following it and the sidebar's archive
   icon to resolve it on hover or focus (always on touch), and its cues (`AgentGutter`), for a session where
   its actor, where it works and its model, then its usage as bars (`SessionGutter`); where it

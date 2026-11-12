@@ -1,6 +1,7 @@
 <!--
 	The column beside an agent's conversation: its context size, role and how many sessions it follows, its agenda
-	as a row of dots opening a card (`AgendaOverview`), the actor sessions
+	as a row of dots opening a card (`AgendaOverview`), its skills as a count opening a card,
+	any one sent with a click (`SkillsOverview`), the actor sessions
 	not yet resolved that it handed work and follows, each led by where it stands
 	and naming its actor, with Stop following and Resolve on hover or focus, then its cues.
 -->
@@ -15,6 +16,7 @@
 		Actor,
 		ActorSession,
 		AgentAgendaItem,
+		AgentSkill,
 		IntelligenceAgent,
 		IntelligenceAgentCue
 	} from '$lib/protocol/types';
@@ -28,12 +30,17 @@
 	import StatusIcon from '$lib/ui/StatusIcon.svelte';
 	import AgendaOverview from './AgendaOverview.svelte';
 	import ContextTokens from './ContextTokens.svelte';
+	import SkillsOverview from './SkillsOverview.svelte';
 
 	interface Props {
 		agent: IntelligenceAgent;
 		cues: IntelligenceAgentCue[];
 		/** The agent's agenda, in order, finished items included. */
 		agenda: AgentAgendaItem[];
+		/** The skills the agent has, by name. */
+		skills: AgentSkill[];
+		/** Sends a message running `skill`, with no note. */
+		onsendskill: (skill: AgentSkill) => void;
 		/** Every actor, which names each session's. */
 		actors: Actor[];
 		/** The sessions not yet resolved that the agent follows. */
@@ -45,8 +52,18 @@
 		onunfollow: (session: ActorSession) => void;
 	}
 
-	let { agent, cues, agenda, actors, sessions, onclearagenda, onresolve, onunfollow }: Props =
-		$props();
+	let {
+		agent,
+		cues,
+		agenda,
+		skills,
+		onsendskill,
+		actors,
+		sessions,
+		onclearagenda,
+		onresolve,
+		onunfollow
+	}: Props = $props();
 
 	const actorTitle = (id: number) => actors.find((actor) => actor.id === id)?.title;
 	// A row's Stop following and Resolve, on the canvas their wrapper lays under them.
@@ -76,6 +93,12 @@
 	<!-- Slides shut when the agent clears its agenda, and open when it sets out a new one. -->
 	<GutterGroup slides>
 		<AgendaOverview {agenda} onclear={onclearagenda} />
+	</GutterGroup>
+{/if}
+
+{#if skills.length > 0}
+	<GutterGroup>
+		<SkillsOverview {skills} onsend={onsendskill} />
 	</GutterGroup>
 {/if}
 
