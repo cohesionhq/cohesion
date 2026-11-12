@@ -345,7 +345,7 @@ impl DatabaseCommand for CreateUserAgentMessageCommand {
                 None => message,
             };
             let attachments = ListAgentMessageAttachmentsCommand {
-                message_id: message.id,
+                message_ids: vec![message.id],
             }
             .handle(&mut ctx.as_read())?;
             Ok((message, attachments).invalidating_nothing())
@@ -424,10 +424,12 @@ fn forwarded_item(
     })
 }
 
+/// The images attached to each of agent messages `message_ids`, by
+/// message, each message's in the order sent.
 #[derive(FromRequest)]
 #[request(ListAgentMessageAttachmentsRequest)]
 pub struct ListAgentMessageAttachmentsCommand {
-    pub message_id: i64,
+    pub message_ids: Vec<i64>,
 }
 impl DatabaseCommand for ListAgentMessageAttachmentsCommand {
     type Access = Read;
@@ -437,9 +439,8 @@ impl DatabaseCommand for ListAgentMessageAttachmentsCommand {
         Ok(ctx
             .db
             .select()
-            .filter("agent_message_id = ?")
-            .bind(self.message_id)
-            .order("id")
+            .filter_in_values("agent_message_id", self.message_ids)
+            .order("agent_message_id, id")
             .all()?)
     }
 }

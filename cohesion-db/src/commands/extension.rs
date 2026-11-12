@@ -107,40 +107,38 @@ impl DatabaseCommand for ListExtensionsCommand {
     }
 }
 
-/// The permissions recorded for an extension, enabled or not.
+/// The permissions recorded for each of `extension_ids`, enabled or not.
 #[derive(FromRequest)]
 #[request(ListExtensionPermissionsRequest)]
-pub struct GetExtensionPermissionsCommand {
-    pub extension_id: i64,
+pub struct ListExtensionPermissionsCommand {
+    pub extension_ids: Vec<i64>,
 }
-impl DatabaseCommand for GetExtensionPermissionsCommand {
+impl DatabaseCommand for ListExtensionPermissionsCommand {
     type Response = Vec<ExtensionPermission>;
     type Access = Read;
     fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Self::Response> {
         Ok(ctx
             .db
             .select()
-            .filter("extension_id = ?")
-            .bind(self.extension_id)
+            .filter_in_values("extension_id", self.extension_ids)
             .all()?)
     }
 }
 
-/// The hooks recorded for an extension, enabled or not.
+/// The hooks recorded for each of `extension_ids`, enabled or not.
 #[derive(FromRequest)]
 #[request(ListExtensionHooksRequest)]
-pub struct GetExtensionHooksCommand {
-    pub extension_id: i64,
+pub struct ListExtensionHooksCommand {
+    pub extension_ids: Vec<i64>,
 }
-impl DatabaseCommand for GetExtensionHooksCommand {
+impl DatabaseCommand for ListExtensionHooksCommand {
     type Response = Vec<ExtensionHook>;
     type Access = Read;
     fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Self::Response> {
         Ok(ctx
             .db
             .select()
-            .filter("extension_id = ?")
-            .bind(self.extension_id)
+            .filter_in_values("extension_id", self.extension_ids)
             .all()?)
     }
 }

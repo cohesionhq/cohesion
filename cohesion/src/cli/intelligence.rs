@@ -307,17 +307,21 @@ fn model_row(m: &EndpointModel) -> Row {
 async fn endpoints_with_models(
     ctx: &Context,
 ) -> Result<Vec<(RedactedIntelligenceEndpoint, Vec<EndpointModel>)>, CliError> {
-    let endpoints = ctx.call(ListIntelligenceEndpointsRequest).await?;
-    let mut listed = Vec::with_capacity(endpoints.len());
-    for endpoint in endpoints {
-        let models = ctx
-            .call(ListEndpointModelsRequest {
-                endpoint_id: endpoint.id,
-            })
-            .await?;
-        listed.push((endpoint, models));
-    }
-    Ok(listed)
+    let (endpoints, models) = tokio::try_join!(
+        ctx.call(ListIntelligenceEndpointsRequest),
+        ctx.call(ListEndpointModelsRequest { endpoint_id: None }),
+    )?;
+    Ok(endpoints
+        .into_iter()
+        .map(|endpoint| {
+            let offered = models
+                .iter()
+                .filter(|model| model.endpoint_id == endpoint.id)
+                .cloned()
+                .collect();
+            (endpoint, offered)
+        })
+        .collect())
 }
 
 /// Endpoints with their models, then what each tier uses.
@@ -367,7 +371,7 @@ pub(super) async fn endpoint_models(
     let endpoint = find(&endpoints, endpoint)?.clone();
     let models = ctx
         .call(ListEndpointModelsRequest {
-            endpoint_id: endpoint.id,
+            endpoint_id: Some(endpoint.id),
         })
         .await?;
     Ok((endpoint, models))

@@ -71,24 +71,32 @@ impl ExchangeWriter for OwnedWriteHalf {
     }
 }
 
+/// How much a line read asks of the socket at a time.
+const READ_CHUNK: usize = 64 * 1024;
+
 /// The next non-blank line from `read`, `buffer` holding what was read past
-/// the last one. A line longer than `limit` bytes is an error.
+/// the last one. A line longer than `limit` bytes is an error. Each byte is
+/// looked at for the newline once, however many reads a long line takes.
 async fn next_line<R: AsyncRead + Unpin>(
     read: &mut R,
     buffer: &mut Vec<u8>,
     limit: usize,
 ) -> ExchangeResult<Option<String>> {
+    let mut scanned = 0;
     loop {
-        if let Some(end) = buffer.iter().position(|&b| b == b'\n') {
-            let line: Vec<u8> = buffer.drain(..=end).collect();
-            let line = &line[..end];
+        if let Some(found) = buffer[scanned..].iter().position(|&b| b == b'\n') {
+            let end = scanned + found;
+            let rest = buffer.split_off(end + 1);
+            let mut line = std::mem::replace(buffer, rest);
+            line.truncate(end);
+            scanned = 0;
             if line.len() > limit {
                 return Err(too_long());
             }
             if line.iter().all(u8::is_ascii_whitespace) {
                 continue;
             }
-            return match String::from_utf8(line.to_vec()) {
+            return match String::from_utf8(line) {
                 Ok(text) => Ok(Some(text)),
                 Err(e) => Err(ExchangeError::ConnectionError(e.to_string())),
             };
@@ -96,10 +104,11 @@ async fn next_line<R: AsyncRead + Unpin>(
         if buffer.len() > limit {
             return Err(too_long());
         }
-        let mut chunk = [0u8; 4096];
-        match read.read(&mut chunk).await {
+        scanned = buffer.len();
+        buffer.reserve(READ_CHUNK);
+        match read.read_buf(buffer).await {
             Ok(0) => return Ok(None),
-            Ok(n) => buffer.extend_from_slice(&chunk[..n]),
+            Ok(_) => {}
             Err(e) => return Err(ExchangeError::ConnectionError(e.to_string())),
         }
     }
@@ -119,3 +128,6 @@ async fn write_line<W: AsyncWriteExt + Unpin>(
         .await
         .map_err(|e| ExchangeError::ConnectionError(e.to_string()))
 }
+
+#[cfg(test)]
+mod tests;

@@ -63,7 +63,7 @@ package, the web UI in `web/`. No crate declares cargo `[features]`.
 | `cohesion-macros` | proc-macro | The derives and attributes every other crate uses: `Model`, `Projection`, `ColumnGroup`, `Fields`, `FromRequest`, `Commands`, `Replies`, `TextEnum`, `TsInterface`, `TsWire`, `JsOptions`, `#[js_entity]`, `#[js_global]`. cohesion-core re-exports them. | none |
 | `cohesion-rs` | lib, `MIT` | What a client needs to talk to a daemon, for clients outside this repository (the Linux WebUI harness): keys, certificates, `key_fingerprint`, setup codes, the socket handshake and the name a client gets when its user gives none (`auth/`), private file helpers (`private_files.rs`), and the client's view of the protocol's envelope (`protocol.rs`: `Frame`, `Hello`, `Reply`, `Outcome`, the `WebBundle` reply, `RegisterRequest`, `PROTOCOL_VERSION`), which leaves every other message and reply as raw JSON. cohesion-core re-exports all but `protocol.rs`'s client types from its own paths, and its `protocol/envelope/client_tests.rs` checks the daemon's frames decode into them. | none |
 | `cohesion-core` | lib | Types every crate shares: the domain models (`model/`), the wire protocol (`protocol/`), invalidations, keys, certificates and setup codes (`auth/`, re-exported from cohesion-rs but for PKCE), the `Caller`, logging (`log/`), config paths (`paths.rs`), private file helpers (`private_files`, from cohesion-rs), the storage-agnostic `Value` layer, and `ts_wire`, which declares the protocol as TypeScript. No database and no script engine. | cohesion-macros, cohesion-rs |
-| `cohesion-db` | lib | SQLite persistence: `Container` (the rusqlite connection, query builders, migrations), the `DatabaseCommand` trait and every command, `DatabaseContext` (the one database thread), events and `InvalidationWatch`, `GuardedDatabaseContext` (what scripts hold), `CredentialManager`, `Secrets` (the pairing window), `WorkTracker`, `ActivityTracker`, backup, export and import (`transfer.rs`), retention. | cohesion-core |
+| `cohesion-db` | lib | SQLite persistence: `Container` (the rusqlite connection, query builders, migrations), the `DatabaseCommand` trait and every command, `DatabaseContext` (the one writing thread and the read-only readers), events and `InvalidationWatch`, `GuardedDatabaseContext` (what scripts hold), `CredentialManager`, `Secrets` (the pairing window), `WorkTracker`, `ActivityTracker`, backup, export and import (`transfer.rs`), retention. | cohesion-core |
 | `cohesion-internet` | lib (+ `build.rs`) | Reading the web: `article_snapshot` (a page as Markdown), `feed` (RSS, Atom and JSON Feed, with autodiscovery), `fetch`, `pipeline`, and Coherence, Cohesion's own HTML reader (`coherence/`, whose JSON rules `build.rs` compiles in). Blocking reqwest; knows nothing of the database or scripts. | cohesion-core |
 | `cohesion-internet-harness` | bin, `publish = false` | A tool: `cargo run -p cohesion-internet-harness -- page <url>` or `feed <url>` prints the Markdown the daemon would store, for building Coherence's rules. Nothing depends on it. | cohesion-core, cohesion-internet |
 | `cohesion-js` | lib | The QuickJS script runtime (rquickjs): `ScriptEngine` and its worker pools, `Sandbox`, globals and `Mount`, JS entities, `script_api` (which yields the `.d.ts`), `service_declarations`, `AgentRole`, and the traits a higher crate implements: `ConnectorAccess`, `ServiceAccess`, `ActorAccess`. Strips TypeScript with its own parser (`sandbox/strip_types`); vendors the Pele diagram renderer in `vendor/pele`. | cohesion-core, cohesion-db, cohesion-internet, cohesion-macros |
@@ -336,7 +336,7 @@ certificate and setup key. `Security` remembers refused pairings for at most
 2. `Container::open` the database (WAL) and `migrate()` it ([8](#8-the-database)). A failure stops the daemon.
 3. `clear_transfers`.
 4. Load or make `key.pem` and sign the certificate; the setup address is `host`, `public_port` and the fingerprint.
-5. `CohesionContext::new`: `WorkTracker`, `HookManager`, `DatabaseContext` (which starts the database thread), `ScriptEngine`, `ExtensionManager`, `CapabilityClients`, `ActorSessions`, `AgentCoordinator`, `ModelCatalog`, `Presence`, `Security`, `PendingImport`, and the hook receiver.
+5. `CohesionContext::new`: `WorkTracker`, `HookManager`, `DatabaseContext` (which starts the database thread and its readers), `ScriptEngine`, `ExtensionManager`, `CapabilityClients`, `ActorSessions`, `AgentCoordinator`, `ModelCatalog`, `Presence`, `Security`, `PendingImport`, and the hook receiver.
 6. `context.start()`: `ShutdownCleanupCommand` first (repairing a crash), the model catalog refresh in the background, one `launch` hook, the day clock, and the timed passes: cleanup (now, then hourly), resource refresh (after 60 s, then every 30 minutes), feed refresh (after 60 s, then hourly), extension update check (now, then daily).
 7. If no client is paired, open pairing and print `Setup code: <code>` to stdout, never the log (`open_first_pairing`).
 8. Serve. `main` then waits for the server to end, a signal (or stdin closing with `--exit-with-parent`), or a finished import.
@@ -473,7 +473,10 @@ too), `cohesion://resource/<ws>/<id>`, `cohesion://document-folder/<ws>/<id>`
 (how a table is linked), `cohesion://contact/<ws>/<id>`, `cohesion://agent/<id>`,
 `cohesion://actor-session/<id>` and `cohesion://article/<id>`. A task or
 document link without its workspace, as links were first written, still names
-one, since those ids are unique across workspaces. `ResolveLink{link}`
+one, since those ids are unique across workspaces. `ResolveLinks{links}`
+resolves many at once, each as `ResolveLink` does or `null` for an item that
+is gone, for a screen showing many cards (the web UI's embed cards ask
+together). `ResolveLink{link}`
 (`cohesion-db/src/commands/embed.rs`) turns a link into an `Embed`
 (`model/embed.rs`), one shape for every kind: the link written in full,
 `kind` (`EmbedKind`, worded by `hello.vocabulary.embed_kinds`),
@@ -629,7 +632,12 @@ table among the folders it deletes loses its properties and its documents
 their values. A soft-deleted row keeps its folder and values, leaves
 `ListTableRows`, and comes back as the row it was through Rewind; purging it
 takes its values. `ListDocuments` lists documents in tables like any other,
-so a client that keeps them apart filters with `representation`.
+so a client that keeps them apart filters with `representation`. It and
+`SearchDocuments` answer `DocumentSummary`s, a document without its text but
+with its `opening` (the first 500 characters), so a list stays small however
+long its documents grow; `GetDocument` has the text. Scripts' `documents()`
+still reads whole documents (`ListDocumentsCommand`), and both listings share
+one filter and order.
 
 **Formulas** (`cohesion-db/src/commands/document_formula.rs`,
 `cohesion-js/src/formula.rs`, `cohesionkit/src/table_formulas.rs`). A
@@ -765,6 +773,7 @@ variant of one of those enums doesn't compile until it has its words.
 | PROXY header | 5 s, 216 address bytes | `proxy_protocol.rs` |
 | Export and import parts | 8 MiB | `PART`, `cohesion-db/src/transfer.rs` |
 | Database job queue, invalidation broadcast | 64, 256 | `DatabaseContext::new` |
+| Read-only database connections | 3 | `READERS`, `database_context.rs` |
 
 **Errors** (`cohesion-core/src/protocol/server_error.rs`). `ServerError` is
 `{code, message, field?}` with `ErrorCode` one of `badRequest`,
@@ -978,15 +987,26 @@ close estimates. Whatever `dbstat` doesn't count as a table goes to
 `other`, so the areas and `free_bytes` add up to `bytes`. Measuring reads
 every page; on a 384 MB database it takes about 90 ms on the worker.
 
-**One connection, one thread.** `Container` (`cohesion-db/src/container.rs`)
-owns a single rusqlite connection, and `DatabaseContext::new`
-(`database_context.rs`) gives it to one OS thread, the worker. There is no
-pool. Jobs reach the worker on a channel of 64; `DatabaseContext` is a cheap
-clone holding the sender. Settings: `PRAGMA journal_mode = WAL`
-(`Container::open`), `PRAGMA foreign_keys = ON` (`Container::configure`),
-`synchronous` left at SQLite's FULL so a write a client heard back about
-survives losing power, and no `busy_timeout` set in code (rusqlite's default
-applies). The only other connections are read-only ones for exports and the
+**One writer, a few readers.** `Container` (`cohesion-db/src/container.rs`)
+owns a rusqlite connection, and `DatabaseContext::new`
+(`database_context.rs`) gives the one it is handed to one OS thread, the
+worker, which runs every write command. Jobs reach the worker on a channel of
+64; `DatabaseContext` is a cheap clone holding the sender. For a database with
+a file it also opens `READERS` (3) read-only connections
+(`Container::open_reader`), each on a thread of its own taking jobs from one
+shared queue, and sends every `Read` command (`Access::READ_ONLY`) there, so a
+read never waits behind a write, a backup or a vacuum. Under WAL a reader sees
+what had committed when its command began; a write's invalidations go out
+after it commits, so a refetch they start sees it. A database in memory has no
+readers, since no other connection can see it, and runs everything on the
+worker. `close` stops the readers after the worker. Settings
+(`Container::configure`, on every connection): `PRAGMA foreign_keys = ON`, a
+64 MB `cache_size`, `temp_store = MEMORY`, a 256 MB `mmap_size`, a 5 s
+`busy_timeout`, and a cache of 256 prepared statements, which every query
+goes through (`prepare_cached`; the SQL is fixed text with bound values).
+`PRAGMA journal_mode = WAL` is set by `Container::open`, and `synchronous` is
+left at SQLite's FULL so a write a client heard back about survives losing
+power. The only other connections are read-only ones for exports and the
 staging of an import.
 
 **Transactions.** The worker runs each command inside `SAVEPOINT cmd`,
@@ -1389,6 +1409,9 @@ memories and skills. Requests: `CreateIntelligenceAgent`, `UpdateIntelligenceAge
 `ResetAgentAgenda`, `RemoveAgentCue`, `ListMemories`, `ForgetMemory`, `ListAgentSkills`,
 `CreateAgentSkill`, `UpdateAgentSkill`, `DeleteAgentSkill`, `ListAgentRuns`,
 `ListAgentMessageAttachments` (`cohesion-core/src/protocol/agent_requests.rs`).
+`ListMemories` takes a `MemoryFilter`: what one agent sees (`{seenBy: id}`),
+the global ones, or `every` memory. `ListAgentMessageAttachments` takes many
+`message_ids`, so a feed asks for every message's images at once.
 If the agent has no model of its own and the `agent` tier has none, sending a message fails with "No model is
 set for agents; choose one in Settings."
 
@@ -2017,8 +2040,10 @@ after it.
 
 **Images** travel as `{media_type, data}` (base64), both ways, with the limits
 of [8](#8-the-database), and are stored in `attachments`;
-`ListActorSessionMessageAttachments` fetches them. Scripts can't attach images
-to actor sessions.
+`ListActorSessionMessageAttachments` fetches them, for many messages at once.
+Scripts can't attach images to actor sessions. `ListActorSessionAncestors`
+lists the sessions a subagent runs under, nearest first, so a client finds
+the session Cohesion started in one request.
 
 **Usage** (`actorUsage`): `{actor, plan: [{label, used, resets_at}], pool: {id, name}}`,
 at most 8 limits, `used` from 0 to 1, a label at most 64 bytes, a pool id 256

@@ -85,6 +85,27 @@ impl<'a> CredentialManager<'a> {
     }
 
     /// The credential of account `account_id`, provided extension
+    /// `extension_id` serves it, when it needs no refresh yet; `None` when
+    /// it does, for [`fresh`](Self::fresh) to refresh. Reads it from an
+    /// async caller without taking the account's turn, which only a refresh
+    /// needs.
+    pub async fn unexpired(
+        &self,
+        extension_id: i64,
+        account_id: i64,
+    ) -> Result<Option<Credential>, CommandError> {
+        let credential = self
+            .database
+            .send(GetConnectorCredentialCommand {
+                extension_id,
+                account_id,
+            })
+            .await?;
+        let now = crate::database_context::unix_now();
+        Ok((!credential.needs_refresh(now)).then_some(credential))
+    }
+
+    /// The credential of account `account_id`, provided extension
     /// `extension_id` serves it. Within a minute of its expiry it is first
     /// replaced by what `refresh` returns for it, which is stored. A refresh
     /// that fails flags the account as needing to be signed in again; a

@@ -644,7 +644,7 @@ fn attachments_are_counted_listed_and_deleted_with_their_agent() {
     assert_eq!(message.attachment_count, 2);
     let listed = db
         .send_blocking(ListAgentMessageAttachmentsCommand {
-            message_id: message.id,
+            message_ids: vec![message.id],
         })
         .unwrap();
     let data: Vec<_> = listed.iter().map(|a| a.data.to_base64()).collect();
@@ -655,7 +655,7 @@ fn attachments_are_counted_listed_and_deleted_with_their_agent() {
         .unwrap();
     let left = db
         .send_blocking(ListAgentMessageAttachmentsCommand {
-            message_id: message.id,
+            message_ids: vec![message.id],
         })
         .unwrap();
     assert!(left.is_empty());
@@ -682,7 +682,7 @@ fn the_agents_images_are_checked_counted_and_listed_like_the_users() {
     assert_eq!(message.attachment_count, 2);
     let listed = db
         .send_blocking(ListAgentMessageAttachmentsCommand {
-            message_id: message.id,
+            message_ids: vec![message.id],
         })
         .unwrap();
     let data: Vec<_> = listed.iter().map(|a| a.data.to_base64()).collect();

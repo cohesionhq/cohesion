@@ -260,8 +260,10 @@ fn a_message_keeps_its_images_beside_it_and_takes_them_when_it_goes() {
         .unwrap();
     assert_eq!(message.attachment_count, 2);
     let list = |message_id| {
-        db.send_blocking(ListActorSessionMessageAttachmentsCommand { message_id })
-            .unwrap()
+        db.send_blocking(ListActorSessionMessageAttachmentsCommand {
+            message_ids: vec![message_id],
+        })
+        .unwrap()
     };
     let stored: Vec<String> = list(message.id)
         .into_iter()

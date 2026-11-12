@@ -78,12 +78,20 @@ export function intelligenceHandlers(core: MockCore) {
 			return structuredClone(endpoint);
 		},
 		addEndpointModel,
+		addEndpointModels: ({ endpoint_id, model_identifiers }) =>
+			model_identifiers.map((model_identifier) =>
+				addEndpointModel({ endpoint_id, model_identifier })
+			),
 		removeEndpointModel: ({ id }) => {
 			const model = state.endpointModels.find((m) => m.id === id) ?? notFound('endpoint model');
 			dropModels((m) => m.id === id);
 			return { ...model };
 		},
-		listEndpointModels: ({ endpoint_id }) => modelsOf(endpoint_id).map((m) => ({ ...m })),
+		listEndpointModels: ({ endpoint_id }) =>
+			(endpoint_id == null
+				? state.endpoints.flatMap((e) => modelsOf(e.id))
+				: modelsOf(endpoint_id)
+			).map((m) => ({ ...m })),
 		setIntelligenceDefault: ({ tier, endpoint_model_id }) => {
 			if (!state.endpointModels.some((m) => m.id === endpoint_model_id))
 				throw new ProtocolError('notFound', 'This operation contains an invalid reference.');

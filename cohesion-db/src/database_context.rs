@@ -1,8 +1,10 @@
 //! The handle the rest of the server uses to run commands: a channel to the
-//! single worker thread that owns the connection.
+//! single worker thread that owns the writing connection, and for a database
+//! with a file, a few reader threads with read-only connections that run read
+//! commands beside it.
 
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, mpsc as std_mpsc};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -45,6 +47,29 @@ struct Worker {
 /// Runs one command, publishing what it changed before it replies.
 type Job = Box<dyn FnOnce(&mut Worker) + Send>;
 
+/// How many read-only connections run read commands beside the worker.
+const READERS: usize = 3;
+
+/// State a reader thread owns: its read-only connection.
+struct Reader {
+    container: Container,
+    secrets: Secrets,
+}
+
+/// What a reader thread is sent: a read command to run, or word to close its
+/// connection and stop.
+enum ReadJob {
+    Run(Box<dyn FnOnce(&Reader) + Send>),
+    Stop(oneshot::Sender<()>),
+}
+
+/// The reader threads' shared queue. Each reader takes the next job, so a
+/// slow read holds up only its own thread.
+#[derive(Debug, Clone)]
+struct Readers {
+    tx: std_mpsc::Sender<ReadJob>,
+}
+
 /// Runs commands on the database worker thread and fans out their invalidations.
 /// Cheap to clone; clones share the worker.
 #[derive(Debug, Clone)]
@@ -52,19 +77,26 @@ pub struct DatabaseContext {
     tx: mpsc::Sender<Job>,
     invalidations: broadcast::Sender<Arc<InvalidationBatch>>,
     credential_locks: Arc<CredentialLocks>,
+    /// The read-only connections read commands run on; `None` for a
+    /// database in memory, which only the worker's connection can see, so
+    /// every command runs on the worker.
+    readers: Option<Readers>,
     /// The database's file, which exports and imports work beside; `None`
     /// for one in memory.
     pub(crate) file: Option<Arc<PathBuf>>,
 }
 
 impl DatabaseContext {
-    /// Starts the worker thread that owns `container` for the rest of the process.
+    /// Starts the worker thread that owns `container` for the rest of the
+    /// process and, for a database with a file, the reader threads beside it.
+    /// `container` must already be migrated.
     pub fn new<L: DatabaseEventListener>(
         container: Container,
         secrets: Secrets,
         listener: L,
     ) -> Self {
         let file = container.file().map(Arc::new);
+        let readers = file.as_deref().map(|path| Readers::start(path, &secrets));
         let (tx, mut rx) = mpsc::channel::<Job>(64);
         let (invalidations, _) = broadcast::channel(256);
         let mut worker = Worker {
@@ -90,6 +122,7 @@ impl DatabaseContext {
             tx,
             invalidations,
             credential_locks: Arc::default(),
+            readers,
             file,
         }
     }
@@ -126,7 +159,11 @@ impl DatabaseContext {
         trace: DatabaseEventTrace,
     ) -> DatabaseCommandResult<C::Response> {
         let (reply_tx, reply_rx) = oneshot::channel();
-        if self.tx.send(self.job(cmd, reply_tx, trace)).await.is_err() {
+        let sent = match self.reader_for::<C>() {
+            Some(readers) => readers.send(cmd, reply_tx, trace),
+            None => self.tx.send(self.job(cmd, reply_tx, trace)).await.is_ok(),
+        };
+        if !sent {
             return Err(CommandError::Database(DatabaseError::Closed));
         }
         reply_rx
@@ -148,11 +185,14 @@ impl DatabaseContext {
         trace: DatabaseEventTrace,
     ) -> DatabaseCommandResult<C::Response> {
         let (reply_tx, reply_rx) = oneshot::channel();
-        if self
-            .tx
-            .blocking_send(self.job(cmd, reply_tx, trace))
-            .is_err()
-        {
+        let sent = match self.reader_for::<C>() {
+            Some(readers) => readers.send(cmd, reply_tx, trace),
+            None => self
+                .tx
+                .blocking_send(self.job(cmd, reply_tx, trace))
+                .is_ok(),
+        };
+        if !sent {
             return Err(CommandError::Database(DatabaseError::Closed));
         }
         reply_rx
@@ -162,8 +202,8 @@ impl DatabaseContext {
 
     /// Runs the commands already sent, then [`ShutdownCleanupCommand`] as
     /// the last write, so nothing sent meanwhile can undo it, then closes the
-    /// connection; every command sent after fails with
-    /// [`DatabaseError::Closed`]. Returns once the connection is closed.
+    /// connections; every command sent after fails with
+    /// [`DatabaseError::Closed`]. Returns once every connection is closed.
     pub async fn close(&self) {
         let (closed_tx, closed_rx) = oneshot::channel();
         let job: Job = Box::new(move |worker: &mut Worker| {
@@ -175,6 +215,15 @@ impl DatabaseContext {
         if self.tx.send(job).await.is_ok() {
             let _ = closed_rx.await;
         }
+        if let Some(readers) = &self.readers {
+            readers.stop().await;
+        }
+    }
+
+    /// The readers to run `C` on: those of a database with a file, for a
+    /// command that only reads.
+    fn reader_for<C: DatabaseCommand>(&self) -> Option<&Readers> {
+        self.readers.as_ref().filter(|_| C::Access::READ_ONLY)
     }
 
     /// Vacuums the database file if its free pages are worth a rewrite
@@ -252,6 +301,106 @@ impl DatabaseContext {
     }
 }
 
+impl Readers {
+    /// Opens [`READERS`] read-only connections to the database at `path`,
+    /// each on a thread of its own taking jobs from one queue. A connection
+    /// that fails to open is logged and left out; with none, read commands
+    /// wait on the queue until [`stop`](Self::stop) and then fail as closed.
+    fn start(path: &Path, secrets: &Secrets) -> Self {
+        let (tx, rx) = std_mpsc::channel::<ReadJob>();
+        let rx = Arc::new(Mutex::new(rx));
+        for _ in 0..READERS {
+            let container = match Container::open_reader(path) {
+                Ok(container) => container,
+                Err(error) => {
+                    log_error!(Module::Database, "A read connection didn’t open: {error}");
+                    continue;
+                }
+            };
+            let reader = Reader {
+                container,
+                secrets: secrets.clone(),
+            };
+            let rx = Arc::clone(&rx);
+            thread::spawn(move || {
+                loop {
+                    let job = rx.lock().unwrap_or_else(|e| e.into_inner()).recv();
+                    match job {
+                        Ok(ReadJob::Run(job)) => job(&reader),
+                        Ok(ReadJob::Stop(stopped)) => {
+                            drop(reader);
+                            let _ = stopped.send(());
+                            return;
+                        }
+                        Err(_) => return,
+                    }
+                }
+            });
+        }
+        Readers { tx }
+    }
+
+    /// Queues read command `cmd` for the next free reader, to answer on
+    /// `reply`; `false` once the readers have stopped.
+    fn send<C: DatabaseCommand>(
+        &self,
+        cmd: C,
+        reply: oneshot::Sender<DatabaseCommandResult<C::Response>>,
+        trace: DatabaseEventTrace,
+    ) -> bool {
+        let job = Box::new(move |reader: &Reader| {
+            let _ = reply.send(reader.execute(cmd, &trace));
+        });
+        self.tx.send(ReadJob::Run(job)).is_ok()
+    }
+
+    /// Lets each reader finish the reads queued before this, then closes its
+    /// connection; returns once every one is closed. Reads sent after find
+    /// no reader and fail as closed.
+    async fn stop(&self) {
+        let mut stopped = Vec::with_capacity(READERS);
+        for _ in 0..READERS {
+            let (stopped_tx, stopped_rx) = oneshot::channel();
+            if self.tx.send(ReadJob::Stop(stopped_tx)).is_err() {
+                break;
+            }
+            stopped.push(stopped_rx);
+        }
+        for reader in stopped {
+            let _ = reader.await;
+        }
+    }
+}
+
+impl Reader {
+    /// Runs read command `cmd` in a savepoint of its own, so it sees one
+    /// committed state of the database throughout.
+    fn execute<C: DatabaseCommand>(
+        &self,
+        cmd: C,
+        trace: &DatabaseEventTrace,
+    ) -> DatabaseCommandResult<C::Response> {
+        // A read raises no keys and no events; these only satisfy the context.
+        let mut invalidations = InvalidationContext::default();
+        let mut events = EventContext::default();
+        let result = in_savepoint(&self.container, || {
+            CommandContext::new(
+                C::Access::view(&self.container),
+                &mut invalidations,
+                &self.secrets,
+                unix_now(),
+                &mut events,
+                trace,
+            )
+            .handle(cmd)
+        });
+        if let Err(CommandError::Database(error)) = &result {
+            log_error!(Module::Database, "A database error occurred: {error}");
+        }
+        result
+    }
+}
+
 impl Worker {
     /// Runs `cmd`, then publishes its invalidations and events if it
     /// committed or drops them if it failed.
@@ -294,37 +443,56 @@ impl Worker {
         events: &mut EventContext,
         trace: &DatabaseEventTrace,
     ) -> DatabaseCommandResult<C::Response> {
-        let connection = self.container.connection();
-        connection
-            .execute_batch("SAVEPOINT cmd")
-            .map_err(DatabaseError::from)?;
-        if C::Access::CHANGES_USER_DATA {
-            note_writer(&self.container, &mut self.writer, trace.writer())?;
-        }
-        let mut ctx = CommandContext::new(
-            C::Access::view(&self.container),
-            &mut self.invalidations,
-            &self.secrets,
-            unix_now(),
-            events,
-            trace,
-        );
-        let result = ctx.handle(cmd);
-        let finish = match result {
-            Ok(_) => connection.execute_batch("RELEASE cmd"),
-            Err(_) => {
-                self.writer = None;
-                connection.execute_batch("ROLLBACK TO cmd; RELEASE cmd")
+        let Worker {
+            container,
+            secrets,
+            invalidations,
+            writer,
+            ..
+        } = self;
+        let result = in_savepoint(container, || {
+            if C::Access::CHANGES_USER_DATA {
+                note_writer(container, writer, trace.writer())?;
             }
-        };
-        if let Err(error) = finish {
-            self.writer = None;
-            // A failed RELEASE leaves the savepoint open; undo it so the next job starts clean.
-            let _ = connection.execute_batch("ROLLBACK TO cmd; RELEASE cmd");
-            return Err(DatabaseError::from(error).into());
+            CommandContext::new(
+                C::Access::view(container),
+                invalidations,
+                secrets,
+                unix_now(),
+                events,
+                trace,
+            )
+            .handle(cmd)
+        });
+        if result.is_err() {
+            // What `rewind_writer` holds was rolled back with the command.
+            *writer = None;
         }
         result
     }
+}
+
+/// Runs `body` inside `SAVEPOINT cmd` on `container`'s connection, releasing
+/// it if `body` succeeds and rolling it back if it fails.
+fn in_savepoint<T>(
+    container: &Container,
+    body: impl FnOnce() -> DatabaseCommandResult<T>,
+) -> DatabaseCommandResult<T> {
+    let connection = container.connection();
+    connection
+        .execute_batch("SAVEPOINT cmd")
+        .map_err(DatabaseError::from)?;
+    let result = body();
+    let finish = match result {
+        Ok(_) => connection.execute_batch("RELEASE cmd"),
+        Err(_) => connection.execute_batch("ROLLBACK TO cmd; RELEASE cmd"),
+    };
+    if let Err(error) = finish {
+        // A failed RELEASE leaves the savepoint open; undo it so the next job starts clean.
+        let _ = connection.execute_batch("ROLLBACK TO cmd; RELEASE cmd");
+        return Err(DatabaseError::from(error).into());
+    }
+    result
 }
 
 /// Sets `rewind_writer` to `writer` inside the running command's savepoint,

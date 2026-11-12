@@ -11,7 +11,9 @@ use cohesionkit::db::{
 
 use crate::case::{CueLeft, Difficulty, Left};
 use crate::score;
-use cohesionkit::model::{AgentMessageContent, IntelligenceAgentMessageSender, ThreadItem};
+use cohesionkit::model::{
+    AgentMessageContent, IntelligenceAgentMessageSender, MemoryFilter, ThreadItem,
+};
 
 /// The code tool, whose calls run the script API.
 pub const CODE_TOOL: &str = "code-tool";
@@ -183,7 +185,7 @@ impl Activity {
             .collect();
         activity.memories = database
             .send(ListMemoriesCommand {
-                agent_id: Some(agent_id),
+                filter: MemoryFilter::SeenBy(agent_id),
             })
             .await
             .map_err(fail)?

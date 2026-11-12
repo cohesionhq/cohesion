@@ -337,7 +337,7 @@ export class TasksStore {
 					offset,
 					limit
 				}),
-			initial: { tasks: [], total: 0 },
+			initial: { tasks: [], total: 0, offset: 0 },
 			matches: listTouchedBy,
 			// A filter, the order or the page changing swaps the rows in place.
 			keepsValue: (from, to) => from.workspace_id === to.workspace_id && from.view === to.view
@@ -353,7 +353,7 @@ export class TasksStore {
 					limit: 20
 				});
 			},
-			initial: { tasks: [], total: 0 },
+			initial: { tasks: [], total: 0, offset: 0 },
 			matches: (key, due) =>
 				key.kind === 'taskList' && key.id.workspace_id === Number(due.split(':')[0])
 		});
@@ -430,12 +430,9 @@ export class TasksStore {
 		id: number
 	): Promise<number> {
 		const args = viewArgs(workspace_id, view, order, tags, priorities, sizes);
-		for (let offset = 0; ; offset += 500) {
-			const { tasks, total } = await this.#send('listTasks', { ...args, offset, limit: 500 });
-			const index = tasks.findIndex((t) => t.id === id);
-			if (index !== -1) return offset + index;
-			if (tasks.length === 0 || offset + tasks.length >= total) return -1;
-		}
+		const { tasks, offset } = await this.#send('listTasks', { ...args, around: id, limit: 500 });
+		const index = tasks.findIndex((t) => t.id === id);
+		return index === -1 ? -1 : offset + index;
 	}
 
 	/**
@@ -464,13 +461,19 @@ export class TasksStore {
 			await this.list.refetch();
 			return task;
 		}
-		this.list.update(({ tasks, total }) => {
+		this.list.update((page) => {
+			const { tasks, total } = page;
 			if (order.descending)
 				return {
+					...page,
 					tasks: offset === 0 ? [task, ...tasks].slice(0, limit) : tasks,
 					total: total + 1
 				};
-			return { tasks: offset + limit > total ? [...tasks, task] : tasks, total: total + 1 };
+			return {
+				...page,
+				tasks: offset + limit > total ? [...tasks, task] : tasks,
+				total: total + 1
+			};
 		});
 		return task;
 	}
@@ -692,9 +695,9 @@ export class TasksStore {
 
 	/** Takes the page's tasks matching `gone` out; the page keeps its place until the next listing, and only the total follows. */
 	#drop(gone: (task: Task) => boolean): void {
-		this.list.update(({ tasks, total }) => {
-			const kept = tasks.filter((t) => !gone(t));
-			return { tasks: kept, total: total - (tasks.length - kept.length) };
+		this.list.update((page) => {
+			const kept = page.tasks.filter((t) => !gone(t));
+			return { ...page, tasks: kept, total: page.total - (page.tasks.length - kept.length) };
 		});
 	}
 }

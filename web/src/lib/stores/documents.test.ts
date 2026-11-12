@@ -105,7 +105,7 @@ describe('documents store', () => {
 		await store.list.load(1);
 		const created = await store.create(1);
 		expect(created.title).toBe('Untitled');
-		expect(store.list.value[0]).toEqual(created);
+		expect(store.list.value[0].id).toBe(created.id);
 
 		await store.open(1, created.id);
 		await store.rename('Packing list');
@@ -209,7 +209,11 @@ describe('documents store', () => {
 		await store.open(1, 2);
 		store.text.edit('Rewritten');
 		await store.text.flush();
-		expect(store.archive.value.find((d) => d.id === 2)?.contents).toBe('Rewritten');
+		expect(store.archive.value.find((d) => d.id === 2)?.modified).toBe(
+			store.current.value?.modified
+		);
+		await store.archive.refetch();
+		expect(store.archive.value.find((d) => d.id === 2)?.opening).toBe('Rewritten');
 	});
 
 	it('reports a missing document as notFound', async () => {

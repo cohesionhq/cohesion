@@ -7,7 +7,9 @@ use cohesion_core::model::{
     ActorSessionMessageContent, Document, Embed, Feed, ItemLink, TABLE_PREVIEW_ROWS, Task,
     TextPiece, TextSection, text_pieces,
 };
-use cohesion_core::protocol::{ResolveEmbedsRequest, ResolveLinkRequest};
+use cohesion_core::protocol::{
+    ResolveEmbedsRequest, ResolveLinkRequest, ResolveLinksRequest, ResolvedLink,
+};
 
 use crate::commands::document_folder::GetDocumentFolderCommand;
 use crate::commands::document_folder_property::ListDocumentFolderPropertiesCommand;
@@ -149,21 +151,57 @@ impl DatabaseCommand for ResolveEmbedsCommand {
             .map(|piece| {
                 Ok(match piece {
                     TextPiece::Markdown(text) => TextSection::Markdown { text },
-                    TextPiece::Embed { href, label, .. } => {
-                        let embed = match (ResolveLinkCommand { link: href.clone() }).handle(ctx) {
-                            Ok(embed) => Some(Box::new(embed)),
-                            Err(CommandError::NotFound(_)) => None,
-                            Err(error) => return Err(error),
-                        };
-                        TextSection::Embed {
-                            link: href,
-                            label,
-                            embed,
-                        }
-                    }
+                    TextPiece::Embed { href, label, .. } => TextSection::Embed {
+                        embed: resolve_if_live(ctx, &href)?,
+                        link: href,
+                        label,
+                    },
                 })
             })
             .collect()
+    }
+}
+
+/// Each of `links` resolved as [`ResolveLinkCommand`] resolves it, in
+/// order, or `None` once its item is gone.
+#[derive(FromRequest)]
+#[request(ResolveLinksRequest)]
+pub struct ResolveLinksCommand {
+    pub links: Vec<String>,
+}
+impl DatabaseCommand for ResolveLinksCommand {
+    type Response = Vec<ResolvedLink>;
+    type Access = Read;
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_, Read>,
+    ) -> DatabaseCommandResult<Vec<ResolvedLink>> {
+        self.links
+            .into_iter()
+            .map(|link| {
+                Ok(ResolvedLink {
+                    embed: resolve_if_live(ctx, &link)?,
+                    link,
+                })
+            })
+            .collect()
+    }
+}
+
+/// `link` resolved as [`ResolveLinkCommand`] resolves it, or `None` when
+/// the item it names is gone.
+fn resolve_if_live(
+    ctx: &mut CommandContext<'_, Read>,
+    link: &str,
+) -> DatabaseCommandResult<Option<Box<Embed>>> {
+    match (ResolveLinkCommand {
+        link: link.to_string(),
+    })
+    .handle(ctx)
+    {
+        Ok(embed) => Ok(Some(Box::new(embed))),
+        Err(CommandError::NotFound(_)) => Ok(None),
+        Err(error) => Err(error),
     }
 }
 

@@ -7,8 +7,10 @@ export function extensionsHandlers(core: MockCore) {
 	const { state, nextId, notFound, grantedRegistries, extensionUpdates, preview, granted, orphan } =
 		core;
 	return {
-		listExtensionPermissions: ({ extension_id }) =>
-			state.permissions.filter((p) => p.extension_id === extension_id).map((p) => ({ ...p })),
+		listExtensionPermissions: ({ extension_ids }) =>
+			state.permissions
+				.filter((p) => extension_ids.includes(p.extension_id))
+				.map((p) => ({ ...p })),
 		setExtensionPermission: ({ extension_id, permission, enabled }) => {
 			const row = state.permissions.find(
 				(p) => p.extension_id === extension_id && p.permission === permission
@@ -23,8 +25,8 @@ export function extensionsHandlers(core: MockCore) {
 				});
 			return null;
 		},
-		listExtensionHooks: ({ extension_id }) =>
-			state.hooks.filter((h) => h.extension_id === extension_id).map((h) => ({ ...h })),
+		listExtensionHooks: ({ extension_ids }) =>
+			state.hooks.filter((h) => extension_ids.includes(h.extension_id)).map((h) => ({ ...h })),
 		setExtensionHook: ({ extension_id, hook, enabled }) => {
 			const row = state.hooks.find((h) => h.extension_id === extension_id && h.hook === hook);
 			if (row) row.enabled = enabled;

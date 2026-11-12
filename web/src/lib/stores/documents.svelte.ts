@@ -5,6 +5,7 @@ import { holdsValues } from '$lib/features/tables/values';
 import type {
 	Document,
 	DocumentFolder,
+	DocumentSummary,
 	DocumentFolderRepresentation,
 	Invalidation,
 	Send
@@ -26,14 +27,18 @@ export interface Group<T> {
 /** Above this many documents the list filter asks the daemon instead of filtering locally. */
 export const SERVER_FILTER_THRESHOLD = 200;
 
-const byModified = (a: Document, b: Document) => b.modified - a.modified;
+type Dated = Pick<DocumentSummary, 'modified'>;
+type Journaled = Pick<DocumentSummary, 'id' | 'journal_date'>;
+
+const byModified = (a: Dated, b: Dated) => b.modified - a.modified;
 // Journals always have a date; "YYYY-MM-DD" days sort as text.
-const byJournalDate = (a: Document, b: Document) => b.journal_date!.localeCompare(a.journal_date!);
+const byJournalDate = (a: Journaled, b: Journaled) =>
+	b.journal_date!.localeCompare(a.journal_date!);
 
 /** Splits documents (newest first) into Today, This week (the last seven days) and Earlier. */
-export function groupByRecency(docs: Document[], todayStart: number): Group<Document>[] {
+export function groupByRecency<T extends Dated>(docs: T[], todayStart: number): Group<T>[] {
 	const weekStart = todayStart - 6 * 86_400;
-	const groups: Group<Document>[] = [
+	const groups: Group<T>[] = [
 		{ key: 'today', label: 'Today', items: [] },
 		{ key: 'week', label: 'This week', items: [] },
 		{ key: 'earlier', label: 'Earlier', items: [] }
@@ -46,8 +51,8 @@ export function groupByRecency(docs: Document[], todayStart: number): Group<Docu
 }
 
 /** Groups journal entries by month, newest month and newest day first. */
-export function groupByMonth(journals: Document[]): Group<Document>[] {
-	const groups: Group<Document>[] = [];
+export function groupByMonth<T extends Journaled>(journals: T[]): Group<T>[] {
+	const groups: Group<T>[] = [];
 	for (const doc of [...journals].sort(byJournalDate)) {
 		const key = doc.journal_date!.slice(0, 7);
 		const last = groups.at(-1);
@@ -76,10 +81,10 @@ export function excerpt(contents: string, max = 90, skip?: string): string {
 }
 
 /** The entries either side of `id` in the archive: `prev` is the older day, `next` the newer. */
-export function neighbours(
-	journals: Document[],
+export function neighbours<T extends Journaled>(
+	journals: T[],
 	id: number
-): { prev: Document | null; next: Document | null } {
+): { prev: T | null; next: T | null } {
 	const sorted = [...journals].sort(byJournalDate);
 	const index = sorted.findIndex((d) => d.id === id);
 	if (index < 0) return { prev: null, next: null };
@@ -88,9 +93,9 @@ export function neighbours(
 
 /** Normal documents and their folders, the journal archive, and the one open document with an autosaving draft. */
 export class DocumentsStore {
-	readonly list: Resource<Document[], number>;
+	readonly list: Resource<DocumentSummary[], number>;
 	readonly folders: Resource<DocumentFolder[], number>;
-	readonly archive: Resource<Document[], number>;
+	readonly archive: Resource<DocumentSummary[], number>;
 	readonly current: Resource<Document | null, DocumentKey>;
 	readonly text: Draft;
 
@@ -151,7 +156,7 @@ export class DocumentsStore {
 	}
 
 	/** Title search on the daemon, for lists too long to filter locally. */
-	search(workspace_id: number, query: string): Promise<Document[]> {
+	search(workspace_id: number, query: string): Promise<DocumentSummary[]> {
 		return this.#send('searchDocuments', { workspace_id, query }).then((docs) =>
 			docs.filter((d) => d.document_type === 'normal').sort(byModified)
 		);
@@ -165,7 +170,9 @@ export class DocumentsStore {
 		folder_id: number | null = null
 	): Promise<Document> {
 		const doc = await this.#send('createDocument', { workspace_id, title, contents, folder_id });
-		if (this.list.key === workspace_id) this.list.update((list) => [doc, ...list]);
+		// The reply has no opening for the list to show, which only the daemon
+		// cuts, so the list refetches; this shares the fetch its invalidation starts.
+		if (this.list.key === workspace_id) await this.list.refresh();
 		return doc;
 	}
 
@@ -298,7 +305,7 @@ export class DocumentsStore {
 		if (this.folders.key !== workspace_id) return;
 		const gone = subtreeIds(this.folders.value, folder_id);
 		this.folders.update((list) => list.filter((f) => !gone.includes(f.id)));
-		const out = (d: Document) =>
+		const out = <T extends Pick<Document, 'folder_id'>>(d: T): T =>
 			d.folder_id !== null && gone.includes(d.folder_id) ? { ...d, folder_id: null } : d;
 		if (this.list.key === workspace_id) this.list.update((docs) => docs.map(out));
 		const open = this.current.value;
@@ -337,12 +344,18 @@ export class DocumentsStore {
 		return doc;
 	}
 
-	/** Takes a reply for the open document into it and whichever list holds it. */
+	/**
+	 * Takes a reply for the open document into it and whichever list holds
+	 * it. A listed summary takes every field the reply carries but keeps the
+	 * opening the daemon cut, which its invalidation's refetch renews.
+	 */
 	#apply(doc: Document): void {
 		if (this.current.value?.id === doc.id) this.current.set(doc);
 		const list = doc.document_type === 'journal' ? this.archive : this.list;
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		const { contents, ...fields } = doc;
 		if (list.key === doc.workspace_id)
-			list.update((docs) => docs.map((d) => (d.id === doc.id ? doc : d)));
+			list.update((docs) => docs.map((d) => (d.id === doc.id ? { ...d, ...fields } : d)));
 	}
 }
 

@@ -7,6 +7,33 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- Pages answer sooner and send fewer requests. Reads run on read-only
+  database connections beside the one that writes, so they no longer wait
+  behind writes, backups or a vacuum. Every connection reuses its prepared
+  statements and keeps a larger page cache. Agents share one HTTP client per
+  process, so a new thread or fork reuses the open connection to its
+  provider, and scripts share one for `network.fetch`. The remote CLI keeps
+  its session between the calls of a command. The local socket reads a large
+  request, such as one carrying images, in linear time. The web UI coalesces
+  the refetches that a burst of changes sets off, and screens that asked once
+  per item now ask once.
+- Breaking wire changes, which the iPhone app has to follow:
+  - `listDocuments` and `searchDocuments` answer `DocumentSummary`s, a
+    document without its text but with its `opening` (its first 500
+    characters), in a reply tagged `documentSummaries`. `getDocument` still
+    has the text.
+  - `listMemories` takes `filter` (`{seenBy: id}`, `"global"` or `"every"`)
+    in place of `agent_id`.
+  - `listExtensionPermissions` and `listExtensionHooks` take
+    `extension_ids`.
+  - `listAgentMessageAttachments` and `listActorSessionMessageAttachments`
+    take `message_ids`.
+- New requests: `resolveLinks` resolves many `cohesion://` links at once,
+  `listActorSessionAncestors` lists the sessions a subagent runs under, and
+  `addEndpointModels` imports several models into an endpoint. `listTasks`
+  takes `around` to start at the page holding a task, and `TaskPage` says
+  its `offset`. `listEndpointModels` lists every endpoint's models when
+  `endpoint_id` is left out.
 - Workspace search ranks every title match above matches only in the
   text, with the title the query covers most (an exact title such as
   "Models") first. It also finds feeds by title, from every workspace:

@@ -199,7 +199,7 @@ describe('tasks store', () => {
 		expect(await store.indexIn(1, 'done', DEFAULT_ORDER, NO_TAGS, [], [], task.id)).toBe(-1);
 
 		await store.remove(task.id);
-		expect(store.list.value).toEqual({ tasks: [], total: 1 });
+		expect(store.list.value).toEqual({ tasks: [], total: 1, offset: 1 });
 	});
 
 	it('reopening the same view keeps the loaded list', async () => {

@@ -510,3 +510,38 @@ fn a_folder_is_found_only_in_its_own_workspace_while_it_lasts() {
         [TextSection::Embed { embed: None, .. }]
     ));
 }
+
+#[test]
+fn several_links_resolve_at_once_in_order_and_a_gone_item_to_none() {
+    let db = context();
+    let ws = workspace(&db);
+    let task = task(&db, ws);
+    let links = vec![
+        format!("cohesion://task/{ws}/{}", task.id),
+        format!("cohesion://task/{ws}/999"),
+        format!("cohesion://task/{}", task.id),
+    ];
+    let resolved = db
+        .send_blocking(ResolveLinksCommand {
+            links: links.clone(),
+        })
+        .unwrap();
+    assert_eq!(
+        resolved.iter().map(|r| r.link.clone()).collect::<Vec<_>>(),
+        links
+    );
+    assert_eq!(
+        resolved
+            .iter()
+            .map(|r| r.embed.is_some())
+            .collect::<Vec<_>>(),
+        [true, false, true]
+    );
+
+    assert!(
+        db.send_blocking(ResolveLinksCommand {
+            links: vec!["not a link".to_string()],
+        })
+        .is_err()
+    );
+}

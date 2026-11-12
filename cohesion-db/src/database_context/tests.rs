@@ -224,3 +224,41 @@ fn close_leaves_no_work_marked_running() {
     let _ = std::fs::remove_file(&path);
     assert_eq!(agent.activity, None);
 }
+
+#[test]
+fn reads_on_a_file_see_each_committed_write_and_fail_once_closed() {
+    let path = std::env::temp_dir().join(format!(
+        "cohesion-readers-{}-{}.db",
+        std::process::id(),
+        unix_now()
+    ));
+    let mut container = Container::open(&path).unwrap();
+    container.migrate().unwrap();
+    let db = DatabaseContext::new(container, Secrets::new(), ());
+    for title in ["one", "two", "three", "four"] {
+        db.send_blocking(CreateWorkspaceCommand {
+            title: title.to_string(),
+            emoji: None,
+        })
+        .unwrap();
+        let titles: Vec<String> = db
+            .send_blocking(ListWorkspacesCommand::default())
+            .unwrap()
+            .into_iter()
+            .map(|workspace| workspace.title)
+            .collect();
+        assert!(titles.contains(&title.to_string()));
+    }
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap();
+    runtime.block_on(db.close());
+    let after = db.send_blocking(ListWorkspacesCommand::default());
+    for suffix in ["", "-wal", "-shm"] {
+        let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+    }
+    assert!(matches!(
+        after,
+        Err(CommandError::Database(DatabaseError::Closed))
+    ));
+}

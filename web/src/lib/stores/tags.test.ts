@@ -36,6 +36,6 @@ describe('tags store', () => {
 		expect(tasks.list.value.tasks[0].tag_ids).toEqual([tag.id]);
 
 		tasks.takeTagged(await tags.setTagged(1, tag.id, first.id, false));
-		expect(tasks.list.value).toEqual({ tasks: [], total: 0 });
+		expect(tasks.list.value).toEqual({ tasks: [], total: 0, offset: 0 });
 	});
 });

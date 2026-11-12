@@ -33,8 +33,17 @@ pub(crate) async fn fresh_credential(
     extension: &Extension,
     account: &ConnectorAccount,
 ) -> Result<Credential, ServerError> {
-    let database = database.clone();
     let (extension_id, account_id) = (extension.id, account.id);
+    // Most of the time nothing is due, and the extension's scope, which may
+    // be busy running something else, needn't be waited on.
+    if let Some(credential) = database
+        .credentials()
+        .unexpired(extension_id, account_id)
+        .await?
+    {
+        return Ok(credential);
+    }
+    let database = database.clone();
     let fresh = extensions
         .scoped(
             extension.id,

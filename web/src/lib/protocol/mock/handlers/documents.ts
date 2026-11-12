@@ -1,10 +1,15 @@
 // Documents, journals and their folders.
 
 import { ProtocolError } from '../../errors';
-import type { Document, DocumentFolder } from '../../types';
+import type { Document, DocumentFolder, DocumentSummary } from '../../types';
 import { nowSeconds } from '../support';
 import { computeFormulas } from '../tableRules';
 import type { Handlers, MockCore } from '../core';
+
+/** How a listing shows `d`, as the daemon's `DocumentSummary` cuts it: its first 500 characters. */
+function summary({ contents, ...fields }: Document): DocumentSummary {
+	return { ...fields, opening: [...contents].slice(0, 500).join('') };
+}
 
 export function documentsHandlers(core: MockCore) {
 	const {
@@ -44,7 +49,7 @@ export function documentsHandlers(core: MockCore) {
 				.filter(
 					(d) => d.workspace_id === workspace_id && !d.deleted && d.title.toLowerCase().includes(q)
 				)
-				.map((d) => ({ ...d }));
+				.map(summary);
 		},
 		listDocuments: ({ workspace_id, document_type, journal_from, journal_to }) =>
 			state.documents
@@ -56,7 +61,7 @@ export function documentsHandlers(core: MockCore) {
 						(journal_from == null || (d.journal_date !== null && d.journal_date >= journal_from)) &&
 						(journal_to == null || (d.journal_date !== null && d.journal_date < journal_to))
 				)
-				.map((d) => ({ ...d })),
+				.map(summary),
 		getDocument: ({ workspace_id, document_id }) => ({ ...document(workspace_id, document_id) }),
 		editDocument: ({ workspace_id, document_id, contents }) =>
 			touch(document(workspace_id, document_id), contents),

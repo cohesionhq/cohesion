@@ -2,7 +2,7 @@ use cohesion_core::model::{
     AgentChoice, AgentCodeExecution, AgentCodeOutcome, AgentMessageContent, AgentSkillScope,
     AgentWake, ContextRebuildReason, HookKind, Initiative, IntelligenceAgentColor,
     IntelligenceAgentMessage, IntelligenceAgentMessageSender, IntelligenceEffort, IntelligenceTier,
-    MemoryScope, SpendPeriod, TaskAssignee,
+    MemoryFilter, MemoryScope, SpendPeriod, TaskAssignee,
 };
 use cohesion_db::{
     AddEndpointModelCommand, ClearIntelligenceSpendLimitCommand, Container,
@@ -1194,7 +1194,7 @@ fn a_cues_fork_changes_no_memory_or_cue() {
     assert!(results[1].contains("can't set cues"), "{results:?}");
     let memories = db
         .send_blocking(ListMemoriesCommand {
-            agent_id: Some(agent_id),
+            filter: MemoryFilter::SeenBy(agent_id),
         })
         .unwrap();
     assert!(memories.is_empty());

@@ -15,7 +15,7 @@ use cohesion_core::{
         AgentMemoryChange, AgentMessageContent, AgentWake, IntelligenceAgent,
         IntelligenceAgentColor, IntelligenceAgentMessage, IntelligenceAgentMessageSender,
         IntelligenceAgentPersonality, IntelligenceAgentRunState, IntelligenceAgentVerbosity,
-        MemoryScope,
+        MemoryFilter, MemoryScope,
     },
     protocol::{
         AcceptedResponse, Call, CreateIntelligenceAgentRequest, DeleteIntelligenceAgentRequest,
@@ -751,7 +751,7 @@ async fn memories(ctx: &Context, agent: String) -> Result<(), CliError> {
     let agent = find_agent(ctx, &agent).await?;
     let memories = ctx
         .call(ListMemoriesRequest {
-            agent_id: Some(agent.id),
+            filter: MemoryFilter::SeenBy(agent.id),
         })
         .await?;
     table::list(&memories, "No memories yet.", |m| {

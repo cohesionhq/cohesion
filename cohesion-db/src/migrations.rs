@@ -5178,6 +5178,11 @@ pub const MIGRATIONS: &[Migration] = &[
             INNER JOIN feeds AS f ON f.id = entry.entity_id
             WHERE entry.entity_kind = 'feed';",
     },
+    Migration {
+        name: "documents_workspace_modified",
+        sql: "
+        CREATE INDEX documents_workspace_modified ON documents(workspace_id, modified);",
+    },
 ];
 
 #[cfg(test)]

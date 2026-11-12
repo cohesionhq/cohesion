@@ -7,9 +7,10 @@ use cohesion_core::{
         ActorSessionStatus, ActorUserContent, Attachment, AttachmentMessage, ContextUsage,
     },
     protocol::{
-        GetActorSessionRequest, ImageUpload, ListActorSessionMessageAttachmentsRequest,
-        ListActorSessionMessagesRequest, ListActorSessionsRequest, ListActorsRequest,
-        MarkActorSessionReadRequest, SearchActorSessionsRequest,
+        GetActorSessionRequest, ImageUpload, ListActorSessionAncestorsRequest,
+        ListActorSessionMessageAttachmentsRequest, ListActorSessionMessagesRequest,
+        ListActorSessionsRequest, ListActorsRequest, MarkActorSessionReadRequest,
+        SearchActorSessionsRequest,
     },
     value::{IntoValue, Json},
 };
@@ -270,12 +271,12 @@ impl DatabaseCommand for ListActorSessionMessagesCommand {
     }
 }
 
-/// The images attached to actor session message `message_id`, in the order
-/// sent.
+/// The images attached to each of actor session messages `message_ids`, by
+/// message, each message's in the order sent.
 #[derive(FromRequest)]
 #[request(ListActorSessionMessageAttachmentsRequest)]
 pub struct ListActorSessionMessageAttachmentsCommand {
-    pub message_id: i64,
+    pub message_ids: Vec<i64>,
 }
 impl DatabaseCommand for ListActorSessionMessageAttachmentsCommand {
     type Response = Vec<Attachment>;
@@ -284,9 +285,8 @@ impl DatabaseCommand for ListActorSessionMessageAttachmentsCommand {
         Ok(ctx
             .db
             .select::<Attachment>()
-            .filter("actor_session_message_id = ?")
-            .bind(self.message_id)
-            .order("id")
+            .filter_in_values("actor_session_message_id", self.message_ids)
+            .order("actor_session_message_id, id")
             .all()?)
     }
 }
@@ -542,6 +542,25 @@ pub(super) fn ancestors(
         above.push(up);
     }
     Ok(above)
+}
+
+/// The sessions actor session `session_id` runs under, as [`ancestors`]
+/// lists them.
+#[derive(FromRequest)]
+#[request(ListActorSessionAncestorsRequest)]
+pub struct ListActorSessionAncestorsCommand {
+    pub session_id: i64,
+}
+impl DatabaseCommand for ListActorSessionAncestorsCommand {
+    type Response = Vec<ActorSession>;
+    type Access = Read;
+    fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Self::Response> {
+        let session = GetActorSessionCommand {
+            id: self.session_id,
+        }
+        .handle(ctx)?;
+        ancestors(ctx, &session)
+    }
 }
 
 /// The id of the session Cohesion started that `session` is, or is a

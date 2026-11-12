@@ -1,4 +1,4 @@
-use cohesion_macros::{Fields, Model, TextEnum, TsWire};
+use cohesion_macros::{Fields, Model, Projection, TextEnum, TsWire};
 use serde::{Deserialize, Serialize};
 
 /// What a document is for; stored as text.
@@ -52,5 +52,29 @@ pub struct Document {
 
     /// Whether the document is pinned to the Dashboard, as part of the
     /// user's working set.
+    pub pinned: bool,
+}
+
+/// A document as a listing shows it: everything but its full text, with the
+/// start of it to show a line of.
+#[derive(Clone, Serialize, Deserialize, Projection, TsWire)]
+#[projection(of = Document)]
+pub struct DocumentSummary {
+    pub id: i64,
+    pub workspace_id: i64,
+    pub deleted: bool,
+    pub document_type: DocumentType,
+    pub title: String,
+    /// The first 500 characters of the document's text, as plain text /
+    /// Markdown; the whole text when it is shorter.
+    #[projection(expr = "substr(documents.contents, 1, 500)")]
+    pub opening: String,
+    /// When the contents last changed, in Unix **seconds**.
+    pub modified: i64,
+    /// For journals, the day the entry belongs to, as `"YYYY-MM-DD"`.
+    pub journal_date: Option<String>,
+    /// Id of the document folder it is filed in, or `null` in the Inbox.
+    pub folder_id: Option<i64>,
+    /// Whether it is pinned to the Dashboard.
     pub pinned: bool,
 }

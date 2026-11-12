@@ -65,6 +65,16 @@ export function linksHandlers(core: MockCore) {
 				.map(({ result }, index) => ({ ...result, id: index + 1 }));
 		},
 		resolveLink: ({ link }) => structuredClone(resolveLink(link)),
+		resolveLinks: ({ links }) =>
+			links.map((link) => {
+				try {
+					return { link, embed: structuredClone(resolveLink(link)) };
+				} catch (error) {
+					if (error instanceof ProtocolError && error.code === 'notFound')
+						return { link, embed: null };
+					throw error;
+				}
+			}),
 		backlinksOf: ({ link }) => {
 			const target = parseItemLink(link.trim());
 			if (!target)

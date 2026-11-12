@@ -54,6 +54,8 @@ export class Resource<T, K = void> {
 	#generation = 0;
 	#hasKey = false;
 	#inflight: Promise<void> | null = null;
+	/** A background refetch waiting for the one in flight, shared by every change that lands meanwhile. */
+	#queued: Promise<void> | null = null;
 	/** Set while the latest fetch waits on its value, which may predate a write applied meanwhile. */
 	#reading = false;
 	/** Set when a refetch was skipped while released; the next `load` fetches. */
@@ -152,10 +154,19 @@ export class Resource<T, K = void> {
 		if (this.#reading) void this.refetch();
 	}
 
-	/** Background refetch, honouring `canRefetch`. */
+	/**
+	 * Background refetch, honouring `canRefetch`. While a fetch is in flight
+	 * it may have read before this change, so one more follows it; a burst of
+	 * changes meanwhile shares that one rather than each starting its own.
+	 */
 	refresh(): Promise<void> {
 		if (this.#options.canRefetch && !this.#options.canRefetch()) return Promise.resolve();
-		return this.refetch();
+		if (!this.#inflight) return this.refetch();
+		this.#queued ??= this.#inflight.then(() => {
+			this.#queued = null;
+			return this.refresh();
+		});
+		return this.#queued;
 	}
 
 	/** Whether any of `keys` touches this resource. */

@@ -27,11 +27,17 @@ The pattern, copied by every store:
    one that returns at once because the key is loaded.
 4. **Mutations update from the reply.** Send the request, then
    `resource.update(...)` or `resource.set(...)` with what came back. Never
-   refetch after your own mutation. Mutations throw `ProtocolError`; the
+   refetch after your own mutation, unless the reply lacks something only
+   the daemon works out (a listed document's `opening`); then call
+   `refresh()`, which shares the fetch the mutation's invalidation starts,
+   rather than working it out in the store. Mutations throw `ProtocolError`; the
    caller decides whether to toast or show a field error (`error.field`).
 5. **Background refetch is automatic.** The layout calls `refreshAll()` on
    window focus, `reset` and reconnect, and `refreshInvalidated(keys)` on
-   `invalidate`. Both only touch active resources.
+   `invalidate`. Both only touch active resources. A refresh that lands while
+   a fetch is in flight queues one more fetch after it, shared by every
+   change that lands meanwhile, so a burst of invalidations costs two
+   fetches, not one each.
 6. **Release what a screen stops showing.** A component that loads a
    resource only it shows calls `release()` when it unmounts, so hidden data
    isn't refetched on every focus. The value stays, so coming back renders at

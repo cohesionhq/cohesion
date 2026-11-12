@@ -46,10 +46,10 @@ impl From<Extension> for ExtensionSummary {
     }
 }
 
-/// Lists the permissions recorded for extension `extension_id`.
+/// Lists the permissions recorded for each of extensions `extension_ids`.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct ListExtensionPermissionsRequest {
-    pub extension_id: i64,
+    pub extension_ids: Vec<i64>,
 }
 
 /// Enables or disables `permission` for extension `extension_id`. The
@@ -68,10 +68,10 @@ pub struct UninstallExtensionRequest {
     pub extension_id: i64,
 }
 
-/// Lists the hooks recorded for extension `extension_id`.
+/// Lists the hooks recorded for each of extensions `extension_ids`.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct ListExtensionHooksRequest {
-    pub extension_id: i64,
+    pub extension_ids: Vec<i64>,
 }
 
 /// Enables or disables `hook` for extension `extension_id`. The extension's

@@ -2,7 +2,7 @@
 	import { list } from '$lib/ui/list';
 	import { untrack } from 'svelte';
 	import { dayToDate, localDay } from '$lib/format/dates';
-	import type { Document } from '$lib/protocol/types';
+	import type { DocumentSummary } from '$lib/protocol/types';
 	import { routes } from '$lib/shell/routes';
 	import { workspaceLoadError } from '$lib/shell/loadError';
 	import { excerpt, groupByMonth } from '$lib/stores/documents.svelte';
@@ -26,11 +26,11 @@
 
 	const groups = $derived(groupByMonth(documents.archive.value));
 
-	function href(doc: Document): string {
+	function href(doc: DocumentSummary): string {
 		return doc.journal_date === today ? routes.today(ws) : routes.journalEntry(ws, doc.id);
 	}
 
-	function day(doc: Document): { weekday: string; date: string } {
+	function day(doc: DocumentSummary): { weekday: string; date: string } {
 		const d = dayToDate(doc.journal_date!);
 		return {
 			weekday: d.toLocaleDateString(undefined, { weekday: 'short' }),
@@ -64,7 +64,7 @@
 					<ul>
 						{#each group.items as doc (doc.id)}
 							{@const d = day(doc)}
-							{@const line = excerpt(doc.contents)}
+							{@const line = excerpt(doc.opening)}
 							<li class="border-border not-first:border-t">
 								<a
 									class="group/link flex items-baseline gap-4 py-2 text-fg hover:no-underline"

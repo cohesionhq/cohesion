@@ -17,7 +17,7 @@
 	import { untrack } from 'svelte';
 	import { localMidnight, nowSeconds, relativeTime } from '$lib/format/dates';
 	import { SEARCH_DEBOUNCE_MS } from '$lib/format/search';
-	import type { Document } from '$lib/protocol/types';
+	import type { DocumentSummary } from '$lib/protocol/types';
 	import { workspaceLoadError } from '$lib/shell/loadError';
 	import { routes } from '$lib/shell/routes';
 	import { SERVER_FILTER_THRESHOLD, excerpt, groupByRecency } from '$lib/stores/documents.svelte';
@@ -74,7 +74,7 @@
 	let query = $state('');
 	let creating = $state(false);
 	/** Server-side matches for `query` when the list is too long to filter here. */
-	let found = $state<Document[] | null>(null);
+	let found = $state<DocumentSummary[] | null>(null);
 
 	$effect(() => {
 		const id = ws;
@@ -123,7 +123,7 @@
 	const folderTitles = $derived(new Map(documents.folders.value.map((f) => [f.id, f.title])));
 	const tableFolders = $derived(tableIds(documents.folders.value));
 	const searching = $derived(query.trim() !== '');
-	const inView = (d: Document) => listedIn(d, view, tableFolders, searching);
+	const inView = (d: DocumentSummary) => listedIn(d, view, tableFolders, searching);
 
 	const remote = $derived(documents.list.value.length > SERVER_FILTER_THRESHOLD);
 
@@ -364,7 +364,7 @@
 							</h2>
 							<ul>
 								{#each group.items as doc (doc.id)}
-									{@const line = excerpt(doc.contents, 140, doc.title)}
+									{@const line = excerpt(doc.opening, 140, doc.title)}
 									<!-- Two lines, as an article's row: the title, then where the text starts. -->
 									<li class="border-border not-first:border-t">
 										<a
