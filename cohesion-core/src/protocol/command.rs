@@ -517,6 +517,10 @@ pub enum Command {
     /// Puts agent `agent_id` on a team, or on none.
     #[reply(IntelligenceAgent)]
     SetAgentTeam(SetAgentTeamRequest),
+    /// Runs agent `agent_id` on a model of its own, or on the `agent`
+    /// tier's default.
+    #[reply(IntelligenceAgent)]
+    SetAgentModel(SetAgentModelRequest),
     /// Lists every team of agents, by title.
     #[reply(Vec<IntelligenceAgentTeam>, request = ListAgentTeamsRequest)]
     ListAgentTeams,
@@ -533,7 +537,8 @@ pub enum Command {
     /// Fetches agent `agent_id`.
     #[reply(IntelligenceAgent)]
     GetIntelligenceAgent(GetIntelligenceAgentRequest),
-    /// Renames, recolors, sets the emoji of or changes the model of agent `agent_id`.
+    /// Renames, recolors or sets the emoji, personality, verbosity, role or
+    /// directive of agent `agent_id`.
     #[reply(IntelligenceAgent, via = Intelligence)]
     UpdateIntelligenceAgent(UpdateIntelligenceAgentRequest),
     /// Deletes agent `agent_id` with its cues, runs and messages.

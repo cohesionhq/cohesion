@@ -120,6 +120,10 @@ pub struct IntelligenceAgent {
     /// to the agent; `null` until one does. A hint for requests that don't
     /// say where, never a limit on where the agent works.
     pub workspace_id: Option<i64>,
+    /// The endpoint model the agent's conversation runs on in place of the
+    /// `agent` tier's default; `null` to use the default. Removing that
+    /// model sets it back to `null`. Background runs keep their cue's tier.
+    pub endpoint_model_id: Option<i64>,
     /// How many actor sessions not yet resolved the agent follows.
     #[model(expr = IntelligenceAgent::FOLLOWING_COUNT_SQL)]
     #[fields(skip)]

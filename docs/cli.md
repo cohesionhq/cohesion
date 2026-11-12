@@ -122,14 +122,15 @@ list, it takes `--name`, `--context`, `--input` and `--output` (USD per million
 tokens). `models remove <endpoint> <model>` takes a model away and unsets any tier
 that used it.
 
-There are 4 tiers. Every agent conversation uses `agent`. Background runs use `low`,
+There are 4 tiers. Every agent conversation uses `agent`, unless the agent has a
+model of its own (`agent update --model`). Background runs use `low`,
 `medium` or `high`, according to the effort the agent gave the cue that woke them.
 Changing a default applies to existing agents from their next message or run.
 
 ## Agents
 
 An agent is a persistent assistant with one ongoing conversation, on the `agent`
-tier's model. An agent can set cues. Each cue is a named hook that wakes a fork of
+tier's model or one of its own. An agent can set cues. Each cue is a named hook that wakes a fork of
 the agent's conversation, with an effort (`low`, `medium` or `high`) that picks the
 model the fork uses.
 
@@ -161,6 +162,8 @@ cohesion team create Research                 # list teams with `team`, or `rena
 Agents resolve by id or name, ignoring case. `agent update` takes `--name`, `--color`,
 `--emoji`, `--team`, `--personality` (`balanced`, `friendly`, `professional`,
 `candid`, `playful`) and `--verbosity` (`terse`, `brief`, `detailed`, `thorough`).
+`--model <endpoint> <model>` gives the agent a model of its own in place of the
+`agent` tier's, and `--default-model` puts it back on the tier's.
 `agent delete` asks first unless given `-y`.
 
 ## MCP: `cohesion mcp`

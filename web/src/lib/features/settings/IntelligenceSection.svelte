@@ -4,6 +4,7 @@
 	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 	import {
 		intelligence,
+		modelGroups,
 		providerLabel,
 		signsInWithAccount,
 		type AccountEndpoint,
@@ -73,17 +74,7 @@
 
 	// A closed select shows only the option, so it names the endpoint too:
 	// two endpoints may offer a model of the same name.
-	const groups = $derived(
-		endpoints
-			.filter((e) => e.models.length > 0)
-			.map((e) => ({
-				label: e.name,
-				options: e.models.map((m) => ({
-					value: String(m.id),
-					label: `${m.model_name} · ${e.name}`
-				}))
-			}))
-	);
+	const groups = $derived(modelGroups(endpoints));
 	const endpointFilter = $derived([
 		{ value: '', label: 'All endpoints' },
 		...endpoints.map((e) => ({ value: String(e.id), label: e.name }))

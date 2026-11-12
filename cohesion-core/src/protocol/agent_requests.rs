@@ -9,7 +9,8 @@ use crate::model::{
     IntelligenceAgentVerbosity,
 };
 
-/// Creates an agent; it runs on the `agent` tier's default model.
+/// Creates an agent; it runs on the `agent` tier's default model until
+/// `SetAgentModel` gives it one of its own.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 #[ts_wire(input)]
 pub struct CreateIntelligenceAgentRequest {
@@ -56,6 +57,15 @@ pub struct SetAgentPinnedRequest {
 pub struct SetAgentTeamRequest {
     pub agent_id: i64,
     pub team_id: Option<i64>,
+}
+
+/// Runs agent `agent_id`'s conversation on endpoint model
+/// `endpoint_model_id`, or on the `agent` tier's default when absent.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+#[ts_wire(input)]
+pub struct SetAgentModelRequest {
+    pub agent_id: i64,
+    pub endpoint_model_id: Option<i64>,
 }
 
 /// Lists every team of agents, by title.

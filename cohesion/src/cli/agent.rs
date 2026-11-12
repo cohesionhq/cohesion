@@ -23,12 +23,13 @@ use cohesion_core::{
         ListAgentCuesRequest, ListAgentMessagesRequest, ListAgentRunsRequest,
         ListAgentTeamsRequest, ListIntelligenceAgentsRequest, ListMemoriesRequest,
         MarkAgentReadRequest, RemoveAgentCueRequest, RespondToAgentChoiceRequest,
-        SendAgentMessageRequest, SetAgentTeamRequest, UpdateIntelligenceAgentRequest,
-        actor_session_stop_label,
+        SendAgentMessageRequest, SetAgentModelRequest, SetAgentTeamRequest,
+        UpdateIntelligenceAgentRequest, actor_session_stop_label,
     },
 };
 
 use super::{
+    intelligence::endpoint_models,
     table::{self, ago, clock, duration, truncate},
     team::find_team,
     terminal_io::{confirmed, edit_in_editor, spin, words_and_stdin},
@@ -69,8 +70,8 @@ pub enum AgentCommand {
         #[arg(long)]
         team: Option<String>,
     },
-    /// Rename, recolor or restyle an agent, or move it to a team; a flag left out keeps its
-    /// value.
+    /// Rename, recolor or restyle an agent, move it to a team or give it a model of its own;
+    /// a flag left out keeps its value.
     #[command(group(ArgGroup::new("changes").required(true).multiple(true)))]
     Update {
         /// Agent id or name (names match case-insensitively).
@@ -102,6 +103,19 @@ pub enum AgentCommand {
         /// Take it off its team.
         #[arg(long, group = "changes")]
         no_team: bool,
+        /// Talk on this model in place of the `agent` tier's (endpoint name or id, then the
+        /// model's identifier, as `cohesion ai models` shows them).
+        #[arg(
+            long,
+            group = "changes",
+            num_args = 2,
+            value_names = ["ENDPOINT", "MODEL"],
+            conflicts_with = "default_model"
+        )]
+        model: Option<Vec<String>>,
+        /// Go back to the `agent` tier's model.
+        #[arg(long, group = "changes")]
+        default_model: bool,
     },
     /// Delete an agent with its cues, runs and messages, after asking for confirmation.
     Delete {
@@ -229,10 +243,22 @@ pub async fn run(ctx: &Context, verb: Option<AgentCommand>) -> Result<(), CliErr
             directive,
             team,
             no_team,
+            model,
+            default_model,
         }) => {
             let agent_id = find_agent(ctx, &agent).await?.id;
             let team_id = match (team, no_team) {
                 (Some(team), _) => Some(Some(find_team(ctx, &team).await?.id)),
+                (None, true) => Some(None),
+                (None, false) => None,
+            };
+            let endpoint_model_id = match (model, default_model) {
+                (Some(model), _) => {
+                    let [endpoint, model] =
+                        <[String; 2]>::try_from(model).expect("clap takes exactly two values");
+                    let (_, models) = endpoint_models(ctx, &endpoint).await?;
+                    Some(Some(find(&models, &model)?.id))
+                }
                 (None, true) => Some(None),
                 (None, false) => None,
             };
@@ -249,6 +275,7 @@ pub async fn run(ctx: &Context, verb: Option<AgentCommand>) -> Result<(), CliErr
                     directive,
                 },
                 team_id,
+                endpoint_model_id,
             )
             .await
         }
@@ -332,11 +359,13 @@ async fn create(ctx: &Context, request: CreateIntelligenceAgentRequest) -> Resul
 }
 
 /// Applies `request`, when it changes anything, then puts the agent on
-/// `team_id` when given (`Some(None)` for no team).
+/// `team_id` when given (`Some(None)` for no team) and on
+/// `endpoint_model_id` when given (`Some(None)` for the `agent` tier's).
 async fn update(
     ctx: &Context,
     request: UpdateIntelligenceAgentRequest,
     team_id: Option<Option<i64>>,
+    endpoint_model_id: Option<Option<i64>>,
 ) -> Result<(), CliError> {
     let agent_id = request.agent_id;
     let UpdateIntelligenceAgentRequest {
@@ -362,6 +391,13 @@ async fn update(
     }
     if let Some(team_id) = team_id {
         agent = Some(ctx.call(SetAgentTeamRequest { agent_id, team_id }).await?);
+    }
+    if let Some(endpoint_model_id) = endpoint_model_id {
+        let request = SetAgentModelRequest {
+            agent_id,
+            endpoint_model_id,
+        };
+        agent = Some(ctx.call(request).await?);
     }
     let agent = agent.expect("clap requires at least one change");
     println!("Updated {}: {}.", describe(&agent), agent.agent_color);

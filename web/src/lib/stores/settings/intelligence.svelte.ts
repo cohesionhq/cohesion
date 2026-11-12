@@ -204,6 +204,18 @@ export function filterCatalog(
 	return matching.sort(compare);
 }
 
+/** Every endpoint's models as select options, one group per endpoint that has any. */
+export function modelGroups(
+	endpoints: EndpointWithModels[]
+): { label: string; options: { value: string; label: string }[] }[] {
+	return endpoints
+		.filter((e) => e.models.length > 0)
+		.map((e) => ({
+			label: e.name,
+			options: e.models.map((m) => ({ value: String(m.id), label: `${m.model_name} · ${e.name}` }))
+		}));
+}
+
 export class IntelligenceStore {
 	readonly endpoints: Resource<EndpointWithModels[]>;
 	readonly defaults: Resource<IntelligenceDefault[]>;

@@ -935,6 +935,8 @@ export function createCore() {
 		const gone = new Set(state.endpointModels.filter(drop).map((m) => m.id));
 		state.endpointModels = state.endpointModels.filter((m) => !gone.has(m.id));
 		state.defaults = state.defaults.filter((d) => !gone.has(d.endpoint_model_id));
+		for (const a of state.agents)
+			if (a.endpoint_model_id != null && gone.has(a.endpoint_model_id)) a.endpoint_model_id = null;
 	};
 	/** Adds or updates a model the way `AddEndpointModelCommand` does. */
 	const addEndpointModel = ({

@@ -1,14 +1,16 @@
 use cohesion_core::model::{
-    CatalogModel, Dialect, EndpointModel, IntelligenceEndpointPreset, IntelligenceProvider,
-    IntelligenceTier,
+    CatalogModel, Dialect, EndpointModel, IntelligenceAgentColor, IntelligenceEndpointPreset,
+    IntelligenceProvider, IntelligenceTier,
 };
 use cohesion_core::protocol::ModelPrices;
 
 use crate::test_support::context;
 use crate::{
-    AddEndpointModelCommand, CommandError, CreateIntelligenceEndpointCommand, DatabaseContext,
-    GetIntelligenceDefaultCommand, ListEndpointModelsCommand, RemoveEndpointModelCommand,
-    SetIntelligenceDefaultCommand, UpdateCatalogModelsCommand,
+    AddEndpointModelCommand, CommandError, CreateIntelligenceAgentCommand,
+    CreateIntelligenceEndpointCommand, DatabaseContext, GetAgentModelCommand,
+    GetIntelligenceAgentCommand, GetIntelligenceDefaultCommand, ListEndpointModelsCommand,
+    RemoveEndpointModelCommand, SetAgentModelCommand, SetIntelligenceDefaultCommand,
+    UpdateCatalogModelsCommand,
 };
 
 /// Lists `model_identifier` for `provider_identifier` in the catalog, at
@@ -230,6 +232,63 @@ fn removing_a_model_unsets_its_tier() {
         .unwrap();
     assert_eq!(high.model.model_identifier, "llama4");
     assert_eq!(high.endpoint.name, "Local");
+}
+
+#[test]
+fn an_agent_runs_on_its_own_model_until_it_is_removed() {
+    let db = context();
+    let endpoint_id = endpoint(&db, "Local", "ollama");
+    let default = add(&db, endpoint_id, "qwen3");
+    let own = add(&db, endpoint_id, "llama4");
+    db.send_blocking(SetIntelligenceDefaultCommand {
+        tier: IntelligenceTier::Agent,
+        endpoint_model_id: default.id,
+    })
+    .unwrap();
+    let agent = db
+        .send_blocking(CreateIntelligenceAgentCommand {
+            name: Some("Scout".to_string()),
+            color: IntelligenceAgentColor::Teal,
+            emoji: None,
+            personality: None,
+            verbosity: None,
+            role: None,
+            directive: None,
+            team_id: None,
+        })
+        .unwrap();
+    assert_eq!(agent.endpoint_model_id, None);
+    let model = || {
+        db.send_blocking(GetAgentModelCommand { agent_id: agent.id })
+            .unwrap()
+            .model
+            .model_identifier
+    };
+    assert_eq!(model(), "qwen3");
+
+    let set = |endpoint_model_id| {
+        db.send_blocking(SetAgentModelCommand {
+            agent_id: agent.id,
+            endpoint_model_id,
+        })
+    };
+    assert_eq!(set(Some(own.id)).unwrap().endpoint_model_id, Some(own.id));
+    assert_eq!(model(), "llama4");
+    assert!(matches!(
+        set(Some(own.id + 100)),
+        Err(CommandError::NotFound(_))
+    ));
+    assert_eq!(set(None).unwrap().endpoint_model_id, None);
+    assert_eq!(model(), "qwen3");
+
+    set(Some(own.id)).unwrap();
+    db.send_blocking(RemoveEndpointModelCommand { id: own.id })
+        .unwrap();
+    let agent = db
+        .send_blocking(GetIntelligenceAgentCommand { agent_id: agent.id })
+        .unwrap();
+    assert_eq!(agent.endpoint_model_id, None);
+    assert_eq!(model(), "qwen3");
 }
 
 #[test]

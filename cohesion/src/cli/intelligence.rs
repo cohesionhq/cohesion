@@ -359,7 +359,7 @@ async fn overview(ctx: &Context) -> Result<(), CliError> {
 }
 
 /// The endpoint named `endpoint`, with its models.
-async fn endpoint_models(
+pub(super) async fn endpoint_models(
     ctx: &Context,
     endpoint: &str,
 ) -> Result<(RedactedIntelligenceEndpoint, Vec<EndpointModel>), CliError> {
