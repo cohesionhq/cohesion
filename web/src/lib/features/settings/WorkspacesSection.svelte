@@ -1,4 +1,10 @@
+<!--
+	The workspaces, in the order the switcher, sidebar and ⌘1–⌘9 use:
+	renames one in place, deletes one, creates one, and reorders them by
+	their handles or with Alt+↑/↓ on a row.
+-->
 <script lang="ts">
+	import GripVertical from '@lucide/svelte/icons/grip-vertical';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { toProtocolError } from '$lib/protocol/errors';
@@ -9,6 +15,7 @@
 	import Button from '$lib/ui/Button.svelte';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
 	import { list } from '$lib/ui/list';
+	import { Reorderable } from '$lib/ui/reorder.svelte';
 	import ResourceState from '$lib/ui/ResourceState.svelte';
 	import RowMenu from '$lib/ui/RowMenu.svelte';
 	import TextInput from '$lib/ui/TextInput.svelte';
@@ -91,6 +98,20 @@
 		}
 	}
 
+	const order = new Reorderable(
+		() => workspaces.list.value,
+		(workspace) => workspace.id,
+		(ids) => workspaces.reorder(ids).catch((e) => toasts.error(e))
+	);
+
+	function onHandleDrag(event: DragEvent, workspace: Workspace) {
+		order.start(event, workspace, workspace.title);
+		// The whole row follows the pointer, not only the handle.
+		const row = (event.currentTarget as HTMLElement).closest('li')!;
+		const { left, top } = row.getBoundingClientRect();
+		event.dataTransfer!.setDragImage(row, event.clientX - left, event.clientY - top);
+	}
+
 	async function remove(workspace: Workspace) {
 		const wasCurrent = workspace.id === workspaces.currentId;
 		await workspaces.remove(workspace.id);
@@ -109,9 +130,26 @@
 >
 	<ResourceState resource={workspaces.list}>
 		{#snippet loaded()}
-			<ul class={list.rows}>
-				{#each workspaces.list.value as workspace (workspace.id)}
-					<li class={list.row}>
+			<ul class={list.rows} aria-label="Your workspaces" {...order.list}>
+				{#each order.items as workspace, index (workspace.id)}
+					<!-- Alt+↑/↓ from the row's link or menu moves it. -->
+					<li
+						class={['group/row', list.row, order.dragged === workspace.id && 'opacity-50']}
+						{...order.target(index)}
+						onkeydown={(event) => editingId === null && order.key(event, index)}
+					>
+						<span
+							class={[
+								'-mx-1 inline-flex h-8 w-4 flex-none cursor-grab items-center justify-center text-fg-subtle hover:text-fg',
+								list.reveal
+							]}
+							draggable="true"
+							aria-hidden="true"
+							ondragstart={(e) => onHandleDrag(e, workspace)}
+							ondragend={() => order.end()}
+						>
+							<GripVertical size={14} strokeWidth={1.75} />
+						</span>
 						{#if editingId === workspace.id}
 							<div class="min-w-0 flex-1">
 								<TextInput
@@ -127,7 +165,11 @@
 						{:else}
 							<div class={list.main}>
 								<WorkspaceBadge {workspace} />
-								<a class="text-fg" href={routes.workspace(workspace.id)}>{workspace.title}</a>
+								<a
+									class="text-fg"
+									href={routes.workspace(workspace.id)}
+									aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">{workspace.title}</a
+								>
 							</div>
 							<!-- Where every list keeps a row's state: at its trailing edge. -->
 							<div class={list.actions}>

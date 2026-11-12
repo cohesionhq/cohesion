@@ -4,7 +4,7 @@ use cohesion_core::invalidation::Invalidation;
 use cohesion_core::model::SearchResult;
 use cohesion_core::protocol::{
     CreateWorkspaceRequest, DeleteWorkspaceRequest, ListWorkspacesRequest, RenameWorkspaceRequest,
-    SearchWorkspaceRequest, SetWorkspaceEmojiRequest,
+    ReorderWorkspacesRequest, SearchWorkspaceRequest, SetWorkspaceEmojiRequest,
 };
 use cohesion_core::value::IntoValue;
 use cohesion_core::{FromRequest, Workspace};
@@ -20,7 +20,7 @@ use crate::{
 };
 
 /// Every workspace that has not been deleted and carries every one of the
-/// `metadata` pairs and `has_metadata` keys.
+/// `metadata` pairs and `has_metadata` keys, in their order.
 #[derive(FromRequest, Default)]
 #[request(ListWorkspacesRequest)]
 pub struct ListWorkspacesCommand {
@@ -36,6 +36,7 @@ impl DatabaseCommand for ListWorkspacesCommand {
             .select_live()
             .with_metadata(self.metadata)
             .with_metadata_keys(self.has_metadata)
+            .order("sort_order, id")
             .all()?)
     }
 }
@@ -60,6 +61,7 @@ impl DatabaseCommand for CreateWorkspaceCommand {
             .insert()
             .set(Workspace::TITLE, self.title)
             .set(Workspace::EMOJI, emoji(self.emoji)?)
+            .set_max_incremented(Workspace::SORT_ORDER)
             .returning_one()
             .found()?;
         ctx.events
@@ -150,6 +152,33 @@ impl DatabaseCommand for SetWorkspaceEmojiCommand {
             .found()?;
         let key = Invalidation::Workspace(workspace.id);
         Ok(workspace.invalidating([key]))
+    }
+}
+
+/// Gives each workspace in `ids` its position in the list as its sort order.
+#[derive(FromRequest)]
+#[request(ReorderWorkspacesRequest)]
+pub struct ReorderWorkspacesCommand {
+    pub ids: Vec<i64>,
+}
+impl DatabaseCommand for ReorderWorkspacesCommand {
+    type Response = Vec<Workspace>;
+    type Access = Write;
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_>,
+    ) -> DatabaseCommandResult<Changed<Self::Response>> {
+        for (position, id) in self.ids.iter().enumerate() {
+            ctx.db
+                .update_live::<Workspace>()
+                .set(Workspace::SORT_ORDER, position as i64)
+                .filter_eq(Workspace::ID, *id)
+                .returning_one()
+                .found()?;
+        }
+        let workspaces = ListWorkspacesCommand::default().handle(&mut ctx.as_read())?;
+        let keys = self.ids.into_iter().map(Invalidation::Workspace);
+        Ok(workspaces.invalidating(keys))
     }
 }
 

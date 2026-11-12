@@ -82,6 +82,17 @@ export class WorkspacesStore {
 		return updated;
 	}
 
+	/** Puts the workspaces in the order of `ids`, showing it before the daemon confirms. */
+	async reorder(ids: number[]): Promise<void> {
+		this.list.update((list) => ids.map((id) => list.find((w) => w.id === id)!));
+		try {
+			this.list.set(await this.#send('reorderWorkspaces', { ids }));
+		} catch (error) {
+			void this.list.refetch();
+			throw error;
+		}
+	}
+
 	async remove(id: number): Promise<Workspace> {
 		const deleted = await this.#send('deleteWorkspace', { id });
 		this.list.update((list) => list.filter((w) => w.id !== id));

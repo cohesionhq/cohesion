@@ -139,7 +139,7 @@ anywhere and point the script at it.
   from them. See [Styling](#styling).
 - `src/lib/shell/`: the sidebar, the ⌘K palette, the workspace switcher,
   route builders and keyboard shortcuts (⌘ or ⌥ and a letter for a page, or a
-  digit for a workspace, ⌘, for Settings, and ⌘[ ⌘] or ⌥← ⌥→ and a mouse's
+  digit for a workspace, in the order Settings gives them, ⌘, for Settings, and ⌘[ ⌘] or ⌥← ⌥→ and a mouse's
   side buttons for back and forward, which the WebUI harnesses' web view lacks; ⌘/ or
   `?` lists them), and the split view (see [Split view](#split-view)).
 - `src/routes/`: `/` picks a workspace, or with none opens the first-run flow

@@ -98,6 +98,9 @@ pub enum Command {
     /// Sets or clears a workspace's emoji.
     #[reply(Workspace)]
     SetWorkspaceEmoji(SetWorkspaceEmojiRequest),
+    /// Reorders the workspaces; replies with them in their new order.
+    #[reply(Vec<Workspace>)]
+    ReorderWorkspaces(ReorderWorkspacesRequest),
     /// Fetches the journal for a date in a workspace, if it exists.
     #[reply(Option<Document>)]
     GetJournal(GetJournalRequest),

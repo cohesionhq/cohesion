@@ -14,6 +14,9 @@ pub struct Workspace {
     pub title: String,
     /// An emoji shown in place of the title's initial; none when unset.
     pub emoji: Option<String>,
+    /// Where the workspace sits in the list, first to last; listings sort
+    /// by it, then by id.
+    pub sort_order: i64,
     /// Whether the workspace has been soft-deleted.
     ///
     /// Lookups and listings skip deleted workspaces, so this is normally

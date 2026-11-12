@@ -5,8 +5,9 @@ use crate::{
     ChangeTaskStatusCommand, CommandError, CreateDocumentCommand, CreateDocumentFolderCommand,
     CreateTaskCommand, CreateTaskFolderCommand, CreateWorkspaceCommand,
     DeleteDocumentFolderCommand, DeleteTaskFolderCommand, DeleteWorkspaceCommand,
-    GetWorkspaceIncludingDeletedCommand, RenameDocumentFolderCommand, RenameWorkspaceCommand,
-    SearchWorkspaceCommand, SetWorkspaceEmojiCommand,
+    GetWorkspaceIncludingDeletedCommand, ListWorkspacesCommand, RenameDocumentFolderCommand,
+    RenameWorkspaceCommand, ReorderWorkspacesCommand, SearchWorkspaceCommand,
+    SetWorkspaceEmojiCommand,
 };
 
 #[test]
@@ -320,4 +321,65 @@ fn search_ranks_an_exact_title_first_then_titles_then_contents() {
         })
         .collect();
     assert_eq!(hits, [(true, folder), (false, titled), (false, mentioned)]);
+}
+
+fn workspace_ids(db: &crate::DatabaseContext) -> Vec<i64> {
+    db.send_blocking(ListWorkspacesCommand::default())
+        .unwrap()
+        .into_iter()
+        .map(|workspace| workspace.id)
+        .collect()
+}
+
+#[test]
+fn workspaces_keep_the_order_they_are_given_and_new_ones_go_last() {
+    let db = context();
+    let [a, b, c] = ["a", "b", "c"].map(|title| {
+        db.send_blocking(CreateWorkspaceCommand {
+            title: title.to_string(),
+            emoji: None,
+        })
+        .unwrap()
+        .id
+    });
+    assert_eq!(workspace_ids(&db), [a, b, c]);
+
+    let reordered = db
+        .send_blocking(ReorderWorkspacesCommand { ids: vec![c, a, b] })
+        .unwrap();
+    assert_eq!(
+        reordered.iter().map(|w| w.id).collect::<Vec<_>>(),
+        [c, a, b]
+    );
+    assert_eq!(workspace_ids(&db), [c, a, b]);
+
+    let d = db
+        .send_blocking(CreateWorkspaceCommand {
+            title: "d".to_string(),
+            emoji: None,
+        })
+        .unwrap()
+        .id;
+    assert_eq!(workspace_ids(&db), [c, a, b, d]);
+}
+
+#[test]
+fn reordering_with_a_deleted_workspace_changes_nothing() {
+    let db = context();
+    let [a, b, gone] = ["a", "b", "gone"].map(|title| {
+        db.send_blocking(CreateWorkspaceCommand {
+            title: title.to_string(),
+            emoji: None,
+        })
+        .unwrap()
+        .id
+    });
+    db.send_blocking(DeleteWorkspaceCommand { id: gone })
+        .unwrap();
+
+    let refused = db.send_blocking(ReorderWorkspacesCommand {
+        ids: vec![b, gone, a],
+    });
+    assert!(matches!(refused, Err(CommandError::NotFound(_))));
+    assert_eq!(workspace_ids(&db), [a, b]);
 }
