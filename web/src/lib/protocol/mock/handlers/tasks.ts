@@ -35,7 +35,8 @@ export function tasksHandlers(core: MockCore) {
 				workspace_id,
 				title,
 				sort_order,
-				deleted: false
+				deleted: false,
+				pinned: false
 			};
 			state.folders.push(created);
 			return { ...created };
@@ -55,6 +56,11 @@ export function tasksHandlers(core: MockCore) {
 		renameTaskFolder: ({ workspace_id, folder_id, title }) => {
 			const f = folder(workspace_id, folder_id);
 			f.title = title;
+			return { ...f };
+		},
+		setTaskFolderPinned: ({ workspace_id, folder_id, pinned }) => {
+			const f = folder(workspace_id, folder_id);
+			f.pinned = pinned;
 			return { ...f };
 		},
 		reorderTaskFolders: ({ workspace_id, folder_ids }) => {

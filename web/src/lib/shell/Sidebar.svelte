@@ -4,11 +4,12 @@
 	rail. <600px: a top bar. Labels stay in the DOM (visually hidden) so the
 	rail and bar keep accessible names. It sits on the window's canvas,
 	beside the page's sheet. The workspace's name heads it, Search an icon
-	beside it. In the column, the workspace's document folders sit a step in
-	under Documents (nested ones a step further, a table marked as one) and
-	its Inbox and task folders under Tasks, always shown, following the order
-	and titles their pages give them; an open folder reads as current in place
-	of its page. Every agent has its own link, drawn with its avatar and its
+	beside it. In the column, the workspace's pinned document folders sit a step in
+	under Documents (each with a folder's icon, or a table's) and its pinned task folders under
+	Tasks, in the order their pages give them; an open folder reads as current
+	in place of its page, a document dropped on one is filed there, and each
+	unpins on hover. Every folder is reached, pinned and managed from its page's
+	heading (`FolderHeading`). Every agent has its own link, drawn with its avatar and its
 	name shimmering while it works, and in the column an eye that opens beside the pin
 	and blinks twice every 5 seconds, in step with every other, while it
 	follows actor sessions not yet resolved, with how many:
@@ -31,10 +32,8 @@
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import CheckSquare from '@lucide/svelte/icons/square-check';
 	import Eye from '@lucide/svelte/icons/eye';
-	import FolderPlus from '@lucide/svelte/icons/folder-plus';
-	import Pencil from '@lucide/svelte/icons/pencil';
-	import Trash from '@lucide/svelte/icons/trash';
 	import FileText from '@lucide/svelte/icons/file-text';
+	import Folder from '@lucide/svelte/icons/folder';
 	import Table2 from '@lucide/svelte/icons/table-2';
 	import Archive from '@lucide/svelte/icons/archive';
 	import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
@@ -58,19 +57,12 @@
 		DocumentFolder,
 		IntelligenceAgent,
 		IntelligenceAgentTeam,
-		SavedTaskView,
 		TaskFolder
 	} from '$lib/protocol/types';
 	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 	import { routes } from '$lib/shell/routes';
 	import { DocumentFolderDrag } from '$lib/shell/documentFolderDrag.svelte';
-	import type { FolderRequest } from '$lib/shell/folderDialogs.svelte';
-	import {
-		documentFolderRows,
-		savedViewRows,
-		taskFolderRows,
-		type FolderRow
-	} from '$lib/shell/sidebarFolders';
+	import { documentFolderRows, taskFolderRows, type FolderRow } from '$lib/shell/sidebarFolders';
 	import { isGoing } from '$lib/stores/actors.svelte';
 	import type { ConnectorKind } from '$lib/stores/connectors.svelte';
 	import AgentCard from '$lib/features/agents/AgentCard.svelte';
@@ -105,23 +97,9 @@
 		documentFolders: DocumentFolder[];
 		/** The workspace's task folders, in their order. */
 		taskFolders: TaskFolder[];
-		/** The workspace's saved task views, in their order. */
-		taskViews: SavedTaskView[];
-		/** Every saved view's id, in the order the user put them. */
-		onreorderviews: (viewIds: number[]) => void;
-		/** Called as a saved view is opened, so the page takes its order. */
-		onpickview: (view: SavedTaskView) => void;
-		/** Asks to make, rename or delete a folder, or to rename or delete a saved view. */
-		onfolder: (request: FolderRequest) => void;
-		/** Every task folder's id, in the order the user put them. */
-		onreorderfolders: (folderIds: number[]) => void;
-		/** Moves a document folder into `parent_id` (the top level when null), before `before_id` or last. */
-		onmovefolder: (
-			folder: DocumentFolder,
-			parent_id: number | null,
-			before_id: number | null
-		) => void;
-		/** Files a dragged document in `folder_id`, or the Inbox when it's null. */
+		/** Unpins a folder from the sidebar. */
+		onunpinfolder: (kind: 'documents' | 'tasks', folder_id: number) => void;
+		/** Files a dragged document in `folder_id`. */
 		onfiledocument: (document_id: number, folder_id: number | null) => void;
 		/** Resolves an actor session: the user is done with it. */
 		onresolve: (session: ActorSession) => void;
@@ -149,12 +127,7 @@
 		kinds,
 		documentFolders,
 		taskFolders,
-		taskViews,
-		onreorderviews,
-		onpickview,
-		onfolder,
-		onreorderfolders,
-		onmovefolder,
+		onunpinfolder,
 		onfiledocument,
 		onresolve,
 		onsearch,
@@ -218,23 +191,13 @@
 		(ids) => onreorderkinds(ids)
 	);
 
-	const folderOrder = new Reorderable(
-		() => taskFolders,
-		(folder) => folder.id,
-		(ids) => onreorderfolders(ids)
-	);
-	const viewOrder = new Reorderable(
-		() => taskViews,
-		(view) => view.id,
-		(ids) => onreorderviews(ids)
-	);
+	// A pinned document folder takes a dropped document; folders move in the Documents page's switcher.
 	const documentDrag = new DocumentFolderDrag(
 		() => documentFolders,
-		(folder, parent_id, before_id) => onmovefolder(folder, parent_id, before_id),
+		() => {},
 		(document_id, folder_id) => onfiledocument(document_id, folder_id)
 	);
-	const documentById = (id: number | null) => documentFolders.find((f) => f.id === id);
-	const taskById = (id: number | null) => taskFolders.find((f) => f.id === id);
+	const documentById = (id: number) => documentFolders.find((f) => f.id === id);
 
 	interface Link {
 		/** The page the link is current on. */
@@ -252,18 +215,9 @@
 	const documentRows = $derived(
 		workspaceId === null ? [] : documentFolderRows(workspaceId, documentFolders, pathname, search)
 	);
-	const viewRows = $derived(
-		workspaceId === null ? [] : savedViewRows(workspaceId, viewOrder.items, pathname, search)
+	const taskRows = $derived(
+		workspaceId === null ? [] : taskFolderRows(workspaceId, taskFolders, pathname, search)
 	);
-	// A saved view that is open takes the mark from the folder it lists.
-	const taskRows = $derived.by(() => {
-		if (workspaceId === null) return [];
-		const savedOpen = viewRows.some((row) => row.current);
-		return taskFolderRows(workspaceId, folderOrder.items, pathname, search).map((row) => ({
-			...row,
-			current: row.current && !savedOpen
-		}));
-	});
 
 	interface WorkspaceLink extends Link {
 		/** What its folders are, when it has them. */
@@ -287,7 +241,7 @@
 			},
 			{
 				href: routes.tasks(workspaceId),
-				// Always All, not the view last shown; the Inbox and the folders are rows under it.
+				// Always All, not the view last shown; the switcher in its heading reaches the rest.
 				to: `${routes.tasks(workspaceId)}?view=all`,
 				label: 'Tasks',
 				icon: CheckSquare,
@@ -375,9 +329,6 @@
 		return pathname === href || pathname.startsWith(`${href}/`);
 	}
 
-	const folderTool =
-		'inline-flex size-5 cursor-pointer items-center justify-center rounded-sm text-fg-subtle hover:text-fg';
-
 	const linkClass =
 		'relative flex h-7.5 cursor-pointer items-center gap-2.5 rounded-sm px-2 text-left no-underline hover:bg-bg-hover hover:text-fg hover:no-underline max-md:w-9 max-md:justify-center max-md:p-0 [&_svg]:flex-none';
 
@@ -417,194 +368,60 @@
 	</a>
 {/snippet}
 
-<!-- The folders under Documents or Tasks: a step in, text only, with a rule down the left
-     joining them to their page, a nested folder a step further. Drag a task folder to reorder
-     it; drag a document folder onto another to nest it (or to its edge to sit beside it), and a
-     document onto one to file it. Rename and delete show on hover. Hidden on the rail and the top bar,
-     which keep only the page's icon. -->
-{#snippet folderTools(kind: 'documents' | 'tasks', row: FolderRow)}
-	{@const folder = kind === 'documents' ? documentById(row.id) : taskById(row.id)}
-	{#if folder}
-		<span
-			class="absolute top-0 right-0.5 flex h-full items-center bg-linear-to-l from-bg-hover from-70% to-transparent pl-3 opacity-0 transition-opacity group-focus-within/folder:opacity-100 group-hover/folder:opacity-100 touch:opacity-100"
-		>
-			{#if kind === 'documents'}
-				<button
-					class={folderTool}
-					type="button"
-					aria-label="New folder in {row.label}"
-					onclick={() =>
-						onfolder({ kind: 'documents', mode: 'new', parent: folder as DocumentFolder })}
-				>
-					<FolderPlus size={12} strokeWidth={1.75} />
-				</button>
-			{/if}
-			<button
-				class={folderTool}
-				type="button"
-				aria-label="Rename {row.label}"
-				onclick={() =>
-					onfolder(
-						kind === 'documents'
-							? { kind, mode: 'rename', folder: folder as DocumentFolder }
-							: { kind, mode: 'rename', folder: folder as TaskFolder }
-					)}
-			>
-				<Pencil size={12} strokeWidth={1.75} />
-			</button>
-			<button
-				class={folderTool}
-				type="button"
-				aria-label="Delete {row.label}"
-				onclick={() =>
-					onfolder(
-						kind === 'documents'
-							? { kind, mode: 'delete', folder: folder as DocumentFolder }
-							: { kind, mode: 'delete', folder: folder as TaskFolder }
-					)}
-			>
-				<Trash size={12} strokeWidth={1.75} />
-			</button>
-		</span>
-	{/if}
-{/snippet}
-
-{#snippet viewLinks(rows: FolderRow[])}
-	<div class="relative ml-4 flex flex-col gap-px pl-2.5 max-md:hidden">
-		<span class="absolute top-0.5 bottom-0.5 left-0 w-px bg-border" aria-hidden="true"></span>
-		<span class="px-2 pt-1.5 pb-0.5 text-xs font-medium text-fg-subtle">Views</span>
-		{#each rows as row, index (row.key)}
-			{@const view = taskViews.find((v) => v.id === row.id)}
-			{#if view}
-				<div
-					class={[
-						'group/folder relative flex rounded-sm',
-						viewOrder.dragged === view.id && 'opacity-50'
-					]}
-					role="presentation"
-					draggable="true"
-					ondragstart={(e) => viewOrder.start(e, view, view.name)}
-					{...viewOrder.target(index)}
-					ondragend={() => viewOrder.end()}
-				>
-					<a
-						class={[
-							'flex h-6.5 min-w-0 flex-1 items-center rounded-sm px-2 text-left text-xs no-underline hover:bg-bg-hover hover:text-fg hover:no-underline',
-							row.current ? 'bg-current-item font-medium text-fg' : 'text-fg-muted'
-						]}
-						href={row.href}
-						draggable="false"
-						aria-current={row.current ? 'page' : undefined}
-						aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-						onclick={() => onpickview(view)}
-						onkeydown={(e) => viewOrder.key(e, index)}
-					>
-						<span class="truncate">{row.label}</span>
-					</a>
-					<span
-						class="absolute top-0 right-0.5 flex h-full items-center bg-linear-to-l from-bg-hover from-70% to-transparent pl-3 opacity-0 transition-opacity group-focus-within/folder:opacity-100 group-hover/folder:opacity-100 touch:opacity-100"
-					>
-						<button
-							class={folderTool}
-							type="button"
-							aria-label="Rename {row.label}"
-							onclick={() => onfolder({ kind: 'views', mode: 'rename', view })}
-						>
-							<Pencil size={12} strokeWidth={1.75} />
-						</button>
-						<button
-							class={folderTool}
-							type="button"
-							aria-label="Delete {row.label}"
-							onclick={() => onfolder({ kind: 'views', mode: 'delete', view })}
-						>
-							<Trash size={12} strokeWidth={1.75} />
-						</button>
-					</span>
-				</div>
-			{/if}
-		{/each}
-	</div>
-{/snippet}
-
+<!-- The pinned folders under Documents or Tasks: a step in, each led by a folder's icon (a table's
+     for a table), with a rule down the left joining them to their page. A document dropped on a document folder is filed there; the pin on
+     hover unpins it. Hidden on the rail and the top bar, which keep only the page's icon. -->
 {#snippet folderLinks(kind: 'documents' | 'tasks', rows: FolderRow[])}
 	<div class="relative ml-4 flex flex-col gap-px pl-2.5 max-md:hidden">
 		<span class="absolute top-0.5 bottom-0.5 left-0 w-px bg-border" aria-hidden="true"></span>
 		{#each rows as row (row.key)}
 			{@const doc = kind === 'documents' ? documentById(row.id) : undefined}
-			{@const task = kind === 'tasks' ? taskById(row.id) : undefined}
-			{@const drop =
-				documentDrag.drop?.target === (row.id ?? 'inbox') ? documentDrag.drop.where : null}
-			{@const taskIndex = task ? folderOrder.items.findIndex((f) => f.id === task.id) : -1}
 			<div
 				class={[
 					'group/folder relative flex rounded-sm',
-					(doc && documentDrag.dragged?.id === doc.id) || (task && folderOrder.dragged === task.id)
-						? 'opacity-50'
-						: '',
-					kind === 'documents' && drop === 'into' && 'bg-bg-hover ring-1 ring-accent ring-inset',
-					drop === 'before' &&
-						'before:absolute before:inset-x-1 before:-top-px before:h-0.5 before:rounded-full before:bg-accent',
-					drop === 'after' &&
-						'after:absolute after:inset-x-1 after:-bottom-px after:h-0.5 after:rounded-full after:bg-accent'
+					doc && documentDrag.drop?.target === doc.id && 'bg-bg-hover ring-1 ring-accent ring-inset'
 				]}
 				role="presentation"
-				draggable={doc || task ? 'true' : undefined}
-				ondragstart={(e) => {
-					if (doc) documentDrag.start(e, doc);
-					else if (task) folderOrder.start(e, task, task.title);
-				}}
-				ondragend={() => (doc ? documentDrag.end() : task ? folderOrder.end() : undefined)}
-				ondragover={(e) => {
-					if (doc) documentDrag.over(e, doc);
-					else if (kind === 'documents' && row.id === null) documentDrag.overInbox(e);
-					else if (task) folderOrder.target(taskIndex).ondragover(e);
-				}}
-				ondragleave={(e) => kind === 'documents' && documentDrag.leave(e)}
-				ondrop={(e) => {
-					if (doc) documentDrag.dropOn(e, doc);
-					else if (kind === 'documents' && row.id === null) documentDrag.dropOnInbox(e);
-				}}
+				ondragover={(e) => doc && documentDrag.over(e, doc)}
+				ondragleave={(e) => doc && documentDrag.leave(e)}
+				ondrop={(e) => doc && documentDrag.dropOn(e, doc)}
 			>
 				<a
 					class={[
-						'flex h-6.5 min-w-0 flex-1 items-center gap-2 rounded-sm px-2 text-left text-xs no-underline hover:bg-bg-hover hover:text-fg hover:no-underline',
+						'flex h-6.5 min-w-0 flex-1 items-center gap-2 rounded-sm px-2 text-left text-xs no-underline group-focus-within/folder:pr-7 group-hover/folder:pr-7 hover:bg-bg-hover hover:text-fg hover:no-underline touch:pr-7',
 						row.current ? 'bg-current-item font-medium text-fg' : 'text-fg-muted'
 					]}
-					style:padding-left="calc(var(--spacing) * 2 + {row.depth * 12}px)"
 					href={row.href}
-					draggable="false"
 					aria-current={row.current ? 'page' : undefined}
-					aria-keyshortcuts={doc || task ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
-					onkeydown={(e) => {
-						if (doc) documentDrag.key(e, doc);
-						else if (task) folderOrder.key(e, taskIndex);
-					}}
 				>
-					<span class="truncate">{row.label}</span>
 					{#if row.table}
-						<span class="sr-only">, table</span>
 						<Table2
-							class="ml-auto flex-none text-fg-subtle"
+							class="flex-none text-fg-subtle"
+							size={12}
+							strokeWidth={1.75}
+							aria-hidden="true"
+						/>
+						<span class="sr-only">Table: </span>
+					{:else}
+						<Folder
+							class="flex-none text-fg-subtle"
 							size={12}
 							strokeWidth={1.75}
 							aria-hidden="true"
 						/>
 					{/if}
+					<span class="truncate">{row.label}</span>
 				</a>
-				{@render folderTools(kind, row)}
+				<button
+					class="absolute top-1/2 right-1 flex size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm text-fg-subtle opacity-0 group-focus-within/folder:opacity-100 group-hover/folder:opacity-100 hover:text-fg touch:opacity-100"
+					type="button"
+					aria-label="Unpin {row.label}"
+					onclick={() => onunpinfolder(kind, row.id)}
+				>
+					<PinOff size={12} strokeWidth={1.75} aria-hidden="true" />
+				</button>
 			</div>
 		{/each}
-		<button
-			class="flex h-6.5 cursor-pointer items-center rounded-sm px-2 text-left text-xs text-fg-subtle hover:bg-bg-hover hover:text-fg"
-			type="button"
-			onclick={() =>
-				onfolder(
-					kind === 'documents' ? { kind, mode: 'new', parent: null } : { kind, mode: 'new' }
-				)}
-		>
-			New folder…
-		</button>
 	</div>
 {/snippet}
 
@@ -807,8 +624,10 @@
 				{#each workspaceLinks as link (link.label)}
 					{@const childCurrent = link.children?.some((row) => row.current) ?? false}
 					{@render navLink(link, childCurrent)}
-					{#if link.kind && link.children}{@render folderLinks(link.kind, link.children)}{/if}
-					{#if link.kind === 'tasks' && viewRows.length > 0}{@render viewLinks(viewRows)}{/if}
+					{#if link.kind && link.children?.length}{@render folderLinks(
+							link.kind,
+							link.children
+						)}{/if}
 				{/each}
 			</div>
 			{#if workspaceId !== null}

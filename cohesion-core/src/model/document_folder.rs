@@ -36,4 +36,6 @@ pub struct DocumentFolder {
     pub deleted: bool,
     /// Whether the folder shows as a list or a table.
     pub representation: DocumentFolderRepresentation,
+    /// Whether the folder is pinned to the sidebar, under Documents.
+    pub pinned: bool,
 }

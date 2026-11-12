@@ -1,14 +1,19 @@
 //! `SearchResult` in scripts.
 
 use cohesion_core::model::{SearchEntityKind, SearchResult};
-use cohesion_db::{GetContactCommand, GetDocumentCommand, GetResourceCommand, GetTaskCommand};
+use cohesion_db::{
+    GetContactCommand, GetDocumentCommand, GetDocumentFolderCommand, GetResourceCommand,
+    GetTaskCommand, GetTaskFolderCommand,
+};
 use cohesion_macros::js_entity;
 use rquickjs::{Ctx, IntoJs, Value};
 
 use super::contact::JsContact;
 use super::document::JsDocument;
+use super::document_folder::JsDocumentFolder;
 use super::resource::JsResource;
 use super::task::JsTask;
+use super::task_folder::JsTaskFolder;
 
 /// One hit from `Workspace.search()`.
 ///
@@ -18,10 +23,11 @@ use super::task::JsTask;
 impl JsSearchResult {
     /// Loads the item this result points at: a `Document` when `entityKind` is
     /// `"document"`, a `Task` when it is `"task"`, a `Resource` when it is
-    /// `"resource"`, a `Contact` when it is `"contact"`.
+    /// `"resource"`, a `Contact` when it is `"contact"`, a `TaskFolder` when
+    /// it is `"taskFolder"`, a `DocumentFolder` when it is `"documentFolder"`.
     ///
     /// Throws if the item no longer exists.
-    #[ts(returns = "Task | Document | Resource | Contact")]
+    #[ts(returns = "Task | Document | Resource | Contact | TaskFolder | DocumentFolder")]
     pub fn open<'js>(&self, ctx: Ctx<'js>) -> rquickjs::Result<Value<'js>> {
         match self.inner.entity_kind {
             SearchEntityKind::Task => {
@@ -63,6 +69,26 @@ impl JsSearchResult {
                     },
                 )?;
                 JsContact::new(contact, self.db.clone()).into_js(&ctx)
+            }
+            SearchEntityKind::TaskFolder => {
+                let folder = self.read(
+                    &ctx,
+                    GetTaskFolderCommand {
+                        workspace_id: self.inner.workspace_id,
+                        folder_id: self.inner.entity_id,
+                    },
+                )?;
+                JsTaskFolder::new(folder, self.db.clone()).into_js(&ctx)
+            }
+            SearchEntityKind::DocumentFolder => {
+                let folder = self.read(
+                    &ctx,
+                    GetDocumentFolderCommand {
+                        workspace_id: self.inner.workspace_id,
+                        folder_id: self.inner.entity_id,
+                    },
+                )?;
+                JsDocumentFolder::new(folder, self.db.clone()).into_js(&ctx)
             }
         }
     }

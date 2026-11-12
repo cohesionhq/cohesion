@@ -526,6 +526,13 @@ text, or removes them once it is deleted, and invalidates `backlinks` of each
 item it linked to before or links to now, so a rename reaches every list
 showing it. Documents and tasks themselves never touch the table.
 
+**Pinned folders.** A task or document folder's `pinned` says whether the
+clients list it in their sidebar; the rest are reached from their page.
+`SetTaskFolderPinned{workspace_id, folder_id, pinned}` and
+`SetDocumentFolderPinned{workspace_id, folder_id, pinned}` set it, leaving
+the folder's place and (for a document folder) the folders inside it as they
+were, and invalidate `taskFolders(ws)` or `documentFolders(ws)`.
+
 **Tables** (`cohesion-db/src/commands/document_folder_property.rs` and
 `document_value.rs`, models in `cohesion-core/src/model/document_table.rs`).
 A document folder's properties are a table's columns, and each live
@@ -1250,7 +1257,7 @@ English stemming, case-insensitive, accents ignored.
 
 | Index | Columns | Covers | Kept by |
 |---|---|---|---|
-| `search_fts` (rows mapped by `search_entries`: `entity_kind`, `entity_id`, `workspace_id`) | `title`, `contents` | Live documents (journal entries and tables' rows included), live tasks (the description as contents), resources (contents only if not JSON), live contacts (the full name as title, the notes as contents; not their emails or phone numbers) | `documents_search_*`, `tasks_search_*`, `resources_search_*`, `contacts_search_*` |
+| `search_fts` (rows mapped by `search_entries`: `entity_kind`, `entity_id`, `workspace_id`) | `title`, `contents` | Live documents (journal entries and tables' rows included), live tasks (the description as contents), resources (contents only if not JSON), live contacts (the full name as title, the notes as contents; not their emails or phone numbers), live task and document folders (the title only) | `documents_search_*`, `tasks_search_*`, `resources_search_*`, `contacts_search_*`, `task_folders_search_*`, `document_folders_search_*` |
 | `feed_corpus_fts` | `title`, `author`, `contents` | Live articles | `articles_feed_corpus_*` |
 | `actor_sessions_fts` | `title` | Actor sessions | `actor_sessions_search_*` |
 | `actor_session_messages_fts` | `text` | Actor session messages of kind `text`, from either side | `actor_session_messages_search_*` |
@@ -1277,7 +1284,7 @@ internal error.
 
 | Search | Request and command | Ranks by | Returns |
 |---|---|---|---|
-| Workspace | `SearchWorkspace{workspace_id, query}`, `SearchWorkspaceCommand` | `bm25(search_fts, 5.0, 1.0)`: title weighs 5, contents 1 | `Vec<SearchResult>` (`id` of the index entry, `entity_kind` (`document`, `task`, `resource`, `contact`), `entity_id`, `workspace_id`, `title`, `contents`, `status`: a task's status, `"none"` for the other kinds, read from `tasks` when searched); no paging, no snippet. Scripts: `workspace.search(query)`. CLI: `cohesion search`. |
+| Workspace | `SearchWorkspace{workspace_id, query}`, `SearchWorkspaceCommand` | `bm25(search_fts, 5.0, 1.0)`: title weighs 5, contents 1 | `Vec<SearchResult>` (`id` of the index entry, `entity_kind` (`document`, `task`, `resource`, `contact`, `taskFolder`, `documentFolder`), `entity_id`, `workspace_id`, `title`, `contents`, `status`: a task's status, `"none"` for the other kinds, read from `tasks` when searched); no paging, no snippet. Scripts: `workspace.search(query)`. CLI: `cohesion search`. |
 | Corpus (articles) | `SearchFeedCorpus{query, feed_ids?, offset, limit?}`, `SearchFeedCorpusCommand` | `bm25(feed_corpus_fts, 5.0, 2.0, 1.0)` | `FeedCorpusPage{hits, total}`, each hit with a 24-token snippet of the text; 50 a page by default, 500 at most. Scripts: `cohesion.searchCorpus(query, {feedIds})`, the best 200 whole articles. |
 | Actor sessions | `SearchActorSessions{query}`, `SearchActorSessionsCommand` | Title matches at `5.0 * bm25`, message matches at `bm25`; each session's best match, then most recently changed | `Vec<ActorSessionSearchHit>` across every actor, resolved sessions included, with a snippet when a message matched |
 
@@ -2138,10 +2145,27 @@ and `documentFolders` as a folder's representation changes), through
 (`core.ts`), and one file of handlers per area (`handlers/`). With `npm run dev`, `.env.development` sets
 `VITE_DEV_PROXY=1`, so the page doesn't ask for a token.
 
+**Folders** (`features/folders/FolderHeading.svelte`,
+`features/documents/DocumentFolderSwitcher.svelte`,
+`features/tasks/TaskListSwitcher.svelte`). The sidebar lists only the pinned
+folders under Documents and Tasks (`shell/sidebarFolders.ts`), unpinning on
+hover. The Documents and Tasks pages head themselves with breadcrumbs, from
+the page down through the folders holding the one shown, and the title of
+what's shown opens a switcher listing everything there is: for Documents,
+All, the Inbox and the folder tree (nesting and reordering by drag); for
+Tasks, All, the Inbox, the folders, Done, Cancelled and the saved views (each
+reordering by drag). A filter narrows it by title, and each folder's tools pin,
+rename and delete it (a document folder also makes one inside it); "New
+folder…" ends it. The dialogs are in the root layout (`FolderDialogs`). The
+Tasks header's Views menu saves what's shown as a view or updates one. Search
+(`searchWorkspace`) finds folders too, in the palette and, for document
+folders, after `@`.
+
 **Tables** (`routes/w/[ws]/documents/`, `features/tables/`,
 `stores/tables.svelte.ts`). A document folder with columns is a table
-(`DocumentFolder.representation` is `table`); there is no Databases page. The sidebar marks
-a table folder with a table icon, and the Documents page shows a table folder as one
+(`DocumentFolder.representation` is `table`); there is no Databases page. Wherever a document
+folder is listed (the sidebar, the Documents page's switcher, search) a table wears a table's
+icon in place of a folder's, and the Documents page shows a table folder as one
 (`DocumentTable.svelte`) instead of its list: the title first, edited in place
 as a rename (`renameDocument`), then a column per property in its order, its
 header a menu to sort (the type's two directions or none), filter, rename,
@@ -2211,7 +2235,7 @@ each keep their row in a `DocumentValues` of the store (`panel`, `page`), and
 a write in the table, the panel or the page updates the others from its reply.
 
 **Moving a document** goes through `DocumentMover.svelte`, whichever way it
-is moved: a document from a list or a table's row dropped on a document folder
+is moved: a document from a list or a table's row dropped on a pinned document folder
 in the sidebar (`DOCUMENT_DRAG`), and "Move to" on a document's page. Leaving a table deletes
 the document's values, so when it holds any set by hand
 (`DocumentsStore.moveLosesValues`, the one rule), it asks "Move “Dune” to

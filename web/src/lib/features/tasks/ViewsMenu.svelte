@@ -1,8 +1,8 @@
 <!--
-	The Tasks header's Views menu: the lists across folders (All, Done, Cancelled), "Save view…" to
-	keep what the page shows now (the list, the tags narrowing it and an order) under a name, and
-	"Update view" to make a saved view keep that instead. The saved views themselves are listed in the
-	sidebar, under Tasks, where they are renamed, deleted and put in order.
+	The Tasks header's Views menu: "Save view…" to keep what the page shows now (the list, the tags
+	narrowing it and an order) under a name, and "Update view" to make a saved view keep that
+	instead. The saved views themselves are listed in the heading's switcher (`TaskListSwitcher`),
+	where they are opened, renamed, deleted and put in order.
 -->
 <script lang="ts">
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
@@ -18,31 +18,17 @@
 
 	interface Props {
 		views: SavedTaskView[];
-		/** The list shown when no saved view keeps what the page shows. */
-		list: 'inbox' | 'all' | 'done' | 'cancelled' | number | null;
 		/** The view keeping exactly what the page shows, if one does. */
 		current: number | null;
-		onlist: (list: 'all' | 'done' | 'cancelled') => void;
 		oncreate: (name: string) => Promise<unknown>;
 		/** Makes a view keep what the page shows now. */
 		onupdate: (view: SavedTaskView) => Promise<unknown>;
 	}
 
-	let { views, list, current, onlist, oncreate, onupdate }: Props = $props();
-
-	const LISTS = [
-		['all', 'All'],
-		['done', 'Done'],
-		['cancelled', 'Cancelled']
-	] as const;
+	let { views, current, oncreate, onupdate }: Props = $props();
 
 	const items = $derived<MenuItem[]>([
-		...LISTS.map(([value, label]) => ({
-			label,
-			checked: current === null && list === value,
-			onSelect: () => onlist(value)
-		})),
-		{ label: 'Save view…', separated: true, onSelect: openNaming },
+		{ label: 'Save view…', onSelect: openNaming },
 		...(views.length > 0
 			? [
 					{

@@ -11,4 +11,6 @@ pub struct TaskFolder {
     /// Where the folder sits among its workspace's folders; lower comes first.
     pub sort_order: i64,
     pub deleted: bool,
+    /// Whether the folder is pinned to the sidebar, under Tasks.
+    pub pinned: bool,
 }

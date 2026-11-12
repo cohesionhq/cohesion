@@ -33,13 +33,11 @@
 	import WorkingMark from '$lib/shell/WorkingMark.svelte';
 
 	import FolderDialogs from '$lib/shell/FolderDialogs.svelte';
-	import { folderDialogs } from '$lib/shell/folderDialogs.svelte';
 	import DocumentMover from '$lib/features/documents/DocumentMover.svelte';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
 	import type { ActorSession } from '$lib/protocol/types';
 	import { isGoing } from '$lib/stores/actors.svelte';
 	import { connectors } from '$lib/stores/connectors.svelte';
-	import { rememberOrder } from '$lib/stores/tasks.svelte';
 	import { refreshAll, refreshInvalidated } from '$lib/stores/resource.svelte';
 	import { workspaces } from '$lib/stores/workspaces.svelte';
 	import Toast from '$lib/ui/Toast.svelte';
@@ -145,7 +143,8 @@
 	$effect(() => {
 		if (workspaces.currentId !== null) void resources.shownKinds.load(workspaces.currentId);
 	});
-	// The sidebar lists the current workspace's document and task folders.
+	// The sidebar lists the current workspace's pinned document and task folders; the Tasks
+	// page's switcher, its saved views.
 	$effect(() => {
 		if (workspaces.currentId === null) return;
 		void documents.folders.load(workspaces.currentId);
@@ -306,19 +305,10 @@
 				? documents.folders.value
 				: []}
 			taskFolders={tasks.folders.key === workspaces.currentId ? tasks.folders.value : []}
-			taskViews={tasks.views.key === workspaces.currentId ? tasks.views.value : []}
-			onreorderviews={(ids) =>
+			onunpinfolder={(kind, id) =>
 				workspaces.currentId !== null &&
-				tasks.reorderViews(workspaces.currentId, ids).catch((e) => toasts.error(e))}
-			onpickview={(view) => rememberOrder({ sort: view.sort, descending: view.descending })}
-			onfolder={(request) => folderDialogs.request(request)}
-			onreorderfolders={(ids) =>
-				workspaces.currentId !== null &&
-				tasks.reorderFolders(workspaces.currentId, ids).catch((e) => toasts.error(e))}
-			onmovefolder={(folder, parent_id, before_id) =>
-				workspaces.currentId !== null &&
-				documents
-					.moveFolder(workspaces.currentId, folder.id, parent_id, before_id)
+				(kind === 'documents' ? documents : tasks)
+					.setFolderPinned(workspaces.currentId, id, false)
 					.catch((e) => toasts.error(e))}
 			onfiledocument={fileDocument}
 			onresolve={resolveSession}

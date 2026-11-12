@@ -7,6 +7,17 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- The sidebar lists only the folders you pin under Documents and Tasks.
+  Every folder is a click away in the switcher under the Documents and Tasks
+  pages' titles, which now show breadcrumbs through nested folders; that's
+  where folders are made, renamed, deleted, pinned and put in order, and
+  where saved task views are opened. Task and document folders gain
+  `pinned`, set with `setTaskFolderPinned` and `setDocumentFolderPinned`.
+  Search finds task and document folders by title: `searchWorkspace` answers
+  `entity_kind` `taskFolder` and `documentFolder`, `cohesion search` lists
+  them and a script's `SearchResult.open()` returns the folder. The iPhone
+  app has to learn the two new kinds before it can read these search
+  results.
 - Cohesion strips TypeScript from scripts with its own parser, in place of
   swc. Scripts run as before, and the assertion `<T>value` now works. A
   syntax error in a script is reported by the script engine, with its line

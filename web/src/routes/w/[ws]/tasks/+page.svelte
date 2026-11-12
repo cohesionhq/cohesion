@@ -2,6 +2,8 @@
 	import { tick, untrack } from 'svelte';
 	import AddTaskRow from '$lib/features/tasks/AddTaskRow.svelte';
 	import ViewsMenu from '$lib/features/tasks/ViewsMenu.svelte';
+	import TaskListSwitcher from '$lib/features/tasks/TaskListSwitcher.svelte';
+	import FolderHeading from '$lib/features/folders/FolderHeading.svelte';
 	import SortMenu from '$lib/features/tasks/SortMenu.svelte';
 	import TaskDetails from '$lib/features/tasks/TaskDetails.svelte';
 	import TaskFilters from '$lib/features/tasks/TaskFilters.svelte';
@@ -183,7 +185,9 @@
 		tasks.views.key === ws ? (tasks.views.value.find((v) => savedAs(v, filters)) ?? null) : null
 	);
 
-	// A saved view picked in the sidebar leaves its order as the remembered one; take it.
+	let switching = $state(false);
+
+	// A saved view picked in the switcher leaves its order as the remembered one; take it.
 	$effect(() => {
 		void page.url;
 		untrack(() => {
@@ -425,7 +429,27 @@
 
 <!-- The header runs across the sheet as on every page; the folders and the list sit under it. -->
 <div class="px-(--page-inset)">
-	<PageHeader title={viewName}>
+	<PageHeader>
+		{#snippet heading()}
+			<FolderHeading
+				crumbs={[{ label: 'Tasks', href: viewHref('all') }]}
+				title={viewName}
+				bind:open={switching}
+			>
+				<TaskListSwitcher
+					folders={tasks.folders.value}
+					views={tasks.views.value}
+					current={view}
+					currentView={saved?.id ?? null}
+					base={routes.tasks(ws)}
+					onpick={() => (switching = false)}
+					onpickview={(v) => rememberOrder({ sort: v.sort, descending: v.descending })}
+					onpin={(f, pinned) => run(tasks.setFolderPinned(ws, f.id, pinned))}
+					onreorderfolders={(ids) => run(tasks.reorderFolders(ws, ids))}
+					onreorderviews={(ids) => run(tasks.reorderViews(ws, ids))}
+				/>
+			</FolderHeading>
+		{/snippet}
 		{#snippet meta()}
 			{#if tasks.list.loaded && !folderGone}
 				<span>{count} {countLabel}</span>
@@ -448,9 +472,7 @@
 			{/if}
 			<ViewsMenu
 				views={tasks.views.value}
-				list={view}
 				current={saved?.id ?? null}
-				onlist={(v) => page.goto(viewHref(v))}
 				oncreate={(name) => tasks.createView(ws, name, filters)}
 				onupdate={(v) => tasks.updateView(ws, v.id, filters)}
 			/>

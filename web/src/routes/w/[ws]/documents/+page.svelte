@@ -30,7 +30,14 @@
 	import PageTitle from '$lib/shell/PageTitle.svelte';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 	import { DOCUMENT_DRAG } from '$lib/features/documents/drag';
-	import { type DocumentView, listedIn, tableIds } from '$lib/features/documents/folderTree';
+	import {
+		type DocumentView,
+		folderPath,
+		listedIn,
+		tableIds
+	} from '$lib/features/documents/folderTree';
+	import DocumentFolderSwitcher from '$lib/features/documents/DocumentFolderSwitcher.svelte';
+	import FolderHeading, { type Crumb } from '$lib/features/folders/FolderHeading.svelte';
 	import DocumentTable from '$lib/features/tables/DocumentTable.svelte';
 	import FilterDialog from '$lib/features/tables/FilterDialog.svelte';
 	import PropertyDialog, {
@@ -99,6 +106,18 @@
 	const viewName = $derived(
 		view === 'all' ? 'Documents' : view === 'inbox' ? 'Inbox' : (folder?.title ?? 'Folder')
 	);
+	/** The way down to what's shown: the page's All, then the folders holding the one shown. */
+	const crumbs = $derived.by((): Crumb[] => {
+		if (view === 'all') return [];
+		const holding =
+			typeof view === 'number' ? folderPath(documents.folders.value, view).slice(0, -1) : [];
+		return [
+			{ label: 'Documents', href: viewHref('all') },
+			...holding.map((f) => ({ label: f.title, href: viewHref(f.id) }))
+		];
+	});
+	let switching = $state(false);
+
 	/** The folder new documents go in from here: the one shown, or the Inbox. */
 	const newIn = $derived(typeof view === 'number' ? view : null);
 	const folderTitles = $derived(new Map(documents.folders.value.map((f) => [f.id, f.title])));
@@ -266,7 +285,20 @@
 <PageTitle title={view === 'all' ? 'Documents' : `${viewName} · Documents`} />
 
 <div class="px-(--page-inset)">
-	<PageHeader title={viewName}>
+	<PageHeader>
+		{#snippet heading()}
+			<FolderHeading {crumbs} title={viewName} bind:open={switching}>
+				<DocumentFolderSwitcher
+					folders={documents.folders.value}
+					current={view}
+					href={viewHref}
+					onpick={() => (switching = false)}
+					onmove={(f, parent_id, before_id) =>
+						run(documents.moveFolder(ws, f.id, parent_id, before_id))}
+					onpin={(f, pinned) => run(documents.setFolderPinned(ws, f.id, pinned))}
+				/>
+			</FolderHeading>
+		{/snippet}
 		{#snippet actions()}
 			{#if isTable}
 				<Button variant="secondary" onclick={() => openFilter(null)}

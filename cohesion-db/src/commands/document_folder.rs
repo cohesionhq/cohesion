@@ -7,7 +7,7 @@ use cohesion_core::model::DocumentFolderRepresentation;
 use cohesion_core::protocol::{
     CreateDocumentFolderRequest, DeleteDocumentFolderRequest, ListDocumentFoldersRequest,
     MoveDocumentFolderRequest, MoveDocumentRequest, RenameDocumentFolderRequest,
-    SetDocumentFolderRepresentationRequest,
+    SetDocumentFolderPinnedRequest, SetDocumentFolderRepresentationRequest,
 };
 use cohesion_core::{Document, DocumentFolder, DocumentType, FromRequest};
 
@@ -231,6 +231,34 @@ impl DatabaseCommand for SetDocumentFolderRepresentationCommand {
             Invalidation::DocumentFolders(self.workspace_id),
             Invalidation::DocumentTable(self.folder_id),
         ]))
+    }
+}
+
+/// Pins a live document folder to the sidebar, or unpins it.
+#[derive(FromRequest)]
+#[request(SetDocumentFolderPinnedRequest)]
+pub struct SetDocumentFolderPinnedCommand {
+    pub workspace_id: i64,
+    pub folder_id: i64,
+    pub pinned: bool,
+}
+impl DatabaseCommand for SetDocumentFolderPinnedCommand {
+    type Response = DocumentFolder;
+    type Access = Write;
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_>,
+    ) -> DatabaseCommandResult<Changed<DocumentFolder>> {
+        ensure_workspace(ctx.db, self.workspace_id)?;
+        let folder = ctx
+            .db
+            .update_live()
+            .set(DocumentFolder::PINNED, self.pinned)
+            .filter_eq(DocumentFolder::WORKSPACE_ID, self.workspace_id)
+            .filter_eq(DocumentFolder::ID, self.folder_id)
+            .returning_one()
+            .found()?;
+        Ok(folder.invalidating([Invalidation::DocumentFolders(self.workspace_id)]))
     }
 }
 

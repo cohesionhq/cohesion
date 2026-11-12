@@ -28,3 +28,31 @@ export const navAction =
  * screens, where it scrolls with it. */
 export const navPane =
 	'sticky top-(--page-header-height) -mb-12 max-h-[calc(100dvh-var(--titlebar-inset)-var(--page-header-height))] w-(--sidebar-width) flex-none [scrollbar-width:none] self-start overflow-y-auto pb-6 max-md:static max-md:mb-0 max-md:max-h-none max-md:w-auto max-md:overflow-visible max-md:pb-0';
+
+// ---- The folder switcher under a page's heading (`FolderHeading`) ---------------------------
+
+/** A row of the switcher: a link, then its tools at the end. The row of what's shown is filled. */
+export const switcherRow =
+	'group/row relative flex min-h-7.5 items-center gap-1 rounded-sm hover:bg-bg-hover has-[[aria-current=page]]:bg-current-item';
+
+/** A row's link, holding its icon and title; `aria-current="page"` marks what's shown. */
+export const switcherLink =
+	'flex min-w-0 flex-1 items-center gap-2 self-stretch rounded-sm px-2 text-fg-muted no-underline hover:text-fg hover:no-underline aria-[current=page]:font-medium aria-[current=page]:text-fg [&_svg]:flex-none [&_svg]:text-fg-subtle';
+
+/** A row's tools (pin, rename, delete): shown on hover or focus, and always on touch. */
+export const switcherTools =
+	'flex flex-none items-center pr-1 opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 touch:opacity-100';
+
+/** One of a row's tools, an icon button. */
+export const switcherTool =
+	'inline-flex size-6 cursor-pointer items-center justify-center rounded-sm text-fg-subtle hover:text-fg';
+
+/** A group's label in the switcher, such as "Views". */
+export const switcherHeading = 'px-2 pt-2 pb-1 text-xs font-medium text-fg-subtle';
+
+/** A rule between the switcher's groups. */
+export const switcherRule = 'mx-1 my-1 h-px flex-none bg-border';
+
+/** A quiet button ending the switcher, such as "New folder…". */
+export const switcherAction =
+	'flex min-h-7.5 cursor-pointer items-center gap-2 rounded-sm px-2 text-left text-fg-subtle hover:bg-bg-hover hover:text-fg';

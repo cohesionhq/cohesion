@@ -1,8 +1,12 @@
 use crate::test_support::context;
+use cohesion_core::model::SearchEntityKind;
+
 use crate::{
-    ChangeTaskStatusCommand, CommandError, CreateDocumentCommand, CreateTaskCommand,
-    CreateWorkspaceCommand, DeleteWorkspaceCommand, GetWorkspaceIncludingDeletedCommand,
-    RenameWorkspaceCommand, SearchWorkspaceCommand, SetWorkspaceEmojiCommand,
+    ChangeTaskStatusCommand, CommandError, CreateDocumentCommand, CreateDocumentFolderCommand,
+    CreateTaskCommand, CreateTaskFolderCommand, CreateWorkspaceCommand,
+    DeleteDocumentFolderCommand, DeleteTaskFolderCommand, DeleteWorkspaceCommand,
+    GetWorkspaceIncludingDeletedCommand, RenameDocumentFolderCommand, RenameWorkspaceCommand,
+    SearchWorkspaceCommand, SetWorkspaceEmojiCommand,
 };
 
 #[test]
@@ -191,4 +195,69 @@ fn an_unrelated_database_failure_during_a_search_stays_internal() {
             "{detail}"
         );
     }
+}
+
+#[test]
+fn search_finds_live_folders_by_title() {
+    let db = context();
+    let ws = db
+        .send_blocking(CreateWorkspaceCommand {
+            title: "home".to_string(),
+            emoji: None,
+        })
+        .unwrap()
+        .id;
+    let tasks = db
+        .send_blocking(CreateTaskFolderCommand {
+            workspace_id: ws,
+            title: "Garden chores".to_string(),
+        })
+        .unwrap();
+    let docs = db
+        .send_blocking(CreateDocumentFolderCommand {
+            workspace_id: ws,
+            title: "Garden plans".to_string(),
+            parent_id: None,
+        })
+        .unwrap();
+    let search = |query: &str| -> Vec<(bool, i64)> {
+        let mut hits: Vec<_> = db
+            .send_blocking(SearchWorkspaceCommand {
+                workspace_id: ws,
+                query: query.to_string(),
+            })
+            .unwrap()
+            .into_iter()
+            .map(|hit| {
+                let task_folder = matches!(hit.entity_kind, SearchEntityKind::TaskFolder);
+                assert!(task_folder || matches!(hit.entity_kind, SearchEntityKind::DocumentFolder));
+                (task_folder, hit.entity_id)
+            })
+            .collect();
+        hits.sort();
+        hits
+    };
+    assert_eq!(search("garden"), [(false, docs.id), (true, tasks.id)]);
+
+    db.send_blocking(RenameDocumentFolderCommand {
+        workspace_id: ws,
+        folder_id: docs.id,
+        title: "Allotment".to_string(),
+    })
+    .unwrap();
+    assert_eq!(search("garden"), [(true, tasks.id)]);
+    assert_eq!(search("allotment"), [(false, docs.id)]);
+
+    db.send_blocking(DeleteTaskFolderCommand {
+        workspace_id: ws,
+        folder_id: tasks.id,
+    })
+    .unwrap();
+    db.send_blocking(DeleteDocumentFolderCommand {
+        workspace_id: ws,
+        folder_id: docs.id,
+    })
+    .unwrap();
+    assert!(search("garden").is_empty());
+    assert!(search("allotment").is_empty());
 }

@@ -1834,6 +1834,8 @@ export interface DocumentFolder {
 	deleted: boolean;
 	/** Whether the folder shows as a list or a table. */
 	representation: DocumentFolderRepresentation;
+	/** Whether the folder is pinned to the sidebar, under Documents. */
+	pinned: boolean;
 }
 
 /**
@@ -4380,9 +4382,10 @@ export interface SearchDocumentRequest {
 
 /**
  * What kind of item a search result points at: `"document"`, `"task"`,
- * `"resource"` or `"contact"`.
+ * `"resource"`, `"contact"`, `"taskFolder"` or `"documentFolder"`.
  */
-export type SearchEntityKind = 'document' | 'task' | 'resource' | 'contact';
+export type SearchEntityKind =
+	'document' | 'task' | 'resource' | 'contact' | 'taskFolder' | 'documentFolder';
 
 /**
  * Asks every extension with the `registry` permission granted for the
@@ -4408,7 +4411,8 @@ export interface SearchFeedCorpusRequest {
 
 /**
  * One full-text search hit: a snapshot of the matched document's, task's,
- * resource's or contact's indexed text, plus a pointer back to it.
+ * resource's, contact's or folder's indexed text, plus a pointer back to it.
+ * A folder is indexed by its title alone.
  */
 export interface SearchResult {
 	/**
@@ -4417,10 +4421,13 @@ export interface SearchResult {
 	 * This is **not** the matched item's id; that is the entity id.
 	 */
 	id: number;
-	/** Whether the hit is a document, a task, a resource or a contact. */
+	/**
+	 * Whether the hit is a document, a task, a resource, a contact or a task
+	 * or document folder.
+	 */
 	entity_kind: SearchEntityKind;
 	/**
-	 * Id of the matched document, task, resource or contact (which one
+	 * Id of the matched document, task, resource, contact or folder (which one
 	 * depends on the entity kind).
 	 */
 	entity_id: number;
@@ -4430,12 +4437,12 @@ export interface SearchResult {
 	title: string | null;
 	/**
 	 * The matched document's full contents, a Markdown resource's text or a
-	 * contact's notes; always `""` for tasks and JSON resources.
+	 * contact's notes; always `""` for tasks, folders and JSON resources.
 	 */
 	contents: string;
 	/**
 	 * The matched task's status (`"incomplete"`, `"completed"` or
-	 * `"cancelled"`); `"none"` for documents, resources and contacts, which
+	 * `"cancelled"`); `"none"` for every other kind, which
 	 * have no status, so every hit has the same shape.
 	 */
 	status: string;
@@ -4643,6 +4650,16 @@ export interface SetContactPhotoRequest {
 }
 
 /**
+ * Pins document folder `folder_id` in a workspace to the sidebar, or unpins
+ * it. The folders inside it are left as they are.
+ */
+export interface SetDocumentFolderPinnedRequest {
+	workspace_id: number;
+	folder_id: number;
+	pinned: boolean;
+}
+
+/**
  * Makes property `property_id` of a folder a formula computing its values
  * as `formula` defines (refused for a choice property), or changes its
  * source or update mode; with
@@ -4832,6 +4849,13 @@ export interface SetTaskAssigneeRequest {
 	workspace_id: number;
 	task_id: number;
 	assignee: TaskAssignee | null;
+}
+
+/** Pins task folder `folder_id` in a workspace to the sidebar, or unpins it. */
+export interface SetTaskFolderPinnedRequest {
+	workspace_id: number;
+	folder_id: number;
+	pinned: boolean;
 }
 
 /** Sets the priority of task `task_id` in a workspace. */
@@ -5163,6 +5187,8 @@ export interface TaskFolder {
 	/** Where the folder sits among its workspace's folders; lower comes first. */
 	sort_order: number;
 	deleted: boolean;
+	/** Whether the folder is pinned to the sidebar, under Tasks. */
+	pinned: boolean;
 }
 
 /**
@@ -5742,6 +5768,8 @@ export interface Requests {
 	moveDocumentFolder: MoveDocumentFolderRequest;
 	/** Sets whether a document folder shows as a list or a table. */
 	setDocumentFolderRepresentation: SetDocumentFolderRepresentationRequest;
+	/** Pins a document folder to the sidebar, or unpins it. */
+	setDocumentFolderPinned: SetDocumentFolderPinnedRequest;
 	/** Deletes a document folder and the folders inside it. */
 	deleteDocumentFolder: DeleteDocumentFolderRequest;
 	/**
@@ -5824,6 +5852,8 @@ export interface Requests {
 	deleteTaskFolder: DeleteTaskFolderRequest;
 	/** Retitles task folder `folder_id` in a workspace. */
 	renameTaskFolder: RenameTaskFolderRequest;
+	/** Pins a task folder to the sidebar, or unpins it. */
+	setTaskFolderPinned: SetTaskFolderPinnedRequest;
 	/** Reorders a workspace's task folders; replies with them in their new order. */
 	reorderTaskFolders: ReorderTaskFoldersRequest;
 	/** Lists a workspace's saved task views, in their order. */
@@ -6326,6 +6356,8 @@ export interface Replies {
 	moveDocumentFolder: DocumentFolder[];
 	/** Sets whether a document folder shows as a list or a table. */
 	setDocumentFolderRepresentation: DocumentFolder;
+	/** Pins a document folder to the sidebar, or unpins it. */
+	setDocumentFolderPinned: DocumentFolder;
 	/** Deletes a document folder and the folders inside it. */
 	deleteDocumentFolder: DocumentFolder;
 	/**
@@ -6408,6 +6440,8 @@ export interface Replies {
 	deleteTaskFolder: TaskFolder;
 	/** Retitles task folder `folder_id` in a workspace. */
 	renameTaskFolder: TaskFolder;
+	/** Pins a task folder to the sidebar, or unpins it. */
+	setTaskFolderPinned: TaskFolder;
 	/** Reorders a workspace's task folders; replies with them in their new order. */
 	reorderTaskFolders: TaskFolder[];
 	/** Lists a workspace's saved task views, in their order. */

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { DocumentFolder, SavedTaskView, TaskFolder } from '$lib/protocol/types';
+import { savedViewQuery } from '$lib/stores/tasks.svelte';
 import { routes } from './routes';
-import { documentFolderRows, savedViewRows, taskFolderRows } from './sidebarFolders';
+import { documentFolderRows, taskFolderRows } from './sidebarFolders';
 
 const docFolder = (
 	id: number,
@@ -17,6 +18,7 @@ const docFolder = (
 	sort_order,
 	deleted: false,
 	representation: 'list',
+	pinned: true,
 	...extra
 });
 
@@ -24,44 +26,39 @@ const taskFolder = (
 	id: number,
 	title: string,
 	sort_order: number,
-	deleted = false
+	extra: Partial<TaskFolder> = {}
 ): TaskFolder => ({
 	id,
 	workspace_id: 1,
 	title,
 	sort_order,
-	deleted
+	deleted: false,
+	pinned: true,
+	...extra
 });
 
 describe('documentFolderRows', () => {
 	const folders = [
 		docFolder(2, 'Research', null, 2),
-		docFolder(1, 'Design', null, 1),
+		docFolder(1, 'Design', null, 1, { pinned: false }),
 		docFolder(3, 'Search', 2, 1),
 		docFolder(4, 'Reading list', null, 3, { representation: 'table' }),
 		docFolder(5, 'Old', null, 4, { deleted: true })
 	];
 
-	it('lists the Inbox, then live folders in reading order, nested ones a step in', () => {
+	it('lists the live pinned folders in reading order, a nested one after its parent', () => {
 		const rows = documentFolderRows(1, folders, '/', '');
-		expect(rows.map((r) => [r.label, r.depth, r.table])).toEqual([
-			['Inbox', 0, false],
-			['Design', 0, false],
-			['Research', 0, false],
-			['Search', 1, false],
-			['Reading list', 0, true]
+		expect(rows.map((r) => [r.label, r.table])).toEqual([
+			['Research', false],
+			['Search', false],
+			['Reading list', true]
 		]);
-		expect(rows[4].href).toBe(routes.documentFolder(1, 4));
+		expect(rows[2].href).toBe(routes.documentFolder(1, 4));
 	});
 
 	it('marks the folder the Documents page shows', () => {
 		const rows = documentFolderRows(1, folders, routes.documents(1), '?folder=3');
 		expect(rows.filter((r) => r.current).map((r) => r.label)).toEqual(['Search']);
-	});
-
-	it('marks the Inbox while the Documents page shows it', () => {
-		const rows = documentFolderRows(1, folders, routes.documents(1), '?folder=inbox');
-		expect(rows.filter((r) => r.current).map((r) => r.label)).toEqual(['Inbox']);
 	});
 
 	it('marks nothing on another page with the same query', () => {
@@ -74,21 +71,17 @@ describe('taskFolderRows', () => {
 	const folders = [
 		taskFolder(2, 'WebUI', 2),
 		taskFolder(1, 'Core', 1),
-		taskFolder(3, 'Gone', 3, true)
+		taskFolder(4, 'Plus', 4, { pinned: false }),
+		taskFolder(3, 'Gone', 3, { deleted: true })
 	];
 
-	it('lists the Inbox, then live folders in the order listed, as a reorder leaves them', () => {
+	it('lists the live pinned folders in the order listed, as a reorder leaves them', () => {
 		const rows = taskFolderRows(1, folders, '/', '');
-		expect(rows.map((r) => r.label)).toEqual(['Inbox', 'WebUI', 'Core']);
-		expect(rows[1].href).toBe(`${routes.tasks(1)}?view=2`);
+		expect(rows.map((r) => r.label)).toEqual(['WebUI', 'Core']);
+		expect(rows[0].href).toBe(`${routes.tasks(1)}?view=2`);
 	});
 
-	it('marks the view the Tasks page shows', () => {
-		expect(
-			taskFolderRows(1, folders, routes.tasks(1), '?view=inbox')
-				.filter((r) => r.current)
-				.map((r) => r.label)
-		).toEqual(['Inbox']);
+	it('marks the folder the Tasks page shows', () => {
 		expect(
 			taskFolderRows(1, folders, routes.tasks(1), '?view=2')
 				.filter((r) => r.current)
@@ -101,39 +94,25 @@ describe('taskFolderRows', () => {
 	});
 });
 
-describe('savedViewRows', () => {
-	const view = (id: number, name: string, extra: Partial<SavedTaskView> = {}): SavedTaskView => ({
-		id,
+describe('savedViewQuery', () => {
+	const view = (extra: Partial<SavedTaskView> = {}): SavedTaskView => ({
+		id: 1,
 		workspace_id: 1,
-		name,
+		name: 'View',
 		scope: 'all',
 		tags: { with: [], without: [] },
 		priorities: [],
 		sizes: [],
 		sort: 'created',
 		descending: false,
-		sort_order: id,
+		sort_order: 1,
 		...extra
 	});
 
-	it('opens each view on the list, tags, priorities and sizes it keeps', () => {
-		const rows = savedViewRows(
-			1,
-			[view(1, 'Plain'), view(2, 'Tagged', { scope: 3, tags: { with: [7], without: [8] } })],
-			routes.tasks(1),
-			''
-		);
-		expect(rows.map((r) => [r.label, r.href])).toEqual([
-			['Plain', `${routes.tasks(1)}?view=all`],
-			['Tagged', `${routes.tasks(1)}?view=3&tag=7&without=8`]
-		]);
-	});
-
-	it('marks the view whose address the page has', () => {
-		const rows = savedViewRows(1, [view(1, 'Plain')], routes.tasks(1), '?view=all');
-		expect(rows[0].current).toBe(true);
-		expect(savedViewRows(1, [view(1, 'Plain')], routes.tasks(1), '?view=done')[0].current).toBe(
-			false
+	it('opens a view on the list, tags, priorities and sizes it keeps', () => {
+		expect(savedViewQuery(view())).toBe('?view=all');
+		expect(savedViewQuery(view({ scope: 3, tags: { with: [7], without: [8] } }))).toBe(
+			'?view=3&tag=7&without=8'
 		);
 	});
 });
