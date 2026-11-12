@@ -174,7 +174,8 @@ export class AgentsStore {
 				return list;
 			},
 			initial: [],
-			matches: (key) => key.kind === 'agent'
+			// Removing a model puts the agents that ran on it back on the default.
+			matches: (key) => key.kind === 'agent' || key.kind === 'intelligence'
 		});
 		this.teams = new Resource({
 			fetch: () => send('listAgentTeams'),
@@ -505,6 +506,15 @@ export class AgentsStore {
 			list.map((a) => (a.id === moved.id ? { ...a, team_id: moved.team_id } : a))
 		);
 		return moved;
+	}
+
+	/** Runs agent `agent_id` on endpoint model `endpoint_model_id`, or on the `agent` tier's default. */
+	async setModel(agent_id: number, endpoint_model_id: number | null): Promise<IntelligenceAgent> {
+		const set = await this.#send('setAgentModel', { agent_id, endpoint_model_id });
+		this.list.update((list) =>
+			list.map((a) => (a.id === set.id ? { ...a, endpoint_model_id: set.endpoint_model_id } : a))
+		);
+		return set;
 	}
 
 	/** Creates a team, with no agents on it yet. */

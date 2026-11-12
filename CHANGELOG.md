@@ -7,6 +7,13 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- An agent can talk on a model of its own in place of the `agent` default.
+  Pick it under More options in the agent's Edit dialog, or use
+  `cohesion agent update <agent> --model <endpoint> <model>`
+  (`--default-model` to go back). The new `setAgentModel` request sets it,
+  and agents gain `endpoint_model_id`. Removing the model puts the agent back
+  on the default. Background runs from cues keep their effort tier. The
+  iPhone app doesn't show or set it yet.
 - Cohesion strips TypeScript from scripts with its own parser, in place of
   swc. Scripts run as before, and the assertion `<T>value` now works. A
   syntax error in a script is reported by the script engine, with its line

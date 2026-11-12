@@ -9,7 +9,8 @@ use cohesion_core::{
     protocol::{
         CreateIntelligenceAgentRequest, DeleteIntelligenceAgentRequest,
         GetIntelligenceAgentRequest, ListIntelligenceAgentsRequest, MarkAgentReadRequest,
-        ReorderIntelligenceAgentsRequest, SetAgentPinnedRequest, UpdateIntelligenceAgentRequest,
+        ReorderIntelligenceAgentsRequest, SetAgentModelRequest, SetAgentPinnedRequest,
+        UpdateIntelligenceAgentRequest,
     },
 };
 
@@ -17,7 +18,7 @@ use super::{agent_name::agent_name, emoji::emoji};
 use crate::changed::{Changed, Invalidates};
 use crate::{
     CommandContext, DatabaseCommand, DatabaseCommandResult, DatabaseEventKind, Filtered, Found,
-    Read, ReadableDatabase, Write,
+    GetEndpointModelCommand, IntelligenceSettings, Read, ReadableDatabase, Write,
 };
 
 /// Creates an agent, on team `team_id` if given. A blank or absent name
@@ -249,6 +250,37 @@ impl DatabaseCommand for UpdateIntelligenceAgentCommand {
                     directive.trim().to_string()
                 }),
             )
+            .filter_eq(IntelligenceAgent::ID, self.agent_id)
+            .returning_one()
+            .found()?;
+        let key = Invalidation::Agent(agent.id);
+        Ok(agent.invalidating([key]))
+    }
+}
+
+/// Runs an agent's conversation on endpoint model `endpoint_model_id`, or
+/// on the `agent` tier's default when it is `None`. Choosing a model is an
+/// intelligence setting, like a tier's default.
+#[derive(FromRequest)]
+#[request(SetAgentModelRequest)]
+pub struct SetAgentModelCommand {
+    pub agent_id: i64,
+    pub endpoint_model_id: Option<i64>,
+}
+impl DatabaseCommand for SetAgentModelCommand {
+    type Response = IntelligenceAgent;
+    type Access = Write<IntelligenceSettings>;
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_, Self::Access>,
+    ) -> DatabaseCommandResult<Changed<Self::Response>> {
+        if let Some(id) = self.endpoint_model_id {
+            GetEndpointModelCommand { id }.handle(&mut ctx.as_read())?;
+        }
+        let agent: IntelligenceAgent = ctx
+            .db
+            .update()
+            .set(IntelligenceAgent::ENDPOINT_MODEL_ID, self.endpoint_model_id)
             .filter_eq(IntelligenceAgent::ID, self.agent_id)
             .returning_one()
             .found()?;

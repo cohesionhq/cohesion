@@ -5053,6 +5053,13 @@ pub const MIGRATIONS: &[Migration] = &[
             WHERE document_folder_properties.folder_id = document_folders.id
         );",
     },
+    // An agent can run on a model of its own in place of the `agent` tier's
+    // default; removing the model puts it back on the default.
+    Migration {
+        name: "agent_model",
+        sql: "ALTER TABLE intelligence_agents ADD COLUMN endpoint_model_id INTEGER
+            REFERENCES endpoint_models(id) ON DELETE SET NULL;",
+    },
 ];
 
 #[cfg(test)]

@@ -11,8 +11,8 @@ use cohesion_core::{
 use crate::changed::{Changed, Invalidates};
 use crate::{
     CommandContext, DatabaseCommand, DatabaseCommandResult, Filtered, Found,
-    GetEndpointModelCommand, GetIntelligenceEndpointCommand, IntelligenceSettings, Read,
-    ReadableDatabase, Write,
+    GetEndpointModelCommand, GetIntelligenceAgentCommand, GetIntelligenceEndpointCommand,
+    IntelligenceSettings, Read, ReadableDatabase, Write,
 };
 
 /// A tier's default: the endpoint model and the endpoint that serves it.
@@ -37,15 +37,47 @@ impl DatabaseCommand for GetIntelligenceDefaultCommand {
             .filter_eq(IntelligenceDefault::TIER, self.tier)
             .one()
             .found()?;
-        let model = GetEndpointModelCommand {
-            id: default.endpoint_model_id,
+        tier_model(ctx, default.endpoint_model_id)
+    }
+}
+
+/// Endpoint model `endpoint_model_id` with the endpoint that serves it.
+fn tier_model(
+    ctx: &mut CommandContext<'_, Read>,
+    endpoint_model_id: i64,
+) -> DatabaseCommandResult<TierModel> {
+    let model = GetEndpointModelCommand {
+        id: endpoint_model_id,
+    }
+    .handle(ctx)?;
+    let endpoint = GetIntelligenceEndpointCommand {
+        id: model.endpoint_id,
+    }
+    .handle(ctx)?;
+    Ok(TierModel { endpoint, model })
+}
+
+/// The model agent `agent_id`'s conversation runs on, with its endpoint:
+/// the agent's own model when it has one, otherwise the `agent` tier's
+/// default; `NotFound` when it has neither.
+pub struct GetAgentModelCommand {
+    pub agent_id: i64,
+}
+impl DatabaseCommand for GetAgentModelCommand {
+    type Response = TierModel;
+    type Access = Read;
+    fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Self::Response> {
+        let agent = GetIntelligenceAgentCommand {
+            agent_id: self.agent_id,
         }
         .handle(ctx)?;
-        let endpoint = GetIntelligenceEndpointCommand {
-            id: model.endpoint_id,
+        match agent.endpoint_model_id {
+            Some(endpoint_model_id) => tier_model(ctx, endpoint_model_id),
+            None => GetIntelligenceDefaultCommand {
+                tier: IntelligenceTier::Agent,
+            }
+            .handle(ctx),
         }
-        .handle(ctx)?;
-        Ok(TierModel { endpoint, model })
     }
 }
 

@@ -1,7 +1,7 @@
 <!--
 	Creates an agent, or edits one: its name, emoji, color, role and team (once there are teams),
-	then, under More options, its directive, personality and verbosity, which open already shown
-	when any is set away from its default.
+	then, under More options, its directive, personality and verbosity, and, for an agent being
+	edited, the model it talks on in place of the agent default.
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
@@ -14,6 +14,7 @@
 	} from '$lib/protocol/types';
 	import { options, vocabulary } from '$lib/protocol/vocabulary.svelte';
 	import { type AgentChanges } from '$lib/stores/agents.svelte';
+	import { intelligence, modelGroups } from '$lib/stores/settings/intelligence.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import Dialog from '$lib/ui/Dialog.svelte';
 	import Disclosure from '$lib/ui/Disclosure.svelte';
@@ -54,6 +55,21 @@
 		{ value: NO_TEAM, label: 'No team' }
 	]);
 	const teamId = $derived(team === NO_TEAM ? null : Number(team));
+	const DEFAULT_MODEL = 'default';
+	/** The endpoint model's id, or `DEFAULT_MODEL`, as the select holds it. */
+	let model = $state(DEFAULT_MODEL);
+	const modelOptions = $derived.by(() => {
+		const endpoints = intelligence.endpoints.value;
+		const tierModel = intelligence.defaults.value.find((d) => d.tier === 'agent');
+		const endpoint = endpoints.find((e) =>
+			e.models.some((m) => m.id === tierModel?.endpoint_model_id)
+		);
+		const current = endpoint?.models.find((m) => m.id === tierModel?.endpoint_model_id);
+		const label =
+			current && endpoint ? `Default (${current.model_name} · ${endpoint.name})` : 'Default';
+		return [{ value: DEFAULT_MODEL, label }, ...modelGroups(endpoints)];
+	});
+	const modelId = $derived(model === DEFAULT_MODEL ? null : Number(model));
 	let busy = $state(false);
 	let error = $state<{ message: string; field: string | null } | null>(null);
 
@@ -69,9 +85,20 @@
 			role = agent?.agent_role ?? '';
 			directive = agent?.agent_directive ?? '';
 			team = agent?.team_id != null ? String(agent.team_id) : NO_TEAM;
+			model = agent?.endpoint_model_id != null ? String(agent.endpoint_model_id) : DEFAULT_MODEL;
 			more = false;
 			error = null;
 		});
+	});
+
+	// The model picker lists the endpoints' models while the dialog is open.
+	$effect(() => {
+		if (!open || !agent) return;
+		untrack(() => void intelligence.load());
+		return () => {
+			intelligence.endpoints.release();
+			intelligence.defaults.release();
+		};
 	});
 
 	// A new agent left unnamed gets a name from the daemon; an existing one keeps needing one.
@@ -95,6 +122,7 @@
 				if (directive.trim() !== agent.agent_directive) changes.directive = directive.trim();
 				saved = await agents.update(agent.id, changes);
 				if (teamId !== agent.team_id) saved = await agents.setTeam(agent.id, teamId);
+				if (modelId !== agent.endpoint_model_id) saved = await agents.setModel(agent.id, modelId);
 			} else {
 				saved = await agents.create({
 					name,
@@ -180,6 +208,12 @@
 					/>
 				</Field>
 			</div>
+
+			{#if agent}
+				<Field label="Model" for="{id}-model">
+					<Select id="{id}-model" bind:value={model} options={modelOptions} />
+				</Field>
+			{/if}
 		</Disclosure>
 
 		{#if error && error.field !== 'name' && error.field !== 'emoji'}

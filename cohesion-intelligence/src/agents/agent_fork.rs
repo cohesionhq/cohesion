@@ -40,7 +40,7 @@ use super::main_thread::{self, MainThread};
 use super::relevant_set;
 use crate::connected_services::ConnectedServices;
 use crate::intelligence_error::IntelligenceError;
-use crate::session::{Session, tier_model};
+use crate::session::{Session, agent_model, tier_model};
 use crate::spend_limits::SpendCap;
 use crate::system_prompt::HeardMemories;
 use crate::tools::SessionTool;
@@ -83,21 +83,12 @@ struct Opening {
 /// What a fork's thread starts from.
 #[derive(Clone, Copy)]
 enum Start {
-    /// The agent's main thread, on the `agent` tier's model.
+    /// The agent's main thread, on the agent's model.
     Main,
     /// Nothing but the fork's own prompt and the system prompt, on the short
     /// cache and this tier's model: a cue's background run, which never touches
     /// the main thread.
     Background(IntelligenceTier),
-}
-
-impl Start {
-    fn tier(self) -> IntelligenceTier {
-        match self {
-            Self::Main => IntelligenceTier::Agent,
-            Self::Background(tier) => tier,
-        }
-    }
 }
 
 /// Answers `question` in a fork of the asked agent's conversation, as
@@ -485,9 +476,11 @@ async fn session(
     turn: &Arc<ForegroundTurn>,
 ) -> Result<Opened, AgentError> {
     let database = messenger.database();
-    let model = tier_model(database, opening.start.tier())
-        .await
-        .map_err(AgentError::SessionConstruction)?;
+    let model = match opening.start {
+        Start::Main => agent_model(database, agent_id).await,
+        Start::Background(tier) => tier_model(database, tier).await,
+    }
+    .map_err(AgentError::SessionConstruction)?;
     let services = InstalledServices::load(database).await?;
     let connected_services = ConnectedServices::load(database).await?;
     let tools = || {
