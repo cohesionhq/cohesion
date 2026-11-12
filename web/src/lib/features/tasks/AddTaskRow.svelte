@@ -15,7 +15,7 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import Ruler from '@lucide/svelte/icons/ruler';
 	import TagIcon from '@lucide/svelte/icons/tag';
-	import { tick, type Snippet } from 'svelte';
+	import { tick } from 'svelte';
 	import { slide } from 'svelte/transition';
 	import { tagsOn } from '$lib/features/tags/tags';
 	import { localDay, shortDay } from '$lib/format/dates';
@@ -50,8 +50,6 @@
 		/** ArrowDown in the field: move to the list. */
 		ondown: () => void;
 		element?: HTMLInputElement;
-		/** Drawn first in the strip under the field, given the chip's classes: e.g. where the task goes. */
-		before?: Snippet<[string]>;
 		/** Keeps the strip under the field showing, as in a dialog made for the composer. */
 		alwaysOpen?: boolean;
 	}
@@ -68,7 +66,6 @@
 		oncreatetag,
 		ondown,
 		element = $bindable(),
-		before,
 		alwaysOpen = false
 	}: Props = $props();
 
@@ -317,7 +314,6 @@
 			aria-label="New task details"
 			transition:slide={{ duration: motion.duration }}
 		>
-			{@render before?.(`${chip} ${unset}`)}
 			<Picker
 				items={priorityItems}
 				onpick={(id) => (priority = id as TaskPriority)}

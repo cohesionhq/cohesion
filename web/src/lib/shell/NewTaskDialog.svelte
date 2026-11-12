@@ -1,9 +1,10 @@
 <!--
 	The new-task dialog: the Tasks page's composer (`AddTaskRow`) in a modal, with the workspace it
-	files into as the first chip under the title field. It starts in the current workspace and takes any other; the composer
+	files into picked from the title ("New task in Cohesion"). It starts in the current workspace and takes any other; the composer
 	chooses the folder, priority, size, tags, days and description from that workspace's own.
 -->
 <script lang="ts">
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import AddTaskRow from '$lib/features/tasks/AddTaskRow.svelte';
 	import { send } from '$lib/protocol/api';
 	import type { Tag, TaskFolder } from '$lib/protocol/types';
@@ -75,7 +76,36 @@
 	}
 </script>
 
-<Dialog bind:open={newTaskDialog.open} title="New task" size="wide">
+<Dialog
+	bind:open={newTaskDialog.open}
+	title={items.length > 1 ? 'New task in' : 'New task'}
+	size="wide"
+>
+	{#snippet trailing()}
+		<!-- "New task in Cohesion": the workspace is picked from the title, when there is another. -->
+		{#if chosen !== null && items.length > 1}
+			<Picker
+				{items}
+				onpick={(id) => (workspaceId = String(id))}
+				placeholder="Find a workspace"
+				empty="No matches."
+				inDialog
+				returnTo={element}
+			>
+				{#snippet trigger(props)}
+					<button
+						class="inline-flex h-6 max-w-64 cursor-pointer items-center gap-0.5 rounded-sm px-1 hover:bg-bg-hover data-[state=open]:bg-bg-hover"
+						type="button"
+						aria-label="Workspace: {chosen.title}"
+						{...props}
+					>
+						<span class="truncate">{chosen.title}</span>
+						<ChevronDown size={14} strokeWidth={1.75} class="flex-none text-fg-subtle" />
+					</button>
+				{/snippet}
+			</Picker>
+		{/if}
+	{/snippet}
 	{#if chosen !== null}
 		{#key chosen.id}
 			<AddTaskRow
@@ -89,32 +119,7 @@
 				oncreate={create}
 				oncreatetag={createTag}
 				ondown={() => {}}
-			>
-				{#snippet before(chip)}
-					<!-- The workspace is the strip's first chip, shown only when there is another to pick. -->
-					{#if items.length > 1}
-						<Picker
-							{items}
-							onpick={(id) => (workspaceId = String(id))}
-							placeholder="Find a workspace"
-							empty="No matches."
-							inDialog
-							returnTo={element}
-						>
-							{#snippet trigger(props)}
-								<button
-									class={chip}
-									type="button"
-									aria-label="Workspace: {chosen.title}"
-									{...props}
-								>
-									<span class="truncate">{chosen.title}</span>
-								</button>
-							{/snippet}
-						</Picker>
-					{/if}
-				{/snippet}
-			</AddTaskRow>
+			/>
 		{/key}
 	{/if}
 </Dialog>
