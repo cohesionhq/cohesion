@@ -13,6 +13,7 @@
 	import SplitView from '$lib/shell/SplitView.svelte';
 	import Notice from '$lib/shell/Notice.svelte';
 	import NewTaskDialog from '$lib/shell/NewTaskDialog.svelte';
+	import { newTaskDialog } from '$lib/shell/newTaskDialog.svelte';
 	import Palette from '$lib/shell/Palette.svelte';
 	import { mainPages, routes } from '$lib/shell/routes';
 	import {
@@ -21,6 +22,8 @@
 		isTyping,
 		opensSettings,
 		showsShortcuts,
+		asksForNewDocument,
+		asksForNewTask,
 		workspaceIndexFor,
 		shortcuts,
 		focusesFolderHeading,
@@ -221,6 +224,18 @@
 			.then((about) => (hostname = about.hostname))
 			.catch(() => undefined);
 
+		/** ⌘N off the Documents page: a document in the current workspace's Inbox, opened to edit. */
+		async function newDocumentInInbox() {
+			const ws = workspaces.currentId;
+			if (ws === null) return;
+			try {
+				const doc = await documents.create(ws);
+				void panes.current.goto(routes.document(ws, doc.id));
+			} catch (error) {
+				toasts.error(error);
+			}
+		}
+
 		const onFocus = () => void refreshAll();
 		const onKey = (event: KeyboardEvent) => {
 			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
@@ -255,6 +270,24 @@
 				event.preventDefault();
 				event.stopPropagation();
 				shortcuts.toggleEditing();
+				return;
+			}
+			// ⌘N and ⌘T work in a field too, but not over a dialog, which has its own keys.
+			const inDialog =
+				event.target instanceof HTMLElement && event.target.closest('[role="dialog"]') !== null;
+			if (!inDialog && asksForNewDocument(event)) {
+				event.preventDefault();
+				event.stopPropagation();
+				// The Documents page makes it in the folder it shows; elsewhere it goes in the Inbox.
+				if (shortcuts.newDocument) shortcuts.newDocument();
+				else void newDocumentInInbox();
+				return;
+			}
+			if (!inDialog && asksForNewTask(event)) {
+				event.preventDefault();
+				event.stopPropagation();
+				if (shortcuts.newTask) shortcuts.newTask();
+				else newTaskDialog.request();
 				return;
 			}
 			const slot = workspaceIndexFor(event);

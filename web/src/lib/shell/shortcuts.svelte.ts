@@ -7,6 +7,10 @@ class Shortcuts {
 	open = $state(false);
 	/** Flips the open document between its editor and its preview; set while a document editor page shows, else null. */
 	toggleEditing: (() => void) | null = null;
+	/** Makes a document where the page shows one (a folder's, a table's row); set by the Documents page, else null. */
+	newDocument: (() => void) | null = null;
+	/** Starts a task where the page has its own composer; set by the Tasks page, else null. */
+	newTask: (() => void) | null = null;
 }
 
 export const shortcuts = new Shortcuts();
@@ -74,31 +78,37 @@ export function showsShortcuts(
 
 type Chord = Pick<KeyboardEvent, 'code' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>;
 
-function modN(event: Chord, shift: boolean): boolean {
+function modKey(event: Chord, code: string, shift: boolean): boolean {
 	return (
 		(event.metaKey || event.ctrlKey) &&
 		!(event.metaKey && event.ctrlKey) &&
 		!event.altKey &&
 		event.shiftKey === shift &&
-		event.code === 'KeyN'
+		event.code === code
 	);
 }
 
 /**
- * Whether a key press asks for a new item on the page: ⌘N (Ctrl+N), as a
- * native app's File › New. Each page makes what it lists: a task or a
- * document, which in a table is a row.
+ * Whether a key press asks for a new document: ⌘N (Ctrl+N), in the whole app. The Documents page
+ * makes it in the folder shown; anywhere else it goes in the workspace's Inbox.
  */
-export function asksForNew(event: Chord): boolean {
-	return modN(event, false);
+export function asksForNewDocument(event: Chord): boolean {
+	return modKey(event, 'KeyN', false);
+}
+
+/**
+ * Whether a key press asks for a new task: ⌘T (Ctrl+T), in the whole app. The Tasks page focuses its
+ * composer; anywhere else it opens the new-task dialog.
+ */
+export function asksForNewTask(event: Chord): boolean {
+	return modKey(event, 'KeyT', false);
 }
 
 /** Whether a key press asks for a new folder: ⇧⌘N (Ctrl+Shift+N), as Finder's. */
 export function asksForNewFolder(event: Chord): boolean {
-	return modN(event, true);
+	return modKey(event, 'KeyN', true);
 }
 
-/**
 /**
  * Whether a key press asks to focus the folder dropdown in the page's heading: ⌘D (Ctrl+D). It
  * works in a field too, and takes the key from the browser's "Add bookmark" while a heading is there.

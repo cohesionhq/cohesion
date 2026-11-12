@@ -64,7 +64,7 @@
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
 	import { copyLinkItems } from '$lib/ui/copyLink';
 	import MoreActions from '$lib/ui/MoreActions.svelte';
-	import { asksForNew, asksForNewFolder } from '$lib/shell/shortcuts.svelte';
+	import { asksForNewFolder, shortcuts } from '$lib/shell/shortcuts.svelte';
 
 	const { documents, tables } = pageStores();
 
@@ -267,15 +267,23 @@
 		tables.took(await documents.renameDocument(ws, row.document_id, title));
 	}
 
-	/** ⌘N makes a document and ⇧⌘N a folder, unless a dialog is open. */
+	// ⌘N, which the layout handles, makes a document in the folder shown.
+	$effect(() => {
+		const make = () => {
+			if (!creating && !folderGone) void create();
+		};
+		shortcuts.newDocument = make;
+		return () => {
+			if (shortcuts.newDocument === make) shortcuts.newDocument = null;
+		};
+	});
+
+	/** ⇧⌘N makes a folder, unless a dialog is open. */
 	function onWindowKey(event: KeyboardEvent) {
 		if (event.target instanceof HTMLElement && event.target.closest('[role="dialog"]')) return;
 		if (asksForNewFolder(event)) {
 			event.preventDefault();
 			folderDialogs.request({ kind: 'documents', mode: 'new', parent: null });
-		} else if (asksForNew(event) && !creating && !folderGone) {
-			event.preventDefault();
-			void create();
 		}
 	}
 </script>

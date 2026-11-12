@@ -434,13 +434,17 @@ Every shortcut the page handles has a row in the ⌘/ dialog
   (`src/lib/shell/keys.ts`).
 - **Modifiers**: the app runs in the WebUI harnesses' web view, so ⌘ (Ctrl
   elsewhere) is the base of every app-wide chord (⌘K search, ⌘, Settings, ⌘/
-  shortcuts, ⌘↩ submit). ⌘N makes what the page lists (a task, which in a view with no composer opens the new-task dialog,
-  which also opens from ⌘K and can file into any workspace, or a document,
-  which in a table is a row) and ⇧⌘N a folder, as a native app's File › New does; they are the
-  one exception to the rule that follows, and are handled on the page that
-  makes the item. A chord the system or an app already owns (⌘T, O,
-  W, Q, H, M, R, P, S, C, V, X, A, Z) is left alone, and a field's own chords
-  take ⌥ (Alt), as the new-task row's do.
+  shortcuts, ⌘↩ submit). ⌘N makes a document and ⌘T a task, in the whole
+  app (`+layout.svelte` handles both, as native apps' File › New does). ⌘N
+  files into the Inbox of the current workspace, or the folder the Documents
+  page shows, and opens the document; ⌘T opens the new-task dialog, which
+  also opens from ⌘K and can file into any workspace, but on the Tasks page
+  focuses the composer instead (the page sets `shortcuts.newTask`; the
+  Documents page sets `shortcuts.newDocument`). ⇧⌘N makes a folder on the
+  Documents and Tasks pages, as Finder's does, and is handled on those pages.
+  A chord the system or an app already owns (⌘Q, H, M, W, R, P, S, C, V, X, A,
+  Z) is left alone, and a field's own chords take ⌥ (Alt), as the new-task
+  row's do.
 - **Bare keys** work only where focus is not in a field. A menu item names
   its bare key (`key` on a `MenuItem` or `PickerItem`: digits for priority and
   size, a letter for the rest) and shows it in `<kbd>` at its trailing edge.
