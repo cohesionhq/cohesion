@@ -34,6 +34,7 @@ const taskFolder = (
 	sort_order,
 	deleted: false,
 	pinned: true,
+	color: null,
 	...extra
 });
 
@@ -69,7 +70,7 @@ describe('documentFolderRows', () => {
 
 describe('taskFolderRows', () => {
 	const folders = [
-		taskFolder(2, 'WebUI', 2),
+		taskFolder(2, 'WebUI', 2, { color: 'purple' }),
 		taskFolder(1, 'Core', 1),
 		taskFolder(4, 'Plus', 4, { pinned: false }),
 		taskFolder(3, 'Gone', 3, { deleted: true })
@@ -78,6 +79,7 @@ describe('taskFolderRows', () => {
 	it('lists the live pinned folders in the order listed, as a reorder leaves them', () => {
 		const rows = taskFolderRows(1, folders, '/', '');
 		expect(rows.map((r) => r.label)).toEqual(['WebUI', 'Core']);
+		expect(rows.map((r) => r.color)).toEqual(['purple', null]);
 		expect(rows[0].href).toBe(`${routes.tasks(1)}?view=2`);
 	});
 

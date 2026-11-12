@@ -4,8 +4,8 @@ use cohesion_macros::TsWire;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    DayFilter, TagFilter, Task, TaskAssignee, TaskFolderFilter, TaskPriority, TaskSize, TaskSort,
-    TaskStatus, TaskViewScope,
+    DayFilter, IntelligenceAgentColor, TagFilter, Task, TaskAssignee, TaskFolderFilter,
+    TaskPriority, TaskSize, TaskSort, TaskStatus, TaskViewScope,
 };
 
 /// Lists task folders
@@ -201,6 +201,16 @@ pub struct SetTaskFolderPinnedRequest {
     pub workspace_id: i64,
     pub folder_id: i64,
     pub pinned: bool,
+}
+
+/// Sets the color task folder `folder_id` in a workspace is drawn in, or
+/// takes it away when `color` is left out.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+#[ts_wire(input)]
+pub struct SetTaskFolderColorRequest {
+    pub workspace_id: i64,
+    pub folder_id: i64,
+    pub color: Option<IntelligenceAgentColor>,
 }
 
 /// Lists a workspace's saved task views, in their order.

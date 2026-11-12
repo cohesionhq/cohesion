@@ -7,6 +7,12 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- A task folder can take a color from the palette agents use, picked from
+  the folder's row in the switcher under the Tasks page's title; its icon
+  shows the color there, in the sidebar and in a new task's folder chip.
+  Task folders gain `color`, set with `setTaskFolderColor` or a script's
+  `TaskFolder.color`. A client decoding `TaskFolder` strictly has to learn
+  the new field.
 - Workspaces can be reordered in Settings, by dragging a row's handle or
   with Alt+↑/↓. The order is kept by the daemon, and the workspace
   switcher, the palette, ⌘1–⌘9 and `cohesion workspace` follow it.

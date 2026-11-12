@@ -69,6 +69,7 @@
 	import AgentCard from '$lib/features/agents/AgentCard.svelte';
 	import WorkspaceSwitcher from '$lib/shell/WorkspaceSwitcher.svelte';
 	import AgentAvatar from '$lib/ui/AgentAvatar.svelte';
+	import { agentText } from '$lib/ui/colors';
 	import HoverCard from '$lib/ui/HoverCard.svelte';
 	import IconTile from '$lib/ui/IconTile.svelte';
 	import { blinkOnPageClock, motion } from '$lib/ui/motion';
@@ -373,7 +374,7 @@
 {/snippet}
 
 <!-- The pinned folders under Documents or Tasks: a step in, each led by a folder's icon (a table's
-     for a table), with a rule down the left joining them to their page. A document dropped on a document folder is filed there; the pin on
+     for a table), in the task folder's color when it has one, with a rule down the left joining them to their page. A document dropped on a document folder is filed there; the pin on
      hover unpins it. Hidden on the rail and the top bar, which keep only the page's icon. -->
 {#snippet folderLinks(kind: 'documents' | 'tasks', rows: FolderRow[])}
 	<div class="relative ml-4 flex flex-col gap-px pl-2.5 max-md:hidden">
@@ -408,7 +409,7 @@
 						<span class="sr-only">Table: </span>
 					{:else}
 						<Folder
-							class="flex-none text-fg-subtle"
+							class={['flex-none', row.color ? agentText[row.color] : 'text-fg-subtle']}
 							size={12}
 							strokeWidth={1.75}
 							aria-hidden="true"

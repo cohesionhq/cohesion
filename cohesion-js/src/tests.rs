@@ -2459,6 +2459,30 @@ fn task_folder_lookup_finds_only_live_folders_in_its_workspace() {
 }
 
 #[test]
+fn a_script_colors_a_task_folder_from_the_agents_palette() {
+    let db = database();
+    create_workspace(&db, "Home");
+    let result = json(
+        &db,
+        r#"
+        const home = cohesion.workspace("Home");
+        const folder = home.createTaskFolder({ title: "Errands" });
+        const before = folder.color;
+        folder.color = "teal";
+        const set = [folder.color, home.taskFolder(folder.id).color];
+        let refused = false;
+        try { folder.color = "beige"; } catch (e) { refused = e instanceof TypeError; }
+        folder.color = null;
+        [before, set, refused, home.taskFolder(folder.id).color]
+        "#,
+    );
+    assert_eq!(
+        result,
+        serde_json::json!([null, ["teal", "teal"], true, null])
+    );
+}
+
+#[test]
 fn task_and_document_lookups_find_any_status_in_their_workspace_only() {
     let db = database();
     create_workspace(&db, "Home");

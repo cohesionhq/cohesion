@@ -553,6 +553,13 @@ clients list it in their sidebar; the rest are reached from their page.
 the folder's place and (for a document folder) the folders inside it as they
 were, and invalidate `taskFolders(ws)` or `documentFolders(ws)`.
 
+**Folder colors.** A task folder's `color` is an `IntelligenceAgentColor`,
+the agents' palette (the one a table's choices and a task's size draw from),
+or `null` for none, which is what a new folder has. The clients draw the
+folder's icon in it. `SetTaskFolderColor{workspace_id, folder_id, color?}`
+sets it, or takes it away when `color` is absent, and invalidates
+`taskFolders(ws)`; a script assigns `TaskFolder.color`.
+
 **Pinned documents.** A document's `pinned` says whether the Dashboard lists
 it as part of the user's working set. `SetDocumentPinned{workspace_id,
 document_id, pinned}` sets it without counting as an edit (the modified time
@@ -2270,7 +2277,7 @@ it; ⇥ passes it by, as a checkbox. A new choice column takes its
 options in the drawer under its type, and "Edit options…" opens the same
 drawer with the options alone, saving each change as it is made
 (`OptionsEditor.svelte`, laid out as the tags' list: a color swatch that opens
-the agent colors and No color (`OptionColor.svelte`), the name, delete, drag
+the agent colors and No color (`ui/ColorPicker.svelte`), the name, delete, drag
 or ⌥↑/↓ to reorder, and an "Add option" line where ↩ adds the next).
 Deleting an option asks first, with how many documents lose their value
 when the rows shown aren't filtered. A choice's filters pick the option from a

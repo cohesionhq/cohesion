@@ -1,11 +1,14 @@
 //! `TaskFolder` in scripts.
 
-use cohesion_core::model::TagFilter;
+use cohesion_core::model::{IntelligenceAgentColor, TagFilter};
 use cohesion_core::{TaskFolder, TaskFolderFilter};
-use cohesion_db::{CreateTaskCommand, DeleteTaskFolderCommand, ListTasksCommand};
+use cohesion_db::{
+    CreateTaskCommand, DeleteTaskFolderCommand, ListTasksCommand, SetTaskFolderColorCommand,
+};
 use cohesion_macros::js_entity;
-use rquickjs::Ctx;
+use rquickjs::{Ctx, Value};
 
+use crate::conversion::FromJsField;
 use crate::entities::{
     task::JsTask,
     workspace_options::{TaskCreateOptions, TaskListOptions},
@@ -13,6 +16,27 @@ use crate::entities::{
 
 #[js_entity(TaskFolder, metadata)]
 impl JsTaskFolder {
+    /// Assigning saves immediately, e.g. `folder.color = "teal"`, or `null`
+    /// for none. The colors are the agents' (`IntelligenceAgentColor`).
+    ///
+    /// Any other value throws a `TypeError`.
+    #[qjs(set, rename = "color")]
+    pub fn set_color<'js>(
+        &mut self,
+        ctx: Ctx<'js>,
+        #[ts(type = "IntelligenceAgentColor | null")] color: Value<'js>,
+    ) -> rquickjs::Result<()> {
+        let color = Option::<IntelligenceAgentColor>::from_js_field(&ctx, color)?;
+        self.inner = self.write(
+            &ctx,
+            SetTaskFolderColorCommand {
+                workspace_id: self.inner.workspace_id,
+                folder_id: self.inner.id,
+                color,
+            },
+        )?;
+        Ok(())
+    }
     fn tasks<'js>(
         &mut self,
         ctx: Ctx<'js>,

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::model::{HookKind, IntelligenceEffort};
 
-/// The color an agent is drawn in.
+/// The palette an agent, a task folder or a table's choice is drawn in.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TextEnum, TsWire)]
 #[serde(rename_all = "camelCase")]
 #[text_enum(rename_all = "camelCase")]
