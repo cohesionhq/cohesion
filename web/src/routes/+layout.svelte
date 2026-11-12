@@ -21,7 +21,11 @@
 		opensSettings,
 		showsShortcuts,
 		workspaceIndexFor,
-		shortcuts
+		shortcuts,
+		focusesFolderHeading,
+		folderHeadingButton,
+		togglesEditing,
+		isTypingInField
 	} from '$lib/shell/shortcuts.svelte';
 	import ForwardComposer from '$lib/features/agents/ForwardComposer.svelte';
 	import LinkedItem from '$lib/shell/LinkedItem.svelte';
@@ -40,6 +44,7 @@
 	import { isGoing } from '$lib/stores/actors.svelte';
 	import { connectors } from '$lib/stores/connectors.svelte';
 	import { refreshAll, refreshInvalidated } from '$lib/stores/resource.svelte';
+	import { skills, skillsOf } from '$lib/stores/skills.svelte';
 	import { workspaces } from '$lib/stores/workspaces.svelte';
 	import Toast from '$lib/ui/Toast.svelte';
 	import { UNREACHABLE_MESSAGE, toasts } from '$lib/ui/toasts.svelte';
@@ -234,6 +239,23 @@
 				void goto(routes.settings());
 				return;
 			}
+			if (focusesFolderHeading(event)) {
+				// A page without a folder heading leaves the key to the browser.
+				const heading = folderHeadingButton();
+				if (heading) {
+					event.preventDefault();
+					event.stopPropagation();
+					heading.focus();
+					return;
+				}
+			}
+			// A page with no document editor, or a plain field, leaves the key alone.
+			if (togglesEditing(event) && shortcuts.toggleEditing && !isTypingInField(event.target)) {
+				event.preventDefault();
+				event.stopPropagation();
+				shortcuts.toggleEditing();
+				return;
+			}
 			const slot = workspaceIndexFor(event);
 			if (slot !== null) {
 				// A key with no workspace behind it is left alone.
@@ -359,6 +381,9 @@
 					agent={gutterAgent}
 					cues={agents.cues.key === gutterAgent.id ? agents.cues.value : []}
 					agenda={agents.agenda.key === gutterAgent.id ? agents.agenda.value : []}
+					skills={skillsOf(skills.list.value, gutterAgent)}
+					onsendskill={(skill) =>
+						agents.sendMessage(agentId, '', [], undefined, skill).catch((e) => toasts.error(e))}
 					actors={actors.list.value}
 					sessions={actors.followedBy(gutterAgent.id)}
 					onclearagenda={() => agents.resetAgenda(agentId).catch((e) => toasts.error(e))}

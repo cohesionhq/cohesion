@@ -153,8 +153,10 @@ impl DatabaseCommand for SetWorkspaceEmojiCommand {
     }
 }
 
-/// Full-text matches in a workspace, best first; a title match outweighs one
-/// in a document's contents.
+/// Full-text matches in a workspace, best first: every match in a title
+/// before any match only in contents, the titles the query covers most (an
+/// exact title) first, then by title and contents together, the title
+/// weighing 5 to the contents' 1.
 #[derive(FromRequest)]
 #[request(SearchWorkspaceRequest)]
 pub struct SearchWorkspaceCommand {
@@ -171,16 +173,20 @@ impl DatabaseCommand for SearchWorkspaceCommand {
             idx.contents,
             entry.entity_kind,
             entry.entity_id,
-            entry.workspace_id,
+            COALESCE(entry.workspace_id, ?2) AS workspace_id,
             CASE WHEN entry.entity_kind = 'task'
                 THEN COALESCE(task.status, 'none') ELSE 'none' END AS status
         FROM search_fts AS idx
         INNER JOIN search_entries AS entry ON entry.id = idx.rowid
         LEFT JOIN tasks AS task
             ON entry.entity_kind = 'task' AND task.id = entry.entity_id
-        WHERE idx.search_fts MATCH ?
-            AND entry.workspace_id = ?
-        ORDER BY bm25(search_fts, 5.0, 1.0)
+        WHERE idx.search_fts MATCH ?1
+            -- A feed belongs to no workspace, so every workspace finds it.
+            AND (entry.workspace_id = ?2
+                OR (entry.workspace_id IS NULL AND entry.entity_kind = 'feed'))
+        -- The title alone scores 0 when only the contents matched, and
+        -- best for the shortest title holding the query.
+        ORDER BY bm25(search_fts, 1.0, 0.0), bm25(search_fts, 5.0, 1.0)
         ";
         searched(ctx.db.container().query_all(
             query,

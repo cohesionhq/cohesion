@@ -21,6 +21,7 @@
 					label: 'Go back / forward in the half in use'
 				},
 				{ keys: [`${keyLabel('alt')}-click`], label: 'Open a link in split view' },
+				{ keys: [keyLabel('mod', 'd')], label: 'Focus the folder menu in the heading' },
 				{ keys: [keyLabel('mod', '/'), '?'], label: 'Show these shortcuts' }
 			]
 		},
@@ -28,7 +29,8 @@
 			title: 'Documents',
 			rows: [
 				{ keys: [keyLabel('mod', 'n')], label: 'New document' },
-				{ keys: [newFolderKeys], label: 'New folder' }
+				{ keys: [newFolderKeys], label: 'New folder' },
+				{ keys: [keyLabel('mod', 'e')], label: 'Switch between editing and preview' }
 			]
 		},
 		{

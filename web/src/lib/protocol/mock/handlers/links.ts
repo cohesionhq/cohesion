@@ -11,11 +11,13 @@ export function linksHandlers(core: MockCore) {
 	return {
 		// Like the daemon's index for the queries the UI sends (`"word"*` per
 		// word, all required): every word starts a word of the title or
-		// contents, title matches first.
+		// contents; title matches first, the shortest title (an exact one)
+		// leading.
 		searchWorkspace: ({ workspace_id, query }) => {
 			const words = searchWords(query);
 			if (words.length === 0) return [];
-			const hits: { title: boolean; result: SearchResult }[] = [];
+			// How many words a matching title has; Infinity when only the contents matched.
+			const hits: { titleWords: number; result: SearchResult }[] = [];
 			const consider = (
 				entity_kind: SearchResult['entity_kind'],
 				entity_id: number,
@@ -26,7 +28,7 @@ export function linksHandlers(core: MockCore) {
 				const [inTitle, inContents] = [starts(title), starts(contents)];
 				if (!words.every((w) => inTitle(w) || inContents(w))) return;
 				hits.push({
-					title: words.some(inTitle),
+					titleWords: words.some(inTitle) ? searchWords(title).length : Infinity,
 					result: { id: 0, entity_kind, entity_id, workspace_id, title, contents, status }
 				});
 			};
@@ -56,8 +58,10 @@ export function linksHandlers(core: MockCore) {
 			for (const f of state.documentFolders)
 				if (f.workspace_id === workspace_id && !f.deleted)
 					consider('documentFolder', f.id, f.title, '');
+			// Feeds belong to no workspace, so every workspace finds them.
+			for (const f of state.feeds) if (!f.deleted) consider('feed', f.id, f.title, '');
 			return hits
-				.sort((a, b) => Number(b.title) - Number(a.title))
+				.sort((a, b) => (a.titleWords === b.titleWords ? 0 : a.titleWords - b.titleWords))
 				.map(({ result }, index) => ({ ...result, id: index + 1 }));
 		},
 		resolveLink: ({ link }) => structuredClone(resolveLink(link)),
