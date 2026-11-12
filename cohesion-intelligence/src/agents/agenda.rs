@@ -96,6 +96,12 @@ impl HeardAgenda {
         text
     }
 
+    /// Publishes `items`, the agenda as it is now, changed outside this
+    /// thread, so the thread hears the change at its next catch-up.
+    pub fn publish(&self, items: &[AgentAgendaItem]) {
+        self.agenda.set(items);
+    }
+
     /// `# Agenda changed` and the agenda as it is now, when another thread
     /// changed it since this one last heard; `None` when none did.
     pub fn news(&self) -> Option<String> {
@@ -110,6 +116,9 @@ impl HeardAgenda {
         *heard = Some(current.clone());
         if unheard && current.is_empty() {
             return None;
+        }
+        if current.is_empty() {
+            return Some("# Agenda changed\nAgenda was cleared.".to_string());
         }
         Some(format!(
             "# Agenda changed\nAnother thread of yours changed your agenda. {}",

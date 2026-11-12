@@ -157,6 +157,13 @@ pub struct ListAgentAgendaRequest {
     pub agent_id: i64,
 }
 
+/// Clears agent `agent_id`'s agenda, as its own `agenda_reset` does; its
+/// threads hear it under `# Agenda changed`.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct ResetAgentAgendaRequest {
+    pub agent_id: i64,
+}
+
 /// Removes cue `cue_id`, so its hook no longer wakes the agent; an agent
 /// left with no cues goes idle.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]

@@ -7,6 +7,10 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- The agenda's card beside an agent's conversation has a Clear agenda
+  button. The agent's running threads hear "Agenda was cleared." and the
+  transcript shows the usual cleared line. The new `resetAgentAgenda`
+  request does it; the iPhone app doesn't have the button yet.
 - The sidebar lists only the folders you pin under Documents and Tasks.
   Every folder is a click away in the switcher under the Documents and Tasks
   pages' titles, which now show breadcrumbs through nested folders; that's

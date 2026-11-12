@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use cohesion_core::model::{
-    AGENDA_ITEM_CHARS, AgentAgendaChange, AgentMessageContent, Initiative, IntelligenceAgentColor,
+    AGENDA_ITEM_CHARS, AgentAgendaChange, AgentAgendaItem, AgentMessageContent, Initiative,
+    IntelligenceAgentColor,
 };
 use cohesion_db::{
     Container, CreateIntelligenceAgentCommand, DatabaseContext, DatabaseEventTrace,
@@ -113,6 +114,27 @@ fn a_change_reaches_the_other_running_threads_once() {
         assert_eq!(taken(&conversation).len(), 1);
         assert_eq!(taken(&fork), Vec::<String>::new());
     });
+}
+
+// The user clearing the agenda reaches the agent's running threads as news
+// that it was cleared.
+#[test]
+fn a_cleared_agenda_reaches_the_running_threads() {
+    let agendas = Agendas::default();
+    let turn = Arc::new(ForegroundTurn::new(agendas.of(1)));
+    turn.begin(DatabaseEventTrace::default());
+    let steps = [AgentAgendaItem {
+        id: 1,
+        agent_id: 1,
+        position: 1,
+        text: "Draft".to_string(),
+        added_at: 0,
+        finished_at: None,
+    }];
+    turn.agenda().hear(&steps);
+    agendas.of(1).set(&[]);
+    assert_eq!(taken(&turn), ["# Agenda changed\nAgenda was cleared."]);
+    assert_eq!(taken(&turn), Vec::<String>::new());
 }
 
 // A turn an event started reads but changes none of the user's data, yet

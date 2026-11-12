@@ -461,6 +461,12 @@ export class AgentsStore {
 		await Promise.all([this.cues.refetch(), this.list.refetch()]);
 	}
 
+	/** Clears agent `agent_id`'s agenda; it hears that the agenda was cleared. */
+	async resetAgenda(agent_id: number): Promise<void> {
+		await this.#send('resetAgentAgenda', { agent_id });
+		await this.agenda.refetch();
+	}
+
 	async create({ name, color, emoji, personality, verbosity, role, directive, team_id }: NewAgent) {
 		const created = await this.#send('createIntelligenceAgent', {
 			name: name.trim() || null,

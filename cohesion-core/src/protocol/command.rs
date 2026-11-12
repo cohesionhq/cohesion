@@ -576,6 +576,10 @@ pub enum Command {
     /// Lists agent `agent_id`'s agenda, in order, finished items included.
     #[reply(Vec<AgentAgendaItem>)]
     ListAgentAgenda(ListAgentAgendaRequest),
+    /// Clears agent `agent_id`'s agenda; its threads hear that it was
+    /// cleared.
+    #[reply(AcceptedResponse, via = Intelligence)]
+    ResetAgentAgenda(ResetAgentAgendaRequest),
     /// Removes cue `cue_id`; an agent left with no cues goes idle.
     #[reply(AcceptedResponse, via = Intelligence)]
     RemoveAgentCue(RemoveAgentCueRequest),

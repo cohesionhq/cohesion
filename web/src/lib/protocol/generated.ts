@@ -4149,6 +4149,14 @@ export interface ReorderWorkspaceResourceKindsRequest {
 	kind_ids: number[];
 }
 
+/**
+ * Clears agent `agent_id`'s agenda, as its own `agenda_reset` does; its
+ * threads hear it under `# Agenda changed`.
+ */
+export interface ResetAgentAgendaRequest {
+	agent_id: number;
+}
+
 /** Fetches live article `article_id`'s page again and replaces its snapshot. */
 export interface ResnapshotArticleRequest {
 	article_id: number;
@@ -6147,6 +6155,11 @@ export interface Requests {
 	listAgentCues: ListAgentCuesRequest;
 	/** Lists agent `agent_id`'s agenda, in order, finished items included. */
 	listAgentAgenda: ListAgentAgendaRequest;
+	/**
+	 * Clears agent `agent_id`'s agenda; its threads hear that it was
+	 * cleared.
+	 */
+	resetAgentAgenda: ResetAgentAgendaRequest;
 	/** Removes cue `cue_id`; an agent left with no cues goes idle. */
 	removeAgentCue: RemoveAgentCueRequest;
 	/**
@@ -6743,6 +6756,11 @@ export interface Replies {
 	listAgentCues: IntelligenceAgentCue[];
 	/** Lists agent `agent_id`'s agenda, in order, finished items included. */
 	listAgentAgenda: AgentAgendaItem[];
+	/**
+	 * Clears agent `agent_id`'s agenda; its threads hear that it was
+	 * cleared.
+	 */
+	resetAgentAgenda: AcceptedResponse;
 	/** Removes cue `cue_id`; an agent left with no cues goes idle. */
 	removeAgentCue: AcceptedResponse;
 	/**
