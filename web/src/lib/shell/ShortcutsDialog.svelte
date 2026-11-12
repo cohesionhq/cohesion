@@ -23,6 +23,8 @@
 					label: 'Go back / forward in the half in use'
 				},
 				{ keys: [`${keyLabel('alt')}-click`], label: 'Open a link in split view' },
+				{ keys: [keyLabel('mod', 't')], label: 'New task' },
+				{ keys: [keyLabel('mod', 'n')], label: 'New document' },
 				{
 					keys: [keyLabel('mod', 'k')],
 					label: 'New task in any workspace: search for “New task”'
@@ -35,7 +37,6 @@
 		{
 			title: 'Documents',
 			rows: [
-				{ keys: [keyLabel('mod', 'n')], label: 'New document' },
 				{ keys: [newFolderKeys], label: 'New folder' },
 				{ keys: [keyLabel('mod', 'e')], label: 'Switch between editing and preview' }
 			]
@@ -47,7 +48,7 @@
 		{
 			title: 'Tasks',
 			rows: [
-				{ keys: ['n', keyLabel('mod', 'n')], label: 'New task' },
+				{ keys: ['n', keyLabel('mod', 't')], label: 'Focus the new task row' },
 				{ keys: [newFolderKeys], label: 'New folder' },
 				{ keys: ['j', 'k'], label: 'Next / previous task' },
 				{ keys: [keyLabel('space')], label: 'Complete or reopen' },

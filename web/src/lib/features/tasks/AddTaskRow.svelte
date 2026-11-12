@@ -50,6 +50,8 @@
 		/** ArrowDown in the field: move to the list. */
 		ondown: () => void;
 		element?: HTMLInputElement;
+		/** Keeps the strip under the field showing, as in a dialog made for the composer. */
+		alwaysOpen?: boolean;
 	}
 
 	let {
@@ -63,7 +65,8 @@
 		oncreate,
 		oncreatetag,
 		ondown,
-		element = $bindable()
+		element = $bindable(),
+		alwaysOpen = false
 	}: Props = $props();
 
 	let title = $state('');
@@ -130,7 +133,7 @@
 			chosenTags.length !== tagIds.length ||
 			chosenTags.some((id) => !tagIds.includes(id))
 	);
-	const expanded = $derived(focused || changed || Object.values(open).some(Boolean));
+	const expanded = $derived(alwaysOpen || focused || changed || Object.values(open).some(Boolean));
 
 	const today = $derived(expanded ? localDay() : '');
 	const folderName = $derived(

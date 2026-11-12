@@ -1,6 +1,6 @@
 <!--
 	The new-task dialog: the Tasks page's composer (`AddTaskRow`) in a modal, with the workspace it
-	files into named in a quiet line above it. It starts in the current workspace and takes any other; the composer
+	files into picked from the title ("New task in Cohesion"). It starts in the current workspace and takes any other; the composer
 	chooses the folder, priority, size, tags, days and description from that workspace's own.
 -->
 <script lang="ts">
@@ -76,48 +76,50 @@
 	}
 </script>
 
-<Dialog bind:open={newTaskDialog.open} title="New task" size="wide">
-	<div class="flex flex-col gap-2">
-		{#if chosen !== null}
-			<!-- A quiet line, not a field: the workspace shows only when there is another to pick. -->
-			<div class="-mt-2 flex items-center gap-1 text-xs text-fg-subtle">
-				{#if items.length > 1}
-					in
-					<Picker
-						{items}
-						onpick={(id) => (workspaceId = String(id))}
-						placeholder="Find a workspace"
-						empty="No matches."
-						inDialog
-						returnTo={element}
+<Dialog
+	bind:open={newTaskDialog.open}
+	title={items.length > 1 ? 'New task in' : 'New task'}
+	size="wide"
+>
+	{#snippet trailing()}
+		<!-- "New task in Cohesion": the workspace is picked from the title, when there is another. -->
+		{#if chosen !== null && items.length > 1}
+			<Picker
+				{items}
+				onpick={(id) => (workspaceId = String(id))}
+				placeholder="Find a workspace"
+				empty="No matches."
+				inDialog
+				returnTo={element}
+			>
+				{#snippet trigger(props)}
+					<button
+						class="inline-flex h-6 max-w-64 cursor-pointer items-center gap-0.5 rounded-sm px-1 hover:bg-bg-hover data-[state=open]:bg-bg-hover"
+						type="button"
+						aria-label="Workspace: {chosen.title}"
+						{...props}
 					>
-						{#snippet trigger(props)}
-							<button
-								class="inline-flex h-5 max-w-48 cursor-pointer items-center gap-0.5 rounded-sm px-1 text-fg-muted hover:bg-bg-hover hover:text-fg data-[state=open]:bg-bg-hover"
-								type="button"
-								aria-label="Workspace: {chosen.title}"
-								{...props}
-							>
-								<span class="truncate">{chosen.title}</span>
-								<ChevronDown size={12} strokeWidth={1.75} />
-							</button>
-						{/snippet}
-					</Picker>
-				{/if}
-			</div>
-			{#key chosen.id}
-				<AddTaskRow
-					bind:element
-					viewName={chosen.title}
-					{folders}
-					{tags}
-					folderId={null}
-					tagIds={[]}
-					oncreate={create}
-					oncreatetag={createTag}
-					ondown={() => {}}
-				/>
-			{/key}
+						<span class="truncate">{chosen.title}</span>
+						<ChevronDown size={14} strokeWidth={1.75} class="flex-none text-fg-subtle" />
+					</button>
+				{/snippet}
+			</Picker>
 		{/if}
-	</div>
+	{/snippet}
+	{#if chosen !== null}
+		{#key chosen.id}
+			<AddTaskRow
+				bind:element
+				alwaysOpen
+				viewName={chosen.title}
+				{folders}
+				{tags}
+				folderId={null}
+				tagIds={[]}
+				oncreate={create}
+				oncreatetag={createTag}
+				ondown={() => {}}
+			/>
+		{/key}
+	{/if}
 </Dialog>
