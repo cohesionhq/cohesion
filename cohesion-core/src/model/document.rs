@@ -56,8 +56,21 @@ pub struct Document {
 }
 
 /// How many characters of a document's text [`DocumentSummary::opening`]
-/// holds. `ListDocumentsCommand` cuts the same in SQL.
-pub const OPENING_CHARS: usize = 500;
+/// holds, as a literal, so [`OPENING_CHARS`] and [`OPENING_SQL`] are one
+/// number.
+macro_rules! opening_chars {
+    () => {
+        500
+    };
+}
+
+/// How many characters of a document's text [`DocumentSummary::opening`]
+/// holds.
+pub const OPENING_CHARS: usize = opening_chars!();
+
+/// [`DocumentSummary::opening`] in SQL: the first [`OPENING_CHARS`]
+/// characters of the text.
+const OPENING_SQL: &str = concat!("substr(documents.contents, 1, ", opening_chars!(), ")");
 
 /// A document as a listing shows it: everything but its full text, with the
 /// start of it to show a line of. Scripts see it as `Document`, whose
@@ -81,7 +94,7 @@ pub struct DocumentSummary {
     pub title: String,
     /// The first [`OPENING_CHARS`] characters of the document's text, as
     /// plain text / Markdown; the whole text when it is shorter.
-    #[projection(expr = "substr(documents.contents, 1, 500)")]
+    #[projection(expr = OPENING_SQL)]
     #[fields(skip)]
     pub opening: String,
     /// When the contents last changed, in Unix **seconds** (not

@@ -639,8 +639,8 @@ long its documents grow; `GetDocument` has the text. Scripts list the same
 summaries: their `Document` (`cohesion-js/src/entities/document.rs`) wraps a
 `DocumentSummary` and reads `contents` from the database each time it is used,
 so it is never a cut or out-of-date copy, and `toJSON` leaves it out.
-`OPENING_CHARS` is the opening's length, which the projection's SQL repeats
-and a test holds the two to.
+`OPENING_CHARS` is the opening's length, and the projection's SQL is built
+from the same literal.
 
 **Formulas** (`cohesion-db/src/commands/document_formula.rs`,
 `cohesion-js/src/formula.rs`, `cohesionkit/src/table_formulas.rs`). A

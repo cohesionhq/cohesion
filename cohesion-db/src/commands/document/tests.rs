@@ -360,7 +360,7 @@ fn a_listed_documents_opening_is_cut_as_a_summary_of_it_is() {
             has_metadata: Vec::new(),
         })
         .unwrap();
-    // The SQL cut and `From<Document>` must agree, both at `OPENING_CHARS`.
+    // SQLite's `substr` and `From<Document>` count characters alike.
     assert_eq!(listed[0].opening, DocumentSummary::from(document).opening);
     assert_eq!(listed[0].opening.chars().count(), OPENING_CHARS);
 }
