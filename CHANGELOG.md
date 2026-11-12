@@ -11,6 +11,10 @@ under "Unreleased" with any change users would notice.
   button. The agent's running threads hear "Agenda was cleared." and the
   transcript shows the usual cleared line. The new `resetAgentAgenda`
   request does it; the iPhone app doesn't have the button yet.
+- A document can be pinned to the Dashboard from its menu ("Pin to
+  Dashboard"), and the Dashboard lists the pinned documents under "Pinned",
+  where each can be unpinned. Documents gain `pinned`, set with
+  `setDocumentPinned`; the iPhone app has to read the new field.
 - The sidebar lists only the folders you pin under Documents and Tasks.
   Every folder is a click away in the switcher under the Documents and Tasks
   pages' titles, which now show breadcrumbs through nested folders; that's

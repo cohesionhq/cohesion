@@ -57,6 +57,10 @@
 
 	let mover = $state<DocumentMover>();
 
+	function togglePin() {
+		if (doc) documents.setPinned(ws, doc.id, !doc.pinned).catch((error) => toasts.error(error));
+	}
+
 	function move(folder_id: number | null) {
 		if (doc) void mover?.move(doc, folder_id);
 	}
@@ -152,6 +156,8 @@
 						{destinations}
 						folderId={doc?.folder_id ?? null}
 						onmove={move}
+						pinned={doc?.pinned ?? false}
+						onpin={togglePin}
 						onrestored={(result) => {
 							if (result.kind === 'document') documents.restored(result.document);
 						}}

@@ -533,6 +533,11 @@ clients list it in their sidebar; the rest are reached from their page.
 the folder's place and (for a document folder) the folders inside it as they
 were, and invalidate `taskFolders(ws)` or `documentFolders(ws)`.
 
+**Pinned documents.** A document's `pinned` says whether the Dashboard lists
+it as part of the user's working set. `SetDocumentPinned{workspace_id,
+document_id, pinned}` sets it without counting as an edit (the modified time
+and versions stay) and invalidates `documents(ws)`.
+
 **Tables** (`cohesion-db/src/commands/document_folder_property.rs` and
 `document_value.rs`, models in `cohesion-core/src/model/document_table.rs`).
 A document folder's properties are a table's columns, and each live

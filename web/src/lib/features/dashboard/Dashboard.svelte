@@ -3,8 +3,8 @@
 	the head of its column, with the day under it, then a message to an agent (who it goes to picked in the
 	composer; the reply waits in the agent's conversation, which the toast
 	opens). Quick journal, in the header's tools, opens a dialog that adds a
-	note to today's entry. Under it, the tasks due today (DashboardToday) and
-	what's new (DashboardRecap).
+	note to today's entry. Under it, the documents pinned to it (DashboardPinned), the tasks due
+	today (DashboardToday) and what's new (DashboardRecap).
 -->
 <script lang="ts">
 	import NotebookPen from '@lucide/svelte/icons/notebook-pen';
@@ -22,6 +22,7 @@
 	import Picker, { type PickerItem } from '$lib/ui/Picker.svelte';
 	import { toasts } from '$lib/ui/toasts.svelte';
 	import PageHeader from '$lib/ui/PageHeader.svelte';
+	import DashboardPinned from './DashboardPinned.svelte';
 	import DashboardRecap from './DashboardRecap.svelte';
 	import DashboardToday from './DashboardToday.svelte';
 	import { greeting } from './greeting';
@@ -188,6 +189,7 @@
 		<QuickJournal {ws} bind:open={journaling} />
 
 		<div class="flex flex-col gap-8 pt-10">
+			<DashboardPinned {ws} />
 			<DashboardToday {ws} />
 			<DashboardRecap />
 		</div>

@@ -5067,6 +5067,11 @@ pub const MIGRATIONS: &[Migration] = &[
         sql: "ALTER TABLE task_folders ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT FALSE;
         ALTER TABLE document_folders ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT FALSE;",
     },
+    // A document can be pinned to the Dashboard, as the user's working set.
+    Migration {
+        name: "document_pinned",
+        sql: "ALTER TABLE documents ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT FALSE;",
+    },
     // Task and document folders are in search, by title, while they are
     // live, so one search finds them with everything else.
     Migration {

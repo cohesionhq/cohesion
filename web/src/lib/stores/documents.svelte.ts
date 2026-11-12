@@ -219,6 +219,13 @@ export class DocumentsStore {
 		return doc;
 	}
 
+	/** Pins document `document_id` to the Dashboard, or unpins it. */
+	async setPinned(workspace_id: number, document_id: number, pinned: boolean): Promise<Document> {
+		const doc = await this.#send('setDocumentPinned', { workspace_id, document_id, pinned });
+		this.#apply(doc);
+		return doc;
+	}
+
 	async createFolder(
 		workspace_id: number,
 		title: string,

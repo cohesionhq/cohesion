@@ -1,6 +1,6 @@
 <!-- The editor pages' Rewind symbol and overflow menu (save time, preview toggle, copy as Markdown, move to a
      folder for a document, forward to an agent and a confirmed delete), with a check beside it once the draft is
-     saved. -->
+     saved. A document can also be pinned to, or unpinned from, the Dashboard. -->
 <script lang="ts">
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import {
@@ -36,6 +36,9 @@
 		/** The folder the document is in, or null for the Inbox. */
 		folderId?: number | null;
 		onmove?: (folder_id: number | null) => void;
+		/** Whether the document is pinned to the Dashboard; "Pin to Dashboard" shows when `onpin` is given. */
+		pinned?: boolean;
+		onpin?: () => void;
 	}
 
 	let {
@@ -49,7 +52,9 @@
 		onrestored,
 		destinations,
 		folderId = null,
-		onmove
+		onmove,
+		pinned = false,
+		onpin
 	}: Props = $props();
 
 	let confirming = $state(false);
@@ -81,6 +86,9 @@
 				label: 'Copy as Markdown',
 				onSelect: () => copyToClipboard(draft.draft, 'Copied as Markdown.')
 			},
+			...(onpin
+				? [{ label: pinned ? 'Unpin from Dashboard' : 'Pin to Dashboard', onSelect: onpin }]
+				: []),
 			...copyLinkItems(() => ({ link: forwardedLink(forward), title: forward.title })),
 			...(destinations && onmove
 				? [

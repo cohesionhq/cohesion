@@ -73,7 +73,8 @@ export function documentsHandlers(core: MockCore) {
 				modified: nowSeconds(),
 				journal_date: null,
 				deleted: false,
-				folder_id
+				folder_id,
+				pinned: false
 			};
 			state.documents.push(created);
 			keepDocument(created, 'created');
@@ -193,6 +194,11 @@ export function documentsHandlers(core: MockCore) {
 			d.title = title;
 			keepDocument(d, 'edited');
 			tablesChanged(d.folder_id);
+			return { ...d };
+		},
+		setDocumentPinned: ({ workspace_id, document_id, pinned }) => {
+			const d = document(workspace_id, document_id);
+			d.pinned = pinned;
 			return { ...d };
 		},
 		deleteDocument: ({ workspace_id, document_id }) => {

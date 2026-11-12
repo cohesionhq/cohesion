@@ -9,6 +9,7 @@ use crate::{
     CreateWorkspaceCommand, DatabaseContext, DatabaseEventKind, DeleteDocumentCommand,
     EditDocumentCommand, EditJournalCommand, EnsureJournalCommand, GetDocumentCommand,
     ListDocumentsCommand, LookupJournalByDateCommand, RenameDocumentCommand,
+    SetDocumentPinnedCommand,
 };
 
 #[test]
@@ -265,4 +266,67 @@ fn journal_and_document_saves_raise_events() {
     })
     .unwrap();
     assert_eq!(flush(), document_saved);
+}
+
+#[test]
+fn a_document_can_be_pinned_and_unpinned_without_being_edited() {
+    let db = context();
+    let home = db
+        .send_blocking(CreateWorkspaceCommand {
+            title: "home".to_string(),
+            emoji: None,
+        })
+        .unwrap();
+    let away = db
+        .send_blocking(CreateWorkspaceCommand {
+            title: "away".to_string(),
+            emoji: None,
+        })
+        .unwrap();
+    let document = db
+        .send_blocking(CreateDocumentCommand {
+            workspace_id: home.id,
+            title: "draft".to_string(),
+            contents: "body".to_string(),
+            folder_id: None,
+        })
+        .unwrap();
+    assert!(!document.pinned);
+
+    let pinned = db
+        .send_blocking(SetDocumentPinnedCommand {
+            workspace_id: home.id,
+            document_id: document.id,
+            pinned: true,
+        })
+        .unwrap();
+    assert!(pinned.pinned);
+    assert_eq!(pinned.modified, document.modified);
+    let listed = db
+        .send_blocking(ListDocumentsCommand {
+            workspace_id: home.id,
+            document_type: None,
+            journal_from: None,
+            journal_to: None,
+            metadata: HashMap::new(),
+            has_metadata: Vec::new(),
+        })
+        .unwrap();
+    assert!(listed.iter().any(|d| d.id == document.id && d.pinned));
+
+    let unpinned = db
+        .send_blocking(SetDocumentPinnedCommand {
+            workspace_id: home.id,
+            document_id: document.id,
+            pinned: false,
+        })
+        .unwrap();
+    assert!(!unpinned.pinned);
+
+    let elsewhere = db.send_blocking(SetDocumentPinnedCommand {
+        workspace_id: away.id,
+        document_id: document.id,
+        pinned: true,
+    });
+    assert!(matches!(elsewhere, Err(CommandError::NotFound(_))));
 }

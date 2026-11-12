@@ -4,7 +4,7 @@ use cohesion_core::invalidation::Invalidation;
 use cohesion_core::protocol::{
     AppendToJournalRequest, CreateDocumentRequest, DeleteDocumentRequest, EditDocumentRequest,
     EditJournalRequest, GetDocumentRequest, GetJournalRequest, ListDocumentsRequest,
-    RenameDocumentRequest, SearchDocumentRequest,
+    RenameDocumentRequest, SearchDocumentRequest, SetDocumentPinnedRequest,
 };
 use cohesion_core::{Document, DocumentType, FromRequest};
 
@@ -219,6 +219,32 @@ impl DatabaseCommand for RenameDocumentCommand {
             .found()?;
         let table = row_changed(ctx, &document, TableChange::Shown)?;
         Ok(changed(ctx, document)?.and(table))
+    }
+}
+
+/// Pins a live document to the Dashboard, or unpins it. Pinning isn't an edit
+/// of the document, so its modified time and versions stay as they were.
+#[derive(FromRequest)]
+#[request(SetDocumentPinnedRequest)]
+pub struct SetDocumentPinnedCommand {
+    pub workspace_id: i64,
+    pub document_id: i64,
+    pub pinned: bool,
+}
+impl DatabaseCommand for SetDocumentPinnedCommand {
+    type Response = Document;
+    type Access = Write;
+    fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<Document>> {
+        ensure_workspace(ctx.db, self.workspace_id)?;
+        let document = ctx
+            .db
+            .update_live()
+            .set(Document::PINNED, self.pinned)
+            .filter_eq(Document::WORKSPACE_ID, self.workspace_id)
+            .filter_eq(Document::ID, self.document_id)
+            .returning_one()
+            .found()?;
+        Ok(document.invalidating([Invalidation::Documents(self.workspace_id)]))
     }
 }
 

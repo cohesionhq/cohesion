@@ -1810,6 +1810,11 @@ export interface Document {
 	 * Always `null` for journals.
 	 */
 	folder_id: number | null;
+	/**
+	 * Whether the document is pinned to the Dashboard, as part of the
+	 * user's working set.
+	 */
+	pinned: boolean;
 }
 
 /** One document's value for one property, on the wire. */
@@ -4729,6 +4734,17 @@ export interface SetDocumentFolderRepresentationRequest {
 }
 
 /**
+ * Pins live document `document_id` in a workspace to the Dashboard, or
+ * unpins it. The document's contents and modified time are left as they
+ * are.
+ */
+export interface SetDocumentPinnedRequest {
+	workspace_id: number;
+	document_id: number;
+	pinned: boolean;
+}
+
+/**
  * Sets live document `document_id`'s value for property `property_id` of
  * its folder, which must be of the property's type, or empties it when
  * `value` is absent; refused for a formula, whose values are computed.
@@ -5777,6 +5793,8 @@ export interface Requests {
 	createDocument: CreateDocumentRequest;
 	/** Retitles live document `document_id` in a workspace. */
 	renameDocument: RenameDocumentRequest;
+	/** Pins a document to the Dashboard, or unpins it. */
+	setDocumentPinned: SetDocumentPinnedRequest;
 	/** Deletes document `document_id` in a workspace. */
 	deleteDocument: DeleteDocumentRequest;
 	/** Files a document into a folder, or the Inbox. */
@@ -6378,6 +6396,8 @@ export interface Replies {
 	createDocument: Document;
 	/** Retitles live document `document_id` in a workspace. */
 	renameDocument: Document;
+	/** Pins a document to the Dashboard, or unpins it. */
+	setDocumentPinned: Document;
 	/** Deletes document `document_id` in a workspace. */
 	deleteDocument: Document;
 	/** Files a document into a folder, or the Inbox. */

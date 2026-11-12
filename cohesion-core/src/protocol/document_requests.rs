@@ -159,6 +159,16 @@ pub struct RenameDocumentRequest {
     pub title: String,
 }
 
+/// Pins live document `document_id` in a workspace to the Dashboard, or
+/// unpins it. The document's contents and modified time are left as they
+/// are.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct SetDocumentPinnedRequest {
+    pub workspace_id: i64,
+    pub document_id: i64,
+    pub pinned: bool,
+}
+
 /// Deletes document `document_id` in a workspace.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct DeleteDocumentRequest {
