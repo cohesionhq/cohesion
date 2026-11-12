@@ -49,4 +49,8 @@ pub struct Document {
     ///
     /// Always `null` for journals.
     pub folder_id: Option<i64>,
+
+    /// Whether the document is pinned to the Dashboard, as part of the
+    /// user's working set.
+    pub pinned: bool,
 }

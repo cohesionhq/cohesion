@@ -123,6 +123,9 @@ pub enum Command {
     /// Retitles live document `document_id` in a workspace.
     #[reply(Document)]
     RenameDocument(RenameDocumentRequest),
+    /// Pins a document to the Dashboard, or unpins it.
+    #[reply(Document)]
+    SetDocumentPinned(SetDocumentPinnedRequest),
     /// Deletes document `document_id` in a workspace.
     #[reply(Document)]
     DeleteDocument(DeleteDocumentRequest),

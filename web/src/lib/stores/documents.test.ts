@@ -20,6 +20,7 @@ const doc = (id: number, fields: Partial<Document>): Document => ({
 	journal_date: null,
 	deleted: false,
 	folder_id: null,
+	pinned: false,
 	...fields
 });
 
@@ -86,6 +87,16 @@ describe('documents store', () => {
 		// The rows of the two tables are documents too, listed like any other.
 		expect(store.list.value).toHaveLength(17);
 		expect(store.archive.value.map((d) => d.id)).toEqual([1, 2, 3, 4]);
+	});
+
+	it('pins and unpins a document in the list', async () => {
+		const store = createDocumentsStore(createMock().send);
+		await store.list.load(1);
+		const target = store.list.value.find((d) => !d.pinned)!;
+		await store.setPinned(1, target.id, true);
+		expect(store.list.value.find((d) => d.id === target.id)?.pinned).toBe(true);
+		await store.setPinned(1, target.id, false);
+		expect(store.list.value.find((d) => d.id === target.id)?.pinned).toBe(false);
 	});
 
 	it('creates, renames and deletes from replies', async () => {
