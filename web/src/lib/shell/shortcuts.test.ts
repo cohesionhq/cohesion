@@ -9,6 +9,7 @@ import {
 	opensSettings,
 	togglesEditing,
 	showsShortcuts,
+	togglesSidebar,
 	workspaceIndexFor
 } from './shortcuts.svelte';
 
@@ -69,12 +70,24 @@ describe('historyStepFor', () => {
 });
 
 describe('showsShortcuts', () => {
+	it('takes ⇧⌘/ or Ctrl+Shift+/, and nothing else on that key', () => {
+		expect(showsShortcuts(press('Slash', '?', { shiftKey: true, metaKey: true }))).toBe(true);
+		expect(showsShortcuts(press('Slash', '?', { shiftKey: true, ctrlKey: true }))).toBe(true);
+		expect(showsShortcuts(press('Slash', '/', { metaKey: true }))).toBe(false);
+		expect(showsShortcuts(press('Slash', '?', { shiftKey: true }))).toBe(false);
+		expect(
+			showsShortcuts(press('Slash', '?', { shiftKey: true, altKey: true, metaKey: true }))
+		).toBe(false);
+	});
+});
+
+describe('togglesSidebar', () => {
 	it('takes ⌘/ or Ctrl+/, and nothing else on that key', () => {
-		expect(showsShortcuts(press('Slash', '/', { metaKey: true }))).toBe(true);
-		expect(showsShortcuts(press('Slash', '/', { ctrlKey: true }))).toBe(true);
-		expect(showsShortcuts(press('Slash', '/'))).toBe(false);
-		expect(showsShortcuts(press('Slash', '?', { shiftKey: true, metaKey: true }))).toBe(false);
-		expect(showsShortcuts(press('Slash', '/', { altKey: true, metaKey: true }))).toBe(false);
+		expect(togglesSidebar(press('Slash', '/', { metaKey: true }))).toBe(true);
+		expect(togglesSidebar(press('Slash', '/', { ctrlKey: true }))).toBe(true);
+		expect(togglesSidebar(press('Slash', '/'))).toBe(false);
+		expect(togglesSidebar(press('Slash', '?', { shiftKey: true, metaKey: true }))).toBe(false);
+		expect(togglesSidebar(press('Slash', '/', { altKey: true, metaKey: true }))).toBe(false);
 	});
 });
 

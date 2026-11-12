@@ -2149,8 +2149,8 @@ layers. It follows the system: light by default, dark under
 `prefers-color-scheme: dark`; there is no manual switch. Custom variants
 (`touch:`, `max-md:`, `max-sm:`) also respond to a split half's width.
 
-**Keyboard** (root `+layout.svelte`): ⌘K or Ctrl+K opens the palette; ⌘/ or
-Ctrl+/, or `?` when not typing, lists shortcuts; ⌘, or Ctrl+, opens
+**Keyboard** (root `+layout.svelte`): ⌘K or Ctrl+K opens the palette; ⇧⌘/ or
+Ctrl+Shift+/, or `?` when not typing, lists shortcuts; ⌘/ or Ctrl+/ collapses the sidebar to a restore button (remembered in local storage); ⌘, or Ctrl+, opens
 settings; ⌘D or Ctrl+D focuses the folder button in a page heading (and leaves
 the key to the browser on a page without one); ⌘E or Ctrl+E, on a document or journal entry,
 switches between editing and preview (not in a plain input); ⌘[ and ⌘], or ⌘/Alt with the arrow keys, and the mouse's back and

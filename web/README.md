@@ -140,8 +140,8 @@ anywhere and point the script at it.
 - `src/lib/shell/`: the sidebar, the ⌘K palette, the workspace switcher,
   route builders and keyboard shortcuts (⌘ or ⌥ and a letter for a page, or a
   digit for a workspace, ⌘, for Settings, and ⌘[ ⌘] or ⌥← ⌥→ and a mouse's
-  side buttons for back and forward, which the WebUI harnesses' web view lacks; ⌘/ or
-  `?` lists them), and the split view (see [Split view](#split-view)).
+  side buttons for back and forward, which the WebUI harnesses' web view lacks; ⇧⌘/ or
+  `?` lists them, ⌘/ collapses the sidebar), and the split view (see [Split view](#split-view)).
 - `src/routes/`: `/` picks a workspace, or with none opens the first-run flow
   (`features/onboarding/`: a workspace, a model provider and an agent, each
   skippable); `/w/[ws]/…` are workspace pages
@@ -417,7 +417,7 @@ doing, not by how it looks.
 
 ## Keyboard shortcuts
 
-Every shortcut the page handles has a row in the ⌘/ dialog
+Every shortcut the page handles has a row in the ⇧⌘/ dialog
 (`shell/ShortcutsDialog.svelte`); that dialog is how people find them.
 
 - **Pages have no chords.** Every page, workspace and settings section is
@@ -434,7 +434,7 @@ Every shortcut the page handles has a row in the ⌘/ dialog
   (`src/lib/shell/keys.ts`).
 - **Modifiers**: the app runs in the WebUI harnesses' web view, so ⌘ (Ctrl
   elsewhere) is the base of every app-wide chord (⌘K search, ⌘, Settings, ⌘/
-  shortcuts, ⌘↩ submit). ⌘N makes what the page lists (a task, or a document,
+  sidebar, ⇧⌘/ shortcuts, ⌘↩ submit). ⌘N makes what the page lists (a task, or a document,
   which in a table is a row) and ⇧⌘N a folder, as a native app's File › New does; they are the
   one exception to the rule that follows, and are handled on the page that
   makes the item. A chord the system or an app already owns (⌘T, O,

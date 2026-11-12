@@ -60,11 +60,23 @@ export function historyStepFor(
 }
 
 /**
- * Whether a key press asks for the shortcuts dialog: ⌘/ (Ctrl+/), which
- * works in a field too, as no browser claims it. A bare "?" does as well, but
- * only where nothing is being typed, so the layout checks that itself.
+ * Whether a key press asks for the shortcuts dialog: ⇧⌘/ (⌘?, Ctrl+Shift+/),
+ * which works in a field too, as no browser claims it. A bare "?" does as
+ * well, but only where nothing is being typed, so the layout checks that itself.
  */
 export function showsShortcuts(
+	event: Pick<KeyboardEvent, 'code' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>
+): boolean {
+	return (
+		(event.metaKey || event.ctrlKey) && !event.altKey && event.shiftKey && event.code === 'Slash'
+	);
+}
+
+/**
+ * Whether a key press collapses or restores the sidebar: ⌘/ (Ctrl+/), which
+ * works in a field too. With Shift it is the shortcuts dialog instead.
+ */
+export function togglesSidebar(
 	event: Pick<KeyboardEvent, 'code' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>
 ): boolean {
 	return (

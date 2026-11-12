@@ -20,6 +20,7 @@
 		isTyping,
 		opensSettings,
 		showsShortcuts,
+		togglesSidebar,
 		workspaceIndexFor,
 		shortcuts,
 		focusesFolderHeading,
@@ -32,6 +33,8 @@
 	import ShowKindsDialog from '$lib/features/connectors/ShowKindsDialog.svelte';
 	import ShortcutsDialog from '$lib/shell/ShortcutsDialog.svelte';
 	import Sidebar from '$lib/shell/Sidebar.svelte';
+	import { sidebarState } from '$lib/shell/sidebarState.svelte';
+	import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
 	import AgentGutter from '$lib/features/agents/AgentGutter.svelte';
 	import SessionGutter from '$lib/features/actors/SessionGutter.svelte';
 	import ConversationGutter from '$lib/shell/ConversationGutter.svelte';
@@ -227,6 +230,11 @@
 				paletteOpen = !paletteOpen;
 				return;
 			}
+			if (togglesSidebar(event)) {
+				event.preventDefault();
+				sidebarState.toggle();
+				return;
+			}
 			if (showsShortcuts(event)) {
 				event.preventDefault();
 				shortcuts.open = true;
@@ -305,6 +313,7 @@
 		window.addEventListener('mouseup', onButton);
 		window.addEventListener('click', onAltClick, true);
 		panes.restore();
+		sidebarState.restore();
 		return () => {
 			for (const stop of unsubscribe) stop();
 			window.removeEventListener('focus', onFocus);
@@ -323,36 +332,53 @@
 {:else if ready}
 	<!-- The page itself never scrolls; the sidebar and the main column each scroll on their own. -->
 	<div class="flex h-dvh overflow-hidden max-sm:flex-col">
-		<Sidebar
-			pathname={page.url.pathname}
-			search={page.url.search}
-			workspaceId={workspaces.currentId}
-			status={connection.status}
-			{hostname}
-			agents={agents.list.value}
-			teams={agents.teams.value}
-			actorSessions={actors.current}
-			goingActorSessions={actors.goingCount}
-			kinds={shownKinds}
-			documentFolders={documents.folders.key === workspaces.currentId
-				? documents.folders.value
-				: []}
-			taskFolders={tasks.folders.key === workspaces.currentId ? tasks.folders.value : []}
-			onunpinfolder={(kind, id) =>
-				workspaces.currentId !== null &&
-				(kind === 'documents' ? documents : tasks)
-					.setFolderPinned(workspaces.currentId, id, false)
-					.catch((e) => toasts.error(e))}
-			onfiledocument={fileDocument}
-			onresolve={resolveSession}
-			onsearch={() => (paletteOpen = true)}
-			onchoosekinds={() => (choosingKinds = true)}
-			onpin={(id, pinned) => agents.setPinned(id, pinned).catch((e) => toasts.error(e))}
-			onreorder={(ids) => agents.reorder(ids).catch((e) => toasts.error(e))}
-			onreorderkinds={(ids) =>
-				workspaces.currentId !== null &&
-				resources.reorderShown(workspaces.currentId, ids).catch((e) => toasts.error(e))}
-		/>
+		{#if sidebarState.collapsed}
+			<!-- Collapsed: only a restore button is left; ⌘K and the shortcuts do the navigating. -->
+			<div
+				class="flex flex-none items-start px-1.5 pt-[calc(--spacing(3)+var(--titlebar-inset))] max-sm:px-2 max-sm:pt-[calc(--spacing(1)+var(--titlebar-inset))] max-sm:pb-1"
+			>
+				<button
+					class="flex size-7.5 items-center justify-center rounded-sm text-fg-subtle hover:bg-bg-hover hover:text-fg"
+					type="button"
+					aria-label="Show sidebar"
+					onclick={() => sidebarState.set(false)}
+				>
+					<PanelLeftOpen size={16} strokeWidth={1.75} />
+				</button>
+			</div>
+		{:else}
+			<Sidebar
+				pathname={page.url.pathname}
+				search={page.url.search}
+				workspaceId={workspaces.currentId}
+				status={connection.status}
+				{hostname}
+				agents={agents.list.value}
+				teams={agents.teams.value}
+				actorSessions={actors.current}
+				goingActorSessions={actors.goingCount}
+				kinds={shownKinds}
+				documentFolders={documents.folders.key === workspaces.currentId
+					? documents.folders.value
+					: []}
+				taskFolders={tasks.folders.key === workspaces.currentId ? tasks.folders.value : []}
+				onunpinfolder={(kind, id) =>
+					workspaces.currentId !== null &&
+					(kind === 'documents' ? documents : tasks)
+						.setFolderPinned(workspaces.currentId, id, false)
+						.catch((e) => toasts.error(e))}
+				onfiledocument={fileDocument}
+				onresolve={resolveSession}
+				onsearch={() => (paletteOpen = true)}
+				onchoosekinds={() => (choosingKinds = true)}
+				onpin={(id, pinned) => agents.setPinned(id, pinned).catch((e) => toasts.error(e))}
+				onreorder={(ids) => agents.reorder(ids).catch((e) => toasts.error(e))}
+				onreorderkinds={(ids) =>
+					workspaces.currentId !== null &&
+					resources.reorderShown(workspaces.currentId, ids).catch((e) => toasts.error(e))}
+				oncollapse={() => sidebarState.set(true)}
+			/>
+		{/if}
 		<!-- The page is a sheet inset in the window, the sidebar on the canvas around it. It reserves
 		     no scrollbar gutter, so a bar across its top (a conversation's header) meets both edges
 		     evenly; where scrollbars take room, a page that starts to scroll narrows by one.

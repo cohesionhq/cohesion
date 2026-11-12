@@ -7,6 +7,8 @@
 
 	const newFolderKeys = isMac ? keyLabel('shift', 'mod', 'n') : keyLabel('mod', 'shift', 'n');
 
+	const helpKeys = isMac ? keyLabel('shift', 'mod', '/') : keyLabel('mod', 'shift', '/');
+
 	const groups: { title: string; rows: { keys: string[]; label: string }[] }[] = [
 		{
 			title: 'Anywhere',
@@ -22,7 +24,8 @@
 				},
 				{ keys: [`${keyLabel('alt')}-click`], label: 'Open a link in split view' },
 				{ keys: [keyLabel('mod', 'd')], label: 'Focus the folder menu in the heading' },
-				{ keys: [keyLabel('mod', '/'), '?'], label: 'Show these shortcuts' }
+				{ keys: [keyLabel('mod', '/')], label: 'Collapse or restore the sidebar' },
+				{ keys: [helpKeys, '?'], label: 'Show these shortcuts' }
 			]
 		},
 		{

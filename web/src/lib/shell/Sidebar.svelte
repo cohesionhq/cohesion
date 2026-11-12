@@ -44,6 +44,7 @@
 	import PinOff from '@lucide/svelte/icons/pin-off';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Puzzle from '@lucide/svelte/icons/puzzle';
+	import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
 	import Search from '@lucide/svelte/icons/search';
 	import Settings from '@lucide/svelte/icons/settings';
 	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
@@ -104,6 +105,8 @@
 		/** Resolves an actor session: the user is done with it. */
 		onresolve: (session: ActorSession) => void;
 		onsearch: () => void;
+		/** Collapses the sidebar to its restore button (⌘/ does too). */
+		oncollapse: () => void;
 		/** Opens the choice of which kinds the workspace shows. */
 		onchoosekinds: () => void;
 		/** Pins or unpins an agent. */
@@ -131,6 +134,7 @@
 		onfiledocument,
 		onresolve,
 		onsearch,
+		oncollapse,
 		onchoosekinds,
 		onpin,
 		onreorder,
@@ -611,6 +615,17 @@
 			onclick={onsearch}
 		>
 			<Search size={16} strokeWidth={1.75} />
+		</button>
+		<button
+			class={[
+				linkClass,
+				'flex-none text-fg-subtle md:w-7.5 md:justify-center md:px-0 max-sm:order-1'
+			]}
+			type="button"
+			aria-label="Hide sidebar"
+			onclick={oncollapse}
+		>
+			<PanelLeftClose size={16} strokeWidth={1.75} />
 		</button>
 	</div>
 
