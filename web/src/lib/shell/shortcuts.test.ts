@@ -6,6 +6,7 @@ import {
 	asksForNew,
 	asksForNewFolder,
 	opensSettings,
+	togglesEditing,
 	showsShortcuts,
 	workspaceIndexFor
 } from './shortcuts.svelte';
@@ -99,6 +100,16 @@ describe('asksForNew and asksForNewFolder', () => {
 		expect(asksForNewFolder(press('KeyN', 'N', { metaKey: true, shiftKey: true }))).toBe(true);
 		expect(asksForNewFolder(press('KeyN', 'N', { ctrlKey: true, shiftKey: true }))).toBe(true);
 		expect(asksForNewFolder(press('KeyN', 'n', { metaKey: true }))).toBe(false);
+	});
+});
+
+describe('togglesEditing', () => {
+	it('takes ⌘E or Ctrl+E alone', () => {
+		expect(togglesEditing(press('KeyE', 'e', { metaKey: true }))).toBe(true);
+		expect(togglesEditing(press('KeyE', 'e', { ctrlKey: true }))).toBe(true);
+		expect(togglesEditing(press('KeyE', 'e'))).toBe(false);
+		expect(togglesEditing(press('KeyE', 'E', { metaKey: true, shiftKey: true }))).toBe(false);
+		expect(togglesEditing(press('KeyE', 'e', { metaKey: true, altKey: true }))).toBe(false);
 	});
 });
 

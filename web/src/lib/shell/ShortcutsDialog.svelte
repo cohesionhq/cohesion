@@ -28,7 +28,8 @@
 			title: 'Documents',
 			rows: [
 				{ keys: [keyLabel('mod', 'n')], label: 'New document' },
-				{ keys: [newFolderKeys], label: 'New folder' }
+				{ keys: [newFolderKeys], label: 'New folder' },
+				{ keys: [keyLabel('mod', 'e')], label: 'Switch between editing and preview' }
 			]
 		},
 		{
