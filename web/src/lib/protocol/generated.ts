@@ -3089,6 +3089,13 @@ export type Invalidation =
 	| { kind: 'agentTeams' }
 	| { kind: 'taskFolders'; id: number }
 	| { kind: 'documents'; id: number }
+	| {
+			kind: 'documentText';
+			id: {
+				workspace_id: number;
+				document_id: number;
+			};
+	  }
 	| { kind: 'documentFolders'; id: number }
 	| { kind: 'documentTable'; id: number }
 	| {
@@ -3096,6 +3103,13 @@ export type Invalidation =
 			id: {
 				workspace_id: number;
 				folder_id: number | null;
+			};
+	  }
+	| {
+			kind: 'taskDescription';
+			id: {
+				workspace_id: number;
+				task_id: number;
 			};
 	  }
 	| { kind: 'connectorAccounts' }
@@ -3333,6 +3347,11 @@ export interface ListDocumentsRequest {
 	journal_from?: string | null;
 	/** Only journals dated before this `"YYYY-MM-DD"`. */
 	journal_to?: string | null;
+	/**
+	 * Only these documents: how a list refreshes the rows a
+	 * `documentText` invalidation names.
+	 */
+	ids?: number[] | null;
 }
 
 /**

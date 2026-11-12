@@ -32,6 +32,11 @@ under "Unreleased" with any change users would notice.
   documents no longer reads every document's text, and `contents` is always
   what the document holds now. `JSON.stringify` of a `Document` leaves the
   text out. To find documents by their text, search the workspace.
+- Editing a document's text or a task's description no longer reloads every
+  list that shows it. The daemon raises `documentText` or `taskDescription`
+  for the one item, in place of `documents` or `taskList`, and the web UI
+  fetches just that row (`listDocuments` takes `ids`). The iPhone app has to
+  listen for the new keys, or it misses edits made elsewhere.
 - New requests: `resolveLinks` resolves many `cohesion://` links at once,
   `listActorSessionAncestors` lists the sessions a subagent runs under, and
   `addEndpointModels` imports several models into an endpoint. `listTasks`

@@ -2,6 +2,7 @@
 //! `tasks` and `documents` keep the versions; nothing here changes or removes
 //! one but the cleanup's [`DeleteOldVersionsCommand`].
 
+use cohesion_core::invalidation::Invalidation;
 use cohesion_core::model::{
     DeletedItem, RestoredItem, RewindWriter, TaskFolder, Version, VersionChange, VersionSummary,
     VersionTarget, VersionedItem,
@@ -299,12 +300,14 @@ fn restore_document(
             .map_err(day_taken)
     })?;
     let table = row_changed(ctx, &document, TableChange::Shown)?;
+    // A restore may bring the document back or retitle it as well, so the
+    // workspace's documents change either way.
     let restored = if rewritten || before.deleted {
-        saved(ctx, document)
+        saved(ctx, document)?.and([Invalidation::Documents(workspace_id)])
     } else {
-        changed(ctx, document)
+        changed(ctx, document)?
     };
-    Ok(restored?.and(table))
+    Ok(restored.and(table))
 }
 
 /// The only unique value a restore can collide with is a journal's day, the

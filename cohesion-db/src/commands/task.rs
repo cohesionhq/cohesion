@@ -557,7 +557,12 @@ impl DatabaseCommand for ChangeTaskDescriptionCommand {
                 task_id: task.id,
                 workspace_id: task.workspace_id,
             }));
-        listed(ctx, task)
+        followed(ctx, &task)?;
+        let key = Invalidation::TaskDescription {
+            workspace_id: task.workspace_id,
+            task_id: task.id,
+        };
+        Ok(task.invalidating([key]))
     }
 }
 

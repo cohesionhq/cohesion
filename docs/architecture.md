@@ -448,11 +448,16 @@ the time the client hears back.
 **Invalidations.** The daemon pushes what went stale, never the data;
 clients refetch. `Invalidation` (`cohesion-core/src/invalidation.rs`, tagged
 `{kind, id}`) has the keys `workspace(id)`, `intelligenceCostEvents`,
-`agent(id)`, `agentTeams`, `taskFolders(ws)`, `documents(ws)`,
+`agent(id)`, `agentTeams`, `taskFolders(ws)`, `documents(ws)` (one was
+created, renamed, moved, pinned or deleted),
+`documentText{workspace_id, document_id}` (one document's text was edited:
+a list refetches just its row, `listDocuments` with `ids`),
 `documentFolders(ws)` (one was created, renamed, moved or deleted, or its
 representation changed), `documentTable(folder)` (anything in a
 folder's table: a property, a value, or a document coming, going, renamed or
 deleted), `taskList{workspace_id, folder_id}` (null folder is the inbox),
+`taskDescription{workspace_id, task_id}` (one task's description changed,
+which no list filters or sorts by, so a list refetches just its row),
 `connectorAccounts`, `resources(ws)`, `resourceKinds(ws)`, `feeds`,
 `feedArticles`, `intelligence`, `clients`, `security`, `storage`, `profile`,
 `tags(ws)`, `contacts(ws)`, `savedTaskViews(ws)`, `extensionUpdates`,
@@ -460,7 +465,10 @@ deleted), `taskList{workspace_id, folder_id}` (null folder is the inbox),
 `actorUsage`, `backlinks{kind, id}` (what links to one item, by its
 `LinkKind` and id), and `notification{title, message}`, which carries a
 notification that nothing stores. A command names the keys it touched in its `Changed`
-response; they go out on a 256-slot broadcast only if it commits.
+response; they go out on a 256-slot broadcast only if it commits. A key
+that names one item of a long list (`documentText`, `taskDescription`) is
+raised in place of the list's own, so a client refreshes one row rather than
+the list; the web UI does it through `Resource`'s `patch`.
 `DatabaseContext::publish` sends a key outside any command (a client coming
 online, actor usage). A session gets invalidations only after `subscribe`;
 the web UI subscribes first on every connection, the CLI only to follow an
@@ -495,7 +503,8 @@ word. An item deleted, in a deleted workspace or never made is `notFound`;
 text that isn't such a link fails validation on `link`. Old
 `cohesion://database/…` and `cohesion://database-row/…` links name nothing.
 Nothing pushes an embed: a client asks again on the item's invalidation,
-`taskList` of the task's workspace, `documents(ws)`, `resources(ws)`,
+`taskList` of the task's workspace or its `taskDescription`, `documents(ws)`
+or the document's `documentText`, `resources(ws)`,
 `contacts(ws)`,
 `documentTable(folder)` for a folder, `agent(id)`, `actorSession(id)` or
 `feedArticles`. A link shows as a card

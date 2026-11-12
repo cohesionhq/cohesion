@@ -49,6 +49,9 @@ pub struct ListDocumentsRequest {
     pub journal_from: Option<String>,
     /// Only journals dated before this `"YYYY-MM-DD"`.
     pub journal_to: Option<String>,
+    /// Only these documents: how a list refreshes the rows a
+    /// `documentText` invalidation names.
+    pub ids: Option<Vec<i64>>,
 }
 
 /// Fetches live document `document_id` in a workspace.

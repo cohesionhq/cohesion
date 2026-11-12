@@ -100,6 +100,7 @@ impl JsWorkspace {
                 document_type: None,
                 journal_from: None,
                 journal_to: None,
+                ids: None,
                 metadata: options.metadata.unwrap_or_default(),
                 has_metadata: options
                     .has_metadata

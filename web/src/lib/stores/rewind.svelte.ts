@@ -58,8 +58,10 @@ export function authorLabel(row: {
 
 function touches(key: Invalidation, kind: RewindItem['kind'], workspace_id: number): boolean {
 	return kind === 'task'
-		? key.kind === 'taskList' && key.id.workspace_id === workspace_id
-		: key.kind === 'documents' && key.id === workspace_id;
+		? (key.kind === 'taskList' || key.kind === 'taskDescription') &&
+				key.id.workspace_id === workspace_id
+		: (key.kind === 'documents' && key.id === workspace_id) ||
+				(key.kind === 'documentText' && key.id.workspace_id === workspace_id);
 }
 
 function target({ kind, id }: RewindItem): VersionTarget {

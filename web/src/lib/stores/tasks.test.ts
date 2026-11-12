@@ -418,3 +418,35 @@ describe('tasks due', () => {
 		expect(titles).not.toContain('Cohesion-bench');
 	});
 });
+
+describe('a task description change', () => {
+	it('refreshes just that task in the page, where it stands', async () => {
+		const mock = createMock();
+		const sent: string[] = [];
+		const send = ((...args: Parameters<typeof mock.send>) => {
+			sent.push(JSON.stringify(args));
+			return mock.send(...args);
+		}) as typeof mock.send;
+		const store = createTasksStore(send);
+		await store.open(1, 'all');
+		const before = store.list.value.tasks.map((t) => t.id);
+		const task = store.list.value.tasks[1];
+		await mock.send('editTaskDescription', {
+			workspace_id: 1,
+			task_id: task.id,
+			description: 'Fresh notes'
+		});
+		sent.length = 0;
+
+		// Other tests leave resources in flight, so this drives the list alone.
+		const keys = store.list.partlyTouchedBy([
+			{ kind: 'taskDescription', id: { workspace_id: 1, task_id: task.id } }
+		]);
+		expect(store.list.touchedBy(keys)).toBe(false);
+		await store.list.patchFrom(keys);
+		expect(sent).toHaveLength(1);
+		expect(JSON.parse(sent[0])[1].ids).toEqual([task.id]);
+		expect(store.list.value.tasks.map((t) => t.id)).toEqual(before);
+		expect(store.list.value.tasks[1].description).toBe('Fresh notes');
+	});
+});

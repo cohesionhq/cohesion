@@ -51,7 +51,7 @@ export function documentsHandlers(core: MockCore) {
 				)
 				.map(summary);
 		},
-		listDocuments: ({ workspace_id, document_type, journal_from, journal_to }) =>
+		listDocuments: ({ workspace_id, document_type, journal_from, journal_to, ids }) =>
 			state.documents
 				.filter(
 					(d) =>
@@ -59,7 +59,8 @@ export function documentsHandlers(core: MockCore) {
 						!d.deleted &&
 						(document_type == null || d.document_type === document_type) &&
 						(journal_from == null || (d.journal_date !== null && d.journal_date >= journal_from)) &&
-						(journal_to == null || (d.journal_date !== null && d.journal_date < journal_to))
+						(journal_to == null || (d.journal_date !== null && d.journal_date < journal_to)) &&
+						(ids == null || ids.includes(d.id))
 				)
 				.map(summary),
 		getDocument: ({ workspace_id, document_id }) => ({ ...document(workspace_id, document_id) }),

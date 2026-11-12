@@ -7,6 +7,7 @@ import type {
 	DocumentFolder,
 	DocumentSummary,
 	DocumentFolderRepresentation,
+	DocumentType,
 	Invalidation,
 	Send
 } from '$lib/protocol/types';
@@ -105,13 +106,25 @@ export class DocumentsStore {
 		this.#send = send;
 		const inWorkspace = (key: Invalidation, workspace_id: number) =>
 			key.kind === 'documents' && key.id === workspace_id;
+		const textIn = (key: Invalidation, workspace_id: number) =>
+			key.kind === 'documentText' && key.id.workspace_id === workspace_id;
+		/** Refreshes just the rows whose text changed, from the daemon, in `order`. */
+		const rows =
+			(document_type: DocumentType, order: (a: DocumentSummary, b: DocumentSummary) => number) =>
+			async (keys: Invalidation[], workspace_id: number) => {
+				const ids = keys.flatMap((k) => (k.kind === 'documentText' ? [k.id.document_id] : []));
+				const fresh = await send('listDocuments', { workspace_id, document_type, ids });
+				return (docs: DocumentSummary[]) =>
+					[...docs.filter((d) => !fresh.some((f) => f.id === d.id)), ...fresh].sort(order);
+			};
 		this.list = new Resource({
 			fetch: (workspace_id) =>
 				send('listDocuments', { workspace_id, document_type: 'normal' }).then((docs) =>
 					docs.sort(byModified)
 				),
 			initial: [],
-			matches: inWorkspace
+			matches: inWorkspace,
+			patch: { matches: textIn, fetch: rows('normal', byModified) }
 		});
 		this.folders = new Resource({
 			fetch: (workspace_id) => send('listDocumentFolders', { workspace_id }),
@@ -124,7 +137,8 @@ export class DocumentsStore {
 					docs.sort(byJournalDate)
 				),
 			initial: [],
-			matches: inWorkspace
+			matches: inWorkspace,
+			patch: { matches: textIn, fetch: rows('journal', byJournalDate) }
 		});
 		this.text = new Draft(async (contents) => {
 			const { workspace_id, document_id } = this.current.key!;
@@ -135,7 +149,9 @@ export class DocumentsStore {
 		this.current = new Resource({
 			fetch: ({ workspace_id, document_id }) => send('getDocument', { workspace_id, document_id }),
 			initial: null,
-			matches: (key, { workspace_id }) => inWorkspace(key, workspace_id),
+			matches: (key, { workspace_id, document_id }) =>
+				inWorkspace(key, workspace_id) ||
+				(key.kind === 'documentText' && key.id.document_id === document_id),
 			canRefetch: () => !this.text.dirty && !this.text.saving,
 			onFetched: (doc) => {
 				if (doc) this.text.receive(doc.contents, doc.modified);

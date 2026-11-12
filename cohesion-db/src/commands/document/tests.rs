@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use cohesion_core::DocumentType;
+use cohesion_core::invalidation::Invalidation;
 use cohesion_core::model::{DocumentSummary, OPENING_CHARS};
 use cohesion_core::{Document, Named};
 
@@ -83,6 +84,7 @@ fn journal_commands() {
             document_type: None,
             journal_from: None,
             journal_to: None,
+            ids: None,
             metadata: HashMap::new(),
             has_metadata: Vec::new(),
         })
@@ -102,6 +104,7 @@ fn listed_titles(
         document_type,
         journal_from: journal_range.map(|(from, _)| from.to_string()),
         journal_to: journal_range.map(|(_, to)| to.to_string()),
+        ids: None,
         metadata: HashMap::new(),
         has_metadata: Vec::new(),
     })
@@ -309,6 +312,7 @@ fn a_document_can_be_pinned_and_unpinned_without_being_edited() {
             document_type: None,
             journal_from: None,
             journal_to: None,
+            ids: None,
             metadata: HashMap::new(),
             has_metadata: Vec::new(),
         })
@@ -356,6 +360,7 @@ fn a_listed_documents_opening_is_cut_as_a_summary_of_it_is() {
             document_type: None,
             journal_from: None,
             journal_to: None,
+            ids: None,
             metadata: HashMap::new(),
             has_metadata: Vec::new(),
         })
@@ -363,4 +368,46 @@ fn a_listed_documents_opening_is_cut_as_a_summary_of_it_is() {
     // SQLite's `substr` and `From<Document>` count characters alike.
     assert_eq!(listed[0].opening, DocumentSummary::from(document).opening);
     assert_eq!(listed[0].opening.chars().count(), OPENING_CHARS);
+}
+
+#[test]
+fn an_edit_of_a_documents_text_changes_its_text_not_the_workspaces_documents() {
+    let db = context();
+    let workspace_id = db
+        .send_blocking(CreateWorkspaceCommand {
+            title: "w".to_string(),
+            emoji: None,
+        })
+        .unwrap()
+        .id;
+    let mut batches = db.subscribe();
+    let document = db
+        .send_blocking(CreateDocumentCommand {
+            workspace_id,
+            title: "Plan".to_string(),
+            contents: String::new(),
+            folder_id: None,
+        })
+        .unwrap();
+    let mut keys = Vec::new();
+    while let Ok(batch) = batches.try_recv() {
+        keys.extend(batch.keys.clone());
+    }
+    assert!(keys.contains(&Invalidation::Documents(workspace_id)));
+
+    db.send_blocking(EditDocumentCommand {
+        workspace_id,
+        document_id: document.id,
+        contents: "Steps".to_string(),
+    })
+    .unwrap();
+    let mut keys = Vec::new();
+    while let Ok(batch) = batches.try_recv() {
+        keys.extend(batch.keys.clone());
+    }
+    assert!(keys.contains(&Invalidation::DocumentText {
+        workspace_id,
+        document_id: document.id,
+    }));
+    assert!(!keys.contains(&Invalidation::Documents(workspace_id)));
 }

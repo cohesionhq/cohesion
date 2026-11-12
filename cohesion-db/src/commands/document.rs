@@ -52,8 +52,9 @@ fn find_or_create_journal(
     }
 }
 
-/// Invalidates `document`'s workspace and raises `JournalSaved` for a
-/// journal and `DocumentSaved` for an ordinary document.
+/// Invalidates `document`'s text and raises `JournalSaved` for a journal
+/// and `DocumentSaved` for an ordinary document: what every edit of a
+/// document's text ends in.
 pub(crate) fn saved(
     ctx: &mut CommandContext<'_>,
     document: Document,
@@ -71,12 +72,17 @@ pub(crate) fn saved(
         },
     };
     ctx.events.send(ctx.trace.event(event));
-    changed(ctx, document)
+    ctx.run(FollowLinksCommand::of(&document))?;
+    let key = Invalidation::DocumentText {
+        workspace_id,
+        document_id,
+    };
+    Ok(document.invalidating([key]))
 }
 
 /// Invalidates the workspace `document`, just written, belongs to, and
 /// keeps what it links to ([`FollowLinksCommand`]). Every write of a
-/// document ends here.
+/// document but an edit of its text ([`saved`]) ends here.
 pub(crate) fn changed(
     ctx: &mut CommandContext<'_>,
     document: Document,
@@ -130,6 +136,7 @@ pub struct ListDocumentsCommand {
     pub document_type: Option<DocumentType>,
     pub journal_from: Option<String>,
     pub journal_to: Option<String>,
+    pub ids: Option<Vec<i64>>,
     pub metadata: HashMap<String, String>,
     pub has_metadata: Vec<String>,
 }
@@ -155,6 +162,9 @@ impl DatabaseCommand for ListDocumentsCommand {
         }
         if let Some(to) = self.journal_to {
             query = query.filter("journal_date < ?").bind(to);
+        }
+        if let Some(ids) = self.ids {
+            query = query.filter_in_values("id", ids);
         }
         Ok(query.order("modified DESC").all()?)
     }

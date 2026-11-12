@@ -16,9 +16,17 @@ pub enum Invalidation {
     AgentTeams,
     /// A workspace's task folders changed: one was created, renamed or deleted.
     TaskFolders(i64),
-    /// A workspace's documents changed: one was created, edited, renamed or
-    /// deleted, journals included.
+    /// A workspace's documents changed: one was created, renamed, moved,
+    /// pinned or deleted, journals included. An edit to a document's text
+    /// alone is `DocumentText`.
     Documents(i64),
+    /// The text of one document changed: it was edited or appended to, so
+    /// its `modified` and opening did too. Its title, folder and the
+    /// workspace's other documents didn't, so a list refreshes just its row.
+    DocumentText {
+        workspace_id: i64,
+        document_id: i64,
+    },
     /// A workspace's document folders changed: one was created, renamed,
     /// moved or deleted, or became a table or stopped being one.
     DocumentFolders(i64),
@@ -30,6 +38,12 @@ pub enum Invalidation {
     TaskList {
         workspace_id: i64,
         folder_id: Option<i64>,
+    },
+    /// One task's description changed. No list filters or sorts by it, so
+    /// a list refreshes just that task's row.
+    TaskDescription {
+        workspace_id: i64,
+        task_id: i64,
     },
     /// The connector accounts changed: one was added, re-authenticated or
     /// removed.

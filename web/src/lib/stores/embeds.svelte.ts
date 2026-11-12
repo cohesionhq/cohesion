@@ -71,9 +71,17 @@ export function touches(key: Invalidation, link: string, embed: Embed | null): b
 		const { item } = embed;
 		switch (item.kind) {
 			case 'task':
-				return workspaceGone || (key.kind === 'taskList' && key.id.workspace_id === ws);
+				return (
+					workspaceGone ||
+					(key.kind === 'taskList' && key.id.workspace_id === ws) ||
+					(key.kind === 'taskDescription' && key.id.task_id === item.task.id)
+				);
 			case 'document':
-				return workspaceGone || (key.kind === 'documents' && key.id === ws);
+				return (
+					workspaceGone ||
+					(key.kind === 'documents' && key.id === ws) ||
+					(key.kind === 'documentText' && key.id.document_id === item.document.id)
+				);
 			case 'resource':
 				return workspaceGone || (key.kind === 'resources' && key.id === ws);
 			case 'contact':
