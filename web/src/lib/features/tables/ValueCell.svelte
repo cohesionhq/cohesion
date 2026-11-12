@@ -264,7 +264,7 @@
 {/snippet}
 
 {#snippet addOptionField(close: () => void)}
-	<div class="px-1 pb-0.5">
+	<div class="px-1">
 		<input
 			class="w-full rounded-sm border border-transparent bg-transparent px-1 py-1 outline-none placeholder:text-fg-muted hover:border-border focus:border-border-strong"
 			placeholder="Search or add option…"
@@ -294,7 +294,7 @@
 		align="start"
 		icon={optionDot}
 		inDialog={look === 'detail'}
-		footer={onaddoption ? addOptionField : undefined}
+		top={onaddoption ? addOptionField : undefined}
 	>
 		{#snippet trigger(props)}
 			<button
