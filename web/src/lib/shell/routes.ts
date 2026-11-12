@@ -113,3 +113,32 @@ export function mainPages(ws: number): string[] {
 		routes.settings()
 	];
 }
+
+/**
+ * Where switching to workspace `ws` lands from the page at `pathname`: the
+ * same kind of page there, so Documents stays Documents and a task folder
+ * becomes Tasks. A page that belongs to one item or one resource kind (which
+ * differ per workspace) goes to the list it sits under, and anything outside
+ * a workspace opens the new workspace's Dashboard.
+ */
+export function workspaceSwitchRoute(pathname: string, ws: number): string {
+	const section = /\/w\/[^/]+\/([^/]+)/.exec(pathname)?.[1];
+	switch (section) {
+		case 'today':
+			return routes.today(ws);
+		case 'journal':
+			return routes.journal(ws);
+		case 'documents':
+			return routes.documents(ws);
+		case 'tasks':
+			return routes.tasks(ws);
+		case 'articles':
+			return pathname.endsWith('/articles/research') ? routes.research(ws) : routes.articles(ws);
+		case 'contacts':
+			return routes.contacts(ws);
+		case 'rewind':
+			return routes.rewind(ws);
+		default:
+			return routes.workspace(ws);
+	}
+}
