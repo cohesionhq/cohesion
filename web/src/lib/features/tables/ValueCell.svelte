@@ -1,8 +1,9 @@
 <!--
 	One row's value for one property, edited in place: a checkbox toggles, a
 	choice shows as its option's pill and picks another, or none, from a menu
-	of its options (each also on its number key, 0 clearing it) and a field
-	that adds one and picks it, any
+	of its options (each also on its number key, 0 clearing it) and a field that
+	filters them as you type and, when the text names none, offers to create it
+	and pick it, any
 	other value set by hand opens an editor for its type on a click (Enter or a
 	click elsewhere saves, Escape cancels, a value that can't be read or that
 	the daemon refuses shows why under it), and a formula's value only reads.
@@ -38,7 +39,7 @@
 		onsave: (value: PropertyValue | null) => Promise<unknown>;
 		/**
 		 * Adds an option to a choice, last, and replies with the property; throws the refusal of its
-		 * name. Without it the choice's menu has no "Add option" field.
+		 * name. Without it the choice's menu has no search and add field.
 		 */
 		onaddoption?: (name: string) => Promise<DocumentFolderProperty>;
 		/**
@@ -160,12 +161,12 @@
 		);
 	}
 
-	/** What is typed in the choice menu's "Add option" field, and why the daemon refused it. */
+	/** What is typed in the choice menu's search field, and why the daemon refused it. */
 	let optionName = $state('');
 	let optionError = $state<string | null>(null);
 
 	/** Adds the typed option, picks it for this value and closes the menu. */
-	async function addOption(close: () => void) {
+	async function addOption(close: () => void, asToast = false) {
 		const name = optionName.trim();
 		if (name === '' || !onaddoption) return;
 		try {
@@ -176,32 +177,77 @@
 			if (option) choose(option.id);
 		} catch (e) {
 			const failure = toProtocolError(e);
-			if (failure.code === 'validationFailed') optionError = failure.message;
+			if (failure.code === 'validationFailed' && !asToast) optionError = failure.message;
 			else toasts.error(failure);
 		}
 	}
 
-	/** A choice's menu: each option, checked when picked, then a way to empty it. */
+	/** The typed text, trimmed: the choice menu lists only the options that contain it. */
+	const query = $derived(optionName.trim());
+	const matches = $derived(
+		query === ''
+			? options
+			: options.filter((o) => o.name.toLowerCase().includes(query.toLowerCase()))
+	);
+	/** Whether the typed text is yet to be an option, so the menu offers to create it. */
+	const creatable = $derived(
+		onaddoption !== undefined &&
+			query !== '' &&
+			!options.some((o) => o.name.toLowerCase() === query.toLowerCase())
+	);
+
+	/** A choice's menu: the options that match what is typed, checked when picked, then a way to empty it or create one. */
 	const choiceItems = $derived<MenuItem[]>([
-		...options.map((option, i) => ({
+		...matches.map((option) => ({
 			id: option.id,
 			label: option.name,
 			checked: option.id === picked?.id,
-			key: i < 9 ? String(i + 1) : undefined,
+			key: query === '' ? optionKey(option.id) : undefined,
 			onSelect: () => choose(option.id)
 		})),
-		...(options.length === 0
+		...(options.length === 0 && query === ''
 			? [{ id: 'none', label: 'No options yet', disabled: true, onSelect: () => {} }]
 			: []),
-		{
-			id: 'clear',
-			label: 'Clear',
-			key: '0',
-			disabled: picked === null,
-			separated: options.length > 0,
-			onSelect: () => choose(null)
-		}
+		...(query === ''
+			? [
+					{
+						id: 'clear',
+						label: 'Clear',
+						key: '0' as const,
+						disabled: picked === null,
+						separated: options.length > 0,
+						onSelect: () => choose(null)
+					}
+				]
+			: []),
+		...(creatable
+			? [
+					{
+						id: 'create',
+						label: `Create ${property.name.toLowerCase()} "${query}"`,
+						separated: matches.length > 0,
+						onSelect: () => void addOption(() => {}, true)
+					}
+				]
+			: [])
 	]);
+
+	/** An option's number key: its place in the menu, for the first nine. */
+	function optionKey(id: number): string | undefined {
+		const i = options.findIndex((o) => o.id === id);
+		return i >= 0 && i < 9 ? String(i + 1) : undefined;
+	}
+
+	/** Focuses the search field as the menu opens, and clears it as the menu closes. */
+	function searchField(node: HTMLInputElement) {
+		node.focus();
+		return {
+			destroy() {
+				optionName = '';
+				optionError = null;
+			}
+		};
+	}
 
 	const cellPad = 'px-2.5 py-1.5';
 </script>
@@ -221,8 +267,9 @@
 	<div class="px-1 pb-0.5">
 		<input
 			class="w-full rounded-sm border border-transparent bg-transparent px-1 py-1 outline-none placeholder:text-fg-muted hover:border-border focus:border-border-strong"
-			placeholder="Add option…"
-			aria-label="Add option"
+			placeholder="Search or add option…"
+			aria-label="Search or add option"
+			use:searchField
 			aria-invalid={optionError !== null}
 			autocomplete="off"
 			bind:value={optionName}

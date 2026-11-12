@@ -2197,7 +2197,9 @@ number, a date picker; a checkbox toggles), read by `features/tables/values.ts`;
 refusal shows under the editor. A choice shows as a pill
 (`ChoicePill.svelte`, a tag's pill in its option's color, `agentChip` in
 `ui/colors.ts`) and opens a menu of its options, each on its number key, with
-Clear on 0; ⇥ passes it by, as a checkbox. A new choice column takes its
+Clear on 0, and a field that filters them as you type and, when the text
+matches no option, ends the list with `Create status "x"` to add it and pick
+it; ⇥ passes it by, as a checkbox. A new choice column takes its
 options in the drawer under its type, and "Edit options…" opens the same
 drawer with the options alone, saving each change as it is made
 (`OptionsEditor.svelte`, laid out as the tags' list: a color swatch that opens
