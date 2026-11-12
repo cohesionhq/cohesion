@@ -3,7 +3,7 @@
 	choice shows as its option's pill and picks another, or none, from a menu
 	of its options (each also on its number key, 0 clearing it) and a field that
 	filters them as you type and, when the text names none, offers to create it
-	and pick it, any
+	and pick it, a date opens the day picker and saves the day picked, any
 	other value set by hand opens an editor for its type on a click (Enter or a
 	click elsewhere saves, Escape cancels, a value that can't be read or that
 	the daemon refuses shows why under it), and a formula's value only reads.
@@ -20,6 +20,7 @@
 	import Menu, { type MenuItem } from '$lib/ui/Menu.svelte';
 	import { toasts } from '$lib/ui/toasts.svelte';
 	import AgentDot from '$lib/features/agents/AgentDot.svelte';
+	import DayPicker from '$lib/features/tasks/DayPicker.svelte';
 	import ChoicePill from './ChoicePill.svelte';
 	import { formatValue, inputText, isNumeric, optionOf, optionsOf, parseInput } from './values';
 
@@ -89,7 +90,7 @@
 		error = null;
 		await tick();
 		input?.focus();
-		if (property.data_type !== 'date') input?.select();
+		input?.select();
 	}
 
 	/**
@@ -329,6 +330,35 @@
 			onchange={(e) => toggle(e.currentTarget.checked)}
 		/>
 	</label>
+{:else if property.data_type === 'date' && property.formula === null}
+	<!-- The day picker opens from the value; choosing or clearing a day saves it. -->
+	<DayPicker
+		single
+		start={null}
+		due={value?.type === 'date' ? value.value : null}
+		bind:open={() => editing, (open) => (open ? onedit() : onstop())}
+		onchange={(_, day) =>
+			onsave(day === null ? null : { type: 'date', value: day }).catch((e) => toasts.error(e))}
+	>
+		{#snippet trigger(props)}
+			<button
+				class={look === 'cell'
+					? [
+							'block min-h-8 w-full cursor-pointer truncate text-left hover:bg-bg-hover',
+							cellPad,
+							'data-[state=open]:bg-bg-hover'
+						]
+					: [detailButton, 'cursor-pointer', !value && 'text-fg-muted']}
+				type="button"
+				aria-label={look === 'cell'
+					? `${name}: ${shown || 'empty'}`
+					: `${property.name}: ${shown || 'Empty'}`}
+				{...props}
+			>
+				{look === 'cell' ? shown : shown || 'Empty'}
+			</button>
+		{/snippet}
+	</DayPicker>
 {:else if editing}
 	<input
 		bind:this={input}
@@ -341,7 +371,7 @@
 			numeric && 'tabular-nums',
 			numeric && look === 'cell' && 'text-right'
 		]}
-		type={property.data_type === 'date' ? 'date' : 'text'}
+		type="text"
 		inputmode={property.data_type === 'integer' ? 'numeric' : numeric ? 'decimal' : undefined}
 		autocomplete="off"
 		aria-label={name}
