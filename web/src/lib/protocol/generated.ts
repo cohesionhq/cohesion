@@ -301,6 +301,7 @@ export interface ActorSession {
 	/**
 	 * Whether its actor finished a stretch of work, done or failed, since
 	 * the user last read it; stopping it, or its client going away, doesn't.
+	 * Resolving it reads it.
 	 */
 	unread: boolean;
 	/** When the user last read it; `null` if they never have. */
