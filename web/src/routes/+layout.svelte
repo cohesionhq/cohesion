@@ -420,6 +420,8 @@
 		     evenly; where scrollbars take room, a page that starts to scroll narrows by one.
 		     The top margin keeps pages clear of a WebUI harness's window controls or status bar without scrolling
 		     under them; on a phone-width screen the sidebar is a bar above the page and clears them instead.
+		     With the sidebar collapsed nothing sits between the card and those controls, so the card starts a
+		     sheet inset below them instead of flush with their bottom edge.
 		     It holds one half (`PaneHost`), or two side by side in a split view, each its own scroller,
 		     positioned, so what a page positions absolutely (an `sr-only` label in each of a thousand
 		     rows) scrolls in there rather than stretching the document into another scroller.
@@ -427,7 +429,12 @@
 		     the sheet that draws the card sits outside them, so the card stays put while only what is
 		     on it dissolves. -->
 		<div
-			class="m-(--sheet-inset) mt-[max(var(--sheet-inset),var(--titlebar-inset))] ml-0 flex min-h-0 min-w-0 flex-1 rounded-(--sheet-radius) bg-bg shadow-sheet max-sm:m-0 max-sm:shadow-none"
+			class={[
+				'm-(--sheet-inset) ml-0 flex min-h-0 min-w-0 flex-1 rounded-(--sheet-radius) bg-bg shadow-sheet max-sm:m-0 max-sm:shadow-none',
+				sidebarState.collapsed
+					? 'mt-[calc(var(--sheet-inset)+var(--titlebar-inset))]'
+					: 'mt-[max(var(--sheet-inset),var(--titlebar-inset))]'
+			]}
 		>
 			<PaneHost side="main" pane={mainPane} bind:root={mainRoot}>
 				{@render children()}
