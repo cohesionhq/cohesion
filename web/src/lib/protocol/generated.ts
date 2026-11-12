@@ -1431,7 +1431,10 @@ export interface CreateDocumentRequest {
 	folder_id?: number | null;
 }
 
-/** Creates an agent; it runs on the `agent` tier's default model. */
+/**
+ * Creates an agent; it runs on the `agent` tier's default model until
+ * `SetAgentModel` gives it one of its own.
+ */
 export interface CreateIntelligenceAgentRequest {
 	/** A blank or absent name picks an unused first name, like `Ada`. */
 	name?: string | null;
@@ -2630,6 +2633,12 @@ export interface IntelligenceAgent {
 	 * say where, never a limit on where the agent works.
 	 */
 	workspace_id: number | null;
+	/**
+	 * The endpoint model the agent's conversation runs on in place of the
+	 * `agent` tier's default; `null` to use the default. Removing that
+	 * model sets it back to `null`. Background runs keep their cue's tier.
+	 */
+	endpoint_model_id: number | null;
 	/** How many actor sessions not yet resolved the agent follows. */
 	following_count: number;
 }
@@ -4608,6 +4617,15 @@ export interface SetAgentMessageReactionRequest {
 }
 
 /**
+ * Runs agent `agent_id`'s conversation on endpoint model
+ * `endpoint_model_id`, or on the `agent` tier's default when absent.
+ */
+export interface SetAgentModelRequest {
+	agent_id: number;
+	endpoint_model_id?: number | null;
+}
+
+/**
  * Pins or unpins agent `agent_id`; a newly pinned agent goes after the
  * other pinned agents.
  */
@@ -6048,6 +6066,11 @@ export interface Requests {
 	setAgentPinned: SetAgentPinnedRequest;
 	/** Puts agent `agent_id` on a team, or on none. */
 	setAgentTeam: SetAgentTeamRequest;
+	/**
+	 * Runs agent `agent_id` on a model of its own, or on the `agent`
+	 * tier's default.
+	 */
+	setAgentModel: SetAgentModelRequest;
 	/** Lists every team of agents, by title. */
 	listAgentTeams: NoArgs;
 	/** Creates a team of agents. */
@@ -6061,7 +6084,10 @@ export interface Requests {
 	deleteAgentTeam: DeleteAgentTeamRequest;
 	/** Fetches agent `agent_id`. */
 	getIntelligenceAgent: GetIntelligenceAgentRequest;
-	/** Renames, recolors, sets the emoji of or changes the model of agent `agent_id`. */
+	/**
+	 * Renames, recolors or sets the emoji, personality, verbosity, role or
+	 * directive of agent `agent_id`.
+	 */
 	updateIntelligenceAgent: UpdateIntelligenceAgentRequest;
 	/** Deletes agent `agent_id` with its cues, runs and messages. */
 	deleteIntelligenceAgent: DeleteIntelligenceAgentRequest;
@@ -6632,6 +6658,11 @@ export interface Replies {
 	setAgentPinned: IntelligenceAgent;
 	/** Puts agent `agent_id` on a team, or on none. */
 	setAgentTeam: IntelligenceAgent;
+	/**
+	 * Runs agent `agent_id` on a model of its own, or on the `agent`
+	 * tier's default.
+	 */
+	setAgentModel: IntelligenceAgent;
 	/** Lists every team of agents, by title. */
 	listAgentTeams: IntelligenceAgentTeam[];
 	/** Creates a team of agents. */
@@ -6645,7 +6676,10 @@ export interface Replies {
 	deleteAgentTeam: IntelligenceAgentTeam;
 	/** Fetches agent `agent_id`. */
 	getIntelligenceAgent: IntelligenceAgent;
-	/** Renames, recolors, sets the emoji of or changes the model of agent `agent_id`. */
+	/**
+	 * Renames, recolors or sets the emoji, personality, verbosity, role or
+	 * directive of agent `agent_id`.
+	 */
 	updateIntelligenceAgent: IntelligenceAgent;
 	/** Deletes agent `agent_id` with its cues, runs and messages. */
 	deleteIntelligenceAgent: IntelligenceAgent;

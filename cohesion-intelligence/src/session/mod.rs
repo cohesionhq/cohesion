@@ -6,4 +6,4 @@ mod intelligence_session;
 mod tier_model;
 
 pub use intelligence_session::{LastCall, Session};
-pub use tier_model::{SessionConstructionError, tier_model};
+pub use tier_model::{SessionConstructionError, agent_model, tier_model};

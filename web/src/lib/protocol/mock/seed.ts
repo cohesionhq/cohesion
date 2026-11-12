@@ -1672,7 +1672,7 @@ export const rebuildBecause: Record<ContextRebuildReason | 'none', string> = {
 	cacheExpired: ' because provider cache expired',
 	contextLimit: ' because context reached its size limit',
 	memoryCapacityChanged: ' because memory capacity changed',
-	modelChanged: ' because the default model changed',
+	modelChanged: ' because the model changed',
 	noThread: ' because there was no live thread',
 	turnFailed: ' because the last turn failed',
 	none: ''
@@ -2381,6 +2381,7 @@ export function seedAgents(
 				sort_order: 1,
 				team_id: 1,
 				workspace_id: null,
+				endpoint_model_id: null,
 				following_count: 0
 			},
 			{
@@ -2404,6 +2405,7 @@ export function seedAgents(
 				sort_order: 2,
 				team_id: 2,
 				workspace_id: null,
+				endpoint_model_id: null,
 				following_count: 0
 			},
 			{
@@ -2425,6 +2427,7 @@ export function seedAgents(
 				sort_order: 3,
 				team_id: 1,
 				workspace_id: null,
+				endpoint_model_id: null,
 				following_count: 0
 			},
 			{
@@ -2446,6 +2449,7 @@ export function seedAgents(
 				sort_order: 4,
 				team_id: 2,
 				workspace_id: null,
+				endpoint_model_id: null,
 				following_count: 0
 			}
 		],

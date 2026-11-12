@@ -303,6 +303,22 @@ describe('agents store', () => {
 		expect(store.agent(1)).toMatchObject({ team_id: null, pinned: true });
 	});
 
+	it('gives an agent a model of its own, and puts it back on the default when the model is removed', async () => {
+		const mock = createMock();
+		const store = createAgentsStore(mock.send);
+		await store.loadList();
+		expect(store.agent(1)?.endpoint_model_id).toBeNull();
+
+		await store.setModel(1, 3);
+		expect(store.agent(1)?.endpoint_model_id).toBe(3);
+		await expect(store.setModel(1, 999)).rejects.toMatchObject({ code: 'notFound' });
+
+		await mock.send('removeEndpointModel', { id: 3 });
+		await refreshInvalidated([{ kind: 'intelligence' }]);
+		expect(store.agent(1)?.endpoint_model_id).toBeNull();
+		store.list.release();
+	});
+
 	it('creates an agent on a team', async () => {
 		const store = createAgentsStore(createMock().send);
 		await store.loadList();

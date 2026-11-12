@@ -52,6 +52,16 @@ export function agentsHandlers(core: MockCore) {
 			a.team_id = team_id ?? null;
 			return agentRow(a);
 		},
+		setAgentModel: ({ agent_id, endpoint_model_id }) => {
+			const a = agent(agent_id);
+			if (
+				endpoint_model_id != null &&
+				!state.endpointModels.some((m) => m.id === endpoint_model_id)
+			)
+				notFound('endpoint model');
+			a.endpoint_model_id = endpoint_model_id ?? null;
+			return agentRow(a);
+		},
 		listAgentTeams: () => sortedTeams(),
 		createAgentTeam: ({ title }) => {
 			const created: IntelligenceAgentTeam = {
@@ -108,6 +118,7 @@ export function agentsHandlers(core: MockCore) {
 				sort_order: Math.max(0, ...state.agents.map((a) => a.sort_order)) + 1,
 				team_id: team_id ?? null,
 				workspace_id: null,
+				endpoint_model_id: null,
 				following_count: 0
 			};
 			state.agents.push(created);

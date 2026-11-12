@@ -4,7 +4,7 @@ use cohesion_core::log::Module;
 use cohesion_core::log_error;
 use cohesion_core::model::{
     AgentMessageContent, Attachment, ContextRebuildReason, IntelligenceAgent,
-    IntelligenceAgentMessage, IntelligenceAgentMessageSender, IntelligenceTier,
+    IntelligenceAgentMessage, IntelligenceAgentMessageSender,
 };
 use cohesion_db::{
     CommandError, DatabaseContext, GetCandidateAgentMessagesCommand, GetIntelligenceAgentCommand,
@@ -25,7 +25,7 @@ use super::main_thread::{self, MainThread};
 use super::relevant_set;
 use crate::connected_services::ConnectedServices;
 use crate::intelligence_error::IntelligenceError;
-use crate::session::{Session, tier_model};
+use crate::session::{Session, agent_model};
 use crate::tools::SessionTool;
 use crate::transcript_item::PromptImage;
 
@@ -273,7 +273,7 @@ impl AgentHost {
     ) -> Result<(), AgentError> {
         // The main thread decides: this turn carries it on as it stands, or
         // builds a new one from the database.
-        let model = tier_model(&self.database, IntelligenceTier::Agent)
+        let model = agent_model(&self.database, self.agent.id)
             .await
             .map_err(AgentError::SessionConstruction)?;
         let failed = self.dropped_by.take();

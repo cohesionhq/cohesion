@@ -1344,24 +1344,27 @@ outside that conversation is a fork of it.
 | `role` | What the user wants from it, in a few words (`""` when unset) |
 | `directive` | Rules it always follows (`""` when unset) |
 | `team_id` | Its team, if any |
+| `endpoint_model_id` | The model it talks on in place of the `agent` tier's, if any; removing the model puts it back on the tier's |
 | `workspace_id` | The workspace the user was in when they last named one to it, if any: a hint, never a limit on where it works |
 | `activity`, `foreground_started` | What it is doing now and when its current turn started |
 | `context_tokens` | Prompt tokens of its live thread at the last request |
 | `unread`, `last_message_at`, `pinned`, `sort_order` | How clients list it |
 | `following_count` | Unresolved actor sessions it follows (computed) |
 
-An agent has no model of its own: it uses the `agent` tier's model at every
-turn ([12](#12-how-a-turn-runs)). A **team** (`intelligence_agent_teams`) is a
+An agent talks on its own model when `endpoint_model_id` is set, and on the
+`agent` tier's model otherwise, read at every turn ([12](#12-how-a-turn-runs));
+`GetAgentModelCommand` holds that rule. Background runs keep their cue's tier.
+Choosing an agent's model writes `IntelligenceSettings`, like a tier's default. A **team** (`intelligence_agent_teams`) is a
 named group; deleting it leaves its agents on no team and deletes its
 memories and skills. Requests: `CreateIntelligenceAgent`, `UpdateIntelligenceAgent`,
 `DeleteIntelligenceAgent`, `ListIntelligenceAgents`, `ReorderIntelligenceAgents`,
-`SetAgentPinned`, `SetAgentTeam`, team CRUD, `MarkAgentRead`,
+`SetAgentPinned`, `SetAgentTeam`, `SetAgentModel`, team CRUD, `MarkAgentRead`,
 `ListAgentMessages`, `GetAgentMessage`, `SendAgentMessage`, `StopAgentTurn`,
 `SetAgentMessageReaction`, `RespondToAgentChoice`, `ListAgentCues`, `ListAgentAgenda`,
 `RemoveAgentCue`, `ListMemories`, `ForgetMemory`, `ListAgentSkills`,
 `CreateAgentSkill`, `UpdateAgentSkill`, `DeleteAgentSkill`, `ListAgentRuns`,
 `ListAgentMessageAttachments` (`cohesion-core/src/protocol/agent_requests.rs`).
-If the `agent` tier has no model, sending a message fails with "No model is
+If the agent has no model of its own and the `agent` tier has none, sending a message fails with "No model is
 set for agents; choose one in Settings."
 
 **Memories** (`Memory`, `cohesion-db/src/commands/memory.rs`) are short facts
@@ -1694,7 +1697,7 @@ turn, `main_thread::prepare` decides:
 |---|---|
 | Rebuild `noThread` | No mark |
 | Rebuild `turnFailed` | The last turn failed |
-| Rebuild `modelChanged` | The `agent` tier's model changed |
+| Rebuild `modelChanged` | The agent's model changed (its own, or the `agent` tier's) |
 | Rebuild `memoryCapacityChanged` | `memory_limit` changed |
 | Rebuild `contextLimit` | The thread's prompt is over 100,000 tokens (`CONTEXT_LIMIT_TOKENS`) |
 | Rebuild `cacheExpired` | The provider's cache for it has expired |
@@ -1787,7 +1790,7 @@ doesn't have or a write its database refuses, never a check inside a mount.
 | `send_message`, `send_note`, `ask_choice`, `react`, `ask_agent` | Yes | Yes (`ask_choice` needs `context` in a fork) | No model |
 | Change its agenda | Yes | Yes | No model |
 | Wake an agent by assigning it a task | Yes | No | No |
-| Model | The `agent` tier | The cue's effort tier (its forks: `agent`) | None |
+| Model | The agent's model | The cue's effort tier (its forks: the agent's model) | None |
 | Held by spend limits | Forks only | Yes | No model |
 
 A chain never gains rights: an answer fork inherits the asker's initiative, a

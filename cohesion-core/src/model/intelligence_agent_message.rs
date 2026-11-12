@@ -112,7 +112,8 @@ pub enum ContextRebuildReason {
     ContextLimit,
     /// The Memory capacity setting changed.
     MemoryCapacityChanged,
-    /// The `agent` tier's default model changed.
+    /// The model the agent talks on changed: its own, or the `agent`
+    /// tier's default when it has none.
     ModelChanged,
     /// The agent had no live thread: it hadn't spoken since the daemon
     /// started.
@@ -432,7 +433,7 @@ macro_rules! excerpt_sql {
                 WHEN 'cacheExpired' THEN ' because provider cache expired' \
                 WHEN 'contextLimit' THEN ' because context reached its size limit' \
                 WHEN 'memoryCapacityChanged' THEN ' because memory capacity changed' \
-                WHEN 'modelChanged' THEN ' because the default model changed' \
+                WHEN 'modelChanged' THEN ' because the model changed' \
                 WHEN 'noThread' THEN ' because there was no live thread' \
                 WHEN 'turnFailed' THEN ' because the last turn failed' \
                 ELSE '' END \
