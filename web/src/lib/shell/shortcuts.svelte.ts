@@ -1,6 +1,6 @@
 // App-wide keyboard shortcuts: which key presses the layout acts on, and whether
 // the shortcuts dialog is open. The layout listens; the palette can open the dialog.
-// Pages are reached from the ⌘K palette, not by chords of their own.
+// Pages are reached from the ⌘K palette, not by chords of their own; ⌘1 to ⌘9 switch workspace.
 
 class Shortcuts {
 	/** The "Keyboard shortcuts" dialog. */
@@ -23,6 +23,20 @@ export function opensSettings(
 		!event.shiftKey &&
 		event.code === 'Comma'
 	);
+}
+
+/**
+ * Which workspace a key press switches to: ⌘1 to ⌘9 (Ctrl+1 to Ctrl+9), by
+ * the physical key, as the zero-based position in the workspace picker's
+ * order. Null for any other press.
+ */
+export function workspaceIndexFor(
+	event: Pick<KeyboardEvent, 'code' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>
+): number | null {
+	if (!(event.metaKey || event.ctrlKey) || (event.metaKey && event.ctrlKey)) return null;
+	if (event.altKey || event.shiftKey) return null;
+	const match = /^Digit([1-9])$/.exec(event.code);
+	return match ? Number(match[1]) - 1 : null;
 }
 
 /**

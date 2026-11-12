@@ -6,7 +6,8 @@ import {
 	asksForNew,
 	asksForNewFolder,
 	opensSettings,
-	showsShortcuts
+	showsShortcuts,
+	workspaceIndexFor
 } from './shortcuts.svelte';
 
 const press = (code: string, key: string, mods: Partial<KeyboardEvent> = {}) => ({
@@ -98,5 +99,20 @@ describe('asksForNew and asksForNewFolder', () => {
 		expect(asksForNewFolder(press('KeyN', 'N', { metaKey: true, shiftKey: true }))).toBe(true);
 		expect(asksForNewFolder(press('KeyN', 'N', { ctrlKey: true, shiftKey: true }))).toBe(true);
 		expect(asksForNewFolder(press('KeyN', 'n', { metaKey: true }))).toBe(false);
+	});
+});
+
+describe('workspaceIndexFor', () => {
+	it('maps ⌘1 to ⌘9 or Ctrl+1 to Ctrl+9 to positions 0 to 8', () => {
+		expect(workspaceIndexFor(press('Digit1', '1', { metaKey: true }))).toBe(0);
+		expect(workspaceIndexFor(press('Digit9', '9', { ctrlKey: true }))).toBe(8);
+	});
+
+	it('ignores other keys and extra modifiers', () => {
+		expect(workspaceIndexFor(press('Digit0', '0', { metaKey: true }))).toBeNull();
+		expect(workspaceIndexFor(press('Digit1', '1'))).toBeNull();
+		expect(workspaceIndexFor(press('Digit1', '1', { metaKey: true, shiftKey: true }))).toBeNull();
+		expect(workspaceIndexFor(press('Digit1', '1', { metaKey: true, altKey: true }))).toBeNull();
+		expect(workspaceIndexFor(press('KeyK', 'k', { metaKey: true }))).toBeNull();
 	});
 });
