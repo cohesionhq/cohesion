@@ -272,8 +272,8 @@ only these exist:
   with no max-width column, so every header's tools end at the sheet's right edge. Each page's outer element takes
   `px-(--page-inset)` (28px, 20 below 1100px, 16 below 900). Lists sit flat
   on the sheet, ruled by hairlines, with no box of their own. Two
-  exceptions read in a centred column, its title 24px under the bar: an article, at a book's line length
-  (`max-w-240`); a document, a journal entry and Today, at prose's (`max-w-170`, about 75
+  exceptions read in a centred column, its title 24px under the bar: an article and a document, at a book's line length
+  (`max-w-240`); a journal entry and Today, at prose's (`max-w-170`, about 75
   characters); and a conversation and the Dashboard (`max-w-190`), whose messages take at
   most 70% of it and whose question cards take all of it. A list's sections are headed by
   `list.heading` (a semibold label, its count, a hairline); a folder column's groups by a
