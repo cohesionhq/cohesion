@@ -147,6 +147,7 @@ fn each_change_posts_a_quiet_agenda_line() {
             agent_id: scout.id,
             before: None,
             limit: 10,
+            ids: None,
         })
         .unwrap();
     let lines: Vec<_> = messages

@@ -110,6 +110,7 @@ impl Team {
                 agent_id,
                 before: None,
                 limit: 100,
+                ids: None,
             })
             .unwrap()
     }
@@ -694,6 +695,7 @@ fn a_memory_capacity_changed_during_a_turn_rebuilds_the_thread() {
             agent_id: team.app,
             before: None,
             limit: 10,
+            ids: None,
         })
         .unwrap();
     assert!(feed.iter().any(|message| matches!(

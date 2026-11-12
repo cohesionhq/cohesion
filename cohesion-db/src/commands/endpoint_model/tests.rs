@@ -6,11 +6,11 @@ use cohesion_core::protocol::ModelPrices;
 
 use crate::test_support::context;
 use crate::{
-    AddEndpointModelCommand, CommandError, CreateIntelligenceAgentCommand,
-    CreateIntelligenceEndpointCommand, DatabaseContext, GetAgentModelCommand,
-    GetIntelligenceAgentCommand, GetIntelligenceDefaultCommand, ListEndpointModelsCommand,
-    RemoveEndpointModelCommand, SetAgentModelCommand, SetIntelligenceDefaultCommand,
-    UpdateCatalogModelsCommand,
+    AddEndpointModelCommand, AddEndpointModelsCommand, CommandError,
+    CreateIntelligenceAgentCommand, CreateIntelligenceEndpointCommand, DatabaseContext,
+    GetAgentModelCommand, GetIntelligenceAgentCommand, GetIntelligenceDefaultCommand,
+    ListEndpointModelsCommand, RemoveEndpointModelCommand, SetAgentModelCommand,
+    SetIntelligenceDefaultCommand, UpdateCatalogModelsCommand,
 };
 
 /// Lists `model_identifier` for `provider_identifier` in the catalog, at
@@ -69,11 +69,13 @@ fn add(db: &DatabaseContext, endpoint_id: i64, model_identifier: &str) -> Endpoi
 }
 
 fn identifiers(db: &DatabaseContext, endpoint_id: i64) -> Vec<String> {
-    db.send_blocking(ListEndpointModelsCommand { endpoint_id })
-        .unwrap()
-        .into_iter()
-        .map(|model| model.model_identifier)
-        .collect()
+    db.send_blocking(ListEndpointModelsCommand {
+        endpoint_id: Some(endpoint_id),
+    })
+    .unwrap()
+    .into_iter()
+    .map(|model| model.model_identifier)
+    .collect()
 }
 
 fn prices(input: f64) -> ModelPrices {
@@ -101,7 +103,9 @@ fn a_catalog_model_is_linked_and_reports_the_catalogs_prices() {
     // A later sync's prices reach the imported model.
     catalog(&db, "anthropic", "claude-opus-5-5", 3.0);
     let listed = db
-        .send_blocking(ListEndpointModelsCommand { endpoint_id })
+        .send_blocking(ListEndpointModelsCommand {
+            endpoint_id: Some(endpoint_id),
+        })
         .unwrap();
     assert_eq!(listed[0].input_token_cost, Some(3.0));
 }
@@ -131,7 +135,9 @@ fn fields_given_for_a_catalog_model_override_the_catalogs() {
     // A later sync moves only what the model doesn't override.
     catalog(&db, "anthropic", "claude-opus-5-5", 3.0);
     let listed = db
-        .send_blocking(ListEndpointModelsCommand { endpoint_id })
+        .send_blocking(ListEndpointModelsCommand {
+            endpoint_id: Some(endpoint_id),
+        })
         .unwrap();
     assert_eq!(listed[0].input_token_cost, Some(1.0));
     assert_eq!(listed[0].large_context_input_token_cost, Some(6.0));
@@ -359,11 +365,13 @@ fn a_later_sync_links_a_model_and_keeps_its_own_fields() {
     catalog(&db, "anthropic", "claude-sonnet-5-5", 3.0);
 
     let get = |id| {
-        db.send_blocking(ListEndpointModelsCommand { endpoint_id })
-            .unwrap()
-            .into_iter()
-            .find(|model| model.id == id)
-            .unwrap()
+        db.send_blocking(ListEndpointModelsCommand {
+            endpoint_id: Some(endpoint_id),
+        })
+        .unwrap()
+        .into_iter()
+        .find(|model| model.id == id)
+        .unwrap()
     };
     let bare = get(bare.id);
     assert!(bare.catalog_model_id.is_some());
@@ -373,4 +381,31 @@ fn a_later_sync_links_a_model_and_keeps_its_own_fields() {
     assert!(priced.catalog_model_id.is_some());
     assert_eq!(priced.input_token_cost, Some(1.0));
     assert_eq!(priced.context_size, Some(200_000));
+}
+
+#[test]
+fn several_models_import_at_once_and_every_endpoints_list_together() {
+    let db = context();
+    let work = endpoint(&db, "Work", "anthropic");
+    let home = endpoint(&db, "Home", "openai");
+    let added = db
+        .send_blocking(AddEndpointModelsCommand {
+            endpoint_id: work,
+            model_identifiers: vec!["b-model".to_string(), "a-model".to_string()],
+        })
+        .unwrap();
+    assert_eq!(
+        added
+            .iter()
+            .map(|model| model.model_identifier.as_str())
+            .collect::<Vec<_>>(),
+        ["b-model", "a-model"]
+    );
+    add(&db, home, "c-model");
+
+    let every = db
+        .send_blocking(ListEndpointModelsCommand { endpoint_id: None })
+        .unwrap();
+    assert_eq!(every.len(), 3);
+    assert_eq!(identifiers(&db, work), ["a-model", "b-model"]);
 }

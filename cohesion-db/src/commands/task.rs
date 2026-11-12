@@ -170,6 +170,7 @@ pub struct ListTaskPageCommand {
     pub descending: bool,
     pub offset: u64,
     pub limit: Option<u64>,
+    pub around: Option<i64>,
 }
 impl DatabaseCommand for ListTaskPageCommand {
     type Response = TaskPage;
@@ -191,13 +192,19 @@ impl DatabaseCommand for ListTaskPageCommand {
             sort: self.sort,
             descending: self.descending,
         };
+        let limit = page_size(self.limit);
+        let offset = match self.around {
+            Some(id) => listing
+                .clone()
+                .select(ctx.db)?
+                .position_of(id)?
+                .map_or(self.offset, |position| position / limit * limit),
+            None => self.offset,
+        };
         Ok(TaskPage {
             total: listing.clone().select(ctx.db)?.count()?,
-            tasks: listing
-                .select(ctx.db)?
-                .limit(page_size(self.limit))
-                .offset(self.offset)
-                .all()?,
+            tasks: listing.select(ctx.db)?.limit(limit).offset(offset).all()?,
+            offset,
         })
     }
 }
@@ -550,7 +557,12 @@ impl DatabaseCommand for ChangeTaskDescriptionCommand {
                 task_id: task.id,
                 workspace_id: task.workspace_id,
             }));
-        listed(ctx, task)
+        followed(ctx, &task)?;
+        let key = Invalidation::TaskDescription {
+            workspace_id: task.workspace_id,
+            task_id: task.id,
+        };
+        Ok(task.invalidating([key]))
     }
 }
 

@@ -31,3 +31,17 @@ pub enum MemoryScope {
         agent_id: i64,
     },
 }
+
+/// Which memories a listing returns.
+///
+/// - `{"seenBy": id}`: what agent `id` sees: its own, then its team's, then
+///   the global ones.
+/// - `"global"`: the global ones alone.
+/// - `"every"`: every memory, of every agent and team and the global ones.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TsWire)]
+#[serde(rename_all = "camelCase")]
+pub enum MemoryFilter {
+    SeenBy(i64),
+    Global,
+    Every,
+}

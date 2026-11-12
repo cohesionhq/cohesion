@@ -149,7 +149,8 @@ export function tasksHandlers(core: MockCore) {
 			sort = 'created',
 			descending = false,
 			offset = 0,
-			limit = null
+			limit = null,
+			around = null
 		}) => {
 			const listed = state.tasks
 				.map(withTags)
@@ -170,8 +171,12 @@ export function tasksHandlers(core: MockCore) {
 						(statuses == null || statuses.includes(t.status))
 				)
 				.sort((a, b) => compareTasks(a, b, sort, descending));
-			const { rows, total } = paged(listed, offset, limit);
-			return { tasks: rows, total };
+			// The page holding `around`, of pages `limit` long, as the daemon finds it.
+			const position = around === null ? -1 : listed.findIndex((t) => t.id === around);
+			const size = Math.min(limit ?? 50, 500);
+			const start = position === -1 ? offset : Math.floor(position / size) * size;
+			const { rows, total } = paged(listed, start, limit);
+			return { tasks: rows, total, offset: start };
 		},
 		createTask: ({
 			workspace_id,

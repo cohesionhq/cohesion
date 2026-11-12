@@ -7,6 +7,8 @@
 
 	const newFolderKeys = isMac ? keyLabel('shift', 'mod', 'n') : keyLabel('mod', 'shift', 'n');
 
+	const helpKeys = isMac ? keyLabel('shift', 'mod', '/') : keyLabel('mod', 'shift', '/');
+
 	const groups: { title: string; rows: { keys: string[]; label: string }[] }[] = [
 		{
 			title: 'Anywhere',
@@ -21,14 +23,20 @@
 					label: 'Go back / forward in the half in use'
 				},
 				{ keys: [`${keyLabel('alt')}-click`], label: 'Open a link in split view' },
-				{ keys: [keyLabel('mod', 'd')], label: 'Focus the folder menu in the heading' },
-				{ keys: [keyLabel('mod', '/'), '?'], label: 'Show these shortcuts' }
+				{ keys: [keyLabel('mod', 't')], label: 'New task' },
+				{ keys: [keyLabel('mod', 'n')], label: 'New document' },
+				{
+					keys: [keyLabel('mod', 'k')],
+					label: 'New task in any workspace: search for “New task”'
+				},
+				{ keys: [keyLabel('mod', 'd')], label: 'Open the folder menu in the heading' },
+				{ keys: [keyLabel('mod', '/')], label: 'Collapse or restore the sidebar' },
+				{ keys: [helpKeys, '?'], label: 'Show these shortcuts' }
 			]
 		},
 		{
 			title: 'Documents',
 			rows: [
-				{ keys: [keyLabel('mod', 'n')], label: 'New document' },
 				{ keys: [newFolderKeys], label: 'New folder' },
 				{ keys: [keyLabel('mod', 'e')], label: 'Switch between editing and preview' }
 			]
@@ -40,7 +48,7 @@
 		{
 			title: 'Tasks',
 			rows: [
-				{ keys: ['n', keyLabel('mod', 'n')], label: 'New task' },
+				{ keys: ['n', keyLabel('mod', 't')], label: 'Focus the new task row' },
 				{ keys: [newFolderKeys], label: 'New folder' },
 				{ keys: ['j', 'k'], label: 'Next / previous task' },
 				{ keys: [keyLabel('space')], label: 'Complete or reopen' },

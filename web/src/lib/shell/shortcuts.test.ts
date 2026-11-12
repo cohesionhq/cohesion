@@ -3,12 +3,14 @@ import { pressesKey } from './keys';
 import {
 	historyStepFor,
 	historyStepForButton,
-	asksForNew,
+	asksForNewDocument,
+	asksForNewTask,
 	asksForNewFolder,
 	focusesFolderHeading,
 	opensSettings,
 	togglesEditing,
 	showsShortcuts,
+	togglesSidebar,
 	workspaceIndexFor
 } from './shortcuts.svelte';
 
@@ -69,12 +71,24 @@ describe('historyStepFor', () => {
 });
 
 describe('showsShortcuts', () => {
+	it('takes ⇧⌘/ or Ctrl+Shift+/, and nothing else on that key', () => {
+		expect(showsShortcuts(press('Slash', '?', { shiftKey: true, metaKey: true }))).toBe(true);
+		expect(showsShortcuts(press('Slash', '?', { shiftKey: true, ctrlKey: true }))).toBe(true);
+		expect(showsShortcuts(press('Slash', '/', { metaKey: true }))).toBe(false);
+		expect(showsShortcuts(press('Slash', '?', { shiftKey: true }))).toBe(false);
+		expect(
+			showsShortcuts(press('Slash', '?', { shiftKey: true, altKey: true, metaKey: true }))
+		).toBe(false);
+	});
+});
+
+describe('togglesSidebar', () => {
 	it('takes ⌘/ or Ctrl+/, and nothing else on that key', () => {
-		expect(showsShortcuts(press('Slash', '/', { metaKey: true }))).toBe(true);
-		expect(showsShortcuts(press('Slash', '/', { ctrlKey: true }))).toBe(true);
-		expect(showsShortcuts(press('Slash', '/'))).toBe(false);
-		expect(showsShortcuts(press('Slash', '?', { shiftKey: true, metaKey: true }))).toBe(false);
-		expect(showsShortcuts(press('Slash', '/', { altKey: true, metaKey: true }))).toBe(false);
+		expect(togglesSidebar(press('Slash', '/', { metaKey: true }))).toBe(true);
+		expect(togglesSidebar(press('Slash', '/', { ctrlKey: true }))).toBe(true);
+		expect(togglesSidebar(press('Slash', '/'))).toBe(false);
+		expect(togglesSidebar(press('Slash', '?', { shiftKey: true, metaKey: true }))).toBe(false);
+		expect(togglesSidebar(press('Slash', '/', { altKey: true, metaKey: true }))).toBe(false);
 	});
 });
 
@@ -89,18 +103,28 @@ describe('pressesKey', () => {
 	});
 });
 
-describe('asksForNew and asksForNewFolder', () => {
-	it('takes ⌘N or Ctrl+N for a new item', () => {
-		expect(asksForNew(press('KeyN', 'n', { metaKey: true }))).toBe(true);
-		expect(asksForNew(press('KeyN', 'n', { ctrlKey: true }))).toBe(true);
-		expect(asksForNew(press('KeyN', 'n'))).toBe(false);
-		expect(asksForNew(press('KeyN', 'N', { metaKey: true, shiftKey: true }))).toBe(false);
-		expect(asksForNew(press('KeyN', 'n', { metaKey: true, altKey: true }))).toBe(false);
+describe('asksForNewDocument, asksForNewTask and asksForNewFolder', () => {
+	it('takes ⌘N or Ctrl+N for a new document', () => {
+		expect(asksForNewDocument(press('KeyN', 'n', { metaKey: true }))).toBe(true);
+		expect(asksForNewDocument(press('KeyN', 'n', { ctrlKey: true }))).toBe(true);
+		expect(asksForNewDocument(press('KeyN', 'n'))).toBe(false);
+		expect(asksForNewDocument(press('KeyN', 'N', { metaKey: true, shiftKey: true }))).toBe(false);
+		expect(asksForNewDocument(press('KeyN', 'n', { metaKey: true, altKey: true }))).toBe(false);
+		expect(asksForNewDocument(press('KeyT', 't', { metaKey: true }))).toBe(false);
+	});
+	it('takes ⌘T or Ctrl+T for a new task', () => {
+		expect(asksForNewTask(press('KeyT', 't', { metaKey: true }))).toBe(true);
+		expect(asksForNewTask(press('KeyT', 't', { ctrlKey: true }))).toBe(true);
+		expect(asksForNewTask(press('KeyT', 't'))).toBe(false);
+		expect(asksForNewTask(press('KeyT', 'T', { metaKey: true, shiftKey: true }))).toBe(false);
+		expect(asksForNewTask(press('KeyT', 't', { metaKey: true, altKey: true }))).toBe(false);
+		expect(asksForNewTask(press('KeyN', 'n', { metaKey: true }))).toBe(false);
 	});
 	it('takes the shifted chord for a new folder', () => {
 		expect(asksForNewFolder(press('KeyN', 'N', { metaKey: true, shiftKey: true }))).toBe(true);
 		expect(asksForNewFolder(press('KeyN', 'N', { ctrlKey: true, shiftKey: true }))).toBe(true);
 		expect(asksForNewFolder(press('KeyN', 'n', { metaKey: true }))).toBe(false);
+		expect(asksForNewFolder(press('KeyT', 'T', { metaKey: true, shiftKey: true }))).toBe(false);
 	});
 });
 

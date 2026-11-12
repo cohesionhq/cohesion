@@ -89,6 +89,7 @@ fn the_agent_runs_only_the_skills_it_may_use() {
                 agent_id,
                 before: None,
                 limit: 10,
+                ids: None,
             })
             .await
             .unwrap();

@@ -179,6 +179,13 @@ pub struct AddEndpointModelRequest {
     pub context_size: Option<i64>,
     pub prices: Option<ModelPrices>,
 }
+/// Imports each of `model_identifiers` into endpoint `endpoint_id`, in
+/// order, as [`AddEndpointModelRequest`] does with nothing overridden.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct AddEndpointModelsRequest {
+    pub endpoint_id: i64,
+    pub model_identifiers: Vec<String>,
+}
 /// What a model costs, overriding the catalog, in USD per million tokens.
 /// Cache tokens without their own price are billed as input.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
@@ -196,10 +203,12 @@ pub struct RemoveEndpointModelRequest {
     pub id: i64,
 }
 
-/// Lists the models endpoint `endpoint_id` offers, by name.
+/// Lists the models endpoint `endpoint_id` offers, by name; every
+/// endpoint's when absent.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+#[ts_wire(input)]
 pub struct ListEndpointModelsRequest {
-    pub endpoint_id: i64,
+    pub endpoint_id: Option<i64>,
 }
 
 /// Makes endpoint model `endpoint_model_id` the default for `tier`.

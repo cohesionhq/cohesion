@@ -2,7 +2,7 @@ use cohesion_core::model::{
     AgentChoice, AgentCodeExecution, AgentCodeOutcome, AgentMessageContent, AgentSkillScope,
     AgentWake, ContextRebuildReason, HookKind, Initiative, IntelligenceAgentColor,
     IntelligenceAgentMessage, IntelligenceAgentMessageSender, IntelligenceEffort, IntelligenceTier,
-    MemoryScope, SpendPeriod, TaskAssignee,
+    MemoryFilter, MemoryScope, SpendPeriod, TaskAssignee,
 };
 use cohesion_db::{
     AddEndpointModelCommand, ClearIntelligenceSpendLimitCommand, Container,
@@ -233,6 +233,7 @@ fn restarting(
             agent_id,
             before: None,
             limit: 10,
+            ids: None,
         })
         .unwrap();
     (model, feed)
@@ -973,6 +974,7 @@ fn a_failing_cue_posts_its_error_every_time() {
                 agent_id,
                 before: None,
                 limit: 50,
+                ids: None,
             })
             .await
             .unwrap()
@@ -1093,6 +1095,7 @@ fn a_reached_spend_limit_holds_cue_runs_back_and_says_so_once() {
                 agent_id,
                 before: None,
                 limit: 50,
+                ids: None,
             })
             .await
             .unwrap()
@@ -1194,7 +1197,7 @@ fn a_cues_fork_changes_no_memory_or_cue() {
     assert!(results[1].contains("can't set cues"), "{results:?}");
     let memories = db
         .send_blocking(ListMemoriesCommand {
-            agent_id: Some(agent_id),
+            filter: MemoryFilter::SeenBy(agent_id),
         })
         .unwrap();
     assert!(memories.is_empty());
@@ -1475,6 +1478,7 @@ fn a_task_assigned_to_an_agent_wakes_a_fork_unless_it_or_a_job_assigned_it() {
             agent_id: scout,
             before: None,
             limit: 10,
+            ids: None,
         })
         .unwrap();
     assert_eq!(feed.len(), 1);
@@ -1561,6 +1565,7 @@ fn the_code_tool_caps_its_output_and_read_message_recovers_the_rest() {
                 agent_id,
                 before: None,
                 limit: 10,
+                ids: None,
             })
             .await
             .unwrap();

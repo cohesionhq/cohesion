@@ -59,6 +59,7 @@ pub struct ListAgentMessagesCommand {
     pub agent_id: i64,
     pub before: Option<i64>,
     pub limit: i64,
+    pub ids: Option<Vec<i64>>,
 }
 impl DatabaseCommand for ListAgentMessagesCommand {
     type Access = Read;
@@ -68,6 +69,9 @@ impl DatabaseCommand for ListAgentMessagesCommand {
         let mut query = ctx.db.select().filter("agent_id = ?").bind(self.agent_id);
         if let Some(before) = self.before {
             query = query.filter("id < ?").bind(before);
+        }
+        if let Some(ids) = self.ids {
+            query = query.filter_in_values("id", ids);
         }
         let mut messages: Vec<IntelligenceAgentMessage> =
             query.order("id DESC").limit(self.limit as u64).all()?;
@@ -165,7 +169,10 @@ pub(super) fn insert_message(
                 message_id: message.id,
             }));
     }
-    let key = Invalidation::Agent(message.agent_id);
+    let key = Invalidation::AgentMessage {
+        agent_id: message.agent_id,
+        message_id: message.id,
+    };
     Ok(message.invalidating([key]))
 }
 
@@ -236,7 +243,10 @@ impl DatabaseCommand for UpdateAgentMessageContentCommand {
             .filter_eq(IntelligenceAgentMessage::ID, self.message_id)
             .returning_one()
             .found()?;
-        let key = Invalidation::Agent(message.agent_id);
+        let key = Invalidation::AgentMessage {
+            agent_id: message.agent_id,
+            message_id: message.id,
+        };
         Ok(message.invalidating([key]))
     }
 }
@@ -345,7 +355,7 @@ impl DatabaseCommand for CreateUserAgentMessageCommand {
                 None => message,
             };
             let attachments = ListAgentMessageAttachmentsCommand {
-                message_id: message.id,
+                message_ids: vec![message.id],
             }
             .handle(&mut ctx.as_read())?;
             Ok((message, attachments).invalidating_nothing())
@@ -424,10 +434,12 @@ fn forwarded_item(
     })
 }
 
+/// The images attached to each of agent messages `message_ids`, by
+/// message, each message's in the order sent.
 #[derive(FromRequest)]
 #[request(ListAgentMessageAttachmentsRequest)]
 pub struct ListAgentMessageAttachmentsCommand {
-    pub message_id: i64,
+    pub message_ids: Vec<i64>,
 }
 impl DatabaseCommand for ListAgentMessageAttachmentsCommand {
     type Access = Read;
@@ -437,9 +449,8 @@ impl DatabaseCommand for ListAgentMessageAttachmentsCommand {
         Ok(ctx
             .db
             .select()
-            .filter("agent_message_id = ?")
-            .bind(self.message_id)
-            .order("id")
+            .filter_in_values("agent_message_id", self.message_ids)
+            .order("agent_message_id, id")
             .all()?)
     }
 }
@@ -530,7 +541,10 @@ fn react(
                 message_id: message.id,
             }));
     }
-    let key = Invalidation::Agent(message.agent_id);
+    let key = Invalidation::AgentMessage {
+        agent_id: message.agent_id,
+        message_id: message.id,
+    };
     Ok(message.invalidating([key]))
 }
 

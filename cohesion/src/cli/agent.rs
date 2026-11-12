@@ -15,7 +15,7 @@ use cohesion_core::{
         AgentMemoryChange, AgentMessageContent, AgentWake, IntelligenceAgent,
         IntelligenceAgentColor, IntelligenceAgentMessage, IntelligenceAgentMessageSender,
         IntelligenceAgentPersonality, IntelligenceAgentRunState, IntelligenceAgentVerbosity,
-        MemoryScope,
+        MemoryFilter, MemoryScope,
     },
     protocol::{
         AcceptedResponse, Call, CreateIntelligenceAgentRequest, DeleteIntelligenceAgentRequest,
@@ -495,6 +495,7 @@ async fn follow_turn<C: Call<Reply = AcceptedResponse>>(
         agent_id,
         before: None,
         limit,
+        ids: None,
     };
     let after = ctx.call(newest(1)).await?.last().map_or(0, |m| m.id);
     // Listening before the request goes out, so no invalidation is missed.
@@ -552,9 +553,18 @@ async fn follow_turn<C: Call<Reply = AcceptedResponse>>(
 async fn agent_invalidated(invalidations: &mut Invalidations, agent_id: i64) -> Option<()> {
     loop {
         match invalidations.next().await? {
-            Received::Batch(batch) if !batch.keys.contains(&Invalidation::Agent(agent_id)) => {}
+            Received::Batch(batch) if !batch.keys.iter().any(|key| about_agent(key, agent_id)) => {}
             Received::Batch(_) | Received::Reset => return Some(()),
         }
+    }
+}
+
+/// Whether `key` says something about agent `agent_id` or its messages changed.
+fn about_agent(key: &Invalidation, agent_id: i64) -> bool {
+    match key {
+        Invalidation::Agent(id) => *id == agent_id,
+        Invalidation::AgentMessage { agent_id: id, .. } => *id == agent_id,
+        _ => false,
     }
 }
 
@@ -567,6 +577,7 @@ async fn messages(ctx: &Context, agent: String, limit: i64) -> Result<(), CliErr
             agent_id: agent.id,
             before: None,
             limit,
+            ids: None,
         })
         .await?;
     let summaries = messages
@@ -751,7 +762,7 @@ async fn memories(ctx: &Context, agent: String) -> Result<(), CliError> {
     let agent = find_agent(ctx, &agent).await?;
     let memories = ctx
         .call(ListMemoriesRequest {
-            agent_id: Some(agent.id),
+            filter: MemoryFilter::SeenBy(agent.id),
         })
         .await?;
     table::list(&memories, "No memories yet.", |m| {

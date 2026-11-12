@@ -212,7 +212,10 @@ fn settle(
             .set_group(content)
             .filter_eq(IntelligenceAgentMessage::ID, message.id)
             .execute()?;
-        keys.push(Invalidation::Agent(message.agent_id));
+        keys.push(Invalidation::AgentMessage {
+            agent_id: message.agent_id,
+            message_id: message.id,
+        });
     }
     Ok(().invalidating(keys))
 }

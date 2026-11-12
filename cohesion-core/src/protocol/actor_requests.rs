@@ -74,6 +74,14 @@ pub struct GetActorSessionRequest {
     pub id: i64,
 }
 
+/// Lists the sessions actor session `session_id` runs under as a subagent:
+/// the one it is a subagent of first, the one Cohesion started last; none
+/// for a session Cohesion started.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct ListActorSessionAncestorsRequest {
+    pub session_id: i64,
+}
+
 /// Marks actor session `session_id` read, now; the next stretch of work its actor
 /// finishes marks it unread again.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
@@ -83,8 +91,12 @@ pub struct MarkActorSessionReadRequest {
 
 /// Lists what was said in actor session `session_id`, oldest first.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+#[ts_wire(input)]
 pub struct ListActorSessionMessagesRequest {
     pub session_id: i64,
+    /// Only these messages: how a transcript refreshes the ones an
+    /// `actorSessionMessage` invalidation names.
+    pub ids: Option<Vec<i64>>,
 }
 
 /// Hands actor `actor_id` a new session, `prompt`, with any images in
@@ -114,11 +126,11 @@ pub struct SendActorSessionMessageRequest {
     pub attachments: Option<Vec<ImageUpload>>,
 }
 
-/// Lists the images attached to actor session message `message_id`, in the
-/// order sent.
+/// Lists the images attached to each of actor session messages
+/// `message_ids`, by message, each message's in the order sent.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct ListActorSessionMessageAttachmentsRequest {
-    pub message_id: i64,
+    pub message_ids: Vec<i64>,
 }
 
 /// Stops what actor session `session_id` is doing, telling its actor when its

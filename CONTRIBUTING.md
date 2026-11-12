@@ -611,7 +611,9 @@ A verb on an existing noun is step 1 and 3 only. The CLI depends only on
    `setMetadata(key, value)`, string pairs stored in the `metadata` table.
    Only models with a `HasMetadata` impl qualify: a new one is a column in
    `metadata` (a foreign key that cascades, in a new migration), a
-   `MetadataOwner` variant and a line in `has_metadata!`. To find rows by metadata, call
+   `MetadataOwner` variant and a line in `has_metadata!`. An entity over a
+   projection names the model whose metadata it keeps:
+   `#[js_entity(DocumentSummary, js = "Document", metadata = Document)]`. To find rows by metadata, call
    `.with_metadata(pairs)` (or `.with_metadata_keys(keys)` for any value) on
    the model's `select`/`select_live` query.
    `db` is a `GuardedDatabaseContext`. `self.read(&ctx, cmd)` accepts only

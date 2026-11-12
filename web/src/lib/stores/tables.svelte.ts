@@ -230,7 +230,8 @@ export class TablesStore {
 			fetch: (key) => found(send('getDocument', key)),
 			initial: null,
 			matches: (key, doc) =>
-				(key.kind === 'documents' || key.kind === 'workspace') && key.id === doc.workspace_id
+				((key.kind === 'documents' || key.kind === 'workspace') && key.id === doc.workspace_id) ||
+				(key.kind === 'documentText' && key.id.document_id === doc.document_id)
 		});
 	}
 

@@ -4,8 +4,8 @@
 	every settings section and every agent (drawn with its avatar), and the workspaces whose title matches (filtered
 	locally), then live search results
 	from the current workspace (its documents, tasks, resources, contacts, folders and the feeds, a document
-	folder drawn as a folder or a table and naming the folders holding it) and among actor sessions; "New task" and "Switch workspace…" switch the palette into a sub-mode
-	instead of opening another dialog. A pick opens in the half of the sheet in use; with ⌥ held it
+	folder drawn as a folder or a table and naming the folders holding it) and among actor sessions; "Switch workspace…" switches the palette into a sub-mode
+	instead of opening another dialog, and "New task" opens the new-task dialog. A pick opens in the half of the sheet in use; with ⌥ held it
 	opens in the split view's second half.
 -->
 <script lang="ts">
@@ -54,6 +54,7 @@
 	import { workspaces } from '$lib/stores/workspaces.svelte';
 	import AgentAvatar from '$lib/ui/AgentAvatar.svelte';
 	import IconTile from '$lib/ui/IconTile.svelte';
+	import { newTaskDialog } from './newTaskDialog.svelte';
 	import { toasts } from '$lib/ui/toasts.svelte';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 
@@ -67,7 +68,7 @@
 
 	let { open = $bindable(false), kinds = [] }: Props = $props();
 
-	type Mode = 'root' | 'newTask' | 'switch';
+	type Mode = 'root' | 'switch';
 
 	interface Entry {
 		id: string;
@@ -144,7 +145,10 @@
 					id: 'new-task',
 					label: 'New task',
 					icon: ListPlus,
-					run: () => enter('newTask')
+					run: () => {
+						close();
+						newTaskDialog.request();
+					}
 				},
 				{ id: 'new-document', label: 'New document', icon: FilePlus, run: newDocument },
 				{
@@ -258,18 +262,6 @@
 		}
 	}
 
-	async function createTask() {
-		const title = query.trim();
-		if (ws === null || title === '') return;
-		try {
-			await send('createTask', { workspace_id: ws, title, folder_id: null });
-			toasts.show('Added to the inbox.');
-			close();
-		} catch (error) {
-			toasts.error(error);
-		}
-	}
-
 	/** A resource's page names its kind, which a search hit doesn't carry. */
 	async function openResource(result: SearchResult) {
 		try {
@@ -356,10 +348,7 @@
 	});
 
 	function onkeydown(event: KeyboardEvent) {
-		if (mode === 'newTask' && event.key === 'Enter') {
-			event.preventDefault();
-			void createTask();
-		} else if (mode !== 'root' && event.key === 'Backspace' && query === '') {
+		if (mode !== 'root' && event.key === 'Backspace' && query === '') {
 			event.preventDefault();
 			enter('root');
 		}
@@ -372,13 +361,7 @@
 	const titleClass = 'max-w-[50%] flex-none overflow-hidden text-ellipsis';
 	const snippetClass = 'min-w-0 overflow-hidden text-xs text-ellipsis text-fg-subtle';
 
-	const placeholder = $derived(
-		mode === 'newTask'
-			? 'Task title, then Enter'
-			: mode === 'switch'
-				? 'Switch to workspace…'
-				: 'Search or jump to…'
-	);
+	const placeholder = $derived(mode === 'switch' ? 'Switch to workspace…' : 'Search or jump to…');
 </script>
 
 <svelte:window onkeydowncapture={noteAlt} onpointerdowncapture={noteAlt} />

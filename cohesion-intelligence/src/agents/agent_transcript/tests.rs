@@ -523,6 +523,7 @@ fn the_agent_hears_which_workspace_the_user_is_in_and_when_they_switch() {
         id: 5,
         title: "Core".to_string(),
         emoji: None,
+        sort_order: 0,
         deleted: false,
     };
     let status = status(&[], &[], "Your agenda is empty.", Some(&core), &now());

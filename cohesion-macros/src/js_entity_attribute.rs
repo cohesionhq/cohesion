@@ -5,29 +5,34 @@ use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::{Ident, LitStr, Path};
 
-/// The contents of `#[js_entity(Model, js = "Name")]`.
+/// The contents of `#[js_entity(Model, js = "Name", metadata)]`. A bare
+/// `metadata` keeps the model's own; `metadata = Other` keeps `Other`'s, for
+/// an entity over a projection of `Other`.
 pub(crate) struct JsEntityArgs {
     model: Path,
     js_name: Option<LitStr>,
-    metadata: bool,
+    metadata: Option<Path>,
 }
 
 impl Parse for JsEntityArgs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let model: Path = input.parse()?;
         let mut js_name = None;
-        let mut metadata = false;
+        let mut metadata = None;
         while input.parse::<Option<syn::Token![,]>>()?.is_some() && !input.is_empty() {
             let keyword: Ident = input.parse()?;
             if keyword == "js" {
                 input.parse::<syn::Token![=]>()?;
                 js_name = Some(input.parse()?);
             } else if keyword == "metadata" {
-                metadata = true;
+                metadata = Some(match input.parse::<Option<syn::Token![=]>>()? {
+                    Some(_) => input.parse()?,
+                    None => model.clone(),
+                });
             } else {
                 return Err(syn::Error::new_spanned(
                     keyword,
-                    "expected `js = \"Name\"` or `metadata`",
+                    "expected `js = \"Name\"`, `metadata` or `metadata = Model`",
                 ));
             }
         }
@@ -106,8 +111,8 @@ pub(crate) fn js_entity_impl(
         ));
     }
     let model = &args.model;
-    if args.metadata {
-        item.items.extend(metadata_methods(model));
+    if let Some(owner) = &args.metadata {
+        item.items.extend(metadata_methods(owner));
     }
     let model_ident = &model
         .segments

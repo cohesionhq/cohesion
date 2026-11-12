@@ -142,7 +142,7 @@ impl ScriptArgument {
                     workspace_id,
                     document_id,
                 })?;
-                JsDocument::new(document, database.clone()).into_js(ctx)
+                JsDocument::new(document.into(), database.clone()).into_js(ctx)
             }
             &Self::Resource {
                 workspace_id,

@@ -55,7 +55,7 @@ impl JsVersion {
         match restored {
             RestoredItem::Task { task } => JsTask::new(task, self.db.clone()).into_js(&ctx),
             RestoredItem::Document { document } => {
-                JsDocument::new(document, self.db.clone()).into_js(&ctx)
+                JsDocument::new(document.into(), self.db.clone()).into_js(&ctx)
             }
         }
     }

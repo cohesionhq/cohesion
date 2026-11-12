@@ -107,7 +107,10 @@ impl ActorsGlobal {
         let messages = read(
             &ctx,
             &self.database,
-            ListActorSessionMessagesCommand { session_id },
+            ListActorSessionMessagesCommand {
+                session_id,
+                ids: None,
+            },
         )?;
         let messages: Vec<ActorSessionMessage> = messages
             .into_iter()

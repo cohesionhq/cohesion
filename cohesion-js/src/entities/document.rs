@@ -1,11 +1,13 @@
 //! `Document` in scripts.
 
 use cohesion_core::Document;
-use cohesion_core::model::{DocumentFolderProperty, PropertyValue, VersionTarget};
+use cohesion_core::model::{
+    DocumentFolderProperty, DocumentSummary, OPENING_CHARS, PropertyValue, VersionTarget,
+};
 use cohesion_db::{
-    AppendToDocumentCommand, GetDocumentFolderCommand, GetTableRowCommand,
-    ListDocumentFolderPropertiesCommand, ListVersionsCommand, MoveDocumentCommand,
-    SetDocumentValueCommand,
+    AppendToDocumentCommand, GetDocumentFolderCommand, GetDocumentIncludingDeletedCommand,
+    GetTableRowCommand, ListDocumentFolderPropertiesCommand, ListVersionsCommand,
+    MoveDocumentCommand, SetDocumentValueCommand,
     commands::{DeleteDocumentCommand, EditDocumentCommand, RenameDocumentCommand},
 };
 use cohesion_macros::js_entity;
@@ -26,12 +28,37 @@ use crate::formula::{FormulaRow, row_object};
 ///
 /// Link one in a message as `[Launch plan](cohesion://document/3/7)`, its
 /// title, `workspaceId` and `id`; the user opens it with a tap.
-#[js_entity(Document, metadata)]
+///
+/// `contents` is read from the workspace each time it is used, so a list of
+/// documents is quick however long they are, and the text is always what the
+/// document holds now. The other properties are as they were when the
+/// `Document` was got. To find documents by their text, search the workspace
+/// rather than reading every document's `contents`. `toJSON` leaves the text
+/// out.
+#[js_entity(DocumentSummary, js = "Document", metadata = Document)]
 impl JsDocument {
     /// The first 500 characters of `contents`, ending in `…` when there is
     /// more. Use it to tell items apart without reading each one in full.
-    pub fn excerpt(&self) -> String {
-        super::excerpt(&self.inner.contents)
+    /// Like `title`, it is as it was when this `Document` was got.
+    pub fn excerpt<'js>(&self, ctx: Ctx<'js>) -> rquickjs::Result<String> {
+        // The opening holds the whole text unless it fills its length.
+        if self.inner.opening.chars().count() < OPENING_CHARS {
+            return Ok(self.inner.opening.clone());
+        }
+        Ok(super::excerpt(&self.contents(ctx)?))
+    }
+    /// The full text of the document, as plain text / Markdown.
+    #[qjs(get, enumerable, rename = "contents")]
+    pub fn contents<'js>(&self, ctx: Ctx<'js>) -> rquickjs::Result<String> {
+        Ok(self
+            .read(
+                &ctx,
+                GetDocumentIncludingDeletedCommand {
+                    workspace_id: self.inner.workspace_id,
+                    document_id: self.inner.id,
+                },
+            )?
+            .contents)
     }
     /// Assigning replaces the whole text and saves immediately; `modified`
     /// updates too.
@@ -45,7 +72,7 @@ impl JsDocument {
                 contents,
             },
         )?;
-        self.inner = updated;
+        self.inner = updated.into();
         Ok(())
     }
     /// This document's kept versions, newest first: what it held, when, and who
@@ -78,7 +105,7 @@ impl JsDocument {
                 contents,
             },
         )?;
-        self.inner = updated;
+        self.inner = updated.into();
         Ok(())
     }
     /// The folder this document is filed in, or `null` when it is in the
@@ -195,27 +222,31 @@ impl JsDocument {
         ctx: Ctx<'js>,
         folder: Option<Class<'js, JsDocumentFolder>>,
     ) -> rquickjs::Result<()> {
-        self.inner = self.write(
-            &ctx,
-            MoveDocumentCommand {
-                workspace_id: self.inner.workspace_id,
-                document_id: self.inner.id,
-                folder_id: folder.map(|folder| folder.borrow().inner().id),
-            },
-        )?;
+        self.inner = self
+            .write(
+                &ctx,
+                MoveDocumentCommand {
+                    workspace_id: self.inner.workspace_id,
+                    document_id: self.inner.id,
+                    folder_id: folder.map(|folder| folder.borrow().inner().id),
+                },
+            )?
+            .into();
         Ok(())
     }
     /// Changes the document's title. Saved immediately; `modified` updates
     /// too. An empty title throws.
     pub fn rename<'js>(&mut self, ctx: Ctx<'js>, title: String) -> rquickjs::Result<()> {
-        self.inner = self.write(
-            &ctx,
-            RenameDocumentCommand {
-                workspace_id: self.inner.workspace_id,
-                document_id: self.inner.id,
-                title,
-            },
-        )?;
+        self.inner = self
+            .write(
+                &ctx,
+                RenameDocumentCommand {
+                    workspace_id: self.inner.workspace_id,
+                    document_id: self.inner.id,
+                    title,
+                },
+            )?
+            .into();
         Ok(())
     }
     /// Deletes this document; it disappears from listings and `deleted`
@@ -224,13 +255,15 @@ impl JsDocument {
     /// Saved immediately. Rewind can bring it back, except a database row's
     /// document, which is removed for good.
     pub fn delete<'js>(&mut self, ctx: Ctx<'js>) -> rquickjs::Result<()> {
-        self.inner = self.write(
-            &ctx,
-            DeleteDocumentCommand {
-                workspace_id: self.inner.workspace_id,
-                document_id: self.inner.id,
-            },
-        )?;
+        self.inner = self
+            .write(
+                &ctx,
+                DeleteDocumentCommand {
+                    workspace_id: self.inner.workspace_id,
+                    document_id: self.inner.id,
+                },
+            )?
+            .into();
         Ok(())
     }
 }

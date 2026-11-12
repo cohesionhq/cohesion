@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 
 use cohesion_core::TextEnum;
@@ -13,6 +14,17 @@ use crate::sandbox::ScriptDeadline;
 
 /// How long one `network.fetch` may take, if the script has the time.
 const FETCH_TIMEOUT: Duration = Duration::from_secs(20);
+
+/// The client every sandbox's `network.fetch` goes through. One for the
+/// process, so scripts reuse open connections and no sandbox pays for
+/// building a client (and its runtime thread) it may never use.
+static CLIENT: LazyLock<Client> = LazyLock::new(|| {
+    Client::builder()
+        .timeout(FETCH_TIMEOUT)
+        .user_agent("cohesion")
+        .build()
+        .expect("the script HTTP client builds")
+});
 
 #[derive(Serialize, Deserialize, Clone, Debug, TextEnum)]
 #[serde(rename_all = "UPPERCASE")]
@@ -127,11 +139,7 @@ impl Global for NetworkGlobal {
         context.globals().set(
             "network",
             NetworkGlobal {
-                client: Client::builder()
-                    .timeout(FETCH_TIMEOUT)
-                    .user_agent("cohesion")
-                    .build()
-                    .unwrap(),
+                client: CLIENT.clone(),
             },
         )?;
         Ok(())

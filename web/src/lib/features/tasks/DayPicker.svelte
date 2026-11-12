@@ -47,7 +47,7 @@
 
 	let which = $state<Which>('due');
 
-	const label = $derived(single ? 'Day' : which === 'start' ? 'Start' : 'Due');
+	const label = $derived(single ? 'Day' : which === 'start' ? 'Start day' : 'Due day');
 	const value = $derived(which === 'start' ? start : due);
 	const min = $derived(which === 'due' && !single ? start : null);
 	const max = $derived(which === 'start' ? due : null);
@@ -75,7 +75,7 @@
 
 	const hint = $derived.by(() => {
 		if (text.trim() === '')
-			return { text: value ? longDay(value) : `No ${label.toLowerCase()} day`, bad: false };
+			return { text: value ? longDay(value) : `No ${label.toLowerCase()}`, bad: false };
 		if (parsed === null) return { text: 'Not a date.', bad: true };
 		return { text: outOfRange(parsed) ?? longDay(parsed), bad: outOfRange(parsed) !== null };
 	});
@@ -151,7 +151,7 @@
 				<TextInput
 					bind:value={text}
 					bind:element={field}
-					aria-label="{label} day"
+					aria-label={label}
 					placeholder="fri, oct 20, in 3 days…"
 					autocomplete="off"
 				/>
@@ -223,9 +223,7 @@
 				{/snippet}
 			</Calendar.Root>
 			{#if value !== null}
-				<Button class="self-start" onclick={() => choose(null)}
-					>Clear {label.toLowerCase()} day</Button
-				>
+				<Button class="self-start" onclick={() => choose(null)}>Clear {label.toLowerCase()}</Button>
 			{/if}
 		</Popover.Content>
 	</Popover.Portal>

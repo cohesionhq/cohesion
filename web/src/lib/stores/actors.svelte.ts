@@ -2,6 +2,7 @@
 // them, and what is said in each. Whether an actor can be reached is its
 // client's online state, which the clients list says.
 
+import { batched, groupBy } from '$lib/protocol/batch';
 import { nowSeconds } from '$lib/format/dates';
 import { send as defaultSend } from '$lib/protocol/api';
 import type {
@@ -92,12 +93,21 @@ export class ActorsStore {
 	attachments = $state<Record<number, Attachment[]>>({});
 
 	#send: Send;
+	/** Each message's images; the messages on screen ask together, as one request. */
+	#attachmentsOf: (message_id: number) => Promise<Attachment[]>;
 	/** Messages whose attachments are being fetched. */
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	#fetching = new Set<number>();
 
 	constructor(send: Send) {
 		this.#send = send;
+		this.#attachmentsOf = batched(
+			async (message_ids) =>
+				groupBy(await send('listActorSessionMessageAttachments', { message_ids }), (a) =>
+					a.message.kind === 'actorSession' ? a.message.actor_session_message_id : 0
+				),
+			() => []
+		);
 		this.list = new Resource({
 			fetch: () => send('listActors'),
 			initial: [],
@@ -117,7 +127,20 @@ export class ActorsStore {
 		this.messages = new Resource({
 			fetch: (session_id) => send('listActorSessionMessages', { session_id }),
 			initial: [],
-			matches: (key, id) => key.kind === 'actorSession' && key.id === id
+			matches: (key, id) => key.kind === 'actorSession' && key.id === id,
+			// A message added, changed or taken out refreshes just itself: one the
+			// daemon no longer lists was taken out.
+			patch: {
+				matches: (key, id) => key.kind === 'actorSessionMessage' && key.id.session_id === id,
+				fetch: async (keys, session_id) => {
+					const ids = keys.flatMap((k) =>
+						k.kind === 'actorSessionMessage' ? [k.id.message_id] : []
+					);
+					const fresh = await send('listActorSessionMessages', { session_id, ids });
+					return (messages: ActorSessionMessage[]) =>
+						[...messages.filter((m) => !ids.includes(m.id)), ...fresh].sort((a, b) => a.id - b.id);
+				}
+			}
 		});
 		this.subagents = new Resource({
 			fetch: (session_id) => send('listActorSubagents', { session_id }),
@@ -181,10 +204,9 @@ export class ActorsStore {
 
 	/** The session Cohesion started that `session` is, or runs under as a subagent at any depth. */
 	async topOf(session: ActorSession): Promise<ActorSession> {
-		let top = session;
-		while (top.subagent)
-			top = await this.#send('getActorSession', { id: top.subagent.parent_session_id });
-		return top;
+		if (!session.subagent) return session;
+		const above = await this.#send('listActorSessionAncestors', { session_id: session.id });
+		return above.at(-1) ?? session;
 	}
 
 	/** Hands an actor a new session, with any images attached to its prompt; its client must be online. */
@@ -203,9 +225,7 @@ export class ActorsStore {
 		if (message.attachment_count === 0 || this.attachments[id] || this.#fetching.has(id)) return;
 		this.#fetching.add(id);
 		try {
-			this.attachments[id] = await this.#send('listActorSessionMessageAttachments', {
-				message_id: id
-			});
+			this.attachments[id] = await this.#attachmentsOf(id);
 		} finally {
 			this.#fetching.delete(id);
 		}

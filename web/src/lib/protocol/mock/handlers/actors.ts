@@ -45,6 +45,16 @@ export function actorsHandlers(core: MockCore) {
 				.sort((a, b) => b.status_changed_at - a.status_changed_at || b.id - a.id)
 				.map((t) => ({ ...t })),
 		getActorSession: ({ id }) => structuredClone(actorSession(id)),
+		listActorSessionAncestors: ({ session_id }) => {
+			const above = [];
+			let parent = actorSession(session_id).subagent?.parent_session_id;
+			while (parent !== undefined) {
+				const up = actorSession(parent);
+				above.push(structuredClone(up));
+				parent = up.subagent?.parent_session_id;
+			}
+			return above;
+		},
 		listActorSubagents: ({ session_id }) => {
 			actorSession(session_id);
 			return state.actorSessions
@@ -109,17 +119,18 @@ export function actorsHandlers(core: MockCore) {
 			session.read_at = nowSeconds();
 			return { ...session };
 		},
-		listActorSessionMessages: ({ session_id }) => {
+		listActorSessionMessages: ({ session_id, ids }) => {
 			actorSession(session_id);
 			return state.actorSessionMessages
-				.filter((m) => m.session_id === session_id)
+				.filter((m) => m.session_id === session_id && (ids == null || ids.includes(m.id)))
 				.map((m) => structuredClone(m));
 		},
-		listActorSessionMessageAttachments: ({ message_id }) =>
+		listActorSessionMessageAttachments: ({ message_ids }) =>
 			state.actorSessionAttachments
 				.filter(
 					(a) =>
-						a.message.kind === 'actorSession' && a.message.actor_session_message_id === message_id
+						a.message.kind === 'actorSession' &&
+						message_ids.includes(a.message.actor_session_message_id)
 				)
 				.map((a) => ({ ...a })),
 		startActorSession: ({ actor_id, prompt, title, mode, model, effort, attachments }) => {

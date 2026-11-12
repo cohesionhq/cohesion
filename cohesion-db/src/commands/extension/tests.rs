@@ -9,8 +9,8 @@ use crate::test_support::context;
 use crate::{
     AnnounceExtensionUpdateCommand, CommandContext, CommandError, DatabaseCommand,
     DatabaseCommandResult, DatabaseContext, DeleteExtensionCommand, GetCallableServiceCommand,
-    GetExtensionHooksCommand, GetExtensionPermissionsCommand, GetExtensionServiceCommand,
-    GetExtensionsWithHookCommand, GetExtensionsWithPermissionCommand, InstallExtensionCommand,
+    GetExtensionServiceCommand, GetExtensionsWithHookCommand, GetExtensionsWithPermissionCommand,
+    InstallExtensionCommand, ListExtensionHooksCommand, ListExtensionPermissionsCommand,
     ListServicesCommand, SetExtensionHookCommand, SetExtensionPermissionCommand, Write,
 };
 use crate::{Changed, Invalidates};
@@ -132,7 +132,9 @@ fn install(
 /// their order unspecified.
 fn permissions(db: &DatabaseContext, extension_id: i64) -> Vec<(ExtensionPermissionKind, bool)> {
     let mut permissions: Vec<_> = db
-        .send_blocking(GetExtensionPermissionsCommand { extension_id })
+        .send_blocking(ListExtensionPermissionsCommand {
+            extension_ids: vec![extension_id],
+        })
         .unwrap()
         .into_iter()
         .map(|grant| (grant.permission, grant.enabled))
@@ -142,11 +144,13 @@ fn permissions(db: &DatabaseContext, extension_id: i64) -> Vec<(ExtensionPermiss
 }
 
 fn hooks(db: &DatabaseContext, extension_id: i64) -> Vec<(HookKind, bool)> {
-    db.send_blocking(GetExtensionHooksCommand { extension_id })
-        .unwrap()
-        .into_iter()
-        .map(|grant| (grant.hook, grant.enabled))
-        .collect()
+    db.send_blocking(ListExtensionHooksCommand {
+        extension_ids: vec![extension_id],
+    })
+    .unwrap()
+    .into_iter()
+    .map(|grant| (grant.hook, grant.enabled))
+    .collect()
 }
 
 #[test]

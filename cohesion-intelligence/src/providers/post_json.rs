@@ -1,5 +1,6 @@
 //! The HTTP exchange every backend makes for a turn.
 
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use serde::Serialize;
@@ -14,13 +15,20 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 /// rather than hanging.
 const TURN_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
-/// The HTTP client a backend sends its turns with.
-pub(super) fn client() -> reqwest::Client {
+/// The HTTP client every backend sends its turns with. One for the process,
+/// so a new thread or fork reuses the open connection to its provider
+/// rather than paying for a new TLS handshake.
+static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
     reqwest::Client::builder()
         .connect_timeout(CONNECT_TIMEOUT)
         .timeout(TURN_TIMEOUT)
         .build()
         .expect("the HTTP client builds")
+});
+
+/// The HTTP client a backend sends its turns with: a handle on [`CLIENT`].
+pub(super) fn client() -> reqwest::Client {
+    CLIENT.clone()
 }
 
 /// Sends `body` as JSON with `request` (its URL and credentials already

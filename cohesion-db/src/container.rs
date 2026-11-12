@@ -15,13 +15,37 @@ use cohesion_core::protocol::DatabaseSize;
 use cohesion_core::value::{Row, RowError, read_column};
 use cohesion_core::{Model, Value};
 use rusqlite::functions::FunctionFlags;
-use rusqlite::{Connection, Error::QueryReturnedMoreThanOneRow, params_from_iter};
+use rusqlite::{Connection, Error::QueryReturnedMoreThanOneRow, OpenFlags, params_from_iter};
 
 use crate::database_error::DatabaseError;
 use crate::migrations::{CASCADING_MIGRATIONS, MIGRATIONS};
 use crate::retention::worth_vacuuming;
 use crate::sql_value::{ParamRef, SqlRow};
 use crate::storage_areas;
+
+/// How many prepared statements a connection keeps for reuse: more than the
+/// distinct statements a busy stretch of commands runs.
+const STATEMENT_CACHE: usize = 256;
+
+/// How long a connection waits for a lock another connection to the same
+/// file holds before giving up.
+const BUSY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// SQL shown on one line, its newlines written as spaces only when a log
+/// adapter actually writes it.
+struct OneLine<'s>(&'s str);
+
+impl std::fmt::Display for OneLine<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (index, line) in self.0.split('\n').enumerate() {
+            if index > 0 {
+                f.write_str(" ")?;
+            }
+            f.write_str(line)?;
+        }
+        Ok(())
+    }
+}
 
 /// The open SQLite connection and the raw statement helpers every query goes
 /// through. Borrow it as a [`WriteContainer`] (or [`ReadContainer`]) to query it.
@@ -83,13 +107,36 @@ impl Container {
         Ok(container)
     }
 
+    /// A second, read-only connection to the database file at `path`, for
+    /// running read commands beside the one that writes. It sees what the
+    /// writer has committed, and SQLite refuses any write through it.
+    pub(crate) fn open_reader(path: &Path) -> Result<Self, DatabaseError> {
+        let flags = OpenFlags::SQLITE_OPEN_READ_ONLY
+            | OpenFlags::SQLITE_OPEN_NO_MUTEX
+            | OpenFlags::SQLITE_OPEN_URI;
+        Self::configure(Connection::open_with_flags(path, flags)?)
+    }
+
     /// A private, empty database that disappears when dropped; for tests.
     pub fn in_memory() -> Result<Self, DatabaseError> {
         Self::configure(Connection::open_in_memory()?)
     }
 
     fn configure(connection: Connection) -> Result<Self, DatabaseError> {
-        connection.execute_batch("PRAGMA foreign_keys = ON;")?;
+        // A 64 MB page cache, sorts and temporary indexes in memory, and up
+        // to 256 MB of the file read through a memory map rather than copied.
+        connection.execute_batch(
+            "PRAGMA foreign_keys = ON;
+             PRAGMA cache_size = -65536;
+             PRAGMA temp_store = MEMORY;
+             PRAGMA mmap_size = 268435456;",
+        )?;
+        // A reader and the writer share the file; wait out the rare moment
+        // one holds what the other needs (a checkpoint) rather than fail.
+        connection.busy_timeout(BUSY_TIMEOUT)?;
+        // Every query's SQL is fixed text with bound values, so a statement
+        // is parsed and planned once and reused from this cache.
+        connection.set_prepared_statement_cache_capacity(STATEMENT_CACHE);
         Ok(Self { connection })
     }
 
@@ -276,7 +323,8 @@ impl Container {
     ) -> Result<usize, DatabaseError> {
         Ok(self
             .connection
-            .execute(sql, params_from_iter(params.into_iter().map(ParamRef)))?)
+            .prepare_cached(sql)?
+            .execute(params_from_iter(params.into_iter().map(ParamRef)))?)
     }
 
     /// Every row `sql` returns, read as `M`.
@@ -305,7 +353,7 @@ impl Container {
         read: impl Fn(&dyn Row) -> Result<O, RowError>,
     ) -> Result<Vec<O>, DatabaseError> {
         self.trace_sql(sql);
-        let mut prepared = self.connection.prepare(sql)?;
+        let mut prepared = self.connection.prepare_cached(sql)?;
         let mut rows = prepared.query(params_from_iter(params.into_iter().map(ParamRef)))?;
         let mut result = Vec::new();
         while let Some(row) = rows.next()? {
@@ -322,7 +370,7 @@ impl Container {
         read: impl Fn(&dyn Row) -> Result<O, RowError>,
     ) -> Result<Option<O>, DatabaseError> {
         self.trace_sql(sql);
-        let mut prepared = self.connection.prepare(sql)?;
+        let mut prepared = self.connection.prepare_cached(sql)?;
         let mut rows = prepared.query(params_from_iter(params.into_iter().map(ParamRef)))?;
         let Some(row) = rows.next()? else {
             return Ok(None);
@@ -341,6 +389,6 @@ impl Container {
 
     /// Records a statement about to run, at Debug level.
     fn trace_sql(&self, sql: &str) {
-        cohesion_core::log::debug(Module::Database, format_args!("{}", sql.replace("\n", " ")));
+        cohesion_core::log::debug(Module::Database, format_args!("{}", OneLine(sql)));
     }
 }

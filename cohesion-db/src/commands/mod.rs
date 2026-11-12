@@ -74,10 +74,11 @@ pub use actor::{
     AddActorSessionMessageCommand, CreateActorSessionCommand, DeleteActorSessionCommand,
     DeleteActorSessionMessageCommand, DeleteOldActorSessionsCommand, EndActorSessionMessageCommand,
     GetActorCommand, GetActorIncludingDeletedCommand, GetActorSessionCommand,
-    ListActorSessionMessageAttachmentsCommand, ListActorSessionMessagesCommand,
-    ListActorSessionsCommand, ListActorsCommand, MarkActorSessionReadCommand,
-    SUBAGENT_MESSAGE_LIMIT, SetActorSessionContextCommand, SetActorSessionModeCommand,
-    SetActorSessionStatusCommand, SetActorSessionTitleCommand, SettleActorSessionsCommand,
+    ListActorSessionAncestorsCommand, ListActorSessionMessageAttachmentsCommand,
+    ListActorSessionMessagesCommand, ListActorSessionsCommand, ListActorsCommand,
+    MarkActorSessionReadCommand, SUBAGENT_MESSAGE_LIMIT, SetActorSessionContextCommand,
+    SetActorSessionModeCommand, SetActorSessionStatusCommand, SetActorSessionTitleCommand,
+    SettleActorSessionsCommand,
 };
 pub use actor_session_follower::{FollowActorSessionCommand, UnfollowActorSessionCommand};
 pub use actor_subagent::{
@@ -110,7 +111,7 @@ pub use document_formula::{
     StaleTableRow, StaleTableRows, StoreTableFormulaOutputsCommand,
 };
 pub use document_value::{GetTableRowCommand, ListTableRowsCommand, SetDocumentValueCommand};
-pub use embed::{ResolveEmbedsCommand, ResolveLinkCommand};
+pub use embed::{ResolveEmbedsCommand, ResolveLinkCommand, ResolveLinksCommand};
 pub use endpoint_model::*;
 pub use experiment::*;
 pub use extension::*;

@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use cohesion_core::model::{
     AgentMessageContent, AgentSkill, ContextRebuildReason, IntelligenceAgent,
-    IntelligenceAgentMessage, IntelligenceAgentMessageSender, Memory, Workspace,
+    IntelligenceAgentMessage, IntelligenceAgentMessageSender, Memory, MemoryFilter, Workspace,
 };
 use cohesion_db::{
     CommandError, CreateAgentMessageCommand, DatabaseContext, GetIntelligenceAgentCommand,
@@ -123,7 +123,7 @@ pub(super) async fn agent_memories(
 ) -> Result<Vec<Memory>, CommandError> {
     database
         .send(ListMemoriesCommand {
-            agent_id: Some(agent_id),
+            filter: MemoryFilter::SeenBy(agent_id),
         })
         .await
 }
@@ -171,6 +171,7 @@ pub(super) async fn recent(
             agent_id,
             before,
             limit: CATCH_UP_LIMIT,
+            ids: None,
         })
         .await
 }
@@ -197,18 +198,20 @@ pub(super) async fn system_prompt(
     database: &DatabaseContext,
     agent: &IntelligenceAgent,
 ) -> Result<SystemPrompt, CommandError> {
-    let agents = database.send(ListIntelligenceAgentsCommand {}).await?;
-    let teams = database.send(ListAgentTeamsCommand {}).await?;
-    let roster = Roster::of(agent, &agents, &teams);
+    // Independent reads, which the database's readers run side by side.
+    let (agents, teams, user, memories, storage) = tokio::try_join!(
+        database.send(ListIntelligenceAgentsCommand {}),
+        database.send(ListAgentTeamsCommand {}),
+        database.send(GetProfileCommand {}),
+        agent_memories(database, agent.id),
+        database.send(GetStorageSettingsCommand {}),
+    )?;
     Ok(SystemPrompt {
         profile: agent.into(),
-        roster,
-        user: database.send(GetProfileCommand {}).await?.into(),
-        memories: agent_memories(database, agent.id).await?,
-        memory_limit: database
-            .send(GetStorageSettingsCommand {})
-            .await?
-            .memory_limit,
+        roster: Roster::of(agent, &agents, &teams),
+        user: user.into(),
+        memories,
+        memory_limit: storage.memory_limit,
     })
 }
 

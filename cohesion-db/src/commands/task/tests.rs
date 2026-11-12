@@ -75,8 +75,28 @@ fn tasks_list_by_workspace_and_folder() {
 
 #[test]
 fn a_page_lists_its_slice_and_the_whole_total() {
-    let (db, workspace_id, _) = status_fixture(&["a", "b", "c", "d", "e"]);
-    let page = |offset, limit| {
+    let (db, workspace_id, ids) = status_fixture(&["a", "b", "c", "d", "e"]);
+    let page = |offset, limit| page_around(&db, workspace_id, offset, limit, None);
+    assert_eq!(page(0, 2), (vec!["e".to_string(), "d".to_string()], 5));
+    assert_eq!(page(4, 2), (vec!["a".to_string()], 5));
+
+    // "b" is fourth by title descending, so it falls on the page from 2.
+    let around = |id| page_around(&db, workspace_id, 0, 2, Some(id));
+    assert_eq!(around(ids[1]), (vec!["c".to_string(), "b".to_string()], 5));
+    // A task the listing doesn't cover leaves the page at `offset`.
+    assert_eq!(around(999), (vec!["e".to_string(), "d".to_string()], 5));
+}
+
+/// The titles on the page of a workspace's tasks, by title descending, from
+/// `offset` or around task `around`, and the listing's total.
+fn page_around(
+    db: &DatabaseContext,
+    workspace_id: i64,
+    offset: u64,
+    limit: u64,
+    around: Option<i64>,
+) -> (Vec<String>, i64) {
+    {
         let page = db
             .send_blocking(ListTaskPageCommand {
                 tags: TagFilter::default(),
@@ -95,13 +115,12 @@ fn a_page_lists_its_slice_and_the_whole_total() {
                 descending: true,
                 offset,
                 limit: Some(limit),
+                around,
             })
             .unwrap();
         let titles: Vec<_> = page.tasks.into_iter().map(|t| t.title).collect();
         (titles, page.total)
-    };
-    assert_eq!(page(0, 2), (vec!["e".to_string(), "d".to_string()], 5));
-    assert_eq!(page(4, 2), (vec!["a".to_string()], 5));
+    }
 }
 
 /// A workspace holding `titles` as tasks.

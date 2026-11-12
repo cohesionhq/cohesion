@@ -16,6 +16,12 @@ export function daemonHandlers(core: MockCore) {
 		pairingRefusal,
 		revokeClient
 	} = core;
+	// Live workspaces in their order, as the daemon lists them.
+	const liveWorkspaces = () =>
+		state.workspaces
+			.filter((w) => !w.deleted)
+			.toSorted((a, b) => a.sort_order - b.sort_order || a.id - b.id)
+			.map((w) => ({ ...w }));
 	return {
 		about: () => ({ hostname: 'mock.local', version: '0.0.0-mock' }),
 		// The mock is the page itself, so like a daemon built without web/build it has no bundle.
@@ -26,7 +32,7 @@ export function daemonHandlers(core: MockCore) {
 			);
 		},
 		webBundleHash: () => ({ hash: null }),
-		listWorkspaces: () => state.workspaces.filter((w) => !w.deleted).map((w) => ({ ...w })),
+		listWorkspaces: () => liveWorkspaces(),
 		listIntelligenceDefaults: () => state.defaults.map((d) => ({ ...d })),
 		listClients: () =>
 			state.clients
@@ -126,6 +132,7 @@ export function daemonHandlers(core: MockCore) {
 				id: nextId(state.workspaces),
 				title,
 				emoji: emojiValue(emoji),
+				sort_order: Math.max(-1, ...state.workspaces.map((w) => w.sort_order)) + 1,
 				deleted: false
 			};
 			state.workspaces.push(created);
@@ -140,6 +147,10 @@ export function daemonHandlers(core: MockCore) {
 			const w = workspace(id);
 			w.emoji = emojiValue(emoji);
 			return { ...w };
+		},
+		reorderWorkspaces: ({ ids }) => {
+			ids.forEach((id, i) => (workspace(id).sort_order = i));
+			return liveWorkspaces();
 		},
 		deleteWorkspace: ({ id }) => {
 			const w = workspace(id);

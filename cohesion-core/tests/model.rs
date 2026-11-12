@@ -23,11 +23,13 @@ fn workspace_round_trips_through_a_row() {
         ("id", Value::Integer(7)),
         ("title", Value::Text("Home".to_string())),
         ("emoji", Value::Null),
+        ("sort_order", Value::Integer(2)),
         ("deleted", Value::Integer(0)),
     ]));
     let workspace = Workspace::from_row(&row).expect("row has every column");
     assert_eq!(workspace.id(), 7);
     assert_eq!(workspace.title, "Home");
     assert_eq!(workspace.emoji, None);
+    assert_eq!(workspace.sort_order, 2);
     assert!(!workspace.deleted);
 }

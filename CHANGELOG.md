@@ -7,6 +7,55 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- Workspaces can be reordered in Settings, by dragging a row's handle or
+  with Alt+↑/↓. The order is kept by the daemon, and the workspace
+  switcher, the palette, ⌘1–⌘9 and `cohesion workspace` follow it.
+  Workspaces gain `sort_order`, set with `reorderWorkspaces`; the iPhone
+  app should list workspaces in the order the daemon sends them.
+- Pages answer sooner and send fewer requests. Reads run on read-only
+  database connections beside the one that writes, so they no longer wait
+  behind writes, backups or a vacuum. Every connection reuses its prepared
+  statements and keeps a larger page cache. Agents share one HTTP client per
+  process, so a new thread or fork reuses the open connection to its
+  provider, and scripts share one for `network.fetch`. The remote CLI keeps
+  its session between the calls of a command. The local socket reads a large
+  request, such as one carrying images, in linear time. The web UI coalesces
+  the refetches that a burst of changes sets off, and screens that asked once
+  per item now ask once.
+- Breaking wire changes, which the iPhone app has to follow:
+  - `listDocuments` and `searchDocuments` answer `DocumentSummary`s, a
+    document without its text but with its `opening` (its first 500
+    characters), in a reply tagged `documentSummaries`. `getDocument` still
+    has the text.
+  - `listMemories` takes `filter` (`{seenBy: id}`, `"global"` or `"every"`)
+    in place of `agent_id`.
+  - `listExtensionPermissions` and `listExtensionHooks` take
+    `extension_ids`.
+  - `listAgentMessageAttachments` and `listActorSessionMessageAttachments`
+    take `message_ids`.
+- A script's `Document` reads `contents` when the script uses it, so listing
+  documents no longer reads every document's text, and `contents` is always
+  what the document holds now. `JSON.stringify` of a `Document` leaves the
+  text out. To find documents by their text, search the workspace.
+- Editing a document's text or a task's description no longer reloads every
+  list that shows it. The daemon raises `documentText` or `taskDescription`
+  for the one item, in place of `documents` or `taskList`, and the web UI
+  fetches just that row (`listDocuments` takes `ids`). The iPhone app has to
+  listen for the new keys, or it misses edits made elsewhere.
+- A message added to or changed in an agent's conversation or an actor
+  session no longer reloads the whole feed or transcript, nor the agent's
+  cues, agenda and runs, nor the session list. The daemon raises
+  `agentMessage` or `actorSessionMessage` for the one message, in place of
+  `agent` and `actorSession`/`actorSessions`, and the web UI fetches just
+  that message (`listAgentMessages` and `listActorSessionMessages` take
+  `ids`). The iPhone app has to listen for the new keys, or its feeds and
+  transcripts stop updating.
+- New requests: `resolveLinks` resolves many `cohesion://` links at once,
+  `listActorSessionAncestors` lists the sessions a subagent runs under, and
+  `addEndpointModels` imports several models into an endpoint. `listTasks`
+  takes `around` to start at the page holding a task, and `TaskPage` says
+  its `offset`. `listEndpointModels` lists every endpoint's models when
+  `endpoint_id` is left out.
 - Workspace search ranks every title match above matches only in the
   text, with the title the query covers most (an exact title such as
   "Models") first. It also finds feeds by title, from every workspace:

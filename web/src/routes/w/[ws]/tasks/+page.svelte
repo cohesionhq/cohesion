@@ -13,7 +13,8 @@
 	import { folderDialogs } from '$lib/shell/folderDialogs.svelte';
 	import { workspaceLoadError } from '$lib/shell/loadError';
 	import { routes } from '$lib/shell/routes';
-	import { asksForNew, asksForNewFolder, isTyping } from '$lib/shell/shortcuts.svelte';
+	import { newTaskDialog } from '$lib/shell/newTaskDialog.svelte';
+	import { asksForNewFolder, isTyping, shortcuts } from '$lib/shell/shortcuts.svelte';
 	import {
 		parsePriorities,
 		parseSizes,
@@ -397,16 +398,23 @@
 
 	// ---- Page keys ----------------------------------------------------------
 
+	// ⌘T, which the layout handles, focuses the composer; where the list has none (Done, Cancelled) it opens the new-task dialog.
+	$effect(() => {
+		const start = () => {
+			if (addInput) addInput.focus();
+			else newTaskDialog.request();
+		};
+		shortcuts.newTask = start;
+		return () => {
+			if (shortcuts.newTask === start) shortcuts.newTask = null;
+		};
+	});
+
 	function onWindowKey(event: KeyboardEvent) {
 		const inDialog = event.target instanceof HTMLElement && event.target.closest('[role="dialog"]');
 		if (!inDialog && asksForNewFolder(event)) {
 			event.preventDefault();
 			folderDialogs.request({ kind: 'tasks', mode: 'new' });
-			return;
-		}
-		if (!inDialog && asksForNew(event) && addInput) {
-			event.preventDefault();
-			addInput.focus();
 			return;
 		}
 		if (event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;

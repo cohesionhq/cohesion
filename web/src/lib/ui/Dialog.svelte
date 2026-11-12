@@ -15,6 +15,8 @@
 		hero?: Snippet;
 		/** Drawn before the title, on its line: e.g. the avatar of the agent a message goes to. */
 		leading?: Snippet;
+		/** Drawn after the title, on its line: e.g. "New task in" and the workspace to pick. */
+		trailing?: Snippet;
 		/** Centers its title and description and stacks the footer's actions full-width, first on top, for a prompt; it scrolls with the window when it outgrows it. */
 		centered?: boolean;
 		/** Called once the dialog has finished closing, fade included: reset its contents here, so the fade doesn't show them change. */
@@ -30,6 +32,7 @@
 		size = 'default',
 		hero,
 		leading,
+		trailing,
 		centered = false,
 		onclosed
 	}: Props = $props();
@@ -46,10 +49,12 @@
 		class={[
 			'font-semibold',
 			centered ? 'text-center text-lg' : 'text-md',
-			leading && 'flex items-center gap-2'
+			(leading || trailing) && 'flex items-center',
+			leading && 'gap-2',
+			trailing && !leading && 'gap-0'
 		]}
 	>
-		{#if leading}{@render leading()}{/if}{title}
+		{#if leading}{@render leading()}{/if}{title}{#if trailing}{@render trailing()}{/if}
 	</Dialog.Title>
 	{#if description}
 		<Dialog.Description class={['mt-1 text-fg-muted', centered && 'text-center']}

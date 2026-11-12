@@ -12,6 +12,8 @@
 	import PaneHost from '$lib/shell/PaneHost.svelte';
 	import SplitView from '$lib/shell/SplitView.svelte';
 	import Notice from '$lib/shell/Notice.svelte';
+	import NewTaskDialog from '$lib/shell/NewTaskDialog.svelte';
+	import { newTaskDialog } from '$lib/shell/newTaskDialog.svelte';
 	import Palette from '$lib/shell/Palette.svelte';
 	import { mainPages, routes } from '$lib/shell/routes';
 	import {
@@ -20,6 +22,9 @@
 		isTyping,
 		opensSettings,
 		showsShortcuts,
+		togglesSidebar,
+		asksForNewDocument,
+		asksForNewTask,
 		workspaceIndexFor,
 		shortcuts,
 		focusesFolderHeading,
@@ -32,6 +37,8 @@
 	import ShowKindsDialog from '$lib/features/connectors/ShowKindsDialog.svelte';
 	import ShortcutsDialog from '$lib/shell/ShortcutsDialog.svelte';
 	import Sidebar from '$lib/shell/Sidebar.svelte';
+	import { sidebarState } from '$lib/shell/sidebarState.svelte';
+	import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
 	import AgentGutter from '$lib/features/agents/AgentGutter.svelte';
 	import SessionGutter from '$lib/features/actors/SessionGutter.svelte';
 	import ConversationGutter from '$lib/shell/ConversationGutter.svelte';
@@ -220,11 +227,28 @@
 			.then((about) => (hostname = about.hostname))
 			.catch(() => undefined);
 
+		/** ⌘N off the Documents page: a document in the current workspace's Inbox, opened to edit. */
+		async function newDocumentInInbox() {
+			const ws = workspaces.currentId;
+			if (ws === null) return;
+			try {
+				const doc = await documents.create(ws);
+				void panes.current.goto(routes.document(ws, doc.id));
+			} catch (error) {
+				toasts.error(error);
+			}
+		}
+
 		const onFocus = () => void refreshAll();
 		const onKey = (event: KeyboardEvent) => {
 			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
 				event.preventDefault();
 				paletteOpen = !paletteOpen;
+				return;
+			}
+			if (togglesSidebar(event)) {
+				event.preventDefault();
+				sidebarState.toggle();
 				return;
 			}
 			if (showsShortcuts(event)) {
@@ -246,6 +270,8 @@
 					event.preventDefault();
 					event.stopPropagation();
 					heading.focus();
+					// Opened, not only focused, so the arrow keys and Enter work at once.
+					if (heading.getAttribute('aria-expanded') !== 'true') heading.click();
 					return;
 				}
 			}
@@ -254,6 +280,24 @@
 				event.preventDefault();
 				event.stopPropagation();
 				shortcuts.toggleEditing();
+				return;
+			}
+			// ⌘N and ⌘T work in a field too, but not over a dialog, which has its own keys.
+			const inDialog =
+				event.target instanceof HTMLElement && event.target.closest('[role="dialog"]') !== null;
+			if (!inDialog && asksForNewDocument(event)) {
+				event.preventDefault();
+				event.stopPropagation();
+				// The Documents page makes it in the folder it shows; elsewhere it goes in the Inbox.
+				if (shortcuts.newDocument) shortcuts.newDocument();
+				else void newDocumentInInbox();
+				return;
+			}
+			if (!inDialog && asksForNewTask(event)) {
+				event.preventDefault();
+				event.stopPropagation();
+				if (shortcuts.newTask) shortcuts.newTask();
+				else newTaskDialog.request();
 				return;
 			}
 			const slot = workspaceIndexFor(event);
@@ -305,6 +349,7 @@
 		window.addEventListener('mouseup', onButton);
 		window.addEventListener('click', onAltClick, true);
 		panes.restore();
+		sidebarState.restore();
 		return () => {
 			for (const stop of unsubscribe) stop();
 			window.removeEventListener('focus', onFocus);
@@ -323,36 +368,53 @@
 {:else if ready}
 	<!-- The page itself never scrolls; the sidebar and the main column each scroll on their own. -->
 	<div class="flex h-dvh overflow-hidden max-sm:flex-col">
-		<Sidebar
-			pathname={page.url.pathname}
-			search={page.url.search}
-			workspaceId={workspaces.currentId}
-			status={connection.status}
-			{hostname}
-			agents={agents.list.value}
-			teams={agents.teams.value}
-			actorSessions={actors.current}
-			goingActorSessions={actors.goingCount}
-			kinds={shownKinds}
-			documentFolders={documents.folders.key === workspaces.currentId
-				? documents.folders.value
-				: []}
-			taskFolders={tasks.folders.key === workspaces.currentId ? tasks.folders.value : []}
-			onunpinfolder={(kind, id) =>
-				workspaces.currentId !== null &&
-				(kind === 'documents' ? documents : tasks)
-					.setFolderPinned(workspaces.currentId, id, false)
-					.catch((e) => toasts.error(e))}
-			onfiledocument={fileDocument}
-			onresolve={resolveSession}
-			onsearch={() => (paletteOpen = true)}
-			onchoosekinds={() => (choosingKinds = true)}
-			onpin={(id, pinned) => agents.setPinned(id, pinned).catch((e) => toasts.error(e))}
-			onreorder={(ids) => agents.reorder(ids).catch((e) => toasts.error(e))}
-			onreorderkinds={(ids) =>
-				workspaces.currentId !== null &&
-				resources.reorderShown(workspaces.currentId, ids).catch((e) => toasts.error(e))}
-		/>
+		{#if sidebarState.collapsed}
+			<!-- Collapsed: only a restore button is left; ⌘K and the shortcuts do the navigating. -->
+			<div
+				class="flex flex-none items-start px-1.5 pt-[calc(--spacing(3)+var(--titlebar-inset))] max-sm:px-2 max-sm:pt-[calc(--spacing(1)+var(--titlebar-inset))] max-sm:pb-1"
+			>
+				<button
+					class="flex size-7.5 items-center justify-center rounded-sm text-fg-subtle hover:bg-bg-hover hover:text-fg"
+					type="button"
+					aria-label="Show sidebar"
+					onclick={() => sidebarState.set(false)}
+				>
+					<PanelLeftOpen size={16} strokeWidth={1.75} />
+				</button>
+			</div>
+		{:else}
+			<Sidebar
+				pathname={page.url.pathname}
+				search={page.url.search}
+				workspaceId={workspaces.currentId}
+				status={connection.status}
+				{hostname}
+				agents={agents.list.value}
+				teams={agents.teams.value}
+				actorSessions={actors.current}
+				goingActorSessions={actors.goingCount}
+				kinds={shownKinds}
+				documentFolders={documents.folders.key === workspaces.currentId
+					? documents.folders.value
+					: []}
+				taskFolders={tasks.folders.key === workspaces.currentId ? tasks.folders.value : []}
+				onunpinfolder={(kind, id) =>
+					workspaces.currentId !== null &&
+					(kind === 'documents' ? documents : tasks)
+						.setFolderPinned(workspaces.currentId, id, false)
+						.catch((e) => toasts.error(e))}
+				onfiledocument={fileDocument}
+				onresolve={resolveSession}
+				onsearch={() => (paletteOpen = true)}
+				onchoosekinds={() => (choosingKinds = true)}
+				onpin={(id, pinned) => agents.setPinned(id, pinned).catch((e) => toasts.error(e))}
+				onreorder={(ids) => agents.reorder(ids).catch((e) => toasts.error(e))}
+				onreorderkinds={(ids) =>
+					workspaces.currentId !== null &&
+					resources.reorderShown(workspaces.currentId, ids).catch((e) => toasts.error(e))}
+				oncollapse={() => sidebarState.set(true)}
+			/>
+		{/if}
 		<!-- The page is a sheet inset in the window, the sidebar on the canvas around it. It reserves
 		     no scrollbar gutter, so a bar across its top (a conversation's header) meets both edges
 		     evenly; where scrollbars take room, a page that starts to scroll narrows by one.
@@ -409,6 +471,7 @@
 		</ConversationGutter>
 	</div>
 	<FolderDialogs />
+	<NewTaskDialog />
 	<DocumentMover bind:this={mover} onmoved={(doc) => tables.took(doc)} />
 	<Palette bind:open={paletteOpen} kinds={shownKinds} />
 	{#if workspaces.currentId !== null}

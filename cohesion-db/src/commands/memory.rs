@@ -1,7 +1,7 @@
 use cohesion_core::{
     FromRequest,
     invalidation::Invalidation,
-    model::{Memory, MemoryScope},
+    model::{Memory, MemoryFilter, MemoryScope},
     protocol::{ForgetMemoryRequest, ListMemoriesRequest},
 };
 
@@ -90,19 +90,19 @@ impl DatabaseCommand for DeleteMemoryCommand {
     }
 }
 
-/// The memories agent `agent_id` sees: its own, then its team's, then the
-/// global ones, each oldest first. Only the global ones when `None`.
+/// The memories `filter` picks, an agent's own first, then a team's, then
+/// the global ones, each oldest first.
 #[derive(FromRequest)]
 #[request(ListMemoriesRequest)]
 pub struct ListMemoriesCommand {
-    pub agent_id: Option<i64>,
+    pub filter: MemoryFilter,
 }
 impl DatabaseCommand for ListMemoriesCommand {
     type Response = Vec<Memory>;
     type Access = Read;
     fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<Self::Response> {
-        let query = match self.agent_id {
-            Some(agent_id) => ctx
+        let query = match self.filter {
+            MemoryFilter::SeenBy(agent_id) => ctx
                 .db
                 .select()
                 .filter(
@@ -111,10 +111,11 @@ impl DatabaseCommand for ListMemoriesCommand {
                 )
                 .bind(agent_id)
                 .bind(agent_id),
-            None => ctx
+            MemoryFilter::Global => ctx
                 .db
                 .select()
                 .filter("agent_id IS NULL AND team_id IS NULL"),
+            MemoryFilter::Every => ctx.db.select(),
         };
         Ok(query.order("agent_id IS NULL, team_id IS NULL, id").all()?)
     }

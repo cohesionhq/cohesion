@@ -50,7 +50,7 @@ impl JsSearchResult {
                         document_id: self.inner.entity_id,
                     },
                 )?;
-                JsDocument::new(doc, self.db.clone()).into_js(&ctx)
+                JsDocument::new(doc.into(), self.db.clone()).into_js(&ctx)
             }
             SearchEntityKind::Resource => {
                 let resource = self.read(

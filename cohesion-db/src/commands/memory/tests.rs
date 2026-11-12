@@ -1,4 +1,4 @@
-use cohesion_core::model::{IntelligenceAgentColor, Memory, MemoryScope};
+use cohesion_core::model::{IntelligenceAgentColor, Memory, MemoryFilter, MemoryScope};
 
 use crate::test_support::context;
 use crate::{
@@ -47,8 +47,8 @@ fn of_team(team_id: i64) -> MemoryScope {
     MemoryScope::Team { team_id }
 }
 
-fn list(db: &DatabaseContext, agent_id: Option<i64>) -> Vec<String> {
-    db.send_blocking(ListMemoriesCommand { agent_id })
+fn list(db: &DatabaseContext, filter: MemoryFilter) -> Vec<String> {
+    db.send_blocking(ListMemoriesCommand { filter })
         .unwrap()
         .into_iter()
         .map(|memory| memory.memory)
@@ -70,12 +70,19 @@ fn an_agent_sees_its_own_then_its_teams_then_the_global_memories() {
     remember(&db, personal(bo), "Bo's");
 
     assert_eq!(
-        list(&db, Some(ada)),
+        list(&db, MemoryFilter::SeenBy(ada)),
         ["Ada's", "Engineering's", "Everyone's"]
     );
-    assert_eq!(list(&db, Some(bo)), ["Bo's", "Research's", "Everyone's"]);
-    assert_eq!(list(&db, Some(cy)), ["Everyone's"]);
-    assert_eq!(list(&db, None), ["Everyone's"]);
+    assert_eq!(
+        list(&db, MemoryFilter::SeenBy(bo)),
+        ["Bo's", "Research's", "Everyone's"]
+    );
+    assert_eq!(list(&db, MemoryFilter::SeenBy(cy)), ["Everyone's"]);
+    assert_eq!(list(&db, MemoryFilter::Global), ["Everyone's"]);
+    assert_eq!(
+        list(&db, MemoryFilter::Every),
+        ["Ada's", "Bo's", "Engineering's", "Research's", "Everyone's"]
+    );
 }
 
 #[test]
@@ -92,13 +99,13 @@ fn moving_to_another_team_changes_which_team_memories_an_agent_sees() {
         team_id: Some(research),
     })
     .unwrap();
-    assert_eq!(list(&db, Some(ada)), ["Research's"]);
+    assert_eq!(list(&db, MemoryFilter::SeenBy(ada)), ["Research's"]);
     db.send_blocking(SetAgentTeamCommand {
         agent_id: ada,
         team_id: None,
     })
     .unwrap();
-    assert!(list(&db, Some(ada)).is_empty());
+    assert!(list(&db, MemoryFilter::SeenBy(ada)).is_empty());
 }
 
 /// Sets the storage settings' memory limit to `limit`, keeping the rest.
@@ -155,7 +162,7 @@ fn each_scope_keeps_as_many_memories_as_the_storage_settings_allow() {
     // Lowering the limit forgets nothing, and refuses another until the
     // scope is under it again.
     limit_memories(&db, 1);
-    assert_eq!(list(&db, Some(bo)).len(), 4);
+    assert_eq!(list(&db, MemoryFilter::SeenBy(bo)).len(), 4);
     assert!(matches!(
         one_more(personal(bo)),
         Err(CommandError::Validation(_))
@@ -192,7 +199,7 @@ fn forgetting_returns_the_memory_once() {
     };
     assert_eq!(forget().unwrap().memory, "Call me Jo");
     assert!(matches!(forget(), Err(CommandError::NotFound(_))));
-    assert!(list(&db, None).is_empty());
+    assert!(list(&db, MemoryFilter::Global).is_empty());
 }
 
 #[test]
@@ -212,7 +219,7 @@ fn an_agents_memories_go_with_it_and_a_teams_with_the_team() {
     db.send_blocking(DeleteIntelligenceAgentCommand { agent_id: ada })
         .unwrap();
     assert_eq!(
-        list(&db, Some(bo)),
+        list(&db, MemoryFilter::SeenBy(bo)),
         [
             "Releases go out on Fridays",
             "Groceries go in the Home workspace"
@@ -222,5 +229,8 @@ fn an_agents_memories_go_with_it_and_a_teams_with_the_team() {
         team_id: engineering,
     })
     .unwrap();
-    assert_eq!(list(&db, Some(bo)), ["Groceries go in the Home workspace"]);
+    assert_eq!(
+        list(&db, MemoryFilter::SeenBy(bo)),
+        ["Groceries go in the Home workspace"]
+    );
 }

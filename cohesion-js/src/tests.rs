@@ -3049,6 +3049,31 @@ fn a_script_renames_and_deletes_documents_but_a_read_only_one_cannot() {
 }
 
 #[test]
+fn a_listed_document_reads_its_text_when_asked_and_always_the_latest() {
+    let db = database();
+    create_workspace(&db, "Home");
+    let result = json(
+        &db,
+        r#"
+        const home = cohesion.workspace("Home");
+        home.createDocument("Long", "é".repeat(600));
+        home.createDocument("Short", "Eggs");
+        const [long, short] = ["Long", "Short"].map(
+            (title) => home.documents().find((d) => d.title === title));
+        const before = short.contents;
+        home.document(short.id).append(" and milk");
+        [before, short.contents, long.contents.length, short.excerpt(),
+         long.excerpt().length, "contents" in JSON.parse(JSON.stringify(short))]
+        "#,
+    );
+    assert_eq!(
+        result,
+        // The excerpt is as listed, like the title; only `contents` reads anew.
+        serde_json::json!(["Eggs", "Eggs and milk", 600, "Eggs", 501, false])
+    );
+}
+
+#[test]
 fn documents_file_into_nested_folders_and_the_inbox() {
     let db = database();
     create_workspace(&db, "Home");

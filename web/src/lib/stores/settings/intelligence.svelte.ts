@@ -231,11 +231,14 @@ export class IntelligenceStore {
 		const matches = (key: Invalidation) => key.kind === 'intelligence';
 		this.endpoints = new Resource({
 			fetch: async () => {
-				const endpoints = await send('listIntelligenceEndpoints');
-				const models = await Promise.all(
-					endpoints.map((e) => send('listEndpointModels', { endpoint_id: e.id }))
-				);
-				return endpoints.map((e, i) => ({ ...e, models: models[i] }));
+				const [endpoints, models] = await Promise.all([
+					send('listIntelligenceEndpoints'),
+					send('listEndpointModels', {})
+				]);
+				return endpoints.map((e) => ({
+					...e,
+					models: models.filter((m) => m.endpoint_id === e.id)
+				}));
 			},
 			initial: [],
 			matches
@@ -298,15 +301,18 @@ export class IntelligenceStore {
 
 	/**
 	 * Imports each of `model_identifiers` into endpoint `endpoint_id`, in
-	 * order. One the endpoint already offers comes back as it is.
+	 * order, in one request. One the endpoint already offers comes back as it is.
 	 */
 	async importModels(endpoint_id: number, model_identifiers: string[]): Promise<void> {
-		for (const model_identifier of model_identifiers) {
-			const added = await this.#send('addEndpointModel', { endpoint_id, model_identifier });
-			this.endpoints.update((list) =>
-				withModels(list, endpoint_id, (m) => [...m.filter((x) => x.id !== added.id), added])
-			);
-		}
+		const reply = await this.#send('addEndpointModels', { endpoint_id, model_identifiers });
+		// An identifier asked for twice comes back twice, as the same model.
+		const added = reply.filter((a, i) => reply.findIndex((b) => b.id === a.id) === i);
+		this.endpoints.update((list) =>
+			withModels(list, endpoint_id, (m) => [
+				...m.filter((x) => !added.some((a) => a.id === x.id)),
+				...added
+			])
+		);
 	}
 
 	/**

@@ -5178,6 +5178,19 @@ pub const MIGRATIONS: &[Migration] = &[
             INNER JOIN feeds AS f ON f.id = entry.entity_id
             WHERE entry.entity_kind = 'feed';",
     },
+    // Workspaces take an order of their own, starting in the order they were
+    // created.
+    Migration {
+        name: "workspace_order",
+        sql: "
+        ALTER TABLE workspaces ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
+        UPDATE workspaces SET sort_order = id;",
+    },
+    Migration {
+        name: "documents_workspace_modified",
+        sql: "
+        CREATE INDEX documents_workspace_modified ON documents(workspace_id, modified);",
+    },
 ];
 
 #[cfg(test)]
