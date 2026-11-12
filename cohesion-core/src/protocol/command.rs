@@ -29,6 +29,7 @@ use super::contact_requests::*;
 use super::document_requests::*;
 use super::document_table_requests::*;
 use super::embed_requests::*;
+use super::experiment_requests::*;
 use super::extension_requests::*;
 use super::feed_requests::*;
 use super::intelligence_requests::*;
@@ -47,11 +48,12 @@ use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem,
     AgentSkill, Article, Attachment, CatalogModel, Client, Component, Contact, ContactMethod,
     DeletedItem, Document, DocumentFolder, DocumentFolderProperty, Embed, EndpointModel,
-    ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
-    IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
-    IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
-    RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings, TableRow, Tag,
-    Task, TaskFolder, TextSection, Version, VersionSummary, Workspace, WorkspaceResourceKind,
+    ExperimentSetting, ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent,
+    IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
+    IntelligenceCostEvent, IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit,
+    Profile, Resource, RestoredItem, SavedTaskView, SearchResult, SecuritySettings,
+    StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection, Version, VersionSummary,
+    Workspace, WorkspaceResourceKind,
 };
 
 /// Every request a client can send; the `args` of a [`Request`](super::Request).
@@ -469,6 +471,12 @@ pub enum Command {
     /// Replaces the storage settings.
     #[reply(StorageSettings)]
     UpdateStorageSettings(UpdateStorageSettingsRequest),
+    /// Answers every experiment and whether it is on.
+    #[reply(Vec<ExperimentSetting>, request = ListExperimentsRequest)]
+    ListExperiments,
+    /// Turns an experiment on or off.
+    #[reply(Vec<ExperimentSetting>)]
+    SetExperiment(SetExperimentRequest),
     /// Answers how large the database file is.
     #[reply(DatabaseSize, request = GetDatabaseSizeRequest)]
     GetDatabaseSize,

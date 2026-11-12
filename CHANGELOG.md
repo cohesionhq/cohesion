@@ -15,6 +15,10 @@ under "Unreleased" with any change users would notice.
   Dashboard"), and the Dashboard lists the pinned documents under "Pinned",
   where each can be unpinned. Documents gain `pinned`, set with
   `setDocumentPinned`; the iPhone app has to read the new field.
+- Settings gains an Experiments section, with a switch for each experiment
+  this Cohesion offers; there are none yet. New `listExperiments` and
+  `setExperiment` requests, the `experiments` invalidation and an
+  `enabled_experiments` table back it.
 - The sidebar lists only the folders you pin under Documents and Tasks.
   Every folder is a click away in the switcher under the Documents and Tasks
   pages' titles, which now show breadcrumbs through nested folders; that's

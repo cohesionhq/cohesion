@@ -1058,7 +1058,19 @@ deleting sets `deleted`, and client reads use `select_live`.
 | `security_settings` | One row: `pairing_opened_by`, `alert_new_client`, `revoke_inactive_after_days`. |
 | `security_events` | `kind`, `client_id` (set null when gone), `client_name`, `address`; kept 30 days. |
 | `profile` | One row: the user's `name`, `bio` and photo. |
+| `enabled_experiments` | `key` (unique): a row for each experiment turned on, none for one turned off. |
 | `storage_settings` | One row: `thread_retention_days` (14), `actor_session_retention_days` (7), `memory_limit` (20), `rewind_retention_days` (7), `deleted_item_retention_days` (30); each at least 1. |
+
+**Experiments** (`Experiment`, `cohesion-core/src/model/experiment.rs`) are
+features a daemon's owner turns on or off in Settings › Experiments. The enum
+is the registry and has no variants yet. To offer one, add a variant with its
+`key`, `title` and `description` and put it in `Experiment::ALL`. Rust asks
+`experiment_enabled(db, Experiment::X)` (`cohesion-db`); the web asks
+`experiments.isEnabled('x')` once the store is loaded. To discontinue one,
+delete the variant: the compiler lists every check to remove, and its stored
+switch is ignored and removed by the next `setExperiment`. `listExperiments`
+and `setExperiment` answer every experiment with its state; a change
+invalidates `experiments`.
 
 **Workspaces and their content**
 
@@ -2202,7 +2214,9 @@ number, a date picker; a checkbox toggles), read by `features/tables/values.ts`;
 refusal shows under the editor. A choice shows as a pill
 (`ChoicePill.svelte`, a tag's pill in its option's color, `agentChip` in
 `ui/colors.ts`) and opens a menu of its options, each on its number key, with
-Clear on 0; ⇥ passes it by, as a checkbox. A new choice column takes its
+Clear on 0, a field above them that filters them as you type and, when the text
+matches no option, ends the list with `Create status "x"` to add it and pick
+it; ⇥ passes it by, as a checkbox. A new choice column takes its
 options in the drawer under its type, and "Edit options…" opens the same
 drawer with the options alone, saving each change as it is made
 (`OptionsEditor.svelte`, laid out as the tags' list: a color swatch that opens

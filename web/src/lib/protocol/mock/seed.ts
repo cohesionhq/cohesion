@@ -1040,6 +1040,7 @@ export function seed(): MockState {
 			deleted_item_retention_days: 30,
 			memory_limit: 20
 		},
+		experiments: [],
 		versions: [],
 		databaseSize: {
 			bytes: 48_234_496,

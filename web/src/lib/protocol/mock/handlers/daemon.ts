@@ -64,6 +64,14 @@ export function daemonHandlers(core: MockCore) {
 			state.storage = { id: 1, ...settings };
 			return { ...state.storage };
 		},
+		listExperiments: () => state.experiments.map((experiment) => ({ ...experiment })),
+		setExperiment: ({ key, enabled }) => {
+			const experiment = state.experiments.find((e) => e.key === key);
+			if (!experiment)
+				throw new ProtocolError('validationFailed', `There’s no experiment named “${key}”.`);
+			experiment.enabled = enabled;
+			return state.experiments.map((e) => ({ ...e }));
+		},
 		getDatabaseSize: () => ({ ...state.databaseSize }),
 		backupDatabase: () => ({
 			path: '/home/you/.config/cohesiond/backups/cohesion-2026-11-03-120000.db',

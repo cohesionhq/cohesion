@@ -29,11 +29,12 @@ use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem,
     AgentSkill, Article, Attachment, CatalogModel, Client, Component, Contact, ContactMethod,
     DeletedItem, Document, DocumentFolder, DocumentFolderProperty, Embed, EndpointModel,
-    ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
-    IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
-    IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
-    RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings, TableRow, Tag,
-    Task, TaskFolder, TextSection, Version, VersionSummary, Workspace, WorkspaceResourceKind,
+    ExperimentSetting, ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent,
+    IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
+    IntelligenceCostEvent, IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit,
+    Profile, Resource, RestoredItem, SavedTaskView, SearchResult, SecuritySettings,
+    StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection, Version, VersionSummary,
+    Workspace, WorkspaceResourceKind,
 };
 
 /// The payload of a successful reply.
@@ -67,6 +68,7 @@ pub enum ReplyData {
     SecuritySettings(SecuritySettings),
     SecurityEventPage(SecurityEventPage),
     StorageSettings(StorageSettings),
+    Experiments(Vec<ExperimentSetting>),
     Versions(Vec<VersionSummary>),
     Version(Version),
     DeletedItems(Vec<DeletedItem>),

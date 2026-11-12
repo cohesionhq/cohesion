@@ -49,6 +49,7 @@ import type {
 	SecuritySettings,
 	SpendPeriod,
 	StorageSettings,
+	ExperimentSetting,
 	Tag,
 	Task,
 	TaskFolder,
@@ -155,6 +156,8 @@ export interface MockState {
 	/** Oldest first. */
 	securityEvents: SecurityEvent[];
 	storage: StorageSettings;
+	/** Every experiment, with whether it is on. None are offered yet. */
+	experiments: ExperimentSetting[];
 	versions: Version[];
 	databaseSize: DatabaseSize;
 	profile: Profile;
