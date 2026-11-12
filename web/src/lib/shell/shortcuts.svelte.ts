@@ -96,6 +96,25 @@ export function asksForNewFolder(event: Chord): boolean {
 	return modN(event, true);
 }
 
+/**
+ * Whether a key press asks to focus the folder dropdown in the page's heading: ⌘D (Ctrl+D). It
+ * works in a field too, and takes the key from the browser's "Add bookmark" while a heading is there.
+ */
+export function focusesFolderHeading(event: Chord): boolean {
+	return (
+		(event.metaKey || event.ctrlKey) &&
+		!(event.metaKey && event.ctrlKey) &&
+		!event.altKey &&
+		!event.shiftKey &&
+		event.code === 'KeyD'
+	);
+}
+
+/** The folder dropdown in a page's heading, which `FolderHeading` marks; null on a page without one. */
+export function folderHeadingButton(): HTMLElement | null {
+	return document.querySelector<HTMLElement>('[data-folder-heading]');
+}
+
 /** Which way a mouse's side button steps through history: its back button (3) or forward one (4). */
 export function historyStepForButton(button: number): -1 | 1 | null {
 	if (button === 3) return -1;

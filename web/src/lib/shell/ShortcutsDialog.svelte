@@ -21,6 +21,7 @@
 					label: 'Go back / forward in the half in use'
 				},
 				{ keys: [`${keyLabel('alt')}-click`], label: 'Open a link in split view' },
+				{ keys: [keyLabel('mod', 'd')], label: 'Focus the folder menu in the heading' },
 				{ keys: [keyLabel('mod', '/'), '?'], label: 'Show these shortcuts' }
 			]
 		},

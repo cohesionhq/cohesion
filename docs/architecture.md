@@ -2150,7 +2150,8 @@ layers. It follows the system: light by default, dark under
 
 **Keyboard** (root `+layout.svelte`): ⌘K or Ctrl+K opens the palette; ⌘/ or
 Ctrl+/, or `?` when not typing, lists shortcuts; ⌘, or Ctrl+, opens
-settings; ⌘[ and ⌘], or ⌘/Alt with the arrow keys, and the mouse's back and
+settings; ⌘D or Ctrl+D focuses the folder button in a page heading (and leaves
+the key to the browser on a page without one); ⌘[ and ⌘], or ⌘/Alt with the arrow keys, and the mouse's back and
 forward buttons step through history. The palette (`shell/Palette.svelte`,
 bits-ui `Command`) offers routes and actions, folders, resource kinds,
 settings sections, feeds and agents, switching workspace, a new task, and live

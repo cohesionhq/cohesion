@@ -58,6 +58,8 @@
 				<button
 					class="-mx-1.5 flex min-w-0 cursor-pointer items-center gap-1 rounded-sm px-1.5 py-0.5 text-md leading-tight font-semibold hover:bg-bg-hover"
 					type="button"
+					data-folder-heading
+					aria-keyshortcuts="Control+D Meta+D"
 					{...props}
 				>
 					<span class="truncate">{title}</span>
