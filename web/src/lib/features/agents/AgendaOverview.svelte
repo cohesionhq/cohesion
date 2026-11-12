@@ -10,15 +10,18 @@
 	import { backOut } from 'svelte/easing';
 	import { fade, fly, scale } from 'svelte/transition';
 	import type { AgentAgendaItem } from '$lib/protocol/types';
+	import Button from '$lib/ui/Button.svelte';
 	import HoverCard from '$lib/ui/HoverCard.svelte';
 	import { motion } from '$lib/ui/motion';
 
 	interface Props {
 		/** The agent's agenda, in order, finished items included. */
 		agenda: AgentAgendaItem[];
+		/** Clears the agenda; the agent hears that it was cleared. */
+		onclear: () => void;
 	}
 
-	let { agenda }: Props = $props();
+	let { agenda, onclear }: Props = $props();
 
 	let open = $state(false);
 	const finished = $derived(agenda.filter((item) => item.finished_at !== null));
@@ -109,4 +112,14 @@
 			</li>
 		{/each}
 	</ol>
+	<div class="mt-2 flex justify-end">
+		<Button
+			variant="danger-quiet"
+			class="h-6 px-2 text-xs"
+			onclick={() => {
+				open = false;
+				onclear();
+			}}>Clear agenda</Button
+		>
+	</div>
 </HoverCard>

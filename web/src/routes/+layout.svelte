@@ -350,6 +350,7 @@
 					agenda={agents.agenda.key === gutterAgent.id ? agents.agenda.value : []}
 					actors={actors.list.value}
 					sessions={actors.followedBy(gutterAgent.id)}
+					onclearagenda={() => agents.resetAgenda(agentId).catch((e) => toasts.error(e))}
 					onresolve={resolveSession}
 					onunfollow={(session) =>
 						actors.unfollow(session.id, agentId).catch((e) => toasts.error(e))}

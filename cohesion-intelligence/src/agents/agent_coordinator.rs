@@ -15,7 +15,8 @@ use cohesion_db::{
     AgentTurnPhase, CommandError, CreateUserAgentMessageCommand, DatabaseContext,
     DatabaseEventTrace, DeleteAgentCueCommand, GetAgentMessageCommand, GetTaskCommand,
     ListAgentCuesCommand, ListAgentCuesForHookCommand, PickAgentChoiceCommand,
-    RecordAgentTurnCommand, SetAgentMessageReactionCommand, WorkGuard, WorkTracker,
+    RecordAgentTurnCommand, ResetAgentAgendaCommand, SetAgentMessageReactionCommand, WorkGuard,
+    WorkTracker,
 };
 use cohesion_js::{CueEvaluation, ScriptArgument, ScriptEngine};
 use tokio::sync::{OwnedMutexGuard, oneshot};
@@ -279,6 +280,20 @@ impl AgentCoordinator {
             }
         });
         _ = begun.await;
+    }
+
+    /// Clears agent `agent_id`'s agenda at the user's request, as its own
+    /// `agenda_reset` does. Its running threads hear `Agenda was cleared.`
+    /// in their next catch-up.
+    pub async fn reset_agenda(&self, agent_id: i64) -> Result<(), AgentError> {
+        self.database()
+            .send(ResetAgentAgendaCommand {
+                agent_id,
+                run_id: None,
+            })
+            .await?;
+        self.foreground(agent_id).agenda().publish(&[]);
+        Ok(())
     }
 
     /// Removes cue `cue_id` at the user's request, as the agent's own

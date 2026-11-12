@@ -344,6 +344,22 @@ export function agentsHandlers(core: MockCore) {
 			state.agentSkills = state.agentSkills.filter((s) => s.id !== skill_id);
 			return structuredClone(skill);
 		},
+		resetAgentAgenda: ({ agent_id }) => {
+			agent(agent_id);
+			const cleared = state.agentAgenda
+				.filter((i) => i.agent_id === agent_id)
+				.sort((a, b) => a.position - b.position);
+			if (cleared.length === 0) return null;
+			state.agentAgenda = state.agentAgenda.filter((i) => i.agent_id !== agent_id);
+			state.agentMessages.push(
+				agentMessage(nextId(state.agentMessages), agent_id, nowSeconds(), 'agent', {
+					kind: 'agenda',
+					change: 'reset',
+					items: cleared.map((i) => i.text)
+				})
+			);
+			return null;
+		},
 		removeAgentCue: ({ cue_id }) => {
 			if (!state.agentCues.some((c) => c.id === cue_id)) notFound('intelligence agent cue');
 			state.agentCues = state.agentCues.filter((c) => c.id !== cue_id);

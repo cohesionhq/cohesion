@@ -1368,7 +1368,7 @@ memories and skills. Requests: `CreateIntelligenceAgent`, `UpdateIntelligenceAge
 `SetAgentPinned`, `SetAgentTeam`, `SetAgentModel`, team CRUD, `MarkAgentRead`,
 `ListAgentMessages`, `GetAgentMessage`, `SendAgentMessage`, `StopAgentTurn`,
 `SetAgentMessageReaction`, `RespondToAgentChoice`, `ListAgentCues`, `ListAgentAgenda`,
-`RemoveAgentCue`, `ListMemories`, `ForgetMemory`, `ListAgentSkills`,
+`ResetAgentAgenda`, `RemoveAgentCue`, `ListMemories`, `ForgetMemory`, `ListAgentSkills`,
 `CreateAgentSkill`, `UpdateAgentSkill`, `DeleteAgentSkill`, `ListAgentRuns`,
 `ListAgentMessageAttachments` (`cohesion-core/src/protocol/agent_requests.rs`).
 If the agent has no model of its own and the `agent` tier has none, sending a message fails with "No model is
