@@ -1,6 +1,6 @@
 use cohesion_core::model::{
-    DocumentCell, DocumentFolder, DocumentFolderProperty, DocumentValue, FormulaUpdateMode,
-    PropertyDataType, PropertyValue,
+    DocumentCell, DocumentFolder, DocumentFolderProperty, DocumentFolderRepresentation,
+    DocumentValue, FormulaUpdateMode, PropertyDataType, PropertyValue,
 };
 use cohesion_core::protocol::FormulaDefinition;
 
@@ -12,7 +12,8 @@ use crate::{
     DeleteDocumentFolderPropertyCommand, Filtered, GetDocumentCommand, GetTableRowCommand,
     ListDocumentFolderPropertiesCommand, ListDocumentFoldersCommand,
     MoveDocumentFolderPropertyCommand, Read, ReadableDatabase,
-    SetDocumentFolderPropertyTypeCommand, SetDocumentValueCommand,
+    SetDocumentFolderPropertyTypeCommand, SetDocumentFolderRepresentationCommand,
+    SetDocumentValueCommand,
 };
 
 /// Every stored value of one property, as `(document, text, integer, real)`,
@@ -66,7 +67,7 @@ impl Fixture {
                 title: String::new(),
                 sort_order: 0,
                 deleted: false,
-                is_table: false,
+                representation: DocumentFolderRepresentation::List,
             },
         };
         f.folder = f.new_folder("Books");
@@ -382,12 +383,13 @@ fn deleting_a_property_takes_its_values_and_properties_keep_their_order() {
 }
 
 #[test]
-fn a_folder_is_a_table_while_it_has_a_property_and_is_its_workspaces() {
+fn a_folders_first_property_makes_it_a_table_and_is_its_workspaces() {
     let f = Fixture::new();
-    assert!(!f.folder_now(f.folder.id).is_table);
+    let representation = |f: &Fixture| f.folder_now(f.folder.id).representation;
+    assert_eq!(representation(&f), DocumentFolderRepresentation::List);
     let title = f.property("Title", PropertyDataType::Text);
     let pages = f.property("Pages", PropertyDataType::Integer);
-    assert!(f.folder_now(f.folder.id).is_table);
+    assert_eq!(representation(&f), DocumentFolderRepresentation::Table);
     let row = f.row();
     f.set(row, &pages, Some(PropertyValue::Integer(412)))
         .unwrap();
@@ -408,8 +410,8 @@ fn a_folder_is_a_table_while_it_has_a_property_and_is_its_workspaces() {
         Err(CommandError::NotFound(_))
     ));
 
-    // Deleting its last property makes it a plain folder again; its
-    // documents stay.
+    // Deleting its last property leaves an empty table; its documents
+    // stay.
     for property in [&title, &pages] {
         f.db.send_blocking(DeleteDocumentFolderPropertyCommand {
             workspace_id: f.ws,
@@ -418,7 +420,7 @@ fn a_folder_is_a_table_while_it_has_a_property_and_is_its_workspaces() {
         })
         .unwrap();
     }
-    assert!(!f.folder_now(f.folder.id).is_table);
+    assert_eq!(representation(&f), DocumentFolderRepresentation::Table);
     assert!(f.stored(&pages).is_empty());
     assert!(f.cells(row).is_empty());
     let document =
@@ -450,4 +452,44 @@ fn deleting_a_table_folder_takes_its_properties_and_values_and_keeps_its_documen
         })
         .unwrap();
     assert_eq!(document.folder_id, None);
+}
+
+#[test]
+fn a_folder_shows_as_a_list_or_a_table_keeping_its_properties_and_values() {
+    let f = Fixture::new();
+    let pages = f.property("Pages", PropertyDataType::Integer);
+    let row = f.row();
+    f.set(row, &pages, Some(PropertyValue::Integer(412)))
+        .unwrap();
+    let set = |representation| {
+        f.db.send_blocking(SetDocumentFolderRepresentationCommand {
+            workspace_id: f.ws,
+            folder_id: f.folder.id,
+            representation,
+        })
+    };
+    let folder = set(DocumentFolderRepresentation::List).unwrap();
+    assert_eq!(folder.representation, DocumentFolderRepresentation::List);
+    assert_eq!(
+        f.folder_now(f.folder.id).representation,
+        DocumentFolderRepresentation::List
+    );
+    assert_eq!(f.cells(row), [cell(&pages, PropertyValue::Integer(412))]);
+    // A property added to a list makes it a table again.
+    f.property("Author", PropertyDataType::Text);
+    assert_eq!(
+        f.folder_now(f.folder.id).representation,
+        DocumentFolderRepresentation::Table
+    );
+
+    // A deleted folder, or one of another workspace, isn't found.
+    f.db.send_blocking(DeleteDocumentFolderCommand {
+        workspace_id: f.ws,
+        folder_id: f.folder.id,
+    })
+    .unwrap();
+    assert!(matches!(
+        set(DocumentFolderRepresentation::Table),
+        Err(CommandError::NotFound(_))
+    ));
 }

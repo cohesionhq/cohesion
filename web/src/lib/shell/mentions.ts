@@ -1,6 +1,7 @@
 // What `@` or `[[` finds in the editor: items to link by title, in the order they're
 // offered. Articles are not offered: copy an article's link and paste it.
 
+import { itemLinkHref } from '$lib/format/itemLinks';
 import { prefixQuery } from '$lib/format/search';
 import type { IntelligenceAgent, Send } from '$lib/protocol/types';
 import { vocabulary } from '$lib/protocol/vocabulary.svelte';
@@ -33,18 +34,18 @@ export async function searchMentions(
 			.map((agent) => ({
 				label: agent.agent_name,
 				detail: word('agent'),
-				href: `cohesion://agent/${agent.id}`
+				href: itemLinkHref({ kind: 'agent', ws: null, id: agent.id })
 			})),
 		...items.map((hit) => ({
 			label: hit.title ?? '',
 			detail:
 				hit.entity_kind === 'task' ? `${word('task')} #${hit.entity_id}` : word(hit.entity_kind),
-			href: `cohesion://${hit.entity_kind}/${hit.workspace_id}/${hit.entity_id}`
+			href: itemLinkHref({ kind: hit.entity_kind, ws: hit.workspace_id, id: hit.entity_id })
 		})),
 		...sessions.map((hit) => ({
 			label: hit.title,
 			detail: word('actorSession'),
-			href: `cohesion://actor-session/${hit.id}`
+			href: itemLinkHref({ kind: 'actor-session', ws: null, id: hit.id })
 		}))
 	]
 		.filter((mention) => mention.label.trim() !== '')

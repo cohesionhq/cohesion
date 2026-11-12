@@ -1,11 +1,28 @@
-use cohesion_macros::{Fields, Model, TsWire};
+use cohesion_macros::{Fields, Model, TextEnum, TsWire};
 use serde::{Deserialize, Serialize};
+
+/// How a document folder shows its documents; stored as text.
+///
+/// - `"list"`: as a list of documents (new folders start here).
+/// - `"table"`: as a table, a row per document and a column per property.
+///
+/// A folder gaining a property becomes a table; one losing its last stays
+/// one, an empty table, until it is set back to a list. A list keeps its
+/// properties and its documents their values.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TextEnum, TsWire)]
+#[serde(rename_all = "camelCase")]
+#[text_enum(rename_all = "camelCase")]
+pub enum DocumentFolderRepresentation {
+    List,
+    Table,
+}
 
 /// A named group of documents in a workspace, which may sit inside another.
 ///
 /// Folders nest without limit. A document in no folder is in the Inbox;
-/// journals are never in a folder. A folder with properties
-/// (`DocumentFolderProperty`) is a table, whose documents are its rows.
+/// journals are never in a folder. A folder's properties
+/// (`DocumentFolderProperty`) are a table's columns, and its documents are
+/// its rows; `representation` says whether it shows as one.
 #[derive(Clone, Serialize, Deserialize, Model, Fields, TsWire)]
 #[model(table = "document_folders", backup = Included)]
 pub struct DocumentFolder {
@@ -17,14 +34,6 @@ pub struct DocumentFolder {
     /// Where the folder sits among its siblings; lower comes first.
     pub sort_order: i64,
     pub deleted: bool,
-    /// Whether the folder has properties, so is a table; it stops being one
-    /// when its last property is deleted.
-    #[model(expr = DocumentFolder::IS_TABLE_SQL)]
-    pub is_table: bool,
-}
-
-impl DocumentFolder {
-    /// The SQL of [`is_table`](Self::is_table).
-    pub const IS_TABLE_SQL: &'static str = "EXISTS (SELECT 1 FROM document_folder_properties \
-        WHERE document_folder_properties.folder_id = document_folders.id)";
+    /// Whether the folder shows as a list or a table.
+    pub representation: DocumentFolderRepresentation,
 }

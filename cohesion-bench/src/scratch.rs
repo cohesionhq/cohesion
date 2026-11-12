@@ -184,6 +184,7 @@ impl Scratch {
                 attachments: None,
                 forward: None,
                 skill: None,
+                workspace_id: None,
             },
         )
         .await
@@ -239,6 +240,7 @@ impl Scratch {
                     attachments: None,
                     forward: None,
                     skill: None,
+                    workspace_id: None,
                 },
             )
             .await

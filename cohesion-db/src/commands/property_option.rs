@@ -5,7 +5,6 @@
 //! deleting one empties the values that held it. Every command replies
 //! with the property and its options.
 
-use cohesion_core::invalidation::Invalidation;
 use cohesion_core::model::{
     DocumentFolderProperty, IntelligenceAgentColor, PropertyDataType, PropertyOption,
 };
@@ -17,7 +16,7 @@ use cohesion_core::{FromRequest, Named};
 
 use crate::changed::{Changed, Invalidates};
 use crate::commands::document_folder_property::{GetDocumentFolderPropertyCommand, ensure_name};
-use crate::commands::document_formula::formulas_stale;
+use crate::commands::document_table::{TableChange, table_changed};
 use crate::{
     CommandContext, CommandError, DatabaseCommand, DatabaseCommandResult, Filtered, Found,
     ReadableDatabase, ValidationError, Write,
@@ -159,7 +158,8 @@ impl DatabaseCommand for CreatePropertyOptionCommand {
                 color: self.color,
             }],
         )?;
-        Ok(property.invalidating([Invalidation::DocumentTable(self.folder_id)]))
+        let table = table_changed(ctx, self.folder_id, TableChange::Shown)?;
+        Ok(property.invalidating([table]))
     }
 }
 
@@ -191,9 +191,9 @@ impl DatabaseCommand for RenamePropertyOptionCommand {
             .set(PropertyOption::NAME, self.name)
             .filter_eq(PropertyOption::ID, self.option_id)
             .execute()?;
-        formulas_stale(ctx, self.folder_id, None)?;
+        let table = table_changed(ctx, self.folder_id, TableChange::Inputs)?;
         let property = reread(ctx, &property)?;
-        Ok(property.invalidating([Invalidation::DocumentTable(self.folder_id)]))
+        Ok(property.invalidating([table]))
     }
 }
 
@@ -222,7 +222,8 @@ impl DatabaseCommand for SetPropertyOptionColorCommand {
             .filter_eq(PropertyOption::ID, self.option_id)
             .execute()?;
         let property = reread(ctx, &property)?;
-        Ok(property.invalidating([Invalidation::DocumentTable(self.folder_id)]))
+        let table = table_changed(ctx, self.folder_id, TableChange::Shown)?;
+        Ok(property.invalidating([table]))
     }
 }
 
@@ -272,7 +273,8 @@ impl DatabaseCommand for MovePropertyOptionCommand {
                 .execute()?;
         }
         let property = reread(ctx, &property)?;
-        Ok(property.invalidating([Invalidation::DocumentTable(self.folder_id)]))
+        let table = table_changed(ctx, self.folder_id, TableChange::Shown)?;
+        Ok(property.invalidating([table]))
     }
 }
 
@@ -300,9 +302,9 @@ impl DatabaseCommand for DeletePropertyOptionCommand {
             .delete::<PropertyOption>()
             .filter_eq(PropertyOption::ID, self.option_id)
             .execute()?;
-        formulas_stale(ctx, self.folder_id, None)?;
+        let table = table_changed(ctx, self.folder_id, TableChange::Inputs)?;
         let property = reread(ctx, &property)?;
-        Ok(property.invalidating([Invalidation::DocumentTable(self.folder_id)]))
+        Ok(property.invalidating([table]))
     }
 }
 

@@ -182,7 +182,7 @@
 
 	// ---- A folder that is a table ---------------------------------------------
 
-	const isTable = $derived(folder?.is_table === true);
+	const isTable = $derived(folder?.representation === 'table');
 
 	$effect(() => {
 		if (!isTable || typeof view !== 'number') return;
@@ -240,8 +240,8 @@
 		if (folder === null) return;
 		const folder_id = folder.id;
 		await tables.createProperty({ workspace_id: ws, folder_id }, name, data_type, formula, options);
-		// The first column makes the folder a table.
-		documents.markTable(folder_id, true);
+		// A new column makes the folder show as a table.
+		documents.markRepresentation(folder_id, 'table');
 	}
 
 	const optionChanges: OptionChanges = {
@@ -263,8 +263,9 @@
 	async function removeProperty(property: DocumentFolderProperty) {
 		const folder_id = tables.properties.key!.folder_id;
 		await tables.removeProperty(property.id);
-		// Deleting the last makes the folder a plain one again.
-		if (tables.properties.value.length === 0) documents.markTable(folder_id, false);
+		// Deleting the last shows the folder as a list again.
+		if (tables.properties.value.length === 0)
+			await documents.setRepresentation(ws, folder_id, 'list');
 	}
 
 	let deletingRow = $state<TableRow | null>(null);
@@ -634,6 +635,7 @@
 				onformula={(property) => editProperty({ mode: 'formula', property })}
 				onsetbyhand={(property) => run(tables.setPropertyFormula(property.id, null))}
 				onoptions={(property) => editProperty({ mode: 'options', property })}
+				onaddoption={(property, name) => tables.addOption(property.id, name)}
 				onmove={(property, before) => run(tables.moveProperty(property.id, before))}
 				ondelete={(property) => (deletingProperty = property)}
 				onaddproperty={() => editProperty({ mode: 'new' })}

@@ -146,6 +146,18 @@ export class DocumentValues {
 		this.properties.release();
 	}
 
+	/** Adds an option to a choice of the folder, last. */
+	async addOption(property_id: number, name: string): Promise<DocumentFolderProperty> {
+		const property = await this.#send('createPropertyOption', {
+			...this.properties.key!,
+			property_id,
+			name,
+			color: null
+		});
+		this.properties.update((list) => list.map((p) => (p.id === property.id ? property : p)));
+		return property;
+	}
+
 	/** Sets the document's value for a property, or empties it when `value` is null. */
 	async setValue(property_id: number, value: PropertyValue | null): Promise<TableRow> {
 		const row = await this.#send('setDocumentValue', { ...this.row.key!, property_id, value });
@@ -328,7 +340,7 @@ export class TablesStore {
 
 	/**
 	 * Deletes a property with its values, and the filters and sort on it;
-	 * deleting the last makes the folder a plain one again.
+	 * the folder still shows as a table after its last.
 	 */
 	async removeProperty(property_id: number): Promise<DocumentFolderProperty> {
 		const property = await this.#send('deleteDocumentFolderProperty', {

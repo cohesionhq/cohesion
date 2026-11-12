@@ -3,16 +3,17 @@
 
 use cohesion_core::invalidation::Invalidation;
 use cohesion_core::model::DocumentFolderProperty;
+use cohesion_core::model::DocumentFolderRepresentation;
 use cohesion_core::protocol::{
     CreateDocumentFolderRequest, DeleteDocumentFolderRequest, ListDocumentFoldersRequest,
     MoveDocumentFolderRequest, MoveDocumentRequest, RenameDocumentFolderRequest,
+    SetDocumentFolderRepresentationRequest,
 };
 use cohesion_core::{Document, DocumentFolder, DocumentType, FromRequest};
 
 use crate::changed::{Changed, Invalidates};
-use crate::commands::document::{GetDocumentCommand, changed, table_of};
-use crate::commands::document_formula::formulas_stale;
-use crate::commands::document_value::forget_values;
+use crate::commands::document::{GetDocumentCommand, changed, row_changed};
+use crate::commands::document_table::{TableChange, rows_left};
 use crate::commands::title::ensure_title;
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::{
@@ -34,6 +35,23 @@ impl DatabaseCommand for GetDocumentFolderCommand {
         ctx.db
             .select_live()
             .filter_eq(DocumentFolder::WORKSPACE_ID, self.workspace_id)
+            .filter_eq(DocumentFolder::ID, self.folder_id)
+            .one()
+            .found()
+    }
+}
+
+/// One live document folder by id, in whichever workspace holds it: for a
+/// script's table column, which knows its folder but not its workspace.
+pub struct FindDocumentFolderCommand {
+    pub folder_id: i64,
+}
+impl DatabaseCommand for FindDocumentFolderCommand {
+    type Response = DocumentFolder;
+    type Access = Read;
+    fn handle(self, ctx: &mut CommandContext<'_, Read>) -> DatabaseCommandResult<DocumentFolder> {
+        ctx.db
+            .select_live()
             .filter_eq(DocumentFolder::ID, self.folder_id)
             .one()
             .found()
@@ -184,6 +202,38 @@ impl DatabaseCommand for RenameDocumentFolderCommand {
     }
 }
 
+/// Sets whether a live document folder shows as a list or a table. Its
+/// properties and its documents' values stay either way.
+#[derive(FromRequest)]
+#[request(SetDocumentFolderRepresentationRequest)]
+pub struct SetDocumentFolderRepresentationCommand {
+    pub workspace_id: i64,
+    pub folder_id: i64,
+    pub representation: DocumentFolderRepresentation,
+}
+impl DatabaseCommand for SetDocumentFolderRepresentationCommand {
+    type Response = DocumentFolder;
+    type Access = Write;
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_>,
+    ) -> DatabaseCommandResult<Changed<DocumentFolder>> {
+        ensure_workspace(ctx.db, self.workspace_id)?;
+        let folder = ctx
+            .db
+            .update_live()
+            .set(DocumentFolder::REPRESENTATION, self.representation)
+            .filter_eq(DocumentFolder::WORKSPACE_ID, self.workspace_id)
+            .filter_eq(DocumentFolder::ID, self.folder_id)
+            .returning_one()
+            .found()?;
+        Ok(folder.invalidating([
+            Invalidation::DocumentFolders(self.workspace_id),
+            Invalidation::DocumentTable(self.folder_id),
+        ]))
+    }
+}
+
 /// Moves a live document folder into another live folder of its workspace,
 /// or the top level, placing it before its new sibling `before_id`, or last.
 /// Its new siblings are renumbered in their order. A folder can't move into
@@ -288,17 +338,12 @@ impl DatabaseCommand for DeleteDocumentFolderCommand {
         }
         .handle(&mut ctx.as_read())?;
         let doomed = subtree(&folders, self.folder_id);
-        forget_values(ctx.db, &doomed, None)?;
+        let tables = rows_left(ctx.db, &doomed, None)?;
         _ = ctx
             .db
             .delete::<DocumentFolderProperty>()
             .filter_in_values("folder_id", doomed.clone())
             .execute()?;
-        let tables: Vec<Invalidation> = doomed
-            .iter()
-            .copied()
-            .map(Invalidation::DocumentTable)
-            .collect();
         _ = ctx
             .db
             .update::<Document>()
@@ -354,10 +399,10 @@ impl DatabaseCommand for MoveDocumentCommand {
         if document.folder_id == self.folder_id {
             return Ok(document.invalidating_nothing());
         }
-        let left = table_of(&document);
-        if let Some(from) = document.folder_id {
-            forget_values(ctx.db, &[from], Some(document.id))?;
-        }
+        let left = match document.folder_id {
+            Some(from) => rows_left(ctx.db, &[from], Some(document.id))?,
+            None => Vec::new(),
+        };
         let document = ctx
             .db
             .update_live()
@@ -366,10 +411,7 @@ impl DatabaseCommand for MoveDocumentCommand {
             .filter_eq(Document::ID, self.document_id)
             .returning_one()
             .found()?;
-        if let Some(to) = document.folder_id {
-            formulas_stale(ctx, to, Some(document.id))?;
-        }
-        let joined = table_of(&document);
+        let joined = row_changed(ctx, &document, TableChange::RowInputs(document.id))?;
         Ok(changed(ctx, document)?.and(left).and(joined))
     }
 }

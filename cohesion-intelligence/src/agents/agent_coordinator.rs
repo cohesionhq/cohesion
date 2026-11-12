@@ -74,8 +74,10 @@ impl AgentCoordinator {
         }
     }
 
-    /// Foreground: saves the user's message, the images attached to it and
-    /// the item it forwards or the skill it runs, if any, then hands it to the turn the agent is running, which takes it in
+    /// Foreground: saves the user's message, the images attached to it, the
+    /// item it forwards or the skill it runs, if any, and the workspace the
+    /// user is in, `workspace_id`, which the message records when the agent
+    /// last heard of another, then hands it to the turn the agent is running, which takes it in
     /// before its next model call, or else queues the agent's turn on it
     /// behind any it is answering, and returns. What the turn posts reaches
     /// clients as the agent's invalidations.
@@ -86,6 +88,7 @@ impl AgentCoordinator {
         attachments: Vec<ImageUpload>,
         forward: Option<AgentForwardTarget>,
         skill: Option<i64>,
+        workspace_id: Option<i64>,
     ) -> Result<(), AgentError> {
         let queued = self.queue(agent_id).await?;
         let (message, attachments) = self
@@ -96,6 +99,7 @@ impl AgentCoordinator {
                 attachments,
                 forward,
                 skill,
+                workspace_id,
             })
             .await?;
         // Taken in, the message gives up its place in the queue.

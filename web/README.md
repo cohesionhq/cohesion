@@ -62,7 +62,14 @@ Swaps the transport for `src/lib/protocol/mock.ts`, an in-memory daemon with
 seed data modelled on a real daemon's, with people's names made up (three workspaces, journals,
 tasks and tags, documents and folders, two of them tables, contacts, feeds and their articles, agents and their threads, actors,
 settings).
-No daemon or CLI needed. The tests use the same mock. It pushes the
+No daemon or CLI needed. The tests use the same mock. `mock.ts` is
+`createMock`; its parts are under `src/lib/protocol/mock/`: `seed.ts` (the
+data it starts from), `core.ts` (its state and the lookups every area
+shares), `handlers/` (one file of request handlers per area: documents,
+tables, tasks, agents, actors and so on) and `tableRules.ts` (the daemon's
+rules for values, formulas, filters and sorts). A new request kind gets its
+handler in its area's file, and `createMock` doesn't compile until every kind
+has one. It pushes the
 invalidations of tables (`documentTable`, and `documentFolders` as a folder
 becomes a table or stops being one) a moment after the write, as the daemon
 does, and no others. It has no JavaScript
@@ -254,7 +261,8 @@ only these exist:
   right of the sheet (`shell/ConversationGutter.svelte`) and takes what the
   conversation's header would otherwise carry, in a summary row as tall as that header over flat groups, all ruled by
   hairlines and inset a little from its edges (`ui/GutterCard.svelte`, `ui/GutterGroup.svelte`): for an agent its context size and what it is doing, its
-  agenda (the step it is on marked, finished ones struck through), its
+  agenda (a row of dots, finished ones green and the step it is on in indigo, easing as steps are added or ticked
+  and sliding shut when it is cleared), its
   actor sessions not yet resolved, each with an eye-off icon to stop following it and the sidebar's archive
   icon to resolve it on hover or focus (always on touch), and its cues (`AgentGutter`), for a session where
   its actor, where it works and its model, then its usage as bars (`SessionGutter`); where it
@@ -302,7 +310,8 @@ only these exist:
 - **Motion**: CSS state changes (colour, hover, overlays, page fades) run
   on the `--duration` token, 120ms; CSS transitions take it by default.
   Svelte enter and leave transitions and `animate:` take `motion.duration`
-  from `ui/motion.ts`, 200ms, longer because they move or resize content.
+  from `ui/motion.ts`, 200ms, longer because they move or resize content;
+  a CSS transition that moves or resizes content takes `duration-200` to match.
   A column sliding in beside the page takes `motion.slideIn` and
   `motion.slideOut` instead, 180ms in and 140ms out, as the side panel
   slides. Reduced motion zeroes them all. A page navigation cross-fades
@@ -369,6 +378,10 @@ doing, not by how it looks.
 - **Select** (`ui/Select.svelte`) is a form field over a short, fixed list:
   a setting's value, a provider. `Choices` is the same choice laid out in a
   panel.
+- **Segmented** (`ui/Segmented.svelte`) switches between a few lists of
+  one thing in place, one showing at a time, each segment with its count:
+  an agent's Personal and Team skills and memories. `Tabs` link between a
+  page's views instead.
 - **Dialog** (`ui/Dialog.svelte`) is for a decision or a short form that
   blocks until answered; `ConfirmDialog` for a destructive action. Every
   dialog is centred in the window, at least `--dialog-inset` from its top

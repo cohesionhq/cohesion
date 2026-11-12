@@ -32,7 +32,7 @@
 	import StatusIcon from '$lib/ui/StatusIcon.svelte';
 	import { embedIcon, KIND_ICONS } from './embedIcons';
 	import { linkedItem } from './linkedItem.svelte';
-	import { itemLinkRoute, parseItemLink, type ItemKind } from './routes';
+	import { ITEM_KINDS, itemLinkRoute, parseItemLink } from './routes';
 
 	interface Props {
 		/** The link, `cohesion://task/3/42`. */
@@ -55,17 +55,6 @@
 	const embed = $derived(shown?.embed.value ?? null);
 	const loaded = $derived(shown?.embed.loaded ?? false);
 	const failed = $derived(shown?.embed.error !== null && shown?.embed.error !== undefined);
-
-	const MISSING: Record<ItemKind, string> = {
-		task: 'Task not found',
-		document: 'Document not found',
-		resource: 'Resource not found',
-		'document-folder': 'Folder not found',
-		contact: 'Contact not found',
-		agent: 'Agent not found',
-		'actor-session': 'Session not found',
-		article: 'Article not found'
-	};
 
 	/** The quiet line under the title: what it is, then a detail or two. */
 	function detail(embed: Embed): string {
@@ -95,7 +84,7 @@
 				return `${item.feed_title} · ${publishedDate(item.article)}`;
 			case 'documentFolder': {
 				const count = item.row_count;
-				return item.folder.is_table
+				return item.folder.representation === 'table'
 					? `Table · ${count === 1 ? '1 row' : `${count} rows`}`
 					: `${kind} · ${count === 1 ? '1 document' : `${count} documents`}`;
 			}
@@ -222,7 +211,9 @@
 			{@render tile(KIND_ICONS[link.kind])}
 			<span class="flex min-w-0 flex-1 items-baseline gap-2 self-center">
 				<span class="min-w-0 truncate text-fg-muted">{label}</span>
-				<span class="min-w-0 shrink-[2] truncate text-xs text-fg-subtle">{MISSING[link.kind]}</span>
+				<span class="min-w-0 shrink-[2] truncate text-xs text-fg-subtle"
+					>{ITEM_KINDS[link.kind].noun} not found</span
+				>
 			</span>
 		{:else}
 			{@render tile(KIND_ICONS[link.kind])}

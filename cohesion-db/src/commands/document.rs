@@ -11,12 +11,12 @@ use cohesion_core::{Document, DocumentType, FromRequest};
 use crate::changed::{Changed, Invalidates};
 use crate::commands::backlink::FollowLinksCommand;
 use crate::commands::document_folder::GetDocumentFolderCommand;
-use crate::commands::document_formula::formulas_stale;
+use crate::commands::document_table::{TableChange, table_changed};
 use crate::commands::title::ensure_title;
 use crate::commands::workspace_scope::ensure_workspace;
 use crate::{
-    CommandContext, DatabaseCommand, DatabaseCommandResult, DatabaseEventKind, Filtered, Found,
-    Read, ReadableDatabase, Write, WriteContainer,
+    CommandContext, DatabaseCommand, DatabaseCommandResult, DatabaseError, DatabaseEventKind,
+    Filtered, Found, Read, ReadableDatabase, Write, WriteContainer,
 };
 
 /// The live journal of `workspace_id` for `date`, a `YYYY-MM-DD`, if it has one.
@@ -85,11 +85,19 @@ pub(crate) fn changed(
     Ok(document.invalidating([key]))
 }
 
-/// The table `document` is a row of, as its folder's key, which a document
-/// coming, going, being renamed or deleted changes; `None` in the Inbox or
-/// for a journal. Every folder has the key, a table or not.
-pub(crate) fn table_of(document: &Document) -> Option<Invalidation> {
-    document.folder_id.map(Invalidation::DocumentTable)
+/// The key of the table `document` is a row of, which a write just changed
+/// as `change` says ([`table_changed`]): a document coming, going, being
+/// renamed or deleted changes its table. `None` in the Inbox or for a
+/// journal. Every folder has the key, a table or not.
+pub(crate) fn row_changed(
+    ctx: &mut CommandContext<'_>,
+    document: &Document,
+    change: TableChange,
+) -> Result<Option<Invalidation>, DatabaseError> {
+    document
+        .folder_id
+        .map(|folder_id| table_changed(ctx, folder_id, change))
+        .transpose()
 }
 
 fn create_journal(
@@ -112,7 +120,7 @@ fn create_journal(
 /// `journal_from..journal_to`, and only those carrying every one of the
 /// `metadata` pairs and `has_metadata` keys. Documents in a table are
 /// listed like any other; a client that keeps them apart reads which
-/// folders are tables from `DocumentFolder::is_table`.
+/// folders show as tables from `DocumentFolder::representation`.
 #[derive(FromRequest)]
 #[request(ListDocumentsRequest)]
 pub struct ListDocumentsCommand {
@@ -181,10 +189,7 @@ impl DatabaseCommand for CreateDocumentCommand {
             .set(Document::FOLDER_ID, self.folder_id)
             .returning_one()
             .found()?;
-        if let Some(folder_id) = document.folder_id {
-            formulas_stale(ctx, folder_id, Some(document.id))?;
-        }
-        let table = table_of(&document);
+        let table = row_changed(ctx, &document, TableChange::RowInputs(document.id))?;
         Ok(changed(ctx, document)?.and(table))
     }
 }
@@ -212,7 +217,7 @@ impl DatabaseCommand for RenameDocumentCommand {
             .filter_eq(Document::ID, self.document_id)
             .returning_one()
             .found()?;
-        let table = table_of(&document);
+        let table = row_changed(ctx, &document, TableChange::Shown)?;
         Ok(changed(ctx, document)?.and(table))
     }
 }
@@ -239,7 +244,7 @@ impl DatabaseCommand for DeleteDocumentCommand {
             .filter_eq(Document::ID, self.document_id)
             .returning_one()
             .found()?;
-        let table = table_of(&document);
+        let table = row_changed(ctx, &document, TableChange::Shown)?;
         Ok(changed(ctx, document)?.and(table))
     }
 }

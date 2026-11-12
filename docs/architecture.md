@@ -66,7 +66,7 @@ package, the web UI in `web/`. No crate declares cargo `[features]`.
 | `cohesion-db` | lib | SQLite persistence: `Container` (the rusqlite connection, query builders, migrations), the `DatabaseCommand` trait and every command, `DatabaseContext` (the one database thread), events and `InvalidationWatch`, `GuardedDatabaseContext` (what scripts hold), `CredentialManager`, `Secrets` (the pairing window), `WorkTracker`, `ActivityTracker`, backup, export and import (`transfer.rs`), retention. | cohesion-core |
 | `cohesion-internet` | lib (+ `build.rs`) | Reading the web: `article_snapshot` (a page as Markdown), `feed` (RSS, Atom and JSON Feed, with autodiscovery), `fetch`, `pipeline`, and Coherence, Cohesion's own HTML reader (`coherence/`, whose JSON rules `build.rs` compiles in). Blocking reqwest; knows nothing of the database or scripts. | cohesion-core |
 | `cohesion-internet-harness` | bin, `publish = false` | A tool: `cargo run -p cohesion-internet-harness -- page <url>` or `feed <url>` prints the Markdown the daemon would store, for building Coherence's rules. Nothing depends on it. | cohesion-core, cohesion-internet |
-| `cohesion-js` | lib | The QuickJS script runtime (rquickjs): `ScriptEngine` and its worker pools, `Sandbox`, globals and `Mount`, JS entities, `script_api` (which yields the `.d.ts`), `service_declarations`, `AgentRole`, and the traits a higher crate implements: `ConnectorAccess`, `ServiceAccess`, `ActorAccess`. Strips TypeScript with `swc_ts_fast_strip`; vendors the Pele diagram renderer in `vendor/pele`. | cohesion-core, cohesion-db, cohesion-internet, cohesion-macros |
+| `cohesion-js` | lib | The QuickJS script runtime (rquickjs): `ScriptEngine` and its worker pools, `Sandbox`, globals and `Mount`, JS entities, `script_api` (which yields the `.d.ts`), `service_declarations`, `AgentRole`, and the traits a higher crate implements: `ConnectorAccess`, `ServiceAccess`, `ActorAccess`. Strips TypeScript with its own parser (`sandbox/strip_types`); vendors the Pele diagram renderer in `vendor/pele`. | cohesion-core, cohesion-db, cohesion-internet, cohesion-macros |
 | `cohesion-intelligence` | lib | LLM conversations: provider backends (`providers/`), the models.dev catalog (`catalog/`), `Session` and its tools, `AgentCoordinator` and the agent machinery (`agents/`), `SpendLimits`, and the `AccountCredentials` trait. | cohesion-core, cohesion-db, cohesion-js |
 | `cohesionkit` | lib (+ `build.rs`) | The facade the daemon builds on: `CohesionContext`, the `Route` impls (`routes/`), hooks (`hooks/`), table formula passes (`table_formulas.rs`), `ExtensionManager`, connectors, feeds, periodic cleanup, `Security`, `Presence`, `CapabilityClients`, `ActorSessions`, `EndpointRelay`, `PendingImport`, and `web_bundle` (the web UI compiled into the binary). | all of the above but the harness and the bench |
 | `cohesion-bench` | lib + bin, `publish = false` | A tool: scores language models on Cohesion's agent, tools and script API. Each run of a case builds the daemon's `CohesionContext` on a scratch database, sends the case's prompt to a new agent on the model under test, and checks the result with the case's `validate.ts`; it writes `report.html`, `cases.csv` and `summary.csv` ([24](#24-testing)). Nothing depends on it. | cohesionkit, cohesion-js |
@@ -449,8 +449,8 @@ the time the client hears back.
 clients refetch. `Invalidation` (`cohesion-core/src/invalidation.rs`, tagged
 `{kind, id}`) has the keys `workspace(id)`, `intelligenceCostEvents`,
 `agent(id)`, `agentTeams`, `taskFolders(ws)`, `documents(ws)`,
-`documentFolders(ws)` (one was created, renamed, moved or deleted, or became
-a table or stopped being one), `documentTable(folder)` (anything in a
+`documentFolders(ws)` (one was created, renamed, moved or deleted, or its
+representation changed), `documentTable(folder)` (anything in a
 folder's table: a property, a value, or a document coming, going, renamed or
 deleted), `taskList{workspace_id, folder_id}` (null folder is the inbox),
 `connectorAccounts`, `resources(ws)`, `resourceKinds(ws)`, `feeds`,
@@ -528,12 +528,18 @@ showing it. Documents and tasks themselves never touch the table.
 
 **Tables** (`cohesion-db/src/commands/document_folder_property.rs` and
 `document_value.rs`, models in `cohesion-core/src/model/document_table.rs`).
-A document folder with properties is a table, and each live document in it
-is a row; there is no kind of folder to set, and the Inbox never has
-properties. `DocumentFolder.is_table` (read from the properties, not
-stored) says which folders are tables, so a client knows from
-`ListDocumentFolders` alone, and `documentFolders(ws)` is invalidated when a
-folder gains its first property or loses its last. A
+A document folder's properties are a table's columns, and each live
+document in it is a row; the Inbox never has properties.
+`DocumentFolder.representation` (`DocumentFolderRepresentation`, stored:
+`list` or `table`) says how a client shows the folder, so it knows from
+`ListDocumentFolders` alone. A folder starts as a `list`; creating a
+property in a `list` folder makes it a `table`, and deleting its last
+property leaves an empty `table`.
+`SetDocumentFolderRepresentation{workspace_id, folder_id, representation}`
+sets it either way, keeping the properties and values, and invalidates
+`documentFolders(ws)` and `documentTable(folder)`. Values, rows and the
+commands below follow the properties, not the representation: a `list`
+folder with properties still holds its documents' values. A
 `DocumentFolderProperty` has a `name`, a `data_type` (`PropertyDataType`:
 `text`, `integer`, `decimal`, `currency`, `checkbox`, `date`, `choice`, worded by
 `hello.vocabulary.property_data_types`) and a `sort_order`. Its type is a
@@ -561,6 +567,16 @@ amount must be finite and a date a real `YYYY-MM-DD`. Deleting a property
 deletes its values. Changing a property's type reads each value's text as
 the new type (`PropertyValue::parse`: `"42"` is an integer, `"3.5"` no
 integer, `"true"` only a checkbox) and empties the values that aren't one.
+
+Scripts reach the same commands through the `tables` script module:
+`DocumentFolder.properties()`, `createProperty(name, dataType, {options?,
+formula?, updateMode?})` and a `representation` setter; on each
+`DocumentFolderProperty`, `rename`, `setDataType`, `setFormula`,
+`moveBefore`, `delete` and a choice's `addOption`, `renameOption`,
+`setOptionColor`, `moveOption` and `deleteOption` (an option by name or id);
+and on `Document`, `values()` (every column by name, a choice as its option's
+name, as a formula's row reads it) and `setValue(property, value)`
+(`cohesion-js/src/entities/document_folder_property.rs`).
 
 **Choices** (`cohesion-db/src/commands/property_option.rs`). A choice's value
 is one of its property's options, `{"type": "choice", "value": <option id>}`.
@@ -601,7 +617,7 @@ table among the folders it deletes loses its properties and its documents
 their values. A soft-deleted row keeps its folder and values, leaves
 `ListTableRows`, and comes back as the row it was through Rewind; purging it
 takes its values. `ListDocuments` lists documents in tables like any other,
-so a client that keeps them apart filters with `is_table`.
+so a client that keeps them apart filters with `representation`.
 
 **Formulas** (`cohesion-db/src/commands/document_formula.rs`,
 `cohesion-js/src/formula.rs`, `cohesionkit/src/table_formulas.rs`). A
@@ -652,7 +668,12 @@ validation on `property_id`.
   created in or moved into the folder (that document), and a property
   created, renamed, retyped, deleted or made a formula or not, or a source
   changed (every document). A folder with no formula marks nothing; a
-  document leaving the folder loses its mark. Continuous formulas are
+  document leaving the folder loses its mark. A write gets its table's
+  invalidation key from `table_changed` (`cohesion-db`'s
+  `commands/document_table.rs`) by saying what it changed (`TableChange`),
+  which is what marks the documents, so a command can't invalidate a table
+  without deciding whether formulas read what it changed; a document
+  leaving goes through `rows_left` the same way. Continuous formulas are
   marked on a timer: `CohesionContext::start_continuous_formulas` runs
   `MarkContinuousFormulasStaleCommand` as the daemon starts and every hour
   after (`WorkTracker::every`, an interval from start, not on the clock's
@@ -992,7 +1013,7 @@ script's own key-value store (`set_storage_blocking`) and `credentials()`.
 and no other permission to any area.
 
 **Migrations** (`cohesion-db/src/migrations.rs`). `MIGRATIONS` is a list of
-`Migration{name, sql}`, 96 at the time of writing; the first seven are the
+`Migration{name, sql}`, 100 at the time of writing; the first seven are the
 squashed schema of the 68 that came before them. `PRAGMA user_version` is how
 many have been applied. `Container::migrate()`, called by the daemon right
 after opening the file:
@@ -1033,7 +1054,7 @@ deleting sets `deleted`, and client reads use `select_live`.
 |---|---|
 | `workspaces` (soft) | `title`, `emoji`. |
 | `documents` (soft) | `workspace_id`, `document_type` (`normal` or `journal`), `title`, `contents` (Markdown), `modified`, `journal_date`, `deleted_at`, `folder_id` (null is the Inbox; never set on a journal; unique with `id`, for `document_values`' key), and `formula_stale`, how many changes the outputs of its folder's formulas are behind for it (0 when current or in no table; a partial index finds the nonzero ones; not on `Document`). A journal entry is a document of type `journal`; a unique index allows one live entry per workspace per day. |
-| `document_folders` (soft) | `workspace_id`, `parent_id` (null at the top level; a composite key keeps it in the same workspace), `title`, `sort_order` (among its siblings). Folders nest without limit; deleting one deletes those inside it and moves their documents to the Inbox, deleting the properties and values of any table among them. A folder with properties is a table (`DocumentFolder.is_table`, read, not stored). |
+| `document_folders` (soft) | `workspace_id`, `parent_id` (null at the top level; a composite key keeps it in the same workspace), `title`, `sort_order` (among its siblings). Folders nest without limit; deleting one deletes those inside it and moves their documents to the Inbox, deleting the properties and values of any table among them. `representation` (`list` or `table`, `DocumentFolderRepresentation`) is how it shows; the `document_folder_representation` migration made every folder with properties a `table`. |
 | `document_folder_properties` | A table's columns: `folder_id` (never null, so the Inbox has none), `name`, `data_type` (`text`, `integer`, `decimal`, `currency`, `checkbox`, `date`, `choice`; unique with `id`, for the options' key), `sort_order`, and for a formula `formula_source`, `formula_update_mode` (`whenChanged` or `continuously`; checks keep it set exactly when the source is) and `formula_error` (its last failure; a check keeps it from outliving the source). A check keeps a choice from being a formula. |
 | `document_property_options` | A choice's options: `property_id`, `data_type` (always `choice`; with `property_id` the key to `document_folder_properties(id, data_type)`, so only a choice has options and a property holding any can't change type until they go), `name` (not empty; a unique index on `(property_id, name COLLATE NOCASE)`), `color` (an agent color or null) and `sort_order`; unique on `(property_id, id)`, for the values' key. Deleting the property takes them. |
 | `document_values` | One per document and property at most: `folder_id`, `document_id`, `property_id`, with composite keys to `documents(folder_id, id)` and `document_folder_properties(folder_id, id)` so the document and the property are always of one folder, and a document can't change folder while it holds values; `text_value` (always; empty for a choice), `integer_value` (an integer, a checkbox as 1 or 0), `real_value` (a decimal, an amount, an integer) and `option_id` (a choice's), with a key to `document_property_options(property_id, id)` so the option is of the value's own property, and deleting it takes the value. A missing row is an empty value. |
@@ -1069,8 +1090,8 @@ deleting sets `deleted`, and client reads use `select_live`.
 | Table | Holds |
 |---|---|
 | `intelligence_agent_teams` | `title`, unique ignoring case. |
-| `intelligence_agents` | `agent_name`, `agent_color`, `agent_emoji`, `agent_personality`, `agent_verbosity`, `agent_role`, `agent_directive`, `team_id`, `pinned`, `sort_order`, `agent_unread`, `last_message_at`, `activity`, `foreground_started`, `context_tokens`. |
-| `intelligence_agent_messages` | An agent's conversation: `sender`, `kind` and its columns, `run_id`, `reply_to`, `reaction`. A trigger marks the agent unread for kinds the user sees. |
+| `intelligence_agents` | `agent_name`, `agent_color`, `agent_emoji`, `agent_personality`, `agent_verbosity`, `agent_role`, `agent_directive`, `team_id`, `workspace_id`, `pinned`, `sort_order`, `agent_unread`, `last_message_at`, `activity`, `foreground_started`, `context_tokens`. |
+| `intelligence_agent_messages` | An agent's conversation: `sender`, `kind` and its columns, `run_id`, `reply_to`, `reaction`, `switched_workspace_id`. A trigger marks the agent unread for kinds the user sees. |
 | `intelligence_agent_cues` | `agent_id`, `name` (unique per agent), `hook`, `script`, `instructions`, `effort`, `set_at`. |
 | `agent_agenda_items` | An agent's agenda ([11](#11-agents-in-the-data-model)): `agent_id`, `position` (from 1), `text`, `added_at`, `finished_at`. |
 | `intelligence_agent_runs` | One per fork: `hook`, `cue_name`, `thread_id`, `outcome` (`running`, `completed`, `failed`), `sender_agent_id`. |
@@ -1256,7 +1277,7 @@ internal error.
 
 | Search | Request and command | Ranks by | Returns |
 |---|---|---|---|
-| Workspace | `SearchWorkspace{workspace_id, query}`, `SearchWorkspaceCommand` | `bm25(search_fts, 5.0, 1.0)`: title weighs 5, contents 1 | `Vec<SearchResult>` (`id` of the index entry, `entity_kind` (`document`, `task`, `resource`, `contact`), `entity_id`, `workspace_id`, `title`, `contents`); no paging, no snippet. Scripts: `workspace.search(query)`. CLI: `cohesion search`. |
+| Workspace | `SearchWorkspace{workspace_id, query}`, `SearchWorkspaceCommand` | `bm25(search_fts, 5.0, 1.0)`: title weighs 5, contents 1 | `Vec<SearchResult>` (`id` of the index entry, `entity_kind` (`document`, `task`, `resource`, `contact`), `entity_id`, `workspace_id`, `title`, `contents`, `status`: a task's status, `"none"` for the other kinds, read from `tasks` when searched); no paging, no snippet. Scripts: `workspace.search(query)`. CLI: `cohesion search`. |
 | Corpus (articles) | `SearchFeedCorpus{query, feed_ids?, offset, limit?}`, `SearchFeedCorpusCommand` | `bm25(feed_corpus_fts, 5.0, 2.0, 1.0)` | `FeedCorpusPage{hits, total}`, each hit with a 24-token snippet of the text; 50 a page by default, 500 at most. Scripts: `cohesion.searchCorpus(query, {feedIds})`, the best 200 whole articles. |
 | Actor sessions | `SearchActorSessions{query}`, `SearchActorSessionsCommand` | Title matches at `5.0 * bm25`, message matches at `bm25`; each session's best match, then most recently changed | `Vec<ActorSessionSearchHit>` across every actor, resolved sessions included, with a snippet when a message matched |
 
@@ -1323,6 +1344,7 @@ outside that conversation is a fork of it.
 | `role` | What the user wants from it, in a few words (`""` when unset) |
 | `directive` | Rules it always follows (`""` when unset) |
 | `team_id` | Its team, if any |
+| `workspace_id` | The workspace the user was in when they last named one to it, if any: a hint, never a limit on where it works |
 | `activity`, `foreground_started` | What it is doing now and when its current turn started |
 | `context_tokens` | Prompt tokens of its live thread at the last request |
 | `unread`, `last_message_at`, `pinned`, `sort_order` | How clients list it |
@@ -1490,6 +1512,19 @@ or `contact{contact_id}`. On `task:assigned` or `task:create`,
 the agent assigned it itself or the chain was started by an event (an event
 chain never wakes an agent this way).
 
+**Which workspace the user is in.** `SendAgentMessage` may carry
+`workspace_id`, the live workspace the user is in as they send it. When it
+isn't the agent's `workspace_id`, `CreateUserAgentMessageCommand` sets that
+and records it on the message as `switched_workspace_id` (with
+`switched_workspace_title`, read). The agent reads `User switched to the
+"Core" workspace (id 5).` before that message wherever it reads it (a live
+thread's prompt, a message joining a running turn, the recent conversation),
+and every status block (a cue run has none) says `The user is in the "Core"
+workspace (id 5).`
+The system prompt tells it this is a hint for a request that doesn't say
+where, not a limit. A message naming no workspace changes nothing. Clients
+don't send it yet.
+
 **Activity.** While it works, an agent's `activity` shows a rotating word
 ("Thinking", "Working", "Pondering"…), "Learning", "Remembering", "Forgetting",
 "Recalling", "Asking" or a running script's title
@@ -1545,7 +1580,7 @@ Requests connect within 30 s and finish within 10 minutes
 `SystemPrompt::prompt`), in order, most stable first so the provider's cached
 prefix lasts:
 
-1. `FOREGROUND_AGENT_PROMPT`: what an agent in Cohesion is, its context, memories, storage, notes and agenda, working with the user's data, cues, skills, other agents, and replying.
+1. `FOREGROUND_AGENT_PROMPT`: what an agent in Cohesion is, the workspace the user is in as a hint, its context, its agenda, memories, storage and notes, working with the user's data, cues, skills, other agents, and replying.
 2. `LINKS`: how to write and read `cohesion://task/<ws>/<id>`, `cohesion://document/<ws>/<id>`, `cohesion://resource/<ws>/<id>`, `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and `cohesion://article/<id>`, and that in a document a link alone on its line shows as a card.
 3. "Your voice": its personality and verbosity.
 4. "Your role" and "Your directive", when set.
@@ -1578,7 +1613,7 @@ and the cache match:
 
 The `code-tool` description declares, in brief (each comment's first
 paragraph), the script modules loaded up front (`core`, `agent`, `services`),
-indexes the ones loaded on demand (agents, articles, resources, rewind,
+indexes the ones loaded on demand (tables, agents, articles, resources, rewind,
 vocabulary, contacts, cues, actors, images, storage, network, connectors…), and
 lists the installed services and connected accounts (`agent_code_call.rs`).
 It is always built for `AgentRole::DOCUMENTED` (a user-started turn), whoever
@@ -1610,8 +1645,9 @@ refused with a note to use `send_note` or `ask_choice`. Its opening says so
 (`agent_transcript::fork_rights`).
 
 **What the first message holds** (`agent_transcript.rs`). A new thread opens
-with a status block, "Current time: …", the agent's cues, the skills it may
-use and its agenda, then "Recent
+with a status block, "Current time: …", the workspace the user is in (when
+the agent was told one), the agent's cues, the skills it may use and its
+agenda, then "Recent
 conversation": the messages most worth keeping (`relevant_set.rs`), each cut at
 800 characters (`EXCERPT_CHARS`; `read_message` reads the rest), then the
 user's message. The relevant set walks back from the newest message, dropping
@@ -1900,8 +1936,11 @@ stateDiagram-v2
 send or shutdown. When the session works again, `StartActivityCommand`
 reopens that row: `running`, its title the session's, progress and
 `ended_at` cleared, its id and `started_at` kept. A trigger (`activities_actor_session_unread`)
-marks the session unread only when its activity ends `succeeded` or `failed`.
-`MarkActorSessionRead` clears it and sets `read_at`.
+marks the session unread only when its activity ends `succeeded` or `failed`;
+`SetActorSessionStatusCommand` does the same when the actor reports `idle` or
+`failed` with no activity open, but never for a subagent or a session
+resolved meanwhile. `MarkActorSessionRead` clears it and sets `read_at`, and
+so does resolving the session.
 
 **Reports from the device** (`actorSessionUpdate`, `ActorSessionReport`
 tagged `kind`), queued per session (64) and handled in order; the session must
@@ -2093,13 +2132,15 @@ search of the workspace and actor sessions.
 **Mock mode.** `VITE_MOCK=1` makes `api.ts` use `web/src/lib/protocol/mock.ts`,
 an in-memory daemon that implements every request with seed data, instead of a
 socket; of the invalidations it pushes only those of tables (`documentTable`,
-and `documentFolders` as a folder becomes a table or stops being one), through
-`connection.invalidated`. Vitest uses the same mock. With `npm run dev`, `.env.development` sets
+and `documentFolders` as a folder's representation changes), through
+`connection.invalidated`. Vitest uses the same mock. Its parts are under
+`protocol/mock/`: the seed data, the state and lookups every area shares
+(`core.ts`), and one file of handlers per area (`handlers/`). With `npm run dev`, `.env.development` sets
 `VITE_DEV_PROXY=1`, so the page doesn't ask for a token.
 
 **Tables** (`routes/w/[ws]/documents/`, `features/tables/`,
 `stores/tables.svelte.ts`). A document folder with columns is a table
-(`DocumentFolder.is_table`); there is no Databases page. The folder tree marks
+(`DocumentFolder.representation` is `table`); there is no Databases page. The folder tree marks
 a table with a table icon, and the Documents page shows a table folder as one
 (`DocumentTable.svelte`) instead of its list: the title first, edited in place
 as a rename (`renameDocument`), then a column per property in its order, its
@@ -2120,8 +2161,9 @@ or Continuously, "Continuously updates every hour."), under the type when
 adding and alone in that column when editing a formula; renaming a column
 and changing its type stay dialogs. On a plain folder it says "This will convert this
 folder to a table.", and its first column makes the folder a table
-(`DocumentsStore.markTable`, until `documentFolders` comes back). Deleting the
-last column says the folder will be a plain one again, and it shows as a list.
+(`DocumentsStore.markRepresentation`, until `documentFolders` comes back). Deleting the
+last column says the folder will be a plain one again, and the page then sets it
+to a list (`DocumentsStore.setRepresentation`).
 A cell edits in place with an editor for its type (`ValueCell.svelte`: text, a
 number, a date picker; a checkbox toggles), read by `features/tables/values.ts`;
 ↩ saves, Esc cancels, ⇥ and ⇧⇥ save and move along the row, and the daemon's
@@ -2180,7 +2222,13 @@ so a large table doesn't bury the rest, unless the filter is searching, when a
 row shows with its folder's name like any other. Deleting a folder that is, or
 holds, a table says its columns and values will be deleted too.
 
-The mock filters, sorts and runs formulas in JS, by the daemon's rules; it
+The mock filters, sorts and runs formulas in JS, by the daemon's rules
+(`protocol/mock/tableRules.ts`). Two files of cases keep the copies in step,
+each run by a Rust test and a vitest test: `table_cases.json`
+(`cohesion-db/src/commands/document_value/`) for filtering and sorting, and
+`link_cases.json` (`cohesion-core/src/model/item_link/`) for reading
+`cohesion://` links and finding a text's embeds. The daemon's answer is the
+right one; a rule changed on one side gets a case there. The mock
 reads only a small part of JavaScript for a formula
 (`protocol/mockFormula.ts`: arithmetic, comparisons, `??`, `?:`, a few methods
 and `Math` functions over `row`), and anything else fails every row.
@@ -2208,7 +2256,13 @@ started, where they are answered. The store holds them in `subagents`,
 `cohesion://agent/<id>`, `cohesion://actor-session/<id>` and
 `cohesion://article/<id>` (`parseItemLink`, `lib/format/itemLinks.ts`, which
 `shell/routes.ts` re-exports; a task or document link without a workspace
-still opens). The daemon finds what a link names (`resolveLink`, through
+still opens). What the web UI knows of each kind is one entry of `ITEM_KINDS`
+in that file: the daemon's name for it, whether a link names it with or
+without its workspace, the invalidation that says one changed, and its noun
+("Task not found"). The link grammar, the `/open` route matchers
+(`src/params/`), and the embed and backlink stores all read it, so a new kind
+is that entry, its icon (`shell/embedIcons.ts`) and the per-kind cases the
+compiler then asks for. The daemon finds what a link names (`resolveLink`, through
 `shell/links.ts`), so neither the panel nor the Open pages search workspaces
 themselves. Following one in the web UI (`ui/Markdown.svelte`,
 `linkedItem.follow`) opens the item over the current page in one side panel,
@@ -2545,7 +2599,12 @@ show it; `cohesion script new` and `cohesion script typegen` write
 `cohesion.d.ts`). Agents get it through the code tool's description and the
 `documentation` tool ([12](#12-how-a-turn-runs)). Scripts may be TypeScript:
 types are stripped (`cohesion-js/src/sandbox/strip_types.rs`), and `enum`,
-value namespaces and parameter properties are refused.
+value namespaces and parameter properties are refused. The stripper is
+Cohesion's own: it blanks each type in place, so an exception's line and
+column still point into the script as written, and it reads JavaScript only
+as closely as finding the types takes. QuickJS stays the judge of
+JavaScript, so a script the stripper can't follow is handed on as it stands
+and the syntax error is QuickJS's.
 
 ### 20. Connectors
 
@@ -2788,12 +2847,12 @@ Settings › Security lists the security events.
 | `cohesion-db` | Commands, migrations, triggers, transactions, `CredentialManager`, `Secrets`, transfers and backups; `every_model_matches_the_schema` (`migrations/tests.rs`) | `test_support.rs`: `context()` (a migrated in-memory database, `Container::in_memory()`), `recording_context()` (also collects the events commands raise), `actor_session(db)` |
 | `cohesion-js` (`src/tests.rs`) | The runtime end to end: sandbox isolation, worker survival, deadlines, hooks calling into scripts, read-only enforcement, roles and mounts; the Mermaid and formula workers in their own `tests.rs` | Real scripts against an in-memory database: `database()`, `run(db, script)`, `json(db, script)`, `extension(id)`, with fakes for the access traits |
 | `cohesion-intelligence` | Sessions, agents, forks, caching | `test_model.rs`: a local server speaking Chat Completions that gives scripted answers and records each request; no network |
-| `cohesionkit` | Routes, hooks (`hook_events`, `day_clock`), table formula passes (`table_formulas`), connectors, the extension manager | In-memory contexts |
+| `cohesionkit` | Routes, hooks (`hook_events`, `day_clock`), table formula passes (`table_formulas`), connectors, the extension manager, the client registry (`capability_clients`), and what an actor session leaves when its client refuses a call or is away (`actor_sessions`) | In-memory contexts; `actor_sessions/tests.rs` registers a client and answers its calls itself |
 | `cohesiond` | Sessions (`session/tests.rs`, with a `FakeExchange` in place of a socket), the first-byte timeout, PROXY headers, the unknown-peer cache, the local handshake | tokio's paused time |
 | `cohesion` | Argument definitions, `cohesion open`'s guard, launch link and token | tower's `ServiceExt` |
 | `cohesion-core` | Models (`tests/model.rs`) and core helpers | |
 | `cohesion-bench` | Every bench case fails on its starting data and passes after its `solution.ts` (`every_case_can_fail_and_pass`); a run's metrics match what Cohesion recorded; the scores | A scratch `CohesionContext`, and a local server speaking Chat Completions |
-| `web/` | Stores against the mock daemon, the connection (with an injected WebSocket), formatting and UI helpers (`src/**/*.test.ts`) | Vitest in Node, with `vocabulary.setup.ts`. There are no component or end-to-end tests: components are checked by `svelte-check`, lint and the build, and then by eye in mock mode. |
+| `web/` | Stores against the mock daemon, the cases shared with the daemon (`table_cases.json`, `link_cases.json`), the connection (with an injected WebSocket), formatting and UI helpers (`src/**/*.test.ts`) | Vitest in Node, with `vocabulary.setup.ts`. There are no component or end-to-end tests: components are checked by `svelte-check`, lint and the build, and then by eye in mock mode. |
 
 Unit tests live out of line: `#[cfg(test)] mod tests;` at the end of a file,
 the tests in `foo/tests.rs`, never an inline `mod tests { … }`.

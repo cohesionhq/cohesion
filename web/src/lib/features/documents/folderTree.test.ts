@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DocumentFolder } from '$lib/protocol/types';
+import type { DocumentFolder, DocumentFolderRepresentation } from '$lib/protocol/types';
 import {
 	folderPath,
 	folderTree,
@@ -15,7 +15,7 @@ const folder = (
 	title: string,
 	parent_id: number | null,
 	sort_order: number,
-	is_table = false
+	representation: DocumentFolderRepresentation = 'list'
 ): DocumentFolder => ({
 	id,
 	workspace_id: 1,
@@ -23,7 +23,7 @@ const folder = (
 	title,
 	sort_order,
 	deleted: false,
-	is_table
+	representation
 });
 
 // Work › Plans › Old, and Home beside Work, listed out of order.
@@ -66,7 +66,7 @@ describe('folder tree', () => {
 	});
 
 	it('leaves the rows of tables out of All, unless they are searched for', () => {
-		const tables = tableIds([...folders, folder(5, 'Books', null, 2, true)]);
+		const tables = tableIds([...folders, folder(5, 'Books', null, 2, 'table')]);
 		expect([...tables]).toEqual([5]);
 		const inbox = { folder_id: null };
 		const plain = { folder_id: 1 };

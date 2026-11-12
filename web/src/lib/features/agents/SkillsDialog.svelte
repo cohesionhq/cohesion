@@ -1,7 +1,9 @@
 <!--
-	The skills of an agent and of its team, or of a team alone: each under
-	whose it is, with when to use it and whether only the user can use it.
-	Each section adds one; each row edits or deletes its skill.
+	The skills of an agent and of its team, or of a team alone, one list at a
+	time: the agent's own (Personal) or its team's, switched by a segmented
+	control when there are both. Each row shows a skill's name, whether only
+	the user can use it, and one line of when to use it. New skill adds one
+	to the list showing; each row edits or deletes its skill.
 -->
 <script lang="ts">
 	import { untrack } from 'svelte';
@@ -16,6 +18,7 @@
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
 	import Dialog from '$lib/ui/Dialog.svelte';
 	import { list } from '$lib/ui/list';
+	import Segmented from '$lib/ui/Segmented.svelte';
 	import SkillDialog from './SkillDialog.svelte';
 
 	interface Props {
@@ -32,6 +35,43 @@
 		if (open) untrack(() => void skills.load());
 	});
 
+	interface View {
+		id: AgentSkillScope['kind'];
+		label: string;
+		description: string;
+		scope: AgentSkillScope;
+		/** Who can use a skill here, for the skill dialog. */
+		users: string;
+	}
+
+	/** Each list the control switches between: whose skills, and the words for it. */
+	const views = $derived.by(() => {
+		const all: View[] = [];
+		if (agent)
+			all.push({
+				id: 'agent',
+				label: 'Personal',
+				description: `Only ${agent.agent_name} has these.`,
+				scope: { kind: 'agent', agent_id: agent.id },
+				users: agent.agent_name
+			});
+		if (team)
+			all.push({
+				id: 'team',
+				label: 'Team',
+				description: `Every agent on “${team.title}” has these.`,
+				scope: { kind: 'team', team_id: team.id },
+				users: 'Agents'
+			});
+		return all;
+	});
+
+	const inView = (v: View) => skills.list.value.filter((s) => inScope(s, v.scope));
+
+	let chosen = $state<View['id']>('agent');
+	const view = $derived(views.find((v) => v.id === chosen) ?? views[0]);
+	const items = $derived(view ? inView(view) : []);
+
 	/** What the skill dialog edits: a new skill in a scope, or one to change. */
 	let editing = $state<{
 		scope: AgentSkillScope;
@@ -47,32 +87,45 @@
 	}
 </script>
 
-{#snippet group(title: string, description: string, scope: AgentSkillScope, users: string)}
-	{@const items = skills.list.value.filter((s) => inScope(s, scope))}
-	<section class="flex flex-col">
-		<div class="flex items-start gap-3">
-			<div class="min-w-0 flex-1">
-				<h3 class="font-medium">{title}</h3>
-				<p class="text-xs text-fg-subtle">{description}</p>
+<Dialog bind:open title="Skills" size="wide">
+	{#if skills.list.error && !skills.list.loaded}
+		<p class="text-fg-subtle">{skills.list.error.message}</p>
+	{:else if skills.list.loaded && view}
+		<div class="flex items-end gap-3 border-b border-border pb-3">
+			<div class="flex min-w-0 flex-1 flex-col items-start gap-2">
+				{#if views.length > 1}
+					<Segmented
+						label="Whose skills"
+						segments={views.map((v) => ({ id: v.id, label: v.label, count: inView(v).length }))}
+						value={view.id}
+						onchange={(id) => (chosen = id as View['id'])}
+					/>
+				{/if}
+				<p class="text-xs text-fg-subtle">{view.description}</p>
 			</div>
-			<Button onclick={() => edit(scope, users, null)}>New skill…</Button>
+			<Button onclick={() => edit(view.scope, view.users, null)}>New skill…</Button>
 		</div>
-		<ul class={list.rows}>
+		<ul class={[list.rows, 'max-h-[55vh] overflow-y-auto']}>
 			{#each items as skill (skill.id)}
-				<li class={list.row}>
+				<li class="group/row flex items-center gap-3 border-border py-3 not-first:border-t">
 					<div class="flex min-w-0 flex-1 flex-col gap-0.5">
-						<p class="wrap-anywhere">
-							<span class="font-medium">{skill.name}</span>
+						<p class="flex min-w-0 items-center gap-2">
+							<span class="truncate font-semibold">{skill.name}</span>
 							{#if !skill.agent_can_use}
-								<span class="ml-1 text-xs text-fg-subtle">Only you can use this</span>
+								<span
+									class="inline-flex h-4.5 flex-none items-center rounded-full bg-current-item px-1.75 text-2xs leading-none font-medium text-fg-muted"
+									>Only you can use this</span
+								>
 							{/if}
 						</p>
 						{#if skill.description}
-							<p class="text-xs wrap-anywhere text-fg-muted">{skill.description}</p>
+							<p class="truncate text-xs text-fg-muted">{skill.description}</p>
 						{/if}
 					</div>
-					<div class={list.actions}>
-						<Button variant="quiet" onclick={() => edit(scope, users, skill)}>Edit…</Button>
+					<div class={[list.actions, list.reveal]}>
+						<Button variant="quiet" onclick={() => edit(view.scope, view.users, skill)}>
+							Edit…
+						</Button>
 						<Button variant="danger-quiet" onclick={() => (deleting = skill)}>Delete…</Button>
 					</div>
 				</li>
@@ -80,32 +133,7 @@
 				<li class={list.empty}>No skills yet.</li>
 			{/each}
 		</ul>
-	</section>
-{/snippet}
-
-<Dialog bind:open title="Skills" size="wide">
-	<div class="flex max-h-[60vh] flex-col gap-5 overflow-y-auto">
-		{#if skills.list.error && !skills.list.loaded}
-			<p class="text-fg-subtle">{skills.list.error.message}</p>
-		{:else if skills.list.loaded}
-			{#if agent}
-				{@render group(
-					agent.agent_name,
-					`Only ${agent.agent_name} has these.`,
-					{ kind: 'agent', agent_id: agent.id },
-					agent.agent_name
-				)}
-			{/if}
-			{#if team}
-				{@render group(
-					team.title,
-					`Every agent on “${team.title}” has these.`,
-					{ kind: 'team', team_id: team.id },
-					'Agents'
-				)}
-			{/if}
-		{/if}
-	</div>
+	{/if}
 	{#snippet footer()}
 		<Button onclick={() => (open = false)}>Close</Button>
 	{/snippet}

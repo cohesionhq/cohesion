@@ -142,6 +142,9 @@ pub enum Command {
     /// new siblings; replies with every folder in the workspace.
     #[reply(Vec<DocumentFolder>)]
     MoveDocumentFolder(MoveDocumentFolderRequest),
+    /// Sets whether a document folder shows as a list or a table.
+    #[reply(DocumentFolder)]
+    SetDocumentFolderRepresentation(SetDocumentFolderRepresentationRequest),
     /// Deletes a document folder and the folders inside it.
     #[reply(DocumentFolder)]
     DeleteDocumentFolder(DeleteDocumentFolderRequest),

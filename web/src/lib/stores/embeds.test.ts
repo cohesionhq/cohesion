@@ -51,7 +51,7 @@ describe('embeds store', () => {
 					title: 'Books',
 					sort_order: 1,
 					deleted: false,
-					is_table: true
+					representation: 'table'
 				},
 				properties: [],
 				rows: [],
@@ -71,10 +71,10 @@ describe('embeds store', () => {
 		expect(table.title).toBe('Reading list');
 		expect(table.item.kind === 'documentFolder' && table.item.rows).toHaveLength(5);
 		expect(table.item.kind === 'documentFolder' && table.item.row_count).toBe(6);
-		expect(table.item.kind === 'documentFolder' && table.item.folder.is_table).toBe(true);
+		expect(table.item.kind === 'documentFolder' && table.item.folder.representation).toBe('table');
 		const plain = await mock.send('resolveLink', { link: 'cohesion://document-folder/1/2' });
 		expect(plain.item.kind === 'documentFolder' && plain.item.properties).toEqual([]);
-		expect(plain.item.kind === 'documentFolder' && plain.item.folder.is_table).toBe(false);
+		expect(plain.item.kind === 'documentFolder' && plain.item.folder.representation).toBe('list');
 		const first = table.item.kind === 'documentFolder' ? table.item.rows[0] : null;
 		const row = await mock.send('resolveLink', {
 			link: `cohesion://document/1/${first?.document_id}`

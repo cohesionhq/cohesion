@@ -17,7 +17,7 @@ import SquareX from '@lucide/svelte/icons/square-x';
 import Table2 from '@lucide/svelte/icons/table-2';
 import type { Component } from 'svelte';
 import type { Embed } from '$lib/protocol/types';
-import type { ItemKind } from './routes';
+import { itemKindOf, type ItemKind } from './routes';
 
 /** Each kind's icon, for a link not yet resolved or whose item is gone. */
 export const KIND_ICONS: Record<ItemKind, Component> = {
@@ -31,24 +31,14 @@ export const KIND_ICONS: Record<ItemKind, Component> = {
 	article: Newspaper
 };
 
-const EMBED_KIND_ICONS: Record<Embed['kind'], Component> = {
-	task: Square,
-	document: FileText,
-	journalEntry: NotebookPen,
-	resource: Package,
-	documentFolder: Folder,
-	contact: BookUser,
-	agent: Bot,
-	actorSession: SquareTerminal,
-	article: Newspaper
-};
-
 /** `embed`'s icon: a task's box checked or crossed as it stands, a table's grid, else its kind's. */
 export function embedIcon(embed: Embed): Component {
-	if (embed.item.kind === 'documentFolder' && embed.item.folder.is_table) return Table2;
+	if (embed.item.kind === 'documentFolder' && embed.item.folder.representation === 'table')
+		return Table2;
 	if (embed.item.kind === 'task') {
 		const { status } = embed.item.task;
 		return status === 'completed' ? SquareCheck : status === 'cancelled' ? SquareX : Square;
 	}
-	return EMBED_KIND_ICONS[embed.kind];
+	if (embed.kind === 'journalEntry') return NotebookPen;
+	return KIND_ICONS[itemKindOf(embed.kind)];
 }

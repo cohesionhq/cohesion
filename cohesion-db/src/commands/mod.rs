@@ -26,6 +26,7 @@ mod document;
 mod document_folder;
 mod document_folder_property;
 mod document_formula;
+mod document_table;
 mod document_value;
 mod embed;
 mod emoji;

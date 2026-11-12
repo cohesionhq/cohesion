@@ -301,6 +301,7 @@ export interface ActorSession {
 	/**
 	 * Whether its actor finished a stretch of work, done or failed, since
 	 * the user last read it; stopping it, or its client going away, doesn't.
+	 * Resolving it reads it.
 	 */
 	unread: boolean;
 	/** When the user last read it; `null` if they never have. */
@@ -1818,8 +1819,9 @@ export interface DocumentCell {
  * A named group of documents in a workspace, which may sit inside another.
  *
  * Folders nest without limit. A document in no folder is in the Inbox;
- * journals are never in a folder. A folder with properties
- * (`DocumentFolderProperty`) is a table, whose documents are its rows.
+ * journals are never in a folder. A folder's properties
+ * (`DocumentFolderProperty`) are a table's columns, and its documents are
+ * its rows; `representation` says whether it shows as one.
  */
 export interface DocumentFolder {
 	id: number;
@@ -1830,11 +1832,8 @@ export interface DocumentFolder {
 	/** Where the folder sits among its siblings; lower comes first. */
 	sort_order: number;
 	deleted: boolean;
-	/**
-	 * Whether the folder has properties, so is a table; it stops being one
-	 * when its last property is deleted.
-	 */
-	is_table: boolean;
+	/** Whether the folder shows as a list or a table. */
+	representation: DocumentFolderRepresentation;
 }
 
 /**
@@ -1853,6 +1852,18 @@ export type DocumentFolderProperty = {
 	 */
 	formula: PropertyFormula | null;
 } & PropertyType;
+
+/**
+ * How a document folder shows its documents; stored as text.
+ *
+ * - `"list"`: as a list of documents (new folders start here).
+ * - `"table"`: as a table, a row per document and a column per property.
+ *
+ * A folder gaining a property becomes a table; one losing its last stays
+ * one, an empty table, until it is set back to a list. A list keeps its
+ * properties and its documents their values.
+ */
+export type DocumentFolderRepresentation = 'list' | 'table';
 
 /**
  * What a document is for; stored as text.
@@ -2613,6 +2624,12 @@ export interface IntelligenceAgent {
 	 * apart from teams: a pinned agent stays on its team.
 	 */
 	team_id: number | null;
+	/**
+	 * The workspace the user was in when they last named one in a message
+	 * to the agent; `null` until one does. A hint for requests that don't
+	 * say where, never a limit on where the agent works.
+	 */
+	workspace_id: number | null;
 	/** How many actor sessions not yet resolved the agent follows. */
 	following_count: number;
 }
@@ -2686,6 +2703,15 @@ export interface IntelligenceAgentMessage {
 	 * client quotes above it; `null` when it stands alone.
 	 */
 	reply_to: number | null;
+	/**
+	 * On the user's message, the workspace they were in when it isn't the
+	 * one the agent was last told, which the agent reads before the message
+	 * as `User switched to the "…" workspace`; `null` otherwise, and on
+	 * every other message.
+	 */
+	switched_workspace_id: number | null;
+	/** The title of `switched_workspace_id` as it is now; `null` with it. */
+	switched_workspace_title: string | null;
 	/**
 	 * The message in one line: what a reply quoting it shows, and how a
 	 * client shows a kind it has no view for. Its text, a forward's note (else the item's title), a choice's
@@ -4407,6 +4433,12 @@ export interface SearchResult {
 	 * contact's notes; always `""` for tasks and JSON resources.
 	 */
 	contents: string;
+	/**
+	 * The matched task's status (`"incomplete"`, `"completed"` or
+	 * `"cancelled"`); `"none"` for documents, resources and contacts, which
+	 * have no status, so every hit has the same shape.
+	 */
+	status: string;
 }
 
 /** Search the entire workspace. */
@@ -4506,6 +4538,13 @@ export interface SendAgentMessageRequest {
 	 * not both.
 	 */
 	skill?: number | null;
+	/**
+	 * The workspace the user is in as they send it. When it isn't the one
+	 * the agent was last told, the agent reads `User switched to the "…"
+	 * workspace` before the message. A hint for what the user means, never
+	 * a limit on where the agent works; `null` says nothing.
+	 */
+	workspace_id?: number | null;
 }
 
 /** Why a command failed; `field` names the offending input when there is one. */
@@ -4633,6 +4672,17 @@ export interface SetDocumentFolderPropertyTypeRequest {
 	folder_id: number;
 	property_id: number;
 	data_type: PropertyDataType;
+}
+
+/**
+ * Sets how document folder `folder_id` in a workspace shows its
+ * documents: as a list or a table. Its properties and values stay either
+ * way.
+ */
+export interface SetDocumentFolderRepresentationRequest {
+	workspace_id: number;
+	folder_id: number;
+	representation: DocumentFolderRepresentation;
 }
 
 /**
@@ -5690,6 +5740,8 @@ export interface Requests {
 	 * new siblings; replies with every folder in the workspace.
 	 */
 	moveDocumentFolder: MoveDocumentFolderRequest;
+	/** Sets whether a document folder shows as a list or a table. */
+	setDocumentFolderRepresentation: SetDocumentFolderRepresentationRequest;
 	/** Deletes a document folder and the folders inside it. */
 	deleteDocumentFolder: DeleteDocumentFolderRequest;
 	/**
@@ -6272,6 +6324,8 @@ export interface Replies {
 	 * new siblings; replies with every folder in the workspace.
 	 */
 	moveDocumentFolder: DocumentFolder[];
+	/** Sets whether a document folder shows as a list or a table. */
+	setDocumentFolderRepresentation: DocumentFolder;
 	/** Deletes a document folder and the folders inside it. */
 	deleteDocumentFolder: DocumentFolder;
 	/**

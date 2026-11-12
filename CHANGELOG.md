@@ -7,6 +7,30 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- Cohesion strips TypeScript from scripts with its own parser, in place of
+  swc. Scripts run as before, and the assertion `<T>value` now works. A
+  syntax error in a script is reported by the script engine, with its line
+  and column.
+- An agent can know which workspace you're in. `sendAgentMessage` takes an
+  optional `workspace_id`; when it differs from the one the agent was last
+  told, the agent reads "User switched to the … workspace" before your
+  message, and its status names the workspace. It's a hint for requests
+  that don't say where, not a limit. Agents gain `workspace_id`, and agent
+  messages `switched_workspace_id` and `switched_workspace_title`. The web
+  UI, the CLI and the iPhone app don't send it yet.
+- Scripts and agents can shape a table and fill it in. `DocumentFolder`
+  gains `properties()` and `createProperty()`, and each
+  `DocumentFolderProperty` can be renamed, retyped, made a formula, moved
+  and deleted, with a choice column's options added, renamed, recolored,
+  moved and deleted. `Document.values()` reads a row's values by column
+  name and `Document.setValue()` writes one. A folder's `representation`,
+  `list` or `table`, replaces `is_table` and is now stored: a folder's
+  first column still makes it a table, but deleting its last no longer
+  turns it back, and `setDocumentFolderRepresentation` sets either. Folders
+  that already had columns become tables when the daemon updates. The
+  iPhone app and other clients that read `is_table` need to read
+  `representation` instead.
+
 - Agents have skills: prompts you save for one agent or for every agent on
   a team, from Skills… in an agent's menu or a team's. Type `/` in an
   agent's message box to run one, with anything you add as a note. An
@@ -67,7 +91,7 @@ under "Unreleased" with any change users would notice.
   `createDocumentFolderProperty`, `renameDocumentFolderProperty`,
   `setDocumentFolderPropertyType`, `moveDocumentFolderProperty`,
   `deleteDocumentFolderProperty`, `listTableRows`, `getTableRow` and
-  `setDocumentValue`, `is_table` on `DocumentFolder`, the
+  `setDocumentValue`, `representation` on `DocumentFolder`, the
   `documentTable(folder)` invalidation and
   `hello.vocabulary.property_data_types`; rows are created, renamed, deleted
   and moved with the document commands. The iPhone app needn't show tables:

@@ -70,7 +70,8 @@
 </GutterCard>
 
 {#if agenda.length > 0}
-	<GutterGroup>
+	<!-- Slides shut when the agent clears its agenda, and open when it sets out a new one. -->
+	<GutterGroup slides>
 		<AgendaOverview {agenda} />
 	</GutterGroup>
 {/if}

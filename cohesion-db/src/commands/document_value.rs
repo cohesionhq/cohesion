@@ -5,7 +5,6 @@
 
 use std::collections::HashMap;
 
-use cohesion_core::invalidation::Invalidation;
 use cohesion_core::model::{
     DocumentCell, DocumentFolderProperty, DocumentValue, PropertyDataType, PropertyValue, TableRow,
 };
@@ -20,10 +19,10 @@ use crate::changed::{Changed, Invalidates};
 use crate::commands::document_folder_property::{
     GetDocumentFolderPropertyCommand, ListDocumentFolderPropertiesCommand,
 };
-use crate::commands::document_formula::{forget_stale_marks, formulas_stale};
+use crate::commands::document_table::{TableChange, store_value, table_changed};
 use crate::{
     CommandContext, CommandError, DatabaseCommand, DatabaseCommandResult, DatabaseError, Filtered,
-    Read, ReadableDatabase, Select, ValidationError, Write, WriteContainer,
+    Read, ReadableDatabase, Select, ValidationError, Write,
 };
 
 /// What a row shows of its document: its id and title, without the
@@ -33,61 +32,6 @@ use crate::{
 pub struct RowTitle {
     pub id: i64,
     pub title: String,
-}
-
-/// Stores document `document_id`'s value for `property`, which must already
-/// be of its type and [checked](PropertyValue::checked), in every
-/// representation that type gives, or removes it when `value` is `None`.
-/// The document must be in the property's folder, as the schema's keys
-/// hold. Every write of a value goes through here.
-pub(crate) fn store_value(
-    db: WriteContainer<'_>,
-    property: &DocumentFolderProperty,
-    document_id: i64,
-    value: Option<PropertyValue>,
-) -> Result<(), DatabaseError> {
-    match value {
-        None => {
-            db.delete::<DocumentValue>()
-                .filter_eq(DocumentValue::DOCUMENT_ID, document_id)
-                .filter_eq(DocumentValue::PROPERTY_ID, property.id)
-                .execute()?;
-        }
-        Some(value) => {
-            debug_assert_eq!(value.data_type(), property.data_type());
-            db.insert::<DocumentValue>()
-                .set(DocumentValue::FOLDER_ID, property.folder_id)
-                .set(DocumentValue::DOCUMENT_ID, document_id)
-                .set(DocumentValue::PROPERTY_ID, property.id)
-                .set(DocumentValue::TEXT_VALUE, value.text())
-                .set(DocumentValue::INTEGER_VALUE, value.integer())
-                .set(DocumentValue::REAL_VALUE, value.real())
-                .set(DocumentValue::OPTION_ID, value.option_id())
-                .on_conflict_update(&["document_id", "property_id"])
-                .execute()?;
-        }
-    }
-    Ok(())
-}
-
-/// Lets go of every value the documents of `folder_ids` hold, and of their
-/// formula marks, before they leave those folders: a value belongs to its
-/// document's folder, so a document can't leave with one. With
-/// `document_id`, only that document's.
-pub(crate) fn forget_values(
-    db: WriteContainer<'_>,
-    folder_ids: &[i64],
-    document_id: Option<i64>,
-) -> Result<(), DatabaseError> {
-    for &folder_id in folder_ids {
-        let params = [&folder_id.into_value(), &document_id.into_value()];
-        db.container().execute_statement(
-            "DELETE FROM document_values WHERE folder_id = ?1 AND (?2 IS NULL OR document_id = ?2)",
-            params,
-        )?;
-        forget_stale_marks(db, folder_id, document_id)?;
-    }
-    Ok(())
 }
 
 /// The column of `document_values` a property of `data_type` filters on,
@@ -473,14 +417,18 @@ impl DatabaseCommand for SetDocumentValueCommand {
                 .map_err(|message| ValidationError::in_field("value", message.to_string()))?,
         };
         store_value(ctx.db, &property, self.document_id, value)?;
-        formulas_stale(ctx, self.folder_id, Some(self.document_id))?;
+        let table = table_changed(
+            ctx,
+            self.folder_id,
+            TableChange::RowInputs(self.document_id),
+        )?;
         let row = GetTableRowCommand {
             workspace_id: self.workspace_id,
             folder_id: self.folder_id,
             document_id: self.document_id,
         }
         .handle(&mut ctx.as_read())?;
-        Ok(row.invalidating([Invalidation::DocumentTable(self.folder_id)]))
+        Ok(row.invalidating([table]))
     }
 }
 

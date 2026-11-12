@@ -71,6 +71,8 @@ describe('agents store', () => {
 				reacted_at: null,
 				attachment_count: 0,
 				reply_to: null,
+				switched_workspace_id: null,
+				switched_workspace_title: null,
 				excerpt: `m${i}`,
 				excerpt_verb: null,
 				reaction_excerpt: null,

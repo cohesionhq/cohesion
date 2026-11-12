@@ -24,6 +24,7 @@ fn agent(id: i64, name: &str, team_id: Option<i64>) -> IntelligenceAgent {
         pinned: false,
         sort_order: 0,
         team_id,
+        workspace_id: None,
         following_count: 0,
     }
 }

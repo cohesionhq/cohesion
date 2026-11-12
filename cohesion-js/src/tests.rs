@@ -1431,6 +1431,44 @@ fn typescript_types_are_stripped() {
     assert_eq!(text, "5");
 }
 
+#[test]
+fn stripped_typescript_runs_as_written() {
+    let sandbox =
+        Sandbox::new(SandboxOptions::STANDARD, database().read_write(), &[], None).unwrap();
+    let cases = [
+        // An erased statement doesn't turn the next line into a call.
+        ("const a = 1\ntype T = number\n(2)", "2"),
+        // A return type on its own line.
+        ("const f = (a: number):\n  number => a + 1;\nf(1)", "2"),
+        (
+            "abstract class A<T> {\n\
+               private readonly items: T[] = [];\n\
+               declare size: number;\n\
+               abstract name(): string;\n\
+               add(item: T): this;\n\
+               add(item: T): this { this.items.push(item); return this; }\n\
+               get count(): number { return this.items.length; }\n\
+             }\n\
+             class B extends A<number> implements Named { name() { return \"b\"; } }\n\
+             interface Named { name(): string }\n\
+             new B().add(1).add(2).count",
+            "2",
+        ),
+        (
+            "const pick = <T, K extends keyof T>(from: T, key: K): T[K] => from[key];\n\
+             const sizes = new Map<string, number>([[\"a\", 1]]);\n\
+             pick({ a: sizes.get(\"a\")! < 2 ? `${1 as number}` : \"\" }, \"a\")",
+            "\"1\"",
+        ),
+    ];
+    for (script, expected) in cases {
+        let ScriptOutput(text) = sandbox.evaluate(script.to_string()).unwrap();
+        assert_eq!(text, expected, "{script}");
+    }
+    let refused = sandbox.evaluate("enum Colour { Red }".to_string());
+    assert!(matches!(refused, Err(ScriptError::Exception { .. })));
+}
+
 fn create_task(db: &DatabaseContext, workspace_id: i64, title: &str) -> i64 {
     db.send_blocking(CreateTaskCommand {
         workspace_id,
@@ -3051,4 +3089,113 @@ fn documents_file_into_nested_folders_and_the_inbox() {
             ["Launch"]
         ])
     );
+}
+
+#[test]
+fn scripts_shape_a_tables_columns_and_read_and_write_its_rows() {
+    let db = database();
+    create_workspace(&db, "Home");
+    let result = json(
+        &db,
+        r#"
+        const home = cohesion.workspace("Home");
+        const books = home.createDocumentFolder("Books");
+        const before = books.representation;
+        const pages = books.createProperty("Pages", PropertyDataType.integer);
+        const status = books.createProperty("Status", "choice", { options: ["To read", "Read"] });
+        const price = books.createProperty("Price", "currency");
+        const total = books.createProperty("Total", "currency",
+            { formula: "(row) => row.Price * 2", updateMode: FormulaUpdateMode.continuously });
+        const after = books.representation;
+        status.addOption("Reading", "purple");
+        status.moveOption("Reading", "Read");
+        status.setOptionColor("read", "teal");
+        status.renameOption("To read", "Later");
+        const options = status.options.map((o) => [o.name, o.color]);
+        price.rename("Cost");
+        price.moveBefore(pages);
+        const dune = books.createDocument("Dune");
+        dune.setValue("Pages", 412);
+        dune.setValue(status, "Reading");
+        dune.setValue("Cost", 9.5);
+        const values = dune.values();
+        const refused = [
+            () => dune.setValue("Pages", "many"),
+            () => dune.setValue("Pages", 1.5),
+            () => dune.setValue("Status", "Lost"),
+            () => dune.setValue("Nope", 1),
+            () => dune.setValue("Total", 3),
+            () => home.createDocument("Loose").setValue("Pages", 1),
+            () => books.representation = "board",
+        ].map((write) => { try { write(); return false; } catch (e) { return true; } });
+        pages.setDataType(PropertyDataType.text);
+        dune.setValue("Pages", null);
+        status.deleteOption("Reading");
+        const later = dune.values();
+        total.setFormula(null);
+        books.representation = DocumentFolderRepresentation.list;
+        const listed = home.documentFolder(books.id).representation;
+        const columns = books.properties().map((p) =>
+            [p.name, p.dataType, p.formula, p.formulaUpdateMode]);
+        status.delete();
+        [before, after, options, values, refused, later, listed, columns,
+         books.properties().length, home.createDocument("Loose 2").values()]
+        "#,
+    );
+    assert_eq!(
+        result,
+        serde_json::json!([
+            "list",
+            "table",
+            [["Later", null], ["Reading", "purple"], ["Read", "teal"]],
+            {"Cost": 9.5, "Pages": 412, "Status": "Reading", "Total": null},
+            [true, true, true, true, true, true, true],
+            {"Cost": 9.5, "Pages": null, "Status": null, "Total": null},
+            "list",
+            [
+                ["Cost", "currency", null, null],
+                ["Pages", "text", null, null],
+                ["Status", "choice", null, null],
+                ["Total", "currency", null, null]
+            ],
+            3,
+            {}
+        ])
+    );
+}
+
+#[test]
+fn a_read_only_script_reads_a_table_but_cant_change_it() {
+    let db = database();
+    create_workspace(&db, "Home");
+    run(
+        &db,
+        r#"
+        const books = cohesion.workspace("Home").createDocumentFolder("Books");
+        books.createProperty("Pages", "integer");
+        books.createDocument("Dune").setValue("Pages", 412);
+        "#,
+    )
+    .unwrap();
+    let sandbox = Sandbox::new(
+        SandboxOptions::STANDARD,
+        db.read_only(),
+        &[Mount::Cohesion],
+        None,
+    )
+    .unwrap();
+    let ScriptOutput(text) = sandbox
+        .evaluate(
+            "const books = cohesion.workspace('Home').documentFolders()[0];\n\
+             const dune = books.documents()[0];\n\
+             const pages = books.properties()[0];\n\
+             [dune.values().Pages, ...[() => dune.setValue('Pages', 1), () => pages.rename('P'),\n\
+              () => { books.representation = 'list'; }].map(write => {\n\
+                 try { write(); return 'wrote'; }\n\
+                 catch (e) { return e instanceof Error && e.message.includes('read-only access'); }\n\
+             })]"
+            .to_string(),
+        )
+        .unwrap();
+    assert_eq!(text, "[412,true,true,true]");
 }

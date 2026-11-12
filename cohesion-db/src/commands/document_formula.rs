@@ -1,8 +1,9 @@
 //! Formula properties: a property of a folder whose value in each of its
 //! documents a JavaScript function of the row computes ([`PropertyFormula`]).
 //! This crate can't run JavaScript, so every change to what a formula reads
-//! marks the documents whose outputs it outdates (`documents.formula_stale`)
-//! and raises [`TableFormulasStale`](DatabaseEventKind::TableFormulasStale);
+//! marks the documents whose outputs it outdates (`documents.formula_stale`,
+//! through [`table_changed`]) and raises
+//! [`TableFormulasStale`](crate::DatabaseEventKind::TableFormulasStale);
 //! the daemon reads those documents with [`ListStaleTableRowsCommand`],
 //! computes the outputs, and stores them with
 //! [`StoreTableFormulaOutputsCommand`], as values like any other, so
@@ -20,21 +21,21 @@
 
 use std::collections::{HashMap, HashSet};
 
-use cohesion_core::invalidation::Invalidation;
 use cohesion_core::model::{
     DocumentFolderProperty, DocumentValue, PropertyDataType, PropertyFormula, PropertyValue,
 };
 use cohesion_core::protocol::{FormulaDefinition, SetDocumentFolderPropertyFormulaRequest};
-use cohesion_core::value::IntoValue;
 use cohesion_core::{FromRequest, Model, Projection};
 
 use crate::changed::{Changed, Invalidates};
 use crate::commands::document_folder_property::GetDocumentFolderPropertyCommand;
-use crate::commands::document_value::store_value;
+use crate::commands::document_table::{
+    TableChange, compute_again, compute_live_rows_again, outputs_stored, store_value, table_changed,
+};
 use crate::commands::property_option::ensure_not_formula_choice;
 use crate::{
-    CommandContext, DatabaseCommand, DatabaseCommandResult, DatabaseError, DatabaseEventKind,
-    Filtered, Read, ReadableDatabase, ValidationError, Write, WriteContainer,
+    CommandContext, DatabaseCommand, DatabaseCommandResult, Filtered, Read, ReadableDatabase,
+    ValidationError, Write,
 };
 
 /// A document with how many changes its formula outputs are behind (0 when
@@ -44,7 +45,7 @@ use crate::{
 /// [`Document`]: cohesion_core::Document
 #[derive(Model)]
 #[model(table = "documents", backup = Included)]
-#[allow(dead_code)] // Written by `formulas_stale`; read through `RowStaleness`.
+#[allow(dead_code)] // Written by `document_table`; read through `RowStaleness`.
 pub struct StaleMarkedDocument {
     id: i64,
     folder_id: Option<i64>,
@@ -58,48 +59,6 @@ pub struct StaleMarkedDocument {
 pub struct RowStaleness {
     pub id: i64,
     pub formula_stale: i64,
-}
-
-/// Marks the formula outputs of folder `folder_id`'s documents (only
-/// document `document_id`'s, when given) as out of date and raises
-/// [`TableFormulasStale`](DatabaseEventKind::TableFormulasStale) for them;
-/// does nothing in a folder with no formula. Every change to what a formula
-/// reads calls this: a value, a document coming into the folder, a
-/// property, or a source.
-pub(crate) fn formulas_stale(
-    ctx: &mut CommandContext<'_>,
-    folder_id: i64,
-    document_id: Option<i64>,
-) -> Result<(), DatabaseError> {
-    let marked = ctx.db.container().execute_statement(
-        "UPDATE documents SET formula_stale = formula_stale + 1
-         WHERE folder_id = ?1 AND (?2 IS NULL OR id = ?2)
-         AND EXISTS (SELECT 1 FROM document_folder_properties
-             WHERE folder_id = ?1 AND formula_source IS NOT NULL)",
-        [&folder_id.into_value(), &document_id.into_value()],
-    )?;
-    if marked > 0 {
-        ctx.events.send(
-            ctx.trace
-                .event(DatabaseEventKind::TableFormulasStale { folder_id }),
-        );
-    }
-    Ok(())
-}
-
-/// Lets go of the stale marks of folder `folder_id`'s documents (only document
-/// `document_id`'s, when given), for documents that are leaving the folder.
-pub(crate) fn forget_stale_marks(
-    db: WriteContainer<'_>,
-    folder_id: i64,
-    document_id: Option<i64>,
-) -> Result<(), DatabaseError> {
-    db.container().execute_statement(
-        "UPDATE documents SET formula_stale = 0
-         WHERE folder_id = ?1 AND (?2 IS NULL OR id = ?2) AND formula_stale > 0",
-        [&folder_id.into_value(), &document_id.into_value()],
-    )?;
-    Ok(())
 }
 
 /// A formula as a request carries it: absent, or with a source that isn't
@@ -156,13 +115,14 @@ impl DatabaseCommand for SetDocumentFolderPropertyFormulaCommand {
         }
         .handle(&mut ctx.as_read())?;
         ensure_not_formula_choice(before.data_type(), self.formula.is_some())?;
-        let formula = match (before.formula, self.formula) {
+        let (formula, change) = match (before.formula, self.formula) {
             (Some(before), Some(after)) if before.source == after.source => {
                 // Only the mode can differ: what is stored still holds.
-                Some(PropertyFormula {
+                let formula = PropertyFormula {
                     update_mode: after.update_mode,
                     ..before
-                })
+                };
+                (Some(formula), TableChange::Shown)
             }
             (before, after) => {
                 if before.is_none() && after.is_some() {
@@ -171,10 +131,10 @@ impl DatabaseCommand for SetDocumentFolderPropertyFormulaCommand {
                         .filter_eq(DocumentValue::PROPERTY_ID, self.property_id)
                         .execute()?;
                 }
-                formulas_stale(ctx, self.folder_id, None)?;
-                new_formula(after)
+                (new_formula(after), TableChange::Inputs)
             }
         };
+        let table = table_changed(ctx, self.folder_id, change)?;
         let property = ctx
             .db
             .update::<DocumentFolderProperty>()
@@ -182,7 +142,7 @@ impl DatabaseCommand for SetDocumentFolderPropertyFormulaCommand {
             .filter_eq(DocumentFolderProperty::ID, self.property_id)
             .returning_one()?
             .expect("the property was just read");
-        Ok(property.invalidating([Invalidation::DocumentTable(self.folder_id)]))
+        Ok(property.invalidating([table]))
     }
 }
 
@@ -402,21 +362,14 @@ impl DatabaseCommand for StoreTableFormulaOutputsCommand {
             }
         }
         for row in &self.rows {
-            ctx.db.container().execute_statement(
-                "UPDATE documents SET formula_stale = 0
-                 WHERE id = ? AND folder_id = ? AND formula_stale = ?",
-                [
-                    &row.id.into_value(),
-                    &self.folder_id.into_value(),
-                    &row.formula_stale.into_value(),
-                ],
-            )?;
+            outputs_stored(ctx.db, self.folder_id, row.id, row.formula_stale)?;
         }
         if recheck {
-            formulas_stale(ctx, self.folder_id, None)?;
+            compute_again(ctx, self.folder_id)?;
         }
         Ok(if changed {
-            ().invalidating([Invalidation::DocumentTable(self.folder_id)])
+            let table = table_changed(ctx, self.folder_id, TableChange::Shown)?;
+            ().invalidating([table])
         } else {
             ().invalidating_nothing()
         })
@@ -425,7 +378,7 @@ impl DatabaseCommand for StoreTableFormulaOutputsCommand {
 
 /// Marks every live document of each folder with a formula whose update
 /// mode is `continuously` as out of date, and raises
-/// [`TableFormulasStale`](DatabaseEventKind::TableFormulasStale) for each
+/// [`TableFormulasStale`](crate::DatabaseEventKind::TableFormulasStale) for each
 /// folder it marked, so the daemon's pass computes them again; the daemon
 /// runs it every hour. Returns those folders. A deleted document is left
 /// as it is.
@@ -443,16 +396,7 @@ impl DatabaseCommand for MarkContinuousFormulasStaleCommand {
             .all()?;
         let mut marked = Vec::new();
         for folder_id in folders {
-            let count = ctx.db.container().execute_statement(
-                "UPDATE documents SET formula_stale = formula_stale + 1
-                 WHERE folder_id = ? AND deleted = FALSE",
-                [&folder_id.into_value()],
-            )?;
-            if count > 0 {
-                ctx.events.send(
-                    ctx.trace
-                        .event(DatabaseEventKind::TableFormulasStale { folder_id }),
-                );
+            if compute_live_rows_again(ctx, folder_id)? {
                 marked.push(folder_id);
             }
         }

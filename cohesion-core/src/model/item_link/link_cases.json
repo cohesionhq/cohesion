@@ -1,0 +1,358 @@
+{
+	"about": "Cases for reading cohesion:// links and for which lines of a text are embeds, run against the daemon (cohesion-core, model/item_link/tests.rs and model/text_section/tests.rs) and the web UI (web/src/lib/format/itemLinks.test.ts), which reads them the same way. The daemon's answer is the right one. A link's kind is the daemon's word for it (LinkKind).",
+	"links": [
+		{
+			"href": "cohesion://task/3/42",
+			"names": {
+				"kind": "task",
+				"workspace_id": 3,
+				"id": 42
+			}
+		},
+		{
+			"href": "cohesion://task/42",
+			"names": {
+				"kind": "task",
+				"workspace_id": null,
+				"id": 42
+			}
+		},
+		{
+			"href": "cohesion://document/3/7",
+			"names": {
+				"kind": "document",
+				"workspace_id": 3,
+				"id": 7
+			}
+		},
+		{
+			"href": "cohesion://document/7",
+			"names": {
+				"kind": "document",
+				"workspace_id": null,
+				"id": 7
+			}
+		},
+		{
+			"href": "cohesion://resource/3/9",
+			"names": {
+				"kind": "resource",
+				"workspace_id": 3,
+				"id": 9
+			}
+		},
+		{
+			"href": "cohesion://resource/9",
+			"names": null
+		},
+		{
+			"href": "cohesion://document-folder/3/2",
+			"names": {
+				"kind": "documentFolder",
+				"workspace_id": 3,
+				"id": 2
+			}
+		},
+		{
+			"href": "cohesion://document-folder/2",
+			"names": null
+		},
+		{
+			"href": "cohesion://contact/3/12",
+			"names": {
+				"kind": "contact",
+				"workspace_id": 3,
+				"id": 12
+			}
+		},
+		{
+			"href": "cohesion://contact/12",
+			"names": null
+		},
+		{
+			"href": "cohesion://agent/3",
+			"names": {
+				"kind": "agent",
+				"workspace_id": null,
+				"id": 3
+			}
+		},
+		{
+			"href": "cohesion://agent/3/4",
+			"names": null
+		},
+		{
+			"href": "cohesion://actor-session/143",
+			"names": {
+				"kind": "actorSession",
+				"workspace_id": null,
+				"id": 143
+			}
+		},
+		{
+			"href": "cohesion://actor-session/1/143",
+			"names": null
+		},
+		{
+			"href": "cohesion://article/88",
+			"names": {
+				"kind": "article",
+				"workspace_id": null,
+				"id": 88
+			}
+		},
+		{
+			"href": "cohesion://article/1/88",
+			"names": null
+		},
+		{
+			"href": "cohesion://task/042",
+			"names": {
+				"kind": "task",
+				"workspace_id": null,
+				"id": 42
+			}
+		},
+		{
+			"href": "cohesion://task/",
+			"names": null
+		},
+		{
+			"href": "cohesion://task",
+			"names": null
+		},
+		{
+			"href": "cohesion://task/3/42/1",
+			"names": null
+		},
+		{
+			"href": "cohesion://task/-3",
+			"names": null
+		},
+		{
+			"href": "cohesion://task/+3",
+			"names": null
+		},
+		{
+			"href": "cohesion://task/3x",
+			"names": null
+		},
+		{
+			"href": "cohesion://task/3/",
+			"names": null
+		},
+		{
+			"href": "cohesion://task/99999999999999999999",
+			"names": null
+		},
+		{
+			"href": "cohesion://Task/42",
+			"names": null
+		},
+		{
+			"href": "cohesion://journal/3/7",
+			"names": null
+		},
+		{
+			"href": "cohesion://documentFolder/3/2",
+			"names": null
+		},
+		{
+			"href": "https://example.com/task/42",
+			"names": null
+		},
+		{
+			"href": " cohesion://task/42",
+			"names": null
+		},
+		{
+			"href": "cohesion://task/42 ",
+			"names": null
+		},
+		{
+			"href": "cohesion://task/42?x=1",
+			"names": null
+		}
+	],
+	"texts": [
+		{
+			"text": "[Fix the build](cohesion://task/3/42)",
+			"pieces": [
+				{
+					"embed": {
+						"label": "Fix the build",
+						"href": "cohesion://task/3/42"
+					}
+				}
+			]
+		},
+		{
+			"text": "Before\n\n[Fix the build](cohesion://task/3/42)\n\nAfter",
+			"pieces": [
+				{
+					"markdown": "Before"
+				},
+				{
+					"embed": {
+						"label": "Fix the build",
+						"href": "cohesion://task/3/42"
+					}
+				},
+				{
+					"markdown": "After"
+				}
+			]
+		},
+		{
+			"text": "  [Notes](cohesion://document/7)  ",
+			"pieces": [
+				{
+					"embed": {
+						"label": "Notes",
+						"href": "cohesion://document/7"
+					}
+				}
+			]
+		},
+		{
+			"text": "See [Fix the build](cohesion://task/3/42) today",
+			"pieces": [
+				{
+					"markdown": "See [Fix the build](cohesion://task/3/42) today"
+				}
+			]
+		},
+		{
+			"text": "[A](cohesion://task/1) [B](cohesion://task/2)",
+			"pieces": [
+				{
+					"markdown": "[A](cohesion://task/1) [B](cohesion://task/2)"
+				}
+			]
+		},
+		{
+			"text": "[A](https://a.dev) and [B](cohesion://task/2)",
+			"pieces": [
+				{
+					"markdown": "[A](https://a.dev) and [B](cohesion://task/2)"
+				}
+			]
+		},
+		{
+			"text": "[Site](https://example.com)",
+			"pieces": [
+				{
+					"markdown": "[Site](https://example.com)"
+				}
+			]
+		},
+		{
+			"text": "    [Code](cohesion://task/1)",
+			"pieces": [
+				{
+					"markdown": "    [Code](cohesion://task/1)"
+				}
+			]
+		},
+		{
+			"text": "\t[Code](cohesion://task/1)",
+			"pieces": [
+				{
+					"markdown": "\t[Code](cohesion://task/1)"
+				}
+			]
+		},
+		{
+			"text": "```\n[Code](cohesion://task/1)\n```",
+			"pieces": [
+				{
+					"markdown": "```\n[Code](cohesion://task/1)\n```"
+				}
+			]
+		},
+		{
+			"text": "~~~\n[Code](cohesion://task/1)\n~~~\n[Real](cohesion://task/2)",
+			"pieces": [
+				{
+					"markdown": "~~~\n[Code](cohesion://task/1)\n~~~"
+				},
+				{
+					"embed": {
+						"label": "Real",
+						"href": "cohesion://task/2"
+					}
+				}
+			]
+		},
+		{
+			"text": "[A \\[draft\\] plan](cohesion://document/3/7)",
+			"pieces": [
+				{
+					"embed": {
+						"label": "A [draft] plan",
+						"href": "cohesion://document/3/7"
+					}
+				}
+			]
+		},
+		{
+			"text": "[C:\\dir](cohesion://document/3/7)",
+			"pieces": [
+				{
+					"embed": {
+						"label": "C:\\dir",
+						"href": "cohesion://document/3/7"
+					}
+				}
+			]
+		},
+		{
+			"text": "[Gone](cohesion://resource/9)",
+			"pieces": [
+				{
+					"markdown": "[Gone](cohesion://resource/9)"
+				}
+			]
+		},
+		{
+			"text": "- [Listed](cohesion://task/1)",
+			"pieces": [
+				{
+					"markdown": "- [Listed](cohesion://task/1)"
+				}
+			]
+		},
+		{
+			"text": "[](cohesion://task/1)",
+			"pieces": [
+				{
+					"embed": {
+						"label": "",
+						"href": "cohesion://task/1"
+					}
+				}
+			]
+		},
+		{
+			"text": "\n\n",
+			"pieces": []
+		},
+		{
+			"text": "[One](cohesion://task/1)\n[Two](cohesion://agent/2)",
+			"pieces": [
+				{
+					"embed": {
+						"label": "One",
+						"href": "cohesion://task/1"
+					}
+				},
+				{
+					"embed": {
+						"label": "Two",
+						"href": "cohesion://agent/2"
+					}
+				}
+			]
+		}
+	]
+}

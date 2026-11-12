@@ -347,6 +347,8 @@ export class AgentsStore {
 			reacted_at: null,
 			attachment_count: images.length,
 			reply_to: null,
+			switched_workspace_id: null,
+			switched_workspace_title: null,
 			message_content: forward
 				? { kind: 'forward', note: text, item: forward.item }
 				: skill

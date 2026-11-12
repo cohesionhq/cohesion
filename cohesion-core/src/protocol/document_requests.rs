@@ -3,7 +3,7 @@
 use cohesion_macros::TsWire;
 use serde::{Deserialize, Serialize};
 
-use crate::model::DocumentType;
+use crate::model::{DocumentFolderRepresentation, DocumentType};
 
 /// Fetches the journal for `date` (`"YYYY-MM-DD"`) in a workspace, or `None`
 /// if nothing has been written that day. Never creates one.
@@ -122,6 +122,16 @@ pub struct MoveDocumentFolderRequest {
     pub folder_id: i64,
     pub parent_id: Option<i64>,
     pub before_id: Option<i64>,
+}
+
+/// Sets how document folder `folder_id` in a workspace shows its
+/// documents: as a list or a table. Its properties and values stay either
+/// way.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct SetDocumentFolderRepresentationRequest {
+    pub workspace_id: i64,
+    pub folder_id: i64,
+    pub representation: DocumentFolderRepresentation,
 }
 
 /// Deletes document folder `folder_id` in a workspace and every folder

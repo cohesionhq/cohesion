@@ -215,7 +215,7 @@ fn arm_deadline(runtime: &Runtime, options: SandboxOptions) {
 
 /// `row` as a plain object, each value as a formula reads it: a string, a
 /// number, a boolean, or `null`.
-fn row_object<'js>(ctx: &Ctx<'js>, row: &FormulaRow) -> rquickjs::Result<Object<'js>> {
+pub(crate) fn row_object<'js>(ctx: &Ctx<'js>, row: &FormulaRow) -> rquickjs::Result<Object<'js>> {
     let object = Object::new(ctx.clone())?;
     for (name, value) in row {
         let value = match value {
@@ -246,8 +246,18 @@ fn output(value: &Value<'_>, data_type: PropertyDataType) -> FormulaOutput {
     if value.is_null() || value.is_undefined() {
         return Ok(None);
     }
+    let read = typed_value(value, data_type).ok_or_else(|| expected(data_type).to_string())?;
+    read.checked().map_err(str::to_string)
+}
+
+/// `value`, which isn't `null` or `undefined`, as a value of `data_type`
+/// before it is [checked](PropertyValue::checked): a string for text and
+/// dates, a whole number for an integer, a number for a decimal or an
+/// amount, a boolean for a checkbox. `None` when it is of another type, and
+/// always for a choice, whose options aren't known here.
+pub(crate) fn typed_value(value: &Value<'_>, data_type: PropertyDataType) -> Option<PropertyValue> {
     let text = || value.as_string().and_then(|text| text.to_string().ok());
-    let read = match data_type {
+    match data_type {
         PropertyDataType::Text => text().map(PropertyValue::Text),
         PropertyDataType::Date => text().map(PropertyValue::Date),
         PropertyDataType::Integer => value
@@ -257,11 +267,8 @@ fn output(value: &Value<'_>, data_type: PropertyDataType) -> FormulaOutput {
         PropertyDataType::Decimal => value.as_number().map(PropertyValue::Decimal),
         PropertyDataType::Currency => value.as_number().map(PropertyValue::Currency),
         PropertyDataType::Checkbox => value.as_bool().map(PropertyValue::Checkbox),
-        // A formula is never a choice; the daemon refuses one.
         PropertyDataType::Choice => None,
-    };
-    let read = read.ok_or_else(|| expected(data_type).to_string())?;
-    read.checked().map_err(str::to_string)
+    }
 }
 
 /// What a formula of `data_type` must return, for a formula that returned

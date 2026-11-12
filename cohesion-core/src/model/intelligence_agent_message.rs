@@ -354,6 +354,14 @@ pub struct IntelligenceAgentMessage {
     /// The message of the same conversation this one replies to, which a
     /// client quotes above it; `null` when it stands alone.
     pub reply_to: Option<i64>,
+    /// On the user's message, the workspace they were in when it isn't the
+    /// one the agent was last told, which the agent reads before the message
+    /// as `User switched to the "…" workspace`; `null` otherwise, and on
+    /// every other message.
+    pub switched_workspace_id: Option<i64>,
+    /// The title of `switched_workspace_id` as it is now; `null` with it.
+    #[model(expr = IntelligenceAgentMessage::SWITCHED_WORKSPACE_TITLE_SQL)]
+    pub switched_workspace_title: Option<String>,
     /// The message in one line: what a reply quoting it shows, and how a
     /// client shows a kind it has no view for. Its text, a forward's note (else the item's title), a choice's
     /// question, a script's title, `Learning about network`, `Skill “Weekly
@@ -435,6 +443,10 @@ macro_rules! excerpt_sql {
 }
 
 impl IntelligenceAgentMessage {
+    /// The SQL of [`switched_workspace_title`](Self::switched_workspace_title).
+    pub const SWITCHED_WORKSPACE_TITLE_SQL: &'static str = "(SELECT title FROM workspaces \
+        WHERE workspaces.id = intelligence_agent_messages.switched_workspace_id)";
+
     /// The SQL of [`attachment_count`](Self::attachment_count).
     pub const ATTACHMENT_COUNT_SQL: &'static str = "(SELECT COUNT(*) FROM attachments \
         WHERE attachments.agent_message_id = intelligence_agent_messages.id)";

@@ -5029,6 +5029,30 @@ pub const MIGRATIONS: &[Migration] = &[
             WHERE id = new.agent_id;
         END;",
     },
+    // Which workspace the user is in, as agents hear it: the one each agent
+    // was last told, and, on the user's message that told it a new one, the
+    // workspace it switched to, which the agent reads before that message.
+    Migration {
+        name: "agent_workspace",
+        sql: "ALTER TABLE intelligence_agents ADD COLUMN workspace_id INTEGER
+            REFERENCES workspaces(id) ON DELETE SET NULL;
+        ALTER TABLE intelligence_agent_messages ADD COLUMN switched_workspace_id INTEGER
+            REFERENCES workspaces(id) ON DELETE SET NULL;",
+    },
+    // A document folder's representation, how it shows its documents, is
+    // stored rather than read from whether it has properties, so a table
+    // can be empty and a folder with properties can show as a list. Every
+    // folder with properties was a table.
+    Migration {
+        name: "document_folder_representation",
+        sql: "ALTER TABLE document_folders ADD COLUMN representation TEXT NOT NULL
+            DEFAULT 'list' CHECK (representation IN ('list', 'table'));
+        UPDATE document_folders SET representation = 'table'
+        WHERE EXISTS (
+            SELECT 1 FROM document_folder_properties
+            WHERE document_folder_properties.folder_id = document_folders.id
+        );",
+    },
 ];
 
 #[cfg(test)]

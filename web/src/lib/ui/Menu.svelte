@@ -58,9 +58,11 @@
 		icon?: Snippet<[MenuItem]>;
 		/** Opened from inside a dialog, so the menu must sit above it. */
 		inDialog?: boolean;
+		/** After the items, under a rule (e.g. a field to add one); `close` closes the menu. */
+		footer?: Snippet<[() => void]>;
 	}
 
-	let { trigger, items, align = 'end', header, icon, inDialog = false }: Props = $props();
+	let { trigger, items, align = 'end', header, icon, inDialog = false, footer }: Props = $props();
 
 	let open = $state(false);
 	const returnFocus = returnFocusFromKeyboard();
@@ -163,6 +165,10 @@
 					{@render actionItem(item)}
 				{/if}
 			{/each}
+			{#if footer}
+				<DropdownMenu.Separator class="-mx-1 my-1 h-px bg-border" />
+				{@render footer(() => (open = false))}
+			{/if}
 		</DropdownMenu.Content>
 	</DropdownMenu.Portal>
 </DropdownMenu.Root>

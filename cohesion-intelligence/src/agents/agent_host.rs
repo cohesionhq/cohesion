@@ -348,9 +348,17 @@ impl AgentHost {
                         })
                         .await?;
                     let agenda = self.hear_agenda().await?;
+                    let workspace =
+                        conversation_session::user_workspace(&self.database, self.agent.id).await?;
                     format!(
                         "{}\n\n{prompt}",
-                        agent_transcript::status(&cues, &skills, &agenda, &Zoned::now())
+                        agent_transcript::status(
+                            &cues,
+                            &skills,
+                            &agenda,
+                            workspace.as_ref(),
+                            &Zoned::now()
+                        )
                     )
                 } else {
                     prompt
@@ -493,10 +501,12 @@ impl AgentHost {
         }
 
         let agenda = self.hear_agenda().await?;
+        let workspace = conversation_session::user_workspace(&self.database, agent_id).await?;
         Ok(agent_transcript::status_message(
             &cues,
             &skills,
             &agenda,
+            workspace.as_ref(),
             &self.working_set,
             answering,
             &Zoned::now(),

@@ -44,7 +44,7 @@
 	import { planOf } from '$lib/features/actors/plan';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 
-	const { actors, agents, resources } = pageStores();
+	const { actors, agents, resources, documents, tasks } = pageStores();
 	let resolvingSession = $state<ActorSession | null>(null);
 
 	let { children }: { children: Snippet } = $props();
@@ -123,6 +123,12 @@
 	// order the user put them, while a connector of theirs can import.
 	$effect(() => {
 		if (workspaces.currentId !== null) void resources.shownKinds.load(workspaces.currentId);
+	});
+	// The sidebar lists the current workspace's document and task folders.
+	$effect(() => {
+		if (workspaces.currentId === null) return;
+		void documents.folders.load(workspaces.currentId);
+		void tasks.folders.load(workspaces.currentId);
 	});
 	const shownKinds = $derived.by(() => {
 		const available = new Map(connectors.kinds.map((entry) => [entry.kind.id, entry]));
@@ -265,6 +271,7 @@
 	<div class="flex h-dvh overflow-hidden max-sm:flex-col">
 		<Sidebar
 			pathname={page.url.pathname}
+			search={page.url.search}
 			workspaceId={workspaces.currentId}
 			status={connection.status}
 			{hostname}
@@ -273,6 +280,10 @@
 			actorSessions={actors.current}
 			goingActorSessions={actors.goingCount}
 			kinds={shownKinds}
+			documentFolders={documents.folders.key === workspaces.currentId
+				? documents.folders.value
+				: []}
+			taskFolders={tasks.folders.key === workspaces.currentId ? tasks.folders.value : []}
 			onresolve={resolveSession}
 			onsearch={() => (paletteOpen = true)}
 			onchoosekinds={() => (choosingKinds = true)}

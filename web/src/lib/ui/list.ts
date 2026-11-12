@@ -14,6 +14,9 @@ export const list = {
 	count: 'font-normal text-fg-subtle',
 	main: 'flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0 wrap-anywhere',
 	actions: 'ml-auto flex flex-none items-center gap-1',
+	/** With `actions`, in a row marked `group/row`: they show on hover or focus, and always on touch. */
+	reveal:
+		'opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 touch:opacity-100',
 	/** What a list shows when it has nothing in it. */
 	empty: 'py-3 text-fg-muted',
 	/** Quiet small print under a list. */

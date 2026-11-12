@@ -173,6 +173,7 @@
 							if (editing === property.id) editing = null;
 						}}
 						onsave={(value) => tables.panel.setValue(property.id, value)}
+						onaddoption={(name) => tables.panel.addOption(property.id, name)}
 					/>
 				</ItemDetail>
 			{/each}
