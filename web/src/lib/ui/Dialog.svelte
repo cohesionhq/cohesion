@@ -49,7 +49,9 @@
 		class={[
 			'font-semibold',
 			centered ? 'text-center text-lg' : 'text-md',
-			(leading || trailing) && 'flex items-center gap-1.5'
+			(leading || trailing) && 'flex items-center',
+			leading && 'gap-2',
+			trailing && !leading && 'gap-0'
 		]}
 	>
 		{#if leading}{@render leading()}{/if}{title}{#if trailing}{@render trailing()}{/if}
