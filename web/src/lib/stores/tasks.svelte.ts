@@ -158,6 +158,11 @@ export function sizesQuery(sizes: TaskSize[]): string {
 	return sizes.map((s) => `&size=${s}`).join('');
 }
 
+/** The Tasks page's query that opens a saved view: its list, tags, priorities and sizes. */
+export function savedViewQuery(v: SavedTaskView): string {
+	return `?view=${v.scope}${tagsQuery(v.tags)}${prioritiesQuery(v.priorities)}${sizesQuery(v.sizes)}`;
+}
+
 /** Whether a task's size passes `sizes`; a task with no size passes only when `sizes` is empty. */
 export function passesSizes(task: Task, sizes: TaskSize[]): boolean {
 	return sizes.length === 0 || (task.size !== null && sizes.includes(task.size));
@@ -595,6 +600,13 @@ export class TasksStore {
 		const folder = await this.#send('renameTaskFolder', { workspace_id, folder_id, title });
 		this.folders.update((list) => list.map((f) => (f.id === folder_id ? folder : f)));
 		return folder;
+	}
+
+	/** Pins a folder to the sidebar, or unpins it. */
+	async setFolderPinned(workspace_id: number, folder_id: number, pinned: boolean): Promise<void> {
+		const folder = await this.#send('setTaskFolderPinned', { workspace_id, folder_id, pinned });
+		if (this.folders.key === workspace_id)
+			this.folders.update((list) => list.map((f) => (f.id === folder_id ? folder : f)));
 	}
 
 	/** Puts the folders in the order of `folder_ids`, showing it before the daemon confirms. */

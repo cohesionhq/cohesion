@@ -60,7 +60,7 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 	import { tick } from 'svelte';
-	import { DOCUMENT_DRAG } from '$lib/features/documents/DocumentFolderTree.svelte';
+	import { DOCUMENT_DRAG } from '$lib/features/documents/drag';
 	import type { PropertyValue, TableRow, TableSort } from '$lib/protocol/types';
 	import { copyLinkItems } from '$lib/ui/copyLink';
 	import Menu, { type MenuItem } from '$lib/ui/Menu.svelte';

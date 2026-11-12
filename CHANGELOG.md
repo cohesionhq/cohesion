@@ -7,6 +7,17 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- The sidebar lists only the folders you pin under Documents and Tasks.
+  Every folder is a click away in the switcher under the Documents and Tasks
+  pages' titles, which now show breadcrumbs through nested folders; that's
+  where folders are made, renamed, deleted, pinned and put in order, and
+  where saved task views are opened. Task and document folders gain
+  `pinned`, set with `setTaskFolderPinned` and `setDocumentFolderPinned`.
+  Search finds task and document folders by title: `searchWorkspace` answers
+  `entity_kind` `taskFolder` and `documentFolder`, `cohesion search` lists
+  them and a script's `SearchResult.open()` returns the folder. The iPhone
+  app has to learn the two new kinds before it can read these search
+  results.
 - An agent can talk on a model of its own in place of the `agent` default.
   Pick it under More options in the agent's Edit dialog, or use
   `cohesion agent update <agent> --model <endpoint> <model>`

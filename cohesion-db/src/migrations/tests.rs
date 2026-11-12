@@ -3468,3 +3468,28 @@ fn folders_with_properties_become_tables_and_the_rest_lists() {
             .is_err()
     );
 }
+
+#[test]
+fn folders_already_there_are_indexed_by_title_unless_deleted() {
+    let mut db = migrated_before("folders_search");
+    db.connection()
+        .execute_batch(
+            "INSERT INTO workspaces (id, title) VALUES (1, 'w');
+             INSERT INTO task_folders (id, workspace_id, title, sort_order)
+                 VALUES (1, 1, 'Garden chores', 1);
+             INSERT INTO task_folders (id, workspace_id, title, sort_order, deleted)
+                 VALUES (2, 1, 'Garden gone', 2, TRUE);
+             INSERT INTO document_folders (id, workspace_id, title, sort_order)
+                 VALUES (1, 1, 'Garden plans', 1);",
+        )
+        .unwrap();
+    db.migrate().unwrap();
+
+    assert_eq!(
+        search(&db, "garden"),
+        [
+            ("documentFolder".to_string(), 1),
+            ("taskFolder".to_string(), 1)
+        ]
+    );
+}

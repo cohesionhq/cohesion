@@ -8,7 +8,7 @@ use crate::{
     DatabaseContext, DeleteDocumentCommand, DeleteDocumentFolderCommand, EnsureJournalCommand,
     GetDocumentCommand, ListDocumentFoldersCommand, ListDocumentsCommand,
     ListFiledDocumentsCommand, MoveDocumentCommand, MoveDocumentFolderCommand,
-    RenameDocumentFolderCommand,
+    RenameDocumentFolderCommand, SetDocumentFolderPinnedCommand,
 };
 
 fn workspace(db: &DatabaseContext, title: &str) -> i64 {
@@ -294,4 +294,51 @@ fn folders_stay_in_their_workspace_and_journals_stay_out() {
         })
         .unwrap();
     assert_eq!(all.len(), 2);
+}
+
+#[test]
+fn a_pinned_folder_lists_as_pinned_and_its_children_stay_unpinned() {
+    let db = context();
+    let ws = workspace(&db, "home");
+    let work = folder(&db, ws, "Work", None);
+    let specs = folder(&db, ws, "Specs", Some(work.id));
+    assert!(!work.pinned);
+
+    let pinned = db
+        .send_blocking(SetDocumentFolderPinnedCommand {
+            workspace_id: ws,
+            folder_id: work.id,
+            pinned: true,
+        })
+        .unwrap();
+    assert!(pinned.pinned);
+    let listed = db
+        .send_blocking(ListDocumentFoldersCommand { workspace_id: ws })
+        .unwrap();
+    let pin_of = |id: i64| listed.iter().find(|f| f.id == id).unwrap().pinned;
+    assert!(pin_of(work.id));
+    assert!(!pin_of(specs.id));
+
+    let unpinned = db
+        .send_blocking(SetDocumentFolderPinnedCommand {
+            workspace_id: ws,
+            folder_id: work.id,
+            pinned: false,
+        })
+        .unwrap();
+    assert!(!unpinned.pinned);
+}
+
+#[test]
+fn a_folder_of_another_workspace_cannot_be_pinned() {
+    let db = context();
+    let home = workspace(&db, "home");
+    let away = workspace(&db, "away");
+    let theirs = folder(&db, away, "Theirs", None);
+    let result = db.send_blocking(SetDocumentFolderPinnedCommand {
+        workspace_id: home,
+        folder_id: theirs.id,
+        pinned: true,
+    });
+    assert!(matches!(result, Err(CommandError::NotFound(_))));
 }

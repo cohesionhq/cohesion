@@ -68,6 +68,7 @@ impl Fixture {
                 sort_order: 0,
                 deleted: false,
                 representation: DocumentFolderRepresentation::List,
+                pinned: false,
             },
         };
         f.folder = f.new_folder("Books");

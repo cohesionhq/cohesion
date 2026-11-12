@@ -118,7 +118,8 @@ export function documentsHandlers(core: MockCore) {
 							.map((f) => f.sort_order)
 					) + 1,
 				deleted: false,
-				representation: 'list'
+				representation: 'list',
+				pinned: false
 			};
 			state.documentFolders.push(created);
 			return { ...created };
@@ -127,6 +128,11 @@ export function documentsHandlers(core: MockCore) {
 			requireTitle(title);
 			const f = documentFolder(workspace_id, folder_id);
 			f.title = title;
+			return listedFolder(f);
+		},
+		setDocumentFolderPinned: ({ workspace_id, folder_id, pinned }) => {
+			const f = documentFolder(workspace_id, folder_id);
+			f.pinned = pinned;
 			return listedFolder(f);
 		},
 		moveDocumentFolder: ({ workspace_id, folder_id, parent_id = null, before_id = null }) => {

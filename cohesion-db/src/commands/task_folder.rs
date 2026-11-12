@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use cohesion_core::invalidation::Invalidation;
 use cohesion_core::protocol::{
     CreateTaskFolderRequest, DeleteTaskFolderRequest, ListTaskFoldersRequest,
-    RenameTaskFolderRequest, ReorderTaskFoldersRequest,
+    RenameTaskFolderRequest, ReorderTaskFoldersRequest, SetTaskFolderPinnedRequest,
 };
 use cohesion_core::{FromRequest, Task, TaskFolder};
 
@@ -184,6 +184,31 @@ impl DatabaseCommand for RenameTaskFolderCommand {
             .db
             .update_live()
             .set(TaskFolder::TITLE, self.title)
+            .filter_eq(TaskFolder::WORKSPACE_ID, self.workspace_id)
+            .filter_eq(TaskFolder::ID, self.folder_id)
+            .returning_one()
+            .found()?;
+        Ok(folder.invalidating([Invalidation::TaskFolders(self.workspace_id)]))
+    }
+}
+
+/// Pins a live task folder to the sidebar, or unpins it.
+#[derive(FromRequest)]
+#[request(SetTaskFolderPinnedRequest)]
+pub struct SetTaskFolderPinnedCommand {
+    pub workspace_id: i64,
+    pub folder_id: i64,
+    pub pinned: bool,
+}
+impl DatabaseCommand for SetTaskFolderPinnedCommand {
+    type Response = TaskFolder;
+    type Access = Write;
+    fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<TaskFolder>> {
+        ensure_workspace(ctx.db, self.workspace_id)?;
+        let folder: TaskFolder = ctx
+            .db
+            .update_live()
+            .set(TaskFolder::PINNED, self.pinned)
             .filter_eq(TaskFolder::WORKSPACE_ID, self.workspace_id)
             .filter_eq(TaskFolder::ID, self.folder_id)
             .returning_one()

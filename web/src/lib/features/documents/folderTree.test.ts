@@ -23,7 +23,8 @@ const folder = (
 	title,
 	sort_order,
 	deleted: false,
-	representation
+	representation,
+	pinned: false
 });
 
 // Work › Plans › Old, and Home beside Work, listed out of order.

@@ -1,9 +1,10 @@
 <!--
 	⌘K palette, the way to every page: there are no chords that jump to one. Root mode lists routes
-	and actions, the current workspace's task folders and the kinds of resource its sidebar shows,
+	and actions, the kinds of resource its sidebar shows,
 	every settings section, every feed and every agent (drawn with its avatar), and the workspaces whose title matches (filtered
 	locally), then live search results
-	from the current workspace and among actor sessions; "New task" and "Switch workspace…" switch the palette into a sub-mode
+	from the current workspace (its documents, tasks, resources, contacts and folders, a document
+	folder drawn as a folder or a table and naming the folders holding it) and among actor sessions; "New task" and "Switch workspace…" switch the palette into a sub-mode
 	instead of opening another dialog. A pick opens in the half of the sheet in use; with ⌥ held it
 	opens in the split view's second half.
 -->
@@ -32,7 +33,9 @@
 	import Puzzle from '@lucide/svelte/icons/puzzle';
 	import Repeat from '@lucide/svelte/icons/repeat';
 	import Settings from '@lucide/svelte/icons/settings';
+	import Table2 from '@lucide/svelte/icons/table-2';
 	import { untrack, type Component } from 'svelte';
+	import { folderPath } from '$lib/features/documents/folderTree';
 	import { SECTIONS } from '$lib/features/settings/sections';
 	import { matchingLine, prefixQuery } from '$lib/format/search';
 	import { send } from '$lib/protocol/api';
@@ -55,7 +58,7 @@
 	import { toasts } from '$lib/ui/toasts.svelte';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 
-	const { agents, tasks } = pageStores();
+	const { agents, documents } = pageStores();
 
 	interface Props {
 		open?: boolean;
@@ -160,12 +163,6 @@
 					// The Tasks page opens its folder dialog for `?new=folder`.
 					run: () => go(`${routes.tasks(id)}?new=folder`)
 				},
-				...(tasks.folders.key === id ? tasks.folders.value : []).map((folder) => ({
-					id: `task-folder-${folder.id}`,
-					label: folder.title,
-					icon: Folder,
-					run: () => go(`${routes.tasks(id)}?view=${folder.id}`)
-				})),
 				...feeds.list.value.map((feed) => ({
 					id: `feed-${feed.id}`,
 					label: feed.title,
@@ -299,8 +296,22 @@
 		else if (result.entity_kind === 'resource') void openResource(result);
 		else if (result.entity_kind === 'contact')
 			go(routes.contact(result.workspace_id, result.entity_id));
+		else if (result.entity_kind === 'taskFolder')
+			go(`${routes.tasks(result.workspace_id)}?view=${result.entity_id}`);
+		else if (result.entity_kind === 'documentFolder')
+			go(routes.documentFolder(result.workspace_id, result.entity_id));
 		else go(routes.task(result.workspace_id, result.entity_id));
 	}
+
+	/** Where a folder hit sits: its page, then the folders holding a document folder. */
+	function folderPlace(result: SearchResult): string {
+		if (result.entity_kind === 'taskFolder') return 'Tasks';
+		const holding = folderPath(documents.folders.value, result.entity_id).slice(0, -1);
+		return ['Documents', ...holding.map((f) => f.title)].join(' › ');
+	}
+
+	const isTable = (result: SearchResult) =>
+		documents.folders.value.some((f) => f.id === result.entity_id && f.representation === 'table');
 
 	// Live search, debounced; a newer query drops older answers.
 	$effect(() => {
@@ -336,14 +347,15 @@
 		}, 150);
 	});
 
-	// Every open starts fresh at the root, with the folders and feeds it lists.
+	// Every open starts fresh at the root, with the feeds it lists and the document folders that
+	// say how a folder hit is drawn.
 	$effect(() => {
 		if (open) {
 			mode = 'root';
 			query = '';
 			results = [];
 			actorResults = [];
-			if (ws !== null) void untrack(() => tasks.folders.load(ws));
+			if (ws !== null) void untrack(() => documents.folders.load(ws));
 			void untrack(() => feeds.load());
 		}
 	});
@@ -460,11 +472,17 @@
 													<Layers size={15} strokeWidth={1.75} />
 												{:else if result.entity_kind === 'contact'}
 													<BookUser size={15} strokeWidth={1.75} />
+												{:else if result.entity_kind === 'documentFolder' && isTable(result)}
+													<Table2 size={15} strokeWidth={1.75} />
+												{:else if result.entity_kind === 'documentFolder' || result.entity_kind === 'taskFolder'}
+													<Folder size={15} strokeWidth={1.75} />
 												{:else}
 													<CheckSquare size={15} strokeWidth={1.75} />
 												{/if}
 												<span class={titleClass}>{result.title ?? result.contents}</span>
-												{#if result.title && result.contents}
+												{#if result.entity_kind === 'documentFolder' || result.entity_kind === 'taskFolder'}
+													<span class={snippetClass}>{folderPlace(result)}</span>
+												{:else if result.title && result.contents}
 													<span class={snippetClass}>{matchingLine(result.contents, query)}</span>
 												{/if}
 											</Command.Item>

@@ -12,7 +12,7 @@ export const MENTION_ROWS = 8;
 
 /**
  * The items in workspace `ws` (documents and journal entries, tasks,
- * resources, contacts), the agents among `agents` and the actor sessions matching
+ * resources, contacts, document folders), the agents among `agents` and the actor sessions matching
  * `text`. A search that fails offers nothing of its kind.
  */
 export async function searchMentions(
@@ -36,12 +36,21 @@ export async function searchMentions(
 				detail: word('agent'),
 				href: itemLinkHref({ kind: 'agent', ws: null, id: agent.id })
 			})),
-		...items.map((hit) => ({
-			label: hit.title ?? '',
-			detail:
-				hit.entity_kind === 'task' ? `${word('task')} #${hit.entity_id}` : word(hit.entity_kind),
-			href: itemLinkHref({ kind: hit.entity_kind, ws: hit.workspace_id, id: hit.entity_id })
-		})),
+		// A task folder has no link of its own, so it isn't offered.
+		...items.flatMap((hit) => {
+			if (hit.entity_kind === 'taskFolder') return [];
+			const kind = hit.entity_kind === 'documentFolder' ? 'document-folder' : hit.entity_kind;
+			return [
+				{
+					label: hit.title ?? '',
+					detail:
+						hit.entity_kind === 'task'
+							? `${word('task')} #${hit.entity_id}`
+							: word(hit.entity_kind),
+					href: itemLinkHref({ kind, ws: hit.workspace_id, id: hit.entity_id })
+				}
+			];
+		}),
 		...sessions.map((hit) => ({
 			label: hit.title,
 			detail: word('actorSession'),

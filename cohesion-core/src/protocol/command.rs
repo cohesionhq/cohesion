@@ -145,6 +145,9 @@ pub enum Command {
     /// Sets whether a document folder shows as a list or a table.
     #[reply(DocumentFolder)]
     SetDocumentFolderRepresentation(SetDocumentFolderRepresentationRequest),
+    /// Pins a document folder to the sidebar, or unpins it.
+    #[reply(DocumentFolder)]
+    SetDocumentFolderPinned(SetDocumentFolderPinnedRequest),
     /// Deletes a document folder and the folders inside it.
     #[reply(DocumentFolder)]
     DeleteDocumentFolder(DeleteDocumentFolderRequest),
@@ -227,6 +230,9 @@ pub enum Command {
     /// Retitles task folder `folder_id` in a workspace.
     #[reply(TaskFolder)]
     RenameTaskFolder(RenameTaskFolderRequest),
+    /// Pins a task folder to the sidebar, or unpins it.
+    #[reply(TaskFolder)]
+    SetTaskFolderPinned(SetTaskFolderPinnedRequest),
     /// Reorders a workspace's task folders; replies with them in their new order.
     #[reply(Vec<TaskFolder>)]
     ReorderTaskFolders(ReorderTaskFoldersRequest),

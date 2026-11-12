@@ -51,7 +51,8 @@ describe('embeds store', () => {
 					title: 'Books',
 					sort_order: 1,
 					deleted: false,
-					representation: 'table'
+					representation: 'table',
+					pinned: false
 				},
 				properties: [],
 				rows: [],

@@ -5060,6 +5060,76 @@ pub const MIGRATIONS: &[Migration] = &[
         sql: "ALTER TABLE intelligence_agents ADD COLUMN endpoint_model_id INTEGER
             REFERENCES endpoint_models(id) ON DELETE SET NULL;",
     },
+    // A task or document folder can be pinned to the sidebar; the rest are
+    // reached from their page's header.
+    Migration {
+        name: "folder_pinned",
+        sql: "ALTER TABLE task_folders ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT FALSE;
+        ALTER TABLE document_folders ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT FALSE;",
+    },
+    // Task and document folders are in search, by title, while they are
+    // live, so one search finds them with everything else.
+    Migration {
+        name: "folders_search",
+        sql: "
+        CREATE TRIGGER task_folders_search_ai AFTER INSERT ON task_folders WHEN new.deleted = 0
+        BEGIN
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                VALUES ('taskFolder', new.id, new.workspace_id);
+            INSERT INTO search_fts (rowid, title, contents)
+                VALUES (last_insert_rowid(), new.title, '');
+        END;
+        CREATE TRIGGER task_folders_search_ad AFTER DELETE ON task_folders BEGIN
+            DELETE FROM search_fts WHERE rowid =
+                (SELECT id FROM search_entries WHERE entity_kind = 'taskFolder' AND entity_id = old.id);
+            DELETE FROM search_entries WHERE entity_kind = 'taskFolder' AND entity_id = old.id;
+        END;
+        CREATE TRIGGER task_folders_search_au
+        AFTER UPDATE OF title, deleted, workspace_id ON task_folders BEGIN
+            DELETE FROM search_fts WHERE rowid =
+                (SELECT id FROM search_entries WHERE entity_kind = 'taskFolder' AND entity_id = old.id);
+            DELETE FROM search_entries WHERE entity_kind = 'taskFolder' AND entity_id = old.id;
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                SELECT 'taskFolder', new.id, new.workspace_id WHERE new.deleted = 0;
+            INSERT INTO search_fts (rowid, title, contents)
+                SELECT last_insert_rowid(), new.title, '' WHERE new.deleted = 0;
+        END;
+        CREATE TRIGGER document_folders_search_ai AFTER INSERT ON document_folders
+        WHEN new.deleted = 0
+        BEGIN
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                VALUES ('documentFolder', new.id, new.workspace_id);
+            INSERT INTO search_fts (rowid, title, contents)
+                VALUES (last_insert_rowid(), new.title, '');
+        END;
+        CREATE TRIGGER document_folders_search_ad AFTER DELETE ON document_folders BEGIN
+            DELETE FROM search_fts WHERE rowid = (SELECT id FROM search_entries
+                WHERE entity_kind = 'documentFolder' AND entity_id = old.id);
+            DELETE FROM search_entries WHERE entity_kind = 'documentFolder' AND entity_id = old.id;
+        END;
+        CREATE TRIGGER document_folders_search_au
+        AFTER UPDATE OF title, deleted, workspace_id ON document_folders BEGIN
+            DELETE FROM search_fts WHERE rowid = (SELECT id FROM search_entries
+                WHERE entity_kind = 'documentFolder' AND entity_id = old.id);
+            DELETE FROM search_entries WHERE entity_kind = 'documentFolder' AND entity_id = old.id;
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                SELECT 'documentFolder', new.id, new.workspace_id WHERE new.deleted = 0;
+            INSERT INTO search_fts (rowid, title, contents)
+                SELECT last_insert_rowid(), new.title, '' WHERE new.deleted = 0;
+        END;
+        INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+            SELECT 'taskFolder', id, workspace_id FROM task_folders WHERE deleted = 0;
+        INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+            SELECT 'documentFolder', id, workspace_id FROM document_folders WHERE deleted = 0;
+        INSERT INTO search_fts (rowid, title, contents)
+            SELECT entry.id, f.title, '' FROM search_entries AS entry
+            INNER JOIN task_folders AS f ON f.id = entry.entity_id
+            WHERE entry.entity_kind = 'taskFolder';
+        INSERT INTO search_fts (rowid, title, contents)
+            SELECT entry.id, f.title, '' FROM search_entries AS entry
+            INNER JOIN document_folders AS f ON f.id = entry.entity_id
+            WHERE entry.entity_kind = 'documentFolder';",
+    },
 ];
 
 #[cfg(test)]

@@ -4,11 +4,12 @@
 	rail. <600px: a top bar. Labels stay in the DOM (visually hidden) so the
 	rail and bar keep accessible names. It sits on the window's canvas,
 	beside the page's sheet. The workspace's name heads it, Search an icon
-	beside it. In the column, the workspace's document folders sit a step in
-	under Documents (nested ones a step further, a table marked as one) and
-	its Inbox and task folders under Tasks, always shown, following the order
-	and titles their pages give them; an open folder reads as current in place
-	of its page. Every agent has its own link, drawn with its avatar and its
+	beside it. In the column, the workspace's pinned document folders sit a step in
+	under Documents (each with a folder's icon, or a table's) and its pinned task folders under
+	Tasks, in the order their pages give them; an open folder reads as current
+	in place of its page, a document dropped on one is filed there, and each
+	unpins on hover. Every folder is reached, pinned and managed from its page's
+	heading (`FolderHeading`). Every agent has its own link, drawn with its avatar and its
 	name shimmering while it works, and in the column an eye that opens beside the pin
 	and blinks twice every 5 seconds, in step with every other, while it
 	follows actor sessions not yet resolved, with how many:
@@ -32,6 +33,7 @@
 	import CheckSquare from '@lucide/svelte/icons/square-check';
 	import Eye from '@lucide/svelte/icons/eye';
 	import FileText from '@lucide/svelte/icons/file-text';
+	import Folder from '@lucide/svelte/icons/folder';
 	import Table2 from '@lucide/svelte/icons/table-2';
 	import Archive from '@lucide/svelte/icons/archive';
 	import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
@@ -59,6 +61,7 @@
 	} from '$lib/protocol/types';
 	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 	import { routes } from '$lib/shell/routes';
+	import { DocumentFolderDrag } from '$lib/shell/documentFolderDrag.svelte';
 	import { documentFolderRows, taskFolderRows, type FolderRow } from '$lib/shell/sidebarFolders';
 	import { isGoing } from '$lib/stores/actors.svelte';
 	import type { ConnectorKind } from '$lib/stores/connectors.svelte';
@@ -94,6 +97,10 @@
 		documentFolders: DocumentFolder[];
 		/** The workspace's task folders, in their order. */
 		taskFolders: TaskFolder[];
+		/** Unpins a folder from the sidebar. */
+		onunpinfolder: (kind: 'documents' | 'tasks', folder_id: number) => void;
+		/** Files a dragged document in `folder_id`. */
+		onfiledocument: (document_id: number, folder_id: number | null) => void;
 		/** Resolves an actor session: the user is done with it. */
 		onresolve: (session: ActorSession) => void;
 		onsearch: () => void;
@@ -120,6 +127,8 @@
 		kinds,
 		documentFolders,
 		taskFolders,
+		onunpinfolder,
+		onfiledocument,
 		onresolve,
 		onsearch,
 		onchoosekinds,
@@ -182,8 +191,19 @@
 		(ids) => onreorderkinds(ids)
 	);
 
+	// A pinned document folder takes a dropped document; folders move in the Documents page's switcher.
+	const documentDrag = new DocumentFolderDrag(
+		() => documentFolders,
+		() => {},
+		(document_id, folder_id) => onfiledocument(document_id, folder_id)
+	);
+	const documentById = (id: number) => documentFolders.find((f) => f.id === id);
+
 	interface Link {
+		/** The page the link is current on. */
 		href: string;
+		/** Where it goes when that isn't `href` itself, e.g. a view of the page. */
+		to?: string;
 		label: string;
 		icon: Component;
 		/** Marks the link with a dot, e.g. for unread messages. */
@@ -200,6 +220,8 @@
 	);
 
 	interface WorkspaceLink extends Link {
+		/** What its folders are, when it has them. */
+		kind?: 'documents' | 'tasks';
 		/** The folders that sit under it. */
 		children?: FolderRow[];
 	}
@@ -214,9 +236,18 @@
 				href: routes.documents(workspaceId),
 				label: 'Documents',
 				icon: FileText,
+				kind: 'documents',
 				children: documentRows
 			},
-			{ href: routes.tasks(workspaceId), label: 'Tasks', icon: CheckSquare, children: taskRows },
+			{
+				href: routes.tasks(workspaceId),
+				// Always All, not the view last shown; the switcher in its heading reaches the rest.
+				to: `${routes.tasks(workspaceId)}?view=all`,
+				label: 'Tasks',
+				icon: CheckSquare,
+				kind: 'tasks',
+				children: taskRows
+			},
 			{ href: routes.articles(workspaceId), label: 'Articles', icon: Newspaper },
 			{ href: routes.contacts(workspaceId), label: 'Contacts', icon: BookUser }
 		];
@@ -327,7 +358,7 @@
 	{@const current = active(link.href) && !childCurrent}
 	<a
 		class={[linkClass, linkState(current)]}
-		href={link.href}
+		href={link.to ?? link.href}
 		aria-current={current ? 'page' : undefined}
 	>
 		<Icon size={16} strokeWidth={1.75} />
@@ -337,33 +368,59 @@
 	</a>
 {/snippet}
 
-<!-- The folders under Documents or Tasks: a step in, text only, with a rule down the left
-     joining them to their page, a nested folder a step further. Hidden on the rail and the top bar,
-     which keep only the page's icon. -->
-{#snippet folderLinks(rows: FolderRow[])}
+<!-- The pinned folders under Documents or Tasks: a step in, each led by a folder's icon (a table's
+     for a table), with a rule down the left joining them to their page. A document dropped on a document folder is filed there; the pin on
+     hover unpins it. Hidden on the rail and the top bar, which keep only the page's icon. -->
+{#snippet folderLinks(kind: 'documents' | 'tasks', rows: FolderRow[])}
 	<div class="relative ml-4 flex flex-col gap-px pl-2.5 max-md:hidden">
 		<span class="absolute top-0.5 bottom-0.5 left-0 w-px bg-border" aria-hidden="true"></span>
 		{#each rows as row (row.key)}
-			<a
+			{@const doc = kind === 'documents' ? documentById(row.id) : undefined}
+			<div
 				class={[
-					'relative flex h-6.5 items-center gap-2 rounded-sm px-2 text-left text-xs no-underline hover:bg-bg-hover hover:text-fg hover:no-underline',
-					row.current ? 'bg-current-item font-medium text-fg' : 'text-fg-muted'
+					'group/folder relative flex rounded-sm',
+					doc && documentDrag.drop?.target === doc.id && 'bg-bg-hover ring-1 ring-accent ring-inset'
 				]}
-				style:padding-left="calc(var(--spacing) * 2 + {row.depth * 12}px)"
-				href={row.href}
-				aria-current={row.current ? 'page' : undefined}
+				role="presentation"
+				ondragover={(e) => doc && documentDrag.over(e, doc)}
+				ondragleave={(e) => doc && documentDrag.leave(e)}
+				ondrop={(e) => doc && documentDrag.dropOn(e, doc)}
 			>
-				<span class="truncate">{row.label}</span>
-				{#if row.table}
-					<span class="sr-only">, table</span>
-					<Table2
-						class="ml-auto flex-none text-fg-subtle"
-						size={12}
-						strokeWidth={1.75}
-						aria-hidden="true"
-					/>
-				{/if}
-			</a>
+				<a
+					class={[
+						'flex h-6.5 min-w-0 flex-1 items-center gap-2 rounded-sm px-2 text-left text-xs no-underline group-focus-within/folder:pr-7 group-hover/folder:pr-7 hover:bg-bg-hover hover:text-fg hover:no-underline touch:pr-7',
+						row.current ? 'bg-current-item font-medium text-fg' : 'text-fg-muted'
+					]}
+					href={row.href}
+					aria-current={row.current ? 'page' : undefined}
+				>
+					{#if row.table}
+						<Table2
+							class="flex-none text-fg-subtle"
+							size={12}
+							strokeWidth={1.75}
+							aria-hidden="true"
+						/>
+						<span class="sr-only">Table: </span>
+					{:else}
+						<Folder
+							class="flex-none text-fg-subtle"
+							size={12}
+							strokeWidth={1.75}
+							aria-hidden="true"
+						/>
+					{/if}
+					<span class="truncate">{row.label}</span>
+				</a>
+				<button
+					class="absolute top-1/2 right-1 flex size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm text-fg-subtle opacity-0 group-focus-within/folder:opacity-100 group-hover/folder:opacity-100 hover:text-fg touch:opacity-100"
+					type="button"
+					aria-label="Unpin {row.label}"
+					onclick={() => onunpinfolder(kind, row.id)}
+				>
+					<PinOff size={12} strokeWidth={1.75} aria-hidden="true" />
+				</button>
+			</div>
 		{/each}
 	</div>
 {/snippet}
@@ -567,7 +624,10 @@
 				{#each workspaceLinks as link (link.label)}
 					{@const childCurrent = link.children?.some((row) => row.current) ?? false}
 					{@render navLink(link, childCurrent)}
-					{#if link.children?.length}{@render folderLinks(link.children)}{/if}
+					{#if link.kind && link.children?.length}{@render folderLinks(
+							link.kind,
+							link.children
+						)}{/if}
 				{/each}
 			</div>
 			{#if workspaceId !== null}

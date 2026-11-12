@@ -134,6 +134,15 @@ pub struct SetDocumentFolderRepresentationRequest {
     pub representation: DocumentFolderRepresentation,
 }
 
+/// Pins document folder `folder_id` in a workspace to the sidebar, or unpins
+/// it. The folders inside it are left as they are.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct SetDocumentFolderPinnedRequest {
+    pub workspace_id: i64,
+    pub folder_id: i64,
+    pub pinned: bool,
+}
+
 /// Deletes document folder `folder_id` in a workspace and every folder
 /// inside it; the documents they held move to the Inbox.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]

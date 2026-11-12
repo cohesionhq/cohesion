@@ -668,7 +668,8 @@ export function seed(): MockState {
 				title: 'Design',
 				sort_order: 1,
 				deleted: false,
-				representation: 'list'
+				representation: 'list',
+				pinned: true
 			},
 			{
 				id: 2,
@@ -677,7 +678,8 @@ export function seed(): MockState {
 				title: 'Research',
 				sort_order: 2,
 				deleted: false,
-				representation: 'list'
+				representation: 'list',
+				pinned: false
 			},
 			{
 				id: 3,
@@ -686,17 +688,25 @@ export function seed(): MockState {
 				title: 'Search',
 				sort_order: 1,
 				deleted: false,
-				representation: 'list'
+				representation: 'list',
+				pinned: true
 			}
 		],
 		folders: [
-			{ id: 1, workspace_id: 1, title: 'Core', sort_order: 1, deleted: false },
-			{ id: 2, workspace_id: 1, title: 'WebUI', sort_order: 2, deleted: false },
-			{ id: 3, workspace_id: 1, title: 'Plus', sort_order: 3, deleted: false },
-			{ id: 4, workspace_id: 1, title: 'Cloud', sort_order: 4, deleted: false },
-			{ id: 5, workspace_id: 1, title: 'JavaScript', sort_order: 5, deleted: false },
-			{ id: 6, workspace_id: 1, title: 'WebUI Harnesses', sort_order: 6, deleted: false },
-			{ id: 7, workspace_id: 2, title: 'PCO', sort_order: 1, deleted: false }
+			{ id: 1, workspace_id: 1, title: 'Core', pinned: true, sort_order: 1, deleted: false },
+			{ id: 2, workspace_id: 1, title: 'WebUI', pinned: true, sort_order: 2, deleted: false },
+			{ id: 3, workspace_id: 1, title: 'Plus', pinned: false, sort_order: 3, deleted: false },
+			{ id: 4, workspace_id: 1, title: 'Cloud', pinned: false, sort_order: 4, deleted: false },
+			{ id: 5, workspace_id: 1, title: 'JavaScript', pinned: false, sort_order: 5, deleted: false },
+			{
+				id: 6,
+				workspace_id: 1,
+				title: 'WebUI Harnesses',
+				pinned: false,
+				sort_order: 6,
+				deleted: false
+			},
+			{ id: 7, workspace_id: 2, title: 'PCO', pinned: false, sort_order: 1, deleted: false }
 		],
 		tasks: [
 			{
@@ -1264,7 +1274,8 @@ export function seedTables(state: MockState) {
 			title,
 			sort_order: folder_id,
 			deleted: false,
-			representation: 'table'
+			representation: 'table',
+			pinned: false
 		});
 		const first = state.folderProperties.length + 1;
 		const properties = columns.map(([name, data_type, formula, update_mode], i) =>

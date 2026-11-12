@@ -53,7 +53,7 @@ cohesion task folder                 # list folders, or `create`, `delete`
 cohesion tag list                    # list tags, or `create`, `rename`, `delete`
 cohesion article                     # what your feeds brought in, or `show <id|title>` to print a page's text
 cohesion article feed add https://example.com/feed.xml  # every workspace shares feeds
-cohesion search dentist              # documents, tasks, resources and contacts
+cohesion search dentist              # documents, tasks, resources, contacts and folders
 cohesion run script.js               # run a script in cohesiond and print its result
 cohesion script new script.js        # write a starter script and cohesion.d.ts
 cohesion mcp                         # serve MCP on stdin and stdout, for an MCP client to start

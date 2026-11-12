@@ -49,6 +49,13 @@ export function linksHandlers(core: MockCore) {
 						[c.first_name, c.middle_name, c.last_name].filter(Boolean).join(' '),
 						c.notes
 					);
+			// Folders by title alone.
+			for (const f of state.folders)
+				if (f.workspace_id === workspace_id && !f.deleted)
+					consider('taskFolder', f.id, f.title, '');
+			for (const f of state.documentFolders)
+				if (f.workspace_id === workspace_id && !f.deleted)
+					consider('documentFolder', f.id, f.title, '');
 			return hits
 				.sort((a, b) => Number(b.title) - Number(a.title))
 				.map(({ result }, index) => ({ ...result, id: index + 1 }));

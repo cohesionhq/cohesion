@@ -189,6 +189,14 @@ pub struct RenameTaskFolderRequest {
     pub title: String,
 }
 
+/// Pins task folder `folder_id` in a workspace to the sidebar, or unpins it.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct SetTaskFolderPinnedRequest {
+    pub workspace_id: i64,
+    pub folder_id: i64,
+    pub pinned: bool,
+}
+
 /// Lists a workspace's saved task views, in their order.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct ListSavedTaskViewsRequest {

@@ -32,6 +32,8 @@
 	import ConversationGutter from '$lib/shell/ConversationGutter.svelte';
 	import WorkingMark from '$lib/shell/WorkingMark.svelte';
 
+	import FolderDialogs from '$lib/shell/FolderDialogs.svelte';
+	import DocumentMover from '$lib/features/documents/DocumentMover.svelte';
 	import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
 	import type { ActorSession } from '$lib/protocol/types';
 	import { isGoing } from '$lib/stores/actors.svelte';
@@ -44,7 +46,24 @@
 	import { planOf } from '$lib/features/actors/plan';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 
-	const { actors, agents, resources, documents, tasks } = pageStores();
+	const { actors, agents, resources, documents, tasks, tables } = pageStores();
+	let mover = $state<DocumentMover>();
+
+	/** Files a dropped document, or a table's row, through the mover. */
+	function fileDocument(document_id: number, folder_id: number | null) {
+		const ws = workspaces.currentId;
+		if (ws === null) return;
+		const row = tables.rows.value.find((r) => r.document_id === document_id);
+		const doc =
+			documents.list.value.find((d) => d.id === document_id) ??
+			(row && {
+				workspace_id: ws,
+				id: row.document_id,
+				folder_id: row.folder_id,
+				title: row.title
+			});
+		if (doc) void mover?.move(doc, folder_id);
+	}
 	let resolvingSession = $state<ActorSession | null>(null);
 
 	let { children }: { children: Snippet } = $props();
@@ -124,11 +143,13 @@
 	$effect(() => {
 		if (workspaces.currentId !== null) void resources.shownKinds.load(workspaces.currentId);
 	});
-	// The sidebar lists the current workspace's document and task folders.
+	// The sidebar lists the current workspace's pinned document and task folders; the Tasks
+	// page's switcher, its saved views.
 	$effect(() => {
 		if (workspaces.currentId === null) return;
 		void documents.folders.load(workspaces.currentId);
 		void tasks.folders.load(workspaces.currentId);
+		void tasks.views.load(workspaces.currentId);
 	});
 	const shownKinds = $derived.by(() => {
 		const available = new Map(connectors.kinds.map((entry) => [entry.kind.id, entry]));
@@ -284,6 +305,12 @@
 				? documents.folders.value
 				: []}
 			taskFolders={tasks.folders.key === workspaces.currentId ? tasks.folders.value : []}
+			onunpinfolder={(kind, id) =>
+				workspaces.currentId !== null &&
+				(kind === 'documents' ? documents : tasks)
+					.setFolderPinned(workspaces.currentId, id, false)
+					.catch((e) => toasts.error(e))}
+			onfiledocument={fileDocument}
 			onresolve={resolveSession}
 			onsearch={() => (paletteOpen = true)}
 			onchoosekinds={() => (choosingKinds = true)}
@@ -341,6 +368,8 @@
 			{/if}
 		</ConversationGutter>
 	</div>
+	<FolderDialogs />
+	<DocumentMover bind:this={mover} onmoved={(doc) => tables.took(doc)} />
 	<Palette bind:open={paletteOpen} kinds={shownKinds} />
 	{#if workspaces.currentId !== null}
 		<ShowKindsDialog

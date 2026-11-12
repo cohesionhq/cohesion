@@ -235,6 +235,13 @@ export class DocumentsStore {
 			this.folders.update((list) => list.map((f) => (f.id === folder.id ? folder : f)));
 	}
 
+	/** Pins a folder to the sidebar, or unpins it. */
+	async setFolderPinned(workspace_id: number, folder_id: number, pinned: boolean): Promise<void> {
+		const folder = await this.#send('setDocumentFolderPinned', { workspace_id, folder_id, pinned });
+		if (this.folders.key === workspace_id)
+			this.folders.update((list) => list.map((f) => (f.id === folder.id ? folder : f)));
+	}
+
 	/** Moves a folder into `parent_id` (the top level when null), before `before_id` or last. */
 	async moveFolder(
 		workspace_id: number,
