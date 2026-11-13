@@ -53,13 +53,20 @@ pub enum NetworkBodyEncoding {
 #[derive(JsOptions)]
 pub struct NetworkFetchOptions {
     pub url: String,
-    pub method: NetworkMethod,
+    /// The HTTP method: a `NetworkMethod` value, or any other method token such
+    /// as `"PROPFIND"`, `"REPORT"` or `"MKCALENDAR"`. Case matters, and a
+    /// method is conventionally upper case.
+    pub method: String,
     pub headers: Option<HashMap<String, String>>,
-    /// Sent as JSON. Leave it out when sending `formBody`.
+    /// Sent as JSON. Leave it out when sending `formBody` or `textBody`.
     pub json_body: Option<serde_json::Value>,
     /// Sent as a URL-encoded form, as OAuth token endpoints take it. Leave
-    /// it out when sending `jsonBody`.
+    /// it out when sending `jsonBody` or `textBody`.
     pub form_body: Option<HashMap<String, String>>,
+    /// Sent as is, as UTF-8 text: XML for WebDAV, iCalendar, plain text.
+    /// Set the `Content-Type` in `headers`; none is added. Leave it out when
+    /// sending `jsonBody` or `formBody`.
+    pub text_body: Option<String>,
     /// How to return the response's body; text when left out.
     pub encoding: Option<NetworkBodyEncoding>,
 }
@@ -73,7 +80,7 @@ pub struct NetworkGlobal {
 #[js_global("network")]
 #[rquickjs::methods]
 impl NetworkGlobal {
-    /// Sends one HTTP request and returns its response. Throws only when no
+    /// Sends one HTTP request, with any method, and returns its response. Throws only when no
     /// response arrives (DNS, connection, a 20-second timeout, or the
     /// script's own time running out) or the body is over 32 MiB; an error
     /// status such as 404 is returned like any other.
@@ -84,13 +91,15 @@ impl NetworkGlobal {
     ) -> rquickjs::Result<NetworkResponse> {
         let deadline = ScriptDeadline::remaining_until(&ctx)?;
         let encoding = options.encoding.unwrap_or(NetworkBodyEncoding::Text);
-        let method = match options.method {
-            NetworkMethod::Get => Method::GET,
-            NetworkMethod::Post => Method::POST,
-            NetworkMethod::Put => Method::PUT,
-            NetworkMethod::Patch => Method::PATCH,
-            NetworkMethod::Delete => Method::DELETE,
-        };
+        let method = Method::from_bytes(options.method.as_bytes()).map_err(|_| {
+            Exception::throw_type(
+                &ctx,
+                &format!(
+                    "`{}` is not a valid HTTP method; use a token such as \"GET\" or \"PROPFIND\".",
+                    options.method
+                ),
+            )
+        })?;
 
         // The client's own timeout is the ceiling; the script's remaining
         // time is the tighter bound when it is shorter.
@@ -104,16 +113,17 @@ impl NetworkGlobal {
                 request = request.header(header, value);
             }
         }
-        request = match (options.json_body, options.form_body) {
-            (Some(_), Some(_)) => {
+        request = match (options.json_body, options.form_body, options.text_body) {
+            (None, None, None) => request,
+            (Some(json_body), None, None) => request.json(&json_body),
+            (None, Some(form_body), None) => request.form(&form_body),
+            (None, None, Some(text_body)) => request.body(text_body),
+            _ => {
                 return Err(Exception::throw_type(
                     &ctx,
-                    "Send either `jsonBody` or `formBody`, not both.",
+                    "Send only one of `jsonBody`, `formBody` and `textBody`.",
                 ));
             }
-            (Some(json_body), None) => request.json(&json_body),
-            (None, Some(form_body)) => request.form(&form_body),
-            (None, None) => request,
         };
 
         match request
