@@ -1,5 +1,5 @@
 // The stores that hold what a page shows (an open task list, document,
-// table, conversation or actor session, a workspace's tags or contacts), one set for each half of
+// table, conversation, actor session or calendar's days, a workspace's tags or contacts), one set for each half of
 // the sheet, so two pages of the same kind side by side each have their own.
 // A component takes its half's with `pageStores()`; the shell (sidebar, ⌘K,
 // the linked-item panel), drawn outside both halves, gets the main half's.
@@ -12,6 +12,7 @@ import type { Send } from '$lib/protocol/types';
 import { createActorsStore, type ActorsStore } from './actors.svelte';
 import { createAgentsStore, type AgentsStore } from './agents.svelte';
 import { createArticlesStore, type ArticlesStore } from './articles.svelte';
+import { createCalendarEventsStore, type CalendarEventsStore } from './calendars.svelte';
 import { createContactsStore, type ContactsStore } from './contacts.svelte';
 
 import { createDocumentsStore, type DocumentsStore } from './documents.svelte';
@@ -28,6 +29,7 @@ export interface PageStores {
 	actors: ActorsStore;
 	agents: AgentsStore;
 	articles: ArticlesStore;
+	calendarEvents: CalendarEventsStore;
 	contacts: ContactsStore;
 	documents: DocumentsStore;
 	journal: JournalStore;
@@ -44,6 +46,7 @@ export function createPageStores(send: Send = defaultSend): PageStores {
 		actors: createActorsStore(send),
 		agents: createAgentsStore(send),
 		articles: createArticlesStore(send),
+		calendarEvents: createCalendarEventsStore(send),
 		contacts: createContactsStore(send),
 		documents: createDocumentsStore(send),
 		journal: createJournalStore(send),

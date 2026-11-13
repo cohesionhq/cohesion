@@ -16,6 +16,7 @@
 	import History from '@lucide/svelte/icons/history';
 	import Cable from '@lucide/svelte/icons/cable';
 	import CalendarDays from '@lucide/svelte/icons/calendar-days';
+	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import CheckSquare from '@lucide/svelte/icons/square-check';
 	import FilePlus from '@lucide/svelte/icons/file-plus';
 	import FileText from '@lucide/svelte/icons/file-text';
@@ -131,6 +132,12 @@
 					run: () => go(routes.documents(id))
 				},
 				{ id: 'tasks', label: 'Tasks', icon: CheckSquare, run: () => go(routes.tasks(id)) },
+				{
+					id: 'calendar',
+					label: 'Calendar',
+					icon: CalendarIcon,
+					run: () => go(routes.calendar(id))
+				},
 				{ id: 'articles', label: 'Articles', icon: Newspaper, run: () => go(routes.articles(id)) },
 				{ id: 'contacts', label: 'Contacts', icon: BookUser, run: () => go(routes.contacts(id)) },
 				{ id: 'rewind', label: 'Rewind', icon: History, run: () => go(routes.rewind(id)) },
@@ -287,6 +294,8 @@
 			go(routes.documentFolder(result.workspace_id, result.entity_id));
 		else if (result.entity_kind === 'feed')
 			go(routes.articles(result.workspace_id, viewParam({ feed: result.entity_id })));
+		else if (result.entity_kind === 'calendarEvent')
+			go(routes.calendarEvent(result.workspace_id, result.entity_id));
 		else go(routes.task(result.workspace_id, result.entity_id));
 	}
 
@@ -325,9 +334,7 @@
 			if (id !== null)
 				void answer(
 					send('searchWorkspace', { workspace_id: id, query: fts }),
-					// The web UI has no page for a calendar event yet, so its hits aren't offered.
-					(found) =>
-						(results = found.filter((hit) => hit.entity_kind !== 'calendarEvent').slice(0, 12))
+					(found) => (results = found.slice(0, 12))
 				);
 			else results = [];
 			void answer(
@@ -458,6 +465,8 @@
 													<Folder size={15} strokeWidth={1.75} />
 												{:else if result.entity_kind === 'feed'}
 													<Rss size={15} strokeWidth={1.75} />
+												{:else if result.entity_kind === 'calendarEvent'}
+													<CalendarIcon size={15} strokeWidth={1.75} />
 												{:else}
 													<CheckSquare size={15} strokeWidth={1.75} />
 												{/if}

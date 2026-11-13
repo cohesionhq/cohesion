@@ -42,6 +42,7 @@
 	import AgentGutter from '$lib/features/agents/AgentGutter.svelte';
 	import SessionGutter from '$lib/features/actors/SessionGutter.svelte';
 	import ConversationGutter from '$lib/shell/ConversationGutter.svelte';
+	import CalendarList from '$lib/features/calendar/CalendarList.svelte';
 	import WorkingMark from '$lib/shell/WorkingMark.svelte';
 
 	import FolderDialogs from '$lib/shell/FolderDialogs.svelte';
@@ -124,6 +125,9 @@
 		gutterAgent = agent;
 		gutterSession = session;
 	});
+
+	/** The calendar page is open in the main half: the column lists its calendars. */
+	const gutterCalendar = $derived(page.route.id === '/w/[ws]/calendar');
 
 	// The route owns the current workspace; remember it for the next visit.
 	$effect(() => {
@@ -443,8 +447,13 @@
 				<SplitView split={panes.split} onsearch={() => (paletteOpen = true)} />
 			{/if}
 		</div>
-		<ConversationGutter open={gutterAgent !== null || gutterSession !== null}>
-			{#if gutterAgent}
+		<ConversationGutter
+			open={gutterAgent !== null || gutterSession !== null || gutterCalendar}
+			label={gutterCalendar ? 'Calendars' : undefined}
+		>
+			{#if gutterCalendar}
+				<CalendarList summary />
+			{:else if gutterAgent}
 				{@const agentId = gutterAgent.id}
 				<AgentGutter
 					agent={gutterAgent}

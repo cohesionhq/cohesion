@@ -6,6 +6,7 @@ import type {
 	ActorMessageContent,
 	ActorSessionMessage,
 	CalendarEvent,
+	IntelligenceAgentColor,
 	ActorSessionMessageContent,
 	AgentChoice,
 	AgentCodeExecution,
@@ -1249,32 +1250,80 @@ export const CONTACT_PHOTO: Photo = {
 		'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAACAklEQVR42tXPWVLCUBCF4bM6F+FyXE6QSUAIMgkBAoEwyCguwGVIeTF1DRBC91XSVd9rV/8HlvshGqz+TjSk+jvRkOrtRMNj7100pLvvoskfkHG2oiHrbEVDtrMVDbnORjTk2hvRkG9vRMPT61q0Pxnw6VjnmB9QaK0NikjXGfyIYmttRMx0nZG/+wErPkL9zwbua5SaKyZyvcL8Ln/Ac2PJwaxXOAEoN5YcRgZwAlCuL8mM1B82UBtQqS/IDA4gN8CuLcgMDiA3yB9QfXkjMziA3CB/wEv1jczgAHIDatU5mcEB5AbU7DmZyQHUBtTtOYeRek4AGvacw8gATgAalRkTt573Hc3KjIk5gPkdzfKM6e7+gVy/v2V+R6s8Jdu/D9DqA+QGvD5PCfTfhBnnzgklMFgfZ8bF26sHtEuTq1ws4LuqB53SJL5/qFfiJ6FTnMTxb+m/ZsQIg1P047jJgDhhcAr+RTepP2y41IZuwY92w3olOg+9p3GEm9crEYVIfn30BvTz43MSNeBcJNz8+KRE1SsnO/cDRiclcsCJTgxyo2MJrFeOU+UPGGa9kMTWK6FaeFkvJOEDQrXwMp4u4fWHDVowRpmhTsQAPRjj9FAnYoAeDHH1oQ3wHwcBQQOCZvkDJqlBQNCAoBnTlKsIqldUNqaWq8gb8J2NmeUq4gao7C92itymzsyHpAAAAABJRU5ErkJggg=='
 };
 
-/** One local store with a calendar, and two events on it today. */
+/**
+ * A local store with two calendars, and an account's store (synced an hour
+ * ago) with a calendar and a read-only one of holidays. Events through this
+ * week: overlapping ones today, an all-day one over three days, one with
+ * invitees, and a holiday.
+ */
 export function seedCalendars(
 	now: number
 ): Pick<MockState, 'calendarStores' | 'calendars' | 'calendarEvents'> {
-	const today = localMidnight(0);
-	const event = (id: number, title: string, hour: number, location: string): CalendarEvent => ({
-		id,
-		calendar_id: 1,
+	const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+	const base = {
 		deleted: false,
-		title,
-		location,
+		location: '',
 		description: '',
-		timing: {
-			kind: 'timed',
-			starts_at: today + hour * 3_600,
-			ends_at: today + (hour + 1) * 3_600,
-			time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone
-		},
 		invitees: [],
 		color: null,
 		remote_identifier: null,
 		remote_modified: null,
 		pending_push: false,
 		revision: 0,
-		created_at: now - 86_400,
-		modified: now - 86_400
+		created_at: now - DAY,
+		modified: now - DAY
+	};
+	/** A timed event `day` days from today, from `from` to `to` in hours. */
+	const timed = (
+		id: number,
+		calendar_id: number,
+		title: string,
+		day: number,
+		from: number,
+		to: number,
+		more: Partial<CalendarEvent> = {}
+	): CalendarEvent => ({
+		...base,
+		id,
+		calendar_id,
+		title,
+		timing: {
+			kind: 'timed',
+			starts_at: localMidnight(-day) + from * 3_600,
+			ends_at: localMidnight(-day) + to * 3_600,
+			time_zone: zone
+		},
+		...more
+	});
+	const allDay = (
+		id: number,
+		calendar_id: number,
+		title: string,
+		from: number,
+		to: number
+	): CalendarEvent => ({
+		...base,
+		id,
+		calendar_id,
+		title,
+		timing: { kind: 'allDay', start_date: dayIn(from), end_date: dayIn(to) }
+	});
+	const calendar = (
+		id: number,
+		store_id: number,
+		title: string,
+		color: { hex: string; nearest: IntelligenceAgentColor },
+		read_only = false
+	) => ({
+		id,
+		store_id,
+		deleted: false,
+		title,
+		color,
+		remote_identifier: store_id === 2 ? `cal-${id}` : null,
+		read_only,
+		created_at: now - 7 * DAY,
+		modified: now - 7 * DAY
 	});
 	return {
 		calendarStores: [
@@ -1284,23 +1333,44 @@ export function seedCalendars(
 				backend: { kind: 'local' },
 				last_synced_at: null,
 				sync_failure: null,
-				created_at: now - 7 * 86_400
+				created_at: now - 7 * DAY
+			},
+			{
+				id: 2,
+				title: 'sam@example.com',
+				backend: { kind: 'account', account_id: 1 },
+				last_synced_at: now - 3_600,
+				sync_failure: null,
+				created_at: now - 7 * DAY
 			}
 		],
 		calendars: [
-			{
-				id: 1,
-				store_id: 1,
-				deleted: false,
-				title: 'Home',
-				color: { hex: '#3d8a8a', nearest: 'teal' },
-				remote_identifier: null,
-				read_only: false,
-				created_at: now - 7 * 86_400,
-				modified: now - 7 * 86_400
-			}
+			calendar(1, 1, 'Home', { hex: '#3d8a8a', nearest: 'teal' }),
+			calendar(2, 1, 'Fitness', { hex: '#c4702e', nearest: 'orange' }),
+			calendar(3, 2, 'Work', { hex: '#4a6fb5', nearest: 'blue' }),
+			calendar(4, 2, 'Holidays', { hex: '#2e8b57', nearest: 'green' }, true)
 		],
-		calendarEvents: [event(1, 'Dentist', 10, 'High Street'), event(2, 'Piano lesson', 17, '')]
+		calendarEvents: [
+			timed(1, 1, 'Dentist', 0, 10, 11, { location: 'High Street' }),
+			timed(2, 1, 'Piano lesson', 0, 17, 18),
+			timed(3, 3, 'Design review', 0, 10.5, 12, {
+				location: 'Room 4',
+				description: 'Walk through the calendar views before they ship.',
+				invitees: [
+					{ email: 'priya@example.com', name: 'Priya Natarajan', response: 'accepted' },
+					{ email: 'tom@example.com', name: null, response: 'tentative' },
+					{ email: 'lee@example.com', name: 'Lee Okafor', response: 'needsAction' }
+				]
+			}),
+			timed(4, 3, 'Standup', 1, 9, 9.25),
+			timed(5, 3, 'Standup', 2, 9, 9.25),
+			timed(6, 2, 'Run', -1, 7, 8),
+			timed(7, 2, 'Climbing', 2, 18.5, 20.5, { color: { hex: '#b54848', nearest: 'red' } }),
+			timed(8, 3, 'Planning', -2, 14, 15.5),
+			allDay(9, 1, 'Visiting Mum', 1, 3),
+			allDay(10, 4, 'Bank holiday', 4, 4),
+			timed(11, 3, 'Lunch with Priya', 1, 12.5, 13.5, { location: 'Corner café' })
+		]
 	};
 }
 

@@ -60,7 +60,7 @@ VITE_MOCK=1 npm run dev
 
 Swaps the transport for `src/lib/protocol/mock.ts`, an in-memory daemon with
 seed data modelled on a real daemon's, with people's names made up (three workspaces, journals,
-tasks and tags, documents and folders, two of them tables, contacts, feeds and their articles, agents and their threads, actors,
+tasks and tags, documents and folders, two of them tables, contacts, feeds and their articles, calendars and their events, agents and their threads, actors,
 settings).
 No daemon or CLI needed. The tests use the same mock. `mock.ts` is
 `createMock`; its parts are under `src/lib/protocol/mock/`: `seed.ts` (the
@@ -272,7 +272,9 @@ only these exist:
   its actor, where it works and its model, then its usage as bars (`SessionGutter`); where it
   stands and Resolve stay in the header at every width. It speaks
   for the main half only; a second half's header keeps all of it, as does every
-  header below 1100px. Pages fill the sheet,
+  header below 1100px. On the Calendar page the same column lists the calendars
+  (`features/calendar/CalendarList.svelte`), which a side panel from the page's header
+  holds below 1100px and in a second half. Pages fill the sheet,
   with no max-width column, so every header's tools end at the sheet's right edge. Each page's outer element takes
   `px-(--page-inset)` (28px, 20 below 1100px, 16 below 900). Lists sit flat
   on the sheet, ruled by hairlines, with no box of their own. Two
