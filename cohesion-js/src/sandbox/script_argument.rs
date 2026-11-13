@@ -1,13 +1,12 @@
 use rquickjs::{Ctx, IntoJs, Value};
 
-use cohesion_core::model::{self, ActorSession, ActorSessionMove, Feed, Resource, Task};
+use cohesion_core::model::{ActorSession, ActorSessionMove, Feed, Resource, Task};
 use cohesion_db::{
     GetAgentMessageCommand, GetArticleCommand, GetDocumentCommand, GetIntelligenceAgentCommand,
     GetResourceCommand, GetTaskCommand, GetTaskFolderIncludingDeletedCommand,
     GetWorkspaceIncludingDeletedCommand, GuardedDatabaseContext,
 };
 
-use super::activity::Activity;
 use super::agent_message::AgentMessage;
 use super::caught_error::internal;
 use super::notification::Notification;
@@ -75,16 +74,13 @@ pub enum ScriptArgument {
     AgentMessage {
         message_id: i64,
     },
-    /// Passed as an `Activity`, plain data as it stood when the event was
-    /// raised.
-    Activity {
-        activity: model::Activity,
-    },
     /// Passed as an `ActorSession`, as it stood when the event was raised;
-    /// `moved` says why it moved, which an agent following it reads.
+    /// `moved` says why it moved, which an agent following it reads, and is
+    /// `None` for an event that moved it nowhere (`actor:started`,
+    /// `actor:progress`).
     ActorSession {
         actor_session: ActorSession,
-        moved: ActorSessionMove,
+        moved: Option<ActorSessionMove>,
     },
     /// Passed as a `Notification`, plain data that nothing stores.
     Notification {
@@ -176,11 +172,6 @@ impl ScriptArgument {
                 let message = serde_json::to_string(&AgentMessage::from(message))
                     .expect("an agent message serializes");
                 ctx.json_parse(message)
-            }
-            Self::Activity { activity } => {
-                let activity = serde_json::to_string(&Activity::from(activity.clone()))
-                    .expect("an activity serializes");
-                ctx.json_parse(activity)
             }
             Self::Notification { title, message } => {
                 let notification = serde_json::to_string(&Notification {

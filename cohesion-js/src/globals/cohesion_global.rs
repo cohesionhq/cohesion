@@ -329,12 +329,12 @@ impl CohesionGlobal {
         Ok(JsTeam::new(team, self.database.clone()))
     }
 
-    /// How Cohesion's apps word its kinds, such as `"Needs you"` for a
-    /// `"paused"` activity: the same words the apps show, so a script needn't
-    /// keep its own copy.
+    /// How Cohesion's apps word its kinds, such as `"Needs you"` for an
+    /// actor session that `"needsAttention"`: the same words the apps show, so
+    /// a script needn't keep its own copy.
     ///
-    /// Plain data, keyed as the apps receive it (`activity_statuses`, not
-    /// `activityStatuses`).
+    /// Plain data, keyed as the apps receive it (`actor_session_statuses`,
+    /// not `actorSessionStatuses`).
     #[ts(returns = "Vocabulary")]
     pub fn vocabulary<'js>(&self, ctx: Ctx<'js>) -> rquickjs::Result<Value<'js>> {
         plain(&ctx, &Vocabulary::new())

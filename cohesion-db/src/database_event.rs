@@ -3,9 +3,7 @@
 
 use std::sync::Arc;
 
-use cohesion_core::model::{
-    Activity, ActorSession, ActorSessionMove, Feed, Initiative, Resource, Task,
-};
+use cohesion_core::model::{ActorSession, ActorSessionMove, Feed, Initiative, Resource, Task};
 
 /// Something a committed command did that listeners outside the database react to.
 #[derive(Debug, PartialEq)]
@@ -129,18 +127,15 @@ pub enum DatabaseEventKind {
     AgentTurnEnded {
         agent_id: i64,
     },
-    /// An activity started. Each activity event carries the row as its
-    /// command wrote it, so a hook sees that moment's progress and status.
-    ActivityStarted {
-        activity: Activity,
+    /// An actor's client took a session Cohesion started, carrying the
+    /// session as it stood then.
+    ActorSessionStarted {
+        actor_session: ActorSession,
     },
-    /// An activity's progress, status or title changed while it went on.
-    ActivityUpdated {
-        activity: Activity,
-    },
-    /// An activity ended, however it went.
-    ActivityEnded {
-        activity: Activity,
+    /// An actor session's progress or title changed, carrying the session
+    /// as its command wrote it.
+    ActorSessionProgressed {
+        actor_session: ActorSession,
     },
     /// An actor session's status changed, carrying the actor_session as its command
     /// wrote it, so a hook sees the status it moved to, and why it moved.

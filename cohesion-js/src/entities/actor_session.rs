@@ -19,9 +19,11 @@ use crate::traced_command::ensure_writable;
 /// `"idle"` (done, until someone says more) or `"failed"`; or
 /// `"resolved"`, once the user is done with it (`resolve()`). A session stays
 /// in `actors.sessions()` until resolved, and none ends for good:
-/// `actors.send` starts one that is idle, failed or resolved again. `mode`,
-/// `model` and `effort` are `null` for the actor's defaults; `startedAt`
-/// and `lastActivityAt` are in Unix seconds. `unread` is whether the user
+/// `actors.send` starts one that is idle, failed or resolved again.
+/// `progress` is what its actor last said it is doing while it works or
+/// needs attention, such as `"Read 12 of 40 files"`, and `null` once it
+/// rests. `mode`, `model` and `effort` are `null` for the actor's defaults;
+/// `startedAt` and `statusChangedAt` are in Unix seconds. `unread` is whether the user
 /// has yet to see where the session stands since its actor last finished a
 /// stretch of work; `markRead()` dismisses it for them.
 ///

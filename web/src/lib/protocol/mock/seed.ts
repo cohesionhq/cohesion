@@ -2035,15 +2035,14 @@ export function reactionExcerpt(
 /**
  * Two actors on the MBP, Claude Code in two checkouts. The first has
  * a task paused on a question, after reading and a tool use, one that
- * ended and one working; the second has none. Their activities are the
- * stretches of that work: the working task's running, the paused one's
- * paused, and three that ended. The working one launched three subagents:
+ * ended and one working; the second has none. The working one and the
+ * paused one say what they are doing. The working one launched three subagents:
  * one done, with one of its own, and one in the background waiting on a
  * permission.
  */
 export function seedActors(
 	now: number
-): Pick<MockState, 'actors' | 'actorSessions' | 'actorSessionMessages' | 'activities'> {
+): Pick<MockState, 'actors' | 'actorSessions' | 'actorSessionMessages'> {
 	const actor = (id: number, identifier: string, scope: string): Actor => ({
 		id,
 		deleted: false,
@@ -2108,6 +2107,7 @@ export function seedActors(
 				started_at: now - 600,
 				status_changed_at: now - 60,
 				status: 'needsAttention',
+				progress: 'Asked how to review the script',
 				unread: false,
 				read_at: null,
 				context: { used_tokens: 41_800, total_tokens: 200_000 },
@@ -2124,6 +2124,7 @@ export function seedActors(
 				started_at: now - DAY,
 				status_changed_at: now - DAY + 900,
 				status: 'idle',
+				progress: null,
 				unread: true,
 				read_at: null,
 				context: { used_tokens: 118_400, total_tokens: 200_000 },
@@ -2140,6 +2141,7 @@ export function seedActors(
 				started_at: now - 4 * 60,
 				status_changed_at: now - 4 * 60,
 				status: 'working',
+				progress: 'Taking screenshots in mock mode',
 				unread: false,
 				read_at: null,
 				context: null,
@@ -2156,6 +2158,7 @@ export function seedActors(
 				started_at: now - 2 * 60 * 60,
 				status_changed_at: now - 60 * 60,
 				status: 'failed',
+				progress: null,
 				unread: false,
 				read_at: null,
 				context: null,
@@ -2172,6 +2175,7 @@ export function seedActors(
 				started_at: now - 2 * DAY,
 				status_changed_at: now - DAY,
 				status: 'resolved',
+				progress: null,
 				unread: false,
 				read_at: null,
 				context: null,
@@ -2190,6 +2194,7 @@ export function seedActors(
 				started_at: now - 3 * 60 - 40,
 				status_changed_at: now - 3 * 60,
 				status: 'idle',
+				progress: null,
 				unread: false,
 				read_at: null,
 				context: null,
@@ -2212,6 +2217,7 @@ export function seedActors(
 				started_at: now - 2 * 60 - 50,
 				status_changed_at: now - 30,
 				status: 'needsAttention',
+				progress: null,
 				unread: false,
 				read_at: null,
 				context: null,
@@ -2234,6 +2240,7 @@ export function seedActors(
 				started_at: now - 3 * 60 - 30,
 				status_changed_at: now - 3 * 60 - 10,
 				status: 'idle',
+				progress: null,
 				unread: false,
 				read_at: null,
 				context: null,
@@ -2245,53 +2252,6 @@ export function seedActors(
 					message_id: 16,
 					background: false
 				}
-			}
-		],
-		activities: [
-			{
-				id: 1,
-				title: 'Web UI design hill-climb',
-				kind: { kind: 'actorSession', actor_session_id: 3 },
-				status: 'running',
-				progress: 'Taking screenshots in mock mode',
-				started_at: now - 4 * 60,
-				ended_at: null
-			},
-			{
-				id: 2,
-				title: 'Install extension from URL',
-				kind: { kind: 'actorSession', actor_session_id: 1 },
-				status: 'paused',
-				progress: 'Asked how to review the script',
-				started_at: now - 600,
-				ended_at: null
-			},
-			{
-				id: 3,
-				title: 'CI for the consolidated repos',
-				kind: { kind: 'actorSession', actor_session_id: 2 },
-				status: 'succeeded',
-				progress: null,
-				started_at: now - DAY,
-				ended_at: now - DAY + 900
-			},
-			{
-				id: 4,
-				title: 'CI for the consolidated repos',
-				kind: { kind: 'actorSession', actor_session_id: 2 },
-				status: 'failed',
-				progress: null,
-				started_at: now - 2 * DAY,
-				ended_at: now - 2 * DAY + 300
-			},
-			{
-				id: 5,
-				title: 'Install extension from URL',
-				kind: { kind: 'actorSession', actor_session_id: 1 },
-				status: 'cancelled',
-				progress: null,
-				started_at: now - 3 * DAY,
-				ended_at: now - 3 * DAY + 900
 			}
 		],
 		actorSessionMessages: [

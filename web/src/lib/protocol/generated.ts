@@ -27,46 +27,6 @@ export type AccountHost =
 	| { kind: 'orphaned' };
 
 /**
- * A unit of long-running work Cohesion shows the user while it goes on and
- * keeps once it ends: its title, what it is, where it stands and, while it
- * runs, a short line on its progress. The work itself is owned elsewhere
- * (an actor's session); only `ActivityTracker` writes these rows.
- */
-export interface Activity {
-	id: number;
-	title: string;
-	/** What the activity is, and so where a client jumps to show it. */
-	kind: ActivityKind;
-	status: ActivityStatus;
-	/**
-	 * What the work last said it is doing, such as "Read 12 of 40
-	 * sources"; `null` when it said nothing.
-	 */
-	progress: string | null;
-	started_at: number;
-	/** When the activity ended; `null` while it runs or waits. */
-	ended_at: number | null;
-}
-
-/** What an activity is. */
-export type ActivityKind = {
-	kind: 'actorSession';
-	/** The session it shows. */
-	actor_session_id: number;
-};
-
-/**
- * Where an activity stands.
- *
- * - `"running"`, `"waiting"`, `"paused"`: going on, as an
- *   [`ActivityStanding`] says.
- * - `"succeeded"`, `"failed"`, `"cancelled"`: ended, as an
- *   [`ActivityOutcome`] says.
- */
-export type ActivityStatus =
-	'running' | 'waiting' | 'paused' | 'succeeded' | 'failed' | 'cancelled';
-
-/**
  * An agent on a client's device, such as Claude Code in one directory,
  * that Cohesion hands sessions to: a client offers each in its `Hello`, and
  * works each session in the actor's own system, reporting back what it says
@@ -278,8 +238,7 @@ export interface ActorQuestionOption {
 
 /**
  * One session an actor works on, such as a Claude Code session: a thread in
- * the actor's own system, which it reports to Cohesion as it goes. While
- * it works, or needs the user, an activity shows it. A session stays until the
+ * the actor's own system, which it reports to Cohesion as it goes. A session stays until the
  * user, or an agent for them, resolves it, and never ends for good: a
  * message to one that is done, failed or resolved starts it again.
  */
@@ -298,6 +257,13 @@ export interface ActorSession {
 	status_changed_at: number;
 	/** Where it stands, as its actor last reported. */
 	status: ActorSessionStatus;
+	/**
+	 * What its actor last said it is doing while it works or needs
+	 * attention, such as "Read 12 of 40 files"; `null` when it said
+	 * nothing, and once the session is idle, failed or resolved. A
+	 * subagent's stays `null`.
+	 */
+	progress: string | null;
 	/**
 	 * Whether its actor finished a stretch of work, done or failed, since
 	 * the user last read it; stopping it, or its client going away, doesn't.
@@ -319,7 +285,7 @@ export interface ActorSession {
 	/**
 	 * What makes it a subagent: the session one level up whose actor
 	 * launched it, and how; `null` for a session Cohesion started. A
-	 * subagent leaves the lists, has no activity, is never unread and wakes
+	 * subagent leaves the lists, has no progress, is never unread and wakes
 	 * no follower; it goes with the session above it.
 	 */
 	subagent: ActorSubagent | null;
@@ -394,9 +360,6 @@ export interface ActorSessionSearchHit {
  *   of sessions leave it out, and it is deleted once it has sat resolved
  *   for the actor session retention. The user may say more to start it
  *   again.
- *
- * A working session, or one that needs attention, has an activity open, which
- * ends succeeded as it goes idle and failed as it fails.
  */
 export type ActorSessionStatus = 'working' | 'needsAttention' | 'idle' | 'failed' | 'resolved';
 
@@ -2811,13 +2774,13 @@ export type HeadingLevel = 1 | 2 | 3;
  * unread to read;
  * `agent:message` calls `onAgentMessage(message)` when a message lands in an
  * agent's conversation and `agent:reaction` calls `onAgentReaction(message)`
- * when the user or the agent reacts to one; `activity:started` calls
- * `onActivityStarted(activity)` when an activity starts,
- * `activity:updated` `onActivityUpdated(activity)` when its progress,
- * status or title changes and `activity:ended` `onActivityEnded(activity)` when it
- * ends; `actor:moved` calls `onActorMoved(session)` when an actor session's
- * status changes and `actor:resolved` calls `onActorResolved(session)` when
- * one is resolved; `agent:turn:start` calls
+ * when the user or the agent reacts to one; `actor:started` calls
+ * `onActorStarted(session)` once an actor's client takes a session Cohesion
+ * started, `actor:progress` `onActorProgress(session)` when a session's
+ * progress or title changes, `actor:moved`
+ * `onActorMoved(session)` when a session's status changes and
+ * `actor:resolved` `onActorResolved(session)` when one is resolved (a
+ * subagent raises none of them); `agent:turn:start` calls
  * `onAgentTurnStart(agent)` when an agent starts answering the user and
  * `agent:turn:end` `onAgentTurnEnd(agent)` when it finishes; `day:start` calls `onDayStart()` at 6:00 and
  * `day:end` calls `onDayEnd()` at 23:00, and `timer` calls
@@ -2861,9 +2824,8 @@ export type HookKind =
 	| 'agent:reaction'
 	| 'agent:turn:start'
 	| 'agent:turn:end'
-	| 'activity:started'
-	| 'activity:updated'
-	| 'activity:ended'
+	| 'actor:started'
+	| 'actor:progress'
 	| 'actor:moved'
 	| 'actor:resolved'
 	| 'day:start'
@@ -3425,7 +3387,6 @@ export type Invalidation =
 	| { kind: 'extensionUpdates' }
 	| { kind: 'memories' }
 	| { kind: 'agentSkills' }
-	| { kind: 'activities' }
 	| { kind: 'actors' }
 	| { kind: 'actorSessions' }
 	| { kind: 'actorSession'; id: number }
@@ -3497,14 +3458,6 @@ export type LinkKind =
 export interface LinkTarget {
 	kind: LinkKind;
 	id: number;
-}
-
-/**
- * Lists the activities still running or waiting, then the `limit` that
- * ended most recently, newest first.
- */
-export interface ListActivitiesRequest {
-	limit: number;
 }
 
 /**
@@ -6250,8 +6203,7 @@ export interface Vocabulary {
 	version_changes: { kind: VersionChange; label: string }[];
 	/** Smallest to largest. */
 	task_sizes: SizeWording[];
-	activity_statuses: { kind: ActivityStatus; label: string }[];
-	/** An actor session's statuses: idle, then its activity's. */
+	/** An actor session's statuses. */
 	actor_session_statuses: { kind: ActorSessionStatus; label: string }[];
 	/** How an actor session stopped on its own, as a wake line says it. */
 	actor_session_stops: { kind: ActorSessionStop; label: string }[];
@@ -6874,11 +6826,6 @@ export interface Requests {
 	deleteAgentSkill: DeleteAgentSkillRequest;
 	/** Lists agent `agent_id`'s most recent background runs, newest first. */
 	listAgentRuns: ListAgentRunsRequest;
-	/**
-	 * Lists the activities still running or waiting, then the `limit`
-	 * that ended most recently.
-	 */
-	listActivities: ListActivitiesRequest;
 	/** Lists the actors the clients offer. */
 	listActors: NoArgs;
 	/**
@@ -7538,11 +7485,6 @@ export interface Replies {
 	deleteAgentSkill: AgentSkill;
 	/** Lists agent `agent_id`'s most recent background runs, newest first. */
 	listAgentRuns: IntelligenceAgentRun[];
-	/**
-	 * Lists the activities still running or waiting, then the `limit`
-	 * that ended most recently.
-	 */
-	listActivities: Activity[];
 	/** Lists the actors the clients offer. */
 	listActors: Actor[];
 	/**

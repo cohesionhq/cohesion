@@ -1,24 +1,22 @@
 //! The sessions Cohesion hands actors, the agents clients offer on their
 //! devices. The work happens on the client; the daemon keeps the session's
-//! transcript and its status, as the client reports it, and shows its work
-//! as one activity for the session's whole life, which [`ActivityTracker`]
-//! runs: open for each stretch, from when it starts working until it is idle
-//! or failed, and reopened when it works again. A daemon that
-//! stops cancels the activity and leaves the session idle until its client
-//! says otherwise; so does a client that goes away.
+//! transcript, its status and its progress, as the client reports them, and
+//! hooks follow them (`actor:started`, `actor:progress`, `actor:moved`,
+//! `actor:resolved`). A daemon that stops leaves the session idle until its
+//! client says otherwise; so does a client that goes away.
 //!
 //! A session's actor may launch subagents, sessions of their own below it
-//! that its client reports into under the session. A subagent has no
-//! activity and is told only responses to its requests; it settles idle when
-//! its session is stopped or resolved, or its client goes away.
+//! that its client reports into under the session. A subagent keeps no
+//! progress, raises no hook and is told only responses to its requests; it
+//! settles idle when its session is stopped or resolved, or its client goes
+//! away.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use cohesion_core::log::Module;
 use cohesion_core::model::{
-    ActivityKind, ActivityOutcome, ActivityStanding, Actor, ActorSession, ActorSessionMessage,
-    ActorSessionMessageContent, ActorSessionMove, ActorSessionStatus, ActorUserContent,
+    Actor, ActorSession, ActorSessionMessage, ActorSessionMessageContent, ActorSessionMove,
+    ActorSessionStatus, ActorUserContent,
 };
 use cohesion_core::protocol::{
     ActorCall, ActorSessionReport, ClientCall, ClientImage, ImageUpload, ServerError,
@@ -26,22 +24,19 @@ use cohesion_core::protocol::{
 };
 use cohesion_core::{log_debug, log_error};
 use cohesion_db::{
-    ActivityHandle, ActivityTracker, AddActorSessionMessageCommand, CreateActorSessionCommand,
+    AddActorSessionMessageCommand, AnnounceActorSessionCommand, CreateActorSessionCommand,
     DatabaseContext, DeleteActorSessionCommand, DeleteActorSessionMessageCommand,
     EndActorSessionMessageCommand, GetActorCommand, GetActorIncludingDeletedCommand,
     GetActorSessionCommand, GetActorSubagentCommand, GetTopActorSessionCommand,
-    LaunchActorSubagentCommand, SetActorSessionContextCommand, SetActorSessionModeCommand,
-    SetActorSessionStatusCommand, SetActorSessionTitleCommand, SettleActorSubagentsCommand,
-    SubagentsOf,
+    InterruptActorSessionsCommand, LaunchActorSubagentCommand, SetActorSessionContextCommand,
+    SetActorSessionModeCommand, SetActorSessionProgressCommand, SetActorSessionStatusCommand,
+    SetActorSessionTitleCommand, SettleActorSubagentsCommand, SubagentsOf,
 };
-use tokio::sync::{Mutex, oneshot};
-use tokio::task::JoinHandle;
 
 use crate::capability_clients::CapabilityClients;
 
 /// Starts actor sessions, carries what the user says to them, and keeps their
-/// statuses, and the activities that show them, as their clients report.
-/// A cheap clone.
+/// statuses and progress as their clients report. A cheap clone.
 #[derive(Clone)]
 pub struct ActorSessions {
     inner: Arc<Inner>,
@@ -50,43 +45,19 @@ pub struct ActorSessions {
 struct Inner {
     database: DatabaseContext,
     clients: CapabilityClients,
-    activities: ActivityTracker,
-    /// The stretch of work going on for each session working or needing
-    /// attention, by session id. Held while one opens or ends, so a session has at
-    /// most one.
-    stretches: Mutex<HashMap<i64, Stretch>>,
-}
-
-/// One stretch of a session's work, its activity open until it ends.
-struct Stretch {
-    /// The client whose actor works on it, which going away ends it.
-    client_id: i64,
-    activity: ActivityHandle,
-    /// Ends the activity with the outcome sent.
-    end: oneshot::Sender<ActivityOutcome>,
-    /// The activity's work, done once its end is recorded.
-    done: JoinHandle<()>,
 }
 
 impl ActorSessions {
-    pub fn new(
-        database: DatabaseContext,
-        clients: CapabilityClients,
-        activities: ActivityTracker,
-    ) -> Self {
+    pub fn new(database: DatabaseContext, clients: CapabilityClients) -> Self {
         Self {
-            inner: Arc::new(Inner {
-                database,
-                clients,
-                activities,
-                stretches: Mutex::default(),
-            }),
+            inner: Arc::new(Inner { database, clients }),
         }
     }
 
     /// Hands the actor `request` names a new session, working from the start:
-    /// records it, then calls the actor's client. A client that can't be
-    /// reached, or refuses, leaves no session behind.
+    /// records it, then calls the actor's client, and once the client takes
+    /// it, raises `actor:started`. A client that can't be reached, or
+    /// refuses, leaves no session behind and raises nothing.
     pub async fn start(
         &self,
         request: StartActorSessionRequest,
@@ -117,8 +88,6 @@ impl ActorSessions {
                 attachments,
             })
             .await?;
-        self.open(&session, actor.client_id, ActivityStanding::Running)
-            .await?;
         let ActorSessionMessageContent::User(ActorUserContent::Text { text: prompt }) =
             message.content
         else {
@@ -135,7 +104,6 @@ impl ActorSessions {
             effort: session.effort.clone(),
         };
         self.call_or_undo(&actor, call, async {
-            self.close(session.id, ActivityOutcome::Failed).await;
             database
                 .send(DeleteActorSessionCommand { id: session.id })
                 .await?;
@@ -143,7 +111,9 @@ impl ActorSessions {
         })
         .await?;
         Ok(database
-            .send(GetActorSessionCommand { id: session.id })
+            .send(AnnounceActorSessionCommand {
+                session_id: session.id,
+            })
             .await?)
     }
 
@@ -181,7 +151,7 @@ impl ActorSessions {
                 attachments,
             })
             .await?;
-        self.set_status(&session, actor.client_id, ActorSessionMove::Working)
+        self.set_status(session_id, ActorSessionMove::Working)
             .await?;
         let call = ClientCall::SendActorSessionMessage {
             actor: actor.identifier.clone(),
@@ -195,45 +165,22 @@ impl ActorSessions {
             database
                 .send(DeleteActorSessionMessageCommand { id: message.id })
                 .await?;
-            self.put_back(&session, actor.client_id).await
+            self.set_status(session_id, ActorSessionMove::PutBack(session.status))
+                .await?;
+            Ok(())
         })
         .await?;
         Ok(message)
     }
 
-    /// Puts `session` back to the status it had before a message that never
-    /// reached its actor set it working. The stretch of work that message
-    /// opened, if the session was at rest, is cancelled: nothing was done in
-    /// it.
-    async fn put_back(&self, session: &ActorSession, client_id: i64) -> Result<(), ServerError> {
-        let put_back = ActorSessionMove::PutBack(session.status);
-        match session.status {
-            ActorSessionStatus::Working | ActorSessionStatus::NeedsAttention => {
-                self.work(session, client_id, put_back).await?;
-            }
-            ActorSessionStatus::Idle
-            | ActorSessionStatus::Failed
-            | ActorSessionStatus::Resolved => {
-                self.rest(session.id, put_back, ActivityOutcome::Cancelled)
-                    .await?;
-            }
-        }
-        Ok(())
-    }
-
     /// Stops what session `session_id` is doing, telling its actor when its
-    /// client can be reached; the session is idle however that goes, and its
-    /// activity cancelled. A stop wakes no follower: whoever stopped it
-    /// knows.
+    /// client can be reached; the session is idle however that goes. A stop
+    /// wakes no follower: whoever stopped it knows.
     pub async fn stop(&self, session_id: i64) -> Result<ActorSession, ServerError> {
         let session = self.started(session_id).await?;
         self.halt(&session).await?;
         let stopped = self
-            .rest(
-                session_id,
-                ActorSessionMove::Stopped,
-                ActivityOutcome::Cancelled,
-            )
+            .set_status(session_id, ActorSessionMove::Stopped)
             .await?;
         self.settle_subagents(session_id).await?;
         Ok(stopped)
@@ -269,8 +216,8 @@ impl ActorSessions {
     }
 
     /// Resolves session `session_id` for the user, who is done with it: one going
-    /// on is stopped first, as [`stop`](Self::stop) does, and its activity
-    /// cancelled. Like a stop, it wakes no follower.
+    /// on is stopped first, as [`stop`](Self::stop) does. Like a stop, it
+    /// wakes no follower.
     pub async fn resolve(&self, session_id: i64) -> Result<ActorSession, ServerError> {
         let session = self.started(session_id).await?;
         if matches!(
@@ -280,11 +227,7 @@ impl ActorSessions {
             self.halt(&session).await?;
         }
         let resolved = self
-            .rest(
-                session_id,
-                ActorSessionMove::Resolved,
-                ActivityOutcome::Cancelled,
-            )
+            .set_status(session_id, ActorSessionMove::Resolved)
             .await?;
         self.settle_subagents(session_id).await?;
         Ok(resolved)
@@ -385,22 +328,21 @@ impl ActorSessions {
                 let subagent = database
                     .send(GetActorSubagentCommand { session_id, key })
                     .await?;
-                self.take(subagent, client_id, report).await
+                self.take(subagent, report).await
             }
             (None, _) if session.subagent.is_some() => Err(ServerError::validation(
                 Some("session_id".to_string()),
                 "Report on a subagent under the session Cohesion started.".to_string(),
             )),
-            (None, report) => self.take(session, client_id, report).await,
+            (None, report) => self.take(session, report).await,
         }
     }
 
     /// Takes `report` about `session`, a session Cohesion started or a
-    /// subagent, whose actor is client `client_id`'s.
+    /// subagent, whose actor is the reporting client's.
     async fn take(
         &self,
         session: ActorSession,
-        client_id: i64,
         report: ActorSessionReport,
     ) -> Result<Reported, ServerError> {
         let database = &self.inner.database;
@@ -419,16 +361,22 @@ impl ActorSessions {
             }
             ActorSessionReport::Status { status } => {
                 let moved = ActorSessionMove::reported(status);
-                self.set_status(&session, client_id, moved).await?;
+                self.set_status(session_id, moved).await?;
             }
             ActorSessionReport::Progress { progress } => {
+                // Progress says the session is going on: one at rest works
+                // again, and one that needs attention still does.
                 let moved = match session.status {
                     ActorSessionStatus::NeedsAttention => ActorSessionMove::NeedsYou,
                     _ => ActorSessionMove::Working,
                 };
-                if let Some(activity) = self.work(&session, client_id, moved).await? {
-                    activity.progress(progress).await?;
-                }
+                self.set_status(session_id, moved).await?;
+                database
+                    .send(SetActorSessionProgressCommand {
+                        session_id,
+                        progress,
+                    })
+                    .await?;
             }
             ActorSessionReport::End { message_id } => {
                 database
@@ -447,36 +395,24 @@ impl ActorSessions {
                     .await?;
             }
             ActorSessionReport::Title { title } => {
-                let session = database
+                database
                     .send(SetActorSessionTitleCommand { session_id, title })
                     .await?;
-                self.retitle(&session).await?;
             }
         }
         Ok(Reported::Accepted)
     }
 
     /// Leaves client `client_id`'s working sessions, and those that need
-    /// attention, idle, their stretches cancelled, and their subagents with
-    /// them: it went away, so none of them is going on any longer.
+    /// attention, idle, and their subagents with them: it went away, so none
+    /// of them is going on any longer.
     pub async fn client_left(&self, client_id: i64) {
-        let mut stretches = self.inner.stretches.lock().await;
-        let left: Vec<i64> = stretches
-            .iter()
-            .filter(|(_, stretch)| stretch.client_id == client_id)
-            .map(|(session_id, _)| *session_id)
-            .collect();
-        for session_id in left {
-            let idle = SetActorSessionStatusCommand {
-                session_id,
-                moved: ActorSessionMove::Interrupted,
-            };
-            if let Err(e) = self.inner.database.send(idle).await {
-                log_error!(Module::Actors, "Session {session_id}: not left idle: {e:?}");
-            }
-            if let Some(stretch) = stretches.remove(&session_id) {
-                end(stretch, ActivityOutcome::Cancelled).await;
-            }
+        let interrupted = InterruptActorSessionsCommand { client_id };
+        if let Err(e) = self.inner.database.send(interrupted).await {
+            log_error!(
+                Module::Actors,
+                "Client {client_id}: sessions not left idle: {e:?}"
+            );
         }
         let interrupted = SettleActorSubagentsCommand {
             of: SubagentsOf::Client(client_id),
@@ -490,152 +426,17 @@ impl ActorSessions {
         }
     }
 
-    /// Moves session `session` as `moved` says, keeping its activity to match:
-    /// open while it works or needs attention, ended succeeded as it goes
-    /// idle and failed as it fails. A subagent, which has no activity, only
-    /// moves.
+    /// Moves session `session_id` as `moved` says, answering it as it stands.
     async fn set_status(
-        &self,
-        session: &ActorSession,
-        client_id: i64,
-        moved: ActorSessionMove,
-    ) -> Result<(), ServerError> {
-        match moved.status() {
-            ActorSessionStatus::Working | ActorSessionStatus::NeedsAttention => {
-                self.work(session, client_id, moved).await?;
-            }
-            ActorSessionStatus::Idle => {
-                self.rest(session.id, moved, ActivityOutcome::Succeeded)
-                    .await?;
-            }
-            ActorSessionStatus::Failed => {
-                self.rest(session.id, moved, ActivityOutcome::Failed)
-                    .await?;
-            }
-            ActorSessionStatus::Resolved => {
-                self.rest(session.id, moved, ActivityOutcome::Cancelled)
-                    .await?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Moves session `session` as `moved` says, to work or needing attention, and
-    /// answers its stretch of work, opened now if it has none, paused while
-    /// the session needs attention. A subagent has no stretch of work, so it
-    /// only moves and gets none.
-    async fn work(
-        &self,
-        session: &ActorSession,
-        client_id: i64,
-        moved: ActorSessionMove,
-    ) -> Result<Option<ActivityHandle>, ServerError> {
-        let standing = match moved.status() {
-            ActorSessionStatus::NeedsAttention => ActivityStanding::Paused,
-            _ => ActivityStanding::Running,
-        };
-        self.inner
-            .database
-            .send(SetActorSessionStatusCommand {
-                session_id: session.id,
-                moved,
-            })
-            .await?;
-        if session.subagent.is_some() {
-            return Ok(None);
-        }
-        self.open(session, client_id, standing).await.map(Some)
-    }
-
-    /// Moves session `session_id` as `moved` says, idle or failed, ending its
-    /// stretch of work, if it has one, with `outcome`. Answers the session as
-    /// it stands.
-    async fn rest(
         &self,
         session_id: i64,
         moved: ActorSessionMove,
-        outcome: ActivityOutcome,
     ) -> Result<ActorSession, ServerError> {
-        let session = self
+        Ok(self
             .inner
             .database
             .send(SetActorSessionStatusCommand { session_id, moved })
-            .await?;
-        self.close(session_id, outcome).await;
-        Ok(session)
-    }
-
-    /// Session `session`'s stretch of work, opened now if it has none, standing
-    /// as `standing`.
-    async fn open(
-        &self,
-        session: &ActorSession,
-        client_id: i64,
-        standing: ActivityStanding,
-    ) -> Result<ActivityHandle, ServerError> {
-        let mut stretches = self.inner.stretches.lock().await;
-        if let Some(stretch) = stretches.get(&session.id)
-            && !stretch.done.is_finished()
-        {
-            stretch.activity.standing(standing).await?;
-            return Ok(stretch.activity.clone());
-        }
-        let (ready, activity) = oneshot::channel();
-        let (end, ended) = oneshot::channel();
-        let work = self.inner.activities.start(
-            session.title.clone(),
-            ActivityKind::ActorSession {
-                actor_session_id: session.id,
-            },
-            move |activity| async move {
-                let _ = ready.send(activity);
-                // Dropped unsent only with the daemon, which cancels it.
-                ended.await.unwrap_or(ActivityOutcome::Cancelled)
-            },
-        );
-        let session_id = session.id;
-        let done = tokio::spawn(async move {
-            if let Err(e) = work.await {
-                log_error!(Module::Actors, "Session {session_id}: no activity: {e:?}");
-            }
-        });
-        let activity = activity.await.map_err(|_| ServerError::internal())?;
-        activity.standing(standing).await?;
-        stretches.insert(
-            session.id,
-            Stretch {
-                client_id,
-                activity: activity.clone(),
-                end,
-                done,
-            },
-        );
-        Ok(activity)
-    }
-
-    /// Calls the stretch of work going on for `session`, if there is one, by
-    /// the session's title.
-    async fn retitle(&self, session: &ActorSession) -> Result<(), ServerError> {
-        let activity = self
-            .inner
-            .stretches
-            .lock()
-            .await
-            .get(&session.id)
-            .map(|stretch| stretch.activity.clone());
-        if let Some(activity) = activity {
-            activity.title(session.title.clone()).await?;
-        }
-        Ok(())
-    }
-
-    /// Ends session `session_id`'s stretch of work with `outcome`, if it has one,
-    /// once its end is recorded.
-    async fn close(&self, session_id: i64, outcome: ActivityOutcome) {
-        let stretch = self.inner.stretches.lock().await.remove(&session_id);
-        if let Some(stretch) = stretch {
-            end(stretch, outcome).await;
-        }
+            .await?)
     }
 
     /// Whether `actor` could be called now: its client is online and offers
@@ -728,10 +529,4 @@ fn actor_call(actor: &Actor, call: ClientCall) -> ActorCall {
         actor: actor.identifier.clone(),
         call,
     }
-}
-
-/// Ends `stretch` with `outcome` and waits for its end to be recorded.
-async fn end(stretch: Stretch, outcome: ActivityOutcome) {
-    let _ = stretch.end.send(outcome);
-    let _ = stretch.done.await;
 }

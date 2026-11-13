@@ -2,9 +2,7 @@
 
 use std::sync::Arc;
 
-use cohesion_core::model::{
-    Activity, ActorSession, ActorSessionMove, Feed, HookKind, Resource, Task,
-};
+use cohesion_core::model::{ActorSession, ActorSessionMove, Feed, HookKind, Resource, Task};
 use cohesion_db::{DatabaseEventKind, DatabaseEventTrace, WorkGuard};
 use cohesion_js::{Sandbox, ScriptArgument, ScriptError};
 
@@ -21,12 +19,15 @@ macro_rules! field_type {
 /// Declares a struct per hook, with its kind, the global function it calls
 /// and, for a hook a database event raises, that event and the entity its
 /// function receives (built from the event's fields, which the struct
-/// shares: ids, unless a field names its type); then [`event_hook`] from the
-/// same table.
+/// shares: ids, unless a field names its type, each converted `into` the
+/// entity's; and, after a `;`, any of the entity's fields the event doesn't
+/// carry, with their values); then [`event_hook`] from the same table.
 macro_rules! hook_events {
     ($(
         $name:ident: $kind:ident, $function:literal
-            $(, from $event:ident => $argument:ident { $($field:ident $(: $ty:ty)?),* })?;
+            $(, from $event:ident => $argument:ident {
+                $($field:ident $(: $ty:ty)?),* $(; $($fixed:ident = $value:expr),*)?
+            })?;
     )*) => {
         $(
             pub struct $name {
@@ -40,7 +41,10 @@ macro_rules! hook_events {
                     $function
                 }
                 fn arguments(&self) -> Vec<ScriptArgument> {
-                    vec![$(ScriptArgument::$argument { $($field: self.$field.clone()),* })?]
+                    vec![$(ScriptArgument::$argument {
+                        $($field: self.$field.clone().into(),)*
+                        $($($fixed: $value,)*)?
+                    })?]
                 }
             }
         )*
@@ -121,12 +125,10 @@ hook_events! {
         from AgentTurnStarted => Agent { agent_id };
     AgentTurnEndHook: AgentTurnEnd, "onAgentTurnEnd",
         from AgentTurnEnded => Agent { agent_id };
-    ActivityStartedHook: ActivityStarted, "onActivityStarted",
-        from ActivityStarted => Activity { activity: Activity };
-    ActivityUpdatedHook: ActivityUpdated, "onActivityUpdated",
-        from ActivityUpdated => Activity { activity: Activity };
-    ActivityEndedHook: ActivityEnded, "onActivityEnded",
-        from ActivityEnded => Activity { activity: Activity };
+    ActorStartedHook: ActorStarted, "onActorStarted",
+        from ActorSessionStarted => ActorSession { actor_session: ActorSession; moved = None };
+    ActorProgressHook: ActorProgress, "onActorProgress",
+        from ActorSessionProgressed => ActorSession { actor_session: ActorSession; moved = None };
     ActorMovedHook: ActorMoved, "onActorMoved",
         from ActorSessionMoved => ActorSession { actor_session: ActorSession, moved: ActorSessionMove };
     ActorResolvedHook: ActorResolved, "onActorResolved",

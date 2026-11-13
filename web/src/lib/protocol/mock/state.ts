@@ -2,7 +2,6 @@
 // change them.
 
 import type {
-	Activity,
 	Actor,
 	ActorSession,
 	ActorSessionMessage,
@@ -177,7 +176,6 @@ export interface MockState {
 	agentCues: IntelligenceAgentCue[];
 	agentAgenda: AgentAgendaItem[];
 	agentRuns: IntelligenceAgentRun[];
-	activities: Activity[];
 	actors: Actor[];
 	actorSessions: ActorSession[];
 	actorSessionMessages: ActorSessionMessage[];

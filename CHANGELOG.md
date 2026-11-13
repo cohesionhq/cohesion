@@ -7,6 +7,23 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- **Breaking:** activities are gone, and actor sessions carry what they
+  showed. The `activities` table, `Activity` and its kinds and statuses,
+  `listActivities`, the `activities` invalidation, `activity_statuses` in the
+  vocabulary and the `activity:started`, `activity:updated` and
+  `activity:ended` hooks (`onActivityStarted`, `onActivityUpdated`,
+  `onActivityEnded`) are removed. In their place, `ActorSession` gains
+  `progress` (what its actor last said it is doing, `null` once it is idle,
+  failed or resolved), and two hooks join `actor:moved` and `actor:resolved`:
+  `actor:started` calls `onActorStarted(session)` once an actor's client takes
+  a session, and `actor:progress` calls `onActorProgress(session)` when a
+  session's progress or title changes. Word a status with
+  `actor_session_statuses`. Upgrading drops the activities, keeps a working
+  session's progress, deletes cues, extension hook grants and runs on an
+  `activity:*` hook, and renames the hook on messages such cues posted. An
+  extension whose manifest lists an `activity:*` hook no longer installs or
+  updates; the iOS companion needs a version on the `actor:*` hooks.
+
 - `network.fetch` can send any HTTP method, including `PROPFIND`, `REPORT` and
   `MKCALENDAR`, and a plain text body (XML, iCalendar) with `textBody`; the
   `Content-Type` in `headers` is kept. `method` is now a string (a

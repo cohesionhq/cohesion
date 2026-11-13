@@ -10,10 +10,11 @@ use super::*;
 use crate::commands::actor::SearchActorSessionsCommand;
 use crate::test_support::{context, recording_context};
 use crate::{
-    AddActorSessionMessageCommand, CommandError, CreateActorSessionCommand, DatabaseContext,
-    DatabaseEventKind, DeleteActorSessionCommand, IdentifyLocalClientCommand,
-    ListActorSessionAncestorsCommand, ListActorSessionsCommand, ListActorsCommand,
-    SUBAGENT_MESSAGE_LIMIT, ShutdownCleanupCommand, SyncCapabilitiesCommand,
+    AddActorSessionMessageCommand, AnnounceActorSessionCommand, CommandError,
+    CreateActorSessionCommand, DatabaseContext, DatabaseEventKind, DeleteActorSessionCommand,
+    IdentifyLocalClientCommand, ListActorSessionAncestorsCommand, ListActorSessionsCommand,
+    ListActorsCommand, SUBAGENT_MESSAGE_LIMIT, SetActorSessionProgressCommand,
+    SetActorSessionTitleCommand, ShutdownCleanupCommand, SyncCapabilitiesCommand,
 };
 
 /// A client named `name` offering one actor, its id and the actor's.
@@ -441,6 +442,35 @@ fn a_subagent_moves_without_an_event_and_touches_the_sessions_above_it() {
     ];
     expected.sort_by_key(|key| format!("{key:?}"));
     assert_eq!(keys, expected);
+}
+
+#[test]
+fn a_subagent_keeps_no_progress_and_its_new_title_raises_nothing() {
+    let (db, events) = recording_context();
+    let top = session(&db);
+    let subagent = launch(&db, top.id, "a1", launch_as("First", None, None)).unwrap();
+    events.take();
+    let kept = db
+        .send_blocking(SetActorSessionProgressCommand {
+            session_id: subagent.id,
+            progress: Some("Reading".to_string()),
+        })
+        .unwrap();
+    assert_eq!(kept.progress, None);
+    db.send_blocking(SetActorSessionTitleCommand {
+        session_id: subagent.id,
+        title: "Renamed".to_string(),
+    })
+    .unwrap();
+    let announced = db.send_blocking(AnnounceActorSessionCommand {
+        session_id: subagent.id,
+    });
+    assert!(announced.is_ok());
+    assert!(events.take().iter().all(|event| !matches!(
+        event,
+        DatabaseEventKind::ActorSessionProgressed { .. }
+            | DatabaseEventKind::ActorSessionStarted { .. }
+    )));
 }
 
 #[test]

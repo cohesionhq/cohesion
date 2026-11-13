@@ -160,7 +160,7 @@ pub struct ActorSessionUpdate {
 ///   subagent is launched.
 ///
 /// A subagent takes every kind; `progress` only marks it working, since a
-/// subagent shows no activity.
+/// subagent keeps no progress.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ActorSessionReport {

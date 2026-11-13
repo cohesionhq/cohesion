@@ -3,7 +3,6 @@
 //! `*_requests` modules), what clients offer and are asked (`capabilities`),
 //! and how a server context carries each command out.
 
-mod activity_requests;
 mod actor_requests;
 mod agent_requests;
 mod article_requests;
@@ -38,7 +37,6 @@ mod task_requests;
 mod vocabulary;
 mod workspace_requests;
 
-pub use activity_requests::*;
 pub use actor_requests::*;
 pub use agent_requests::*;
 pub use article_requests::*;

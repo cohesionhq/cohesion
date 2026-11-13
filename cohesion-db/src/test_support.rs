@@ -22,7 +22,7 @@ pub(crate) fn context() -> DatabaseContext {
 }
 
 /// A new actor session, on the one actor this computer's client offers, for
-/// what only needs a session to hang on (an activity).
+/// what only needs a session to hang on (a follower).
 pub(crate) fn actor_session(db: &DatabaseContext) -> i64 {
     let client_id = db
         .send_blocking(IdentifyLocalClientCommand {

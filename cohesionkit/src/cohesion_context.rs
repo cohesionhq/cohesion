@@ -6,9 +6,7 @@ use cohesion_core::ServerAddress;
 use cohesion_core::log::Module;
 use cohesion_core::log_error;
 use cohesion_core::protocol::ServerError;
-use cohesion_db::{
-    ActivityTracker, Container, DatabaseContext, Secrets, ShutdownCleanupCommand, WorkTracker,
-};
+use cohesion_db::{Container, DatabaseContext, Secrets, ShutdownCleanupCommand, WorkTracker};
 use cohesion_intelligence::{AgentCoordinator, ModelCatalog};
 use cohesion_js::ScriptEngine;
 
@@ -50,8 +48,7 @@ pub struct CohesionContext {
     /// The clients serving actors now, and the calls waiting on them; actor
     /// sessions call through it.
     pub capability_clients: CapabilityClients,
-    /// The sessions handed to clients' actors, and the activities that show
-    /// them while they go on.
+    /// The sessions handed to clients' actors.
     pub actor_sessions: ActorSessions,
     /// The clients with a session open now, which the clients list reports.
     pub presence: Presence,
@@ -83,11 +80,7 @@ impl CohesionContext {
         let engine = ScriptEngine::new(ctx.read_write());
         let extensions = ExtensionManager::new(ctx.clone(), engine.clone(), hooks.clone());
         let capability_clients = CapabilityClients::new(Arc::new(ctx.clone()));
-        let actor_sessions = ActorSessions::new(
-            ctx.clone(),
-            capability_clients.clone(),
-            ActivityTracker::new(ctx.clone(), work.clone()),
-        );
+        let actor_sessions = ActorSessions::new(ctx.clone(), capability_clients.clone());
         let script_engine = engine
             .with_connectors(Arc::new(AgentConnectors::new(
                 ctx.clone(),
@@ -159,8 +152,7 @@ impl CohesionContext {
         })
     }
     /// Shuts down cleanly: refuses new work (client requests, clock hooks,
-    /// periodic passes), which also cancels the activities, queues the
-    /// settled hooks still waiting,
+    /// periodic passes), queues the settled hooks still waiting,
     /// waits for the work in flight and whatever it starts in turn (hooks,
     /// agent runs, scripts, model calls), then stops the script engine's
     /// worker threads and closes the database. `work` lists what
