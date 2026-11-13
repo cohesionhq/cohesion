@@ -2164,7 +2164,7 @@ and `src/routes/+layout.ts` turns off server rendering and prerendering.
 | Route | Page |
 |---|---|
 | `/` | Home |
-| `/w/[ws]/` | A workspace: `dashboard` (the default), `today`, `journal` (and `[id]`), `documents` (and `[id]`), `tasks`, `contacts`, `articles` (and `[id]`, `research`), `rewind`, `resources/[kind]` (and `[id]`) |
+| `/w/[ws]/` | A workspace: `dashboard` (the default), `today`, `journal` (and `[id]`), `documents` (and `[id]`), `tasks`, `calendar`, `contacts`, `articles` (and `[id]`, `research`), `rewind`, `resources/[kind]` (and `[id]`) |
 | `/agents`, `/agents/[agent]` | Agents and an agent's chat |
 | `/actors`, `/actors/[session]` | Actor sessions and a session's transcript, or a subagent's thread |
 | `/threads/[thread]` | A model thread's transcript, read-only |
@@ -2181,8 +2181,8 @@ history; Alt-click opens a link in the second half, and the split closes below
 **Code layout** (`web/src/lib/`):
 
 - `protocol/`: the connection, the session API, generated types, the mock.
-- `stores/`: state, one `create…Store(send)` factory per area, built on `Resource<T, K>` (`resource.svelte.ts`), which loads, refetches when an invalidation touches it, and marks itself stale when no page is using it. The daemon answers requests side by side, so a fetch can answer after a write it read before; a mutation reply applied while a fetch waits drops that fetch and fetches again. Page stores are made once per split half (`pageStores.svelte.ts`); workspaces, feeds, connectors and extensions are app-wide.
-- `features/<area>/`: components for one area (actors, agents, articles, connectors, contacts, dashboard, documents, extensions, folders, rewind, settings, tables, tags, tasks, threads).
+- `stores/`: state, one `create…Store(send)` factory per area, built on `Resource<T, K>` (`resource.svelte.ts`), which loads, refetches when an invalidation touches it, and marks itself stale when no page is using it. The daemon answers requests side by side, so a fetch can answer after a write it read before; a mutation reply applied while a fetch waits drops that fetch and fetches again. Page stores are made once per split half (`pageStores.svelte.ts`); workspaces, feeds, calendar stores and calendars, connectors and extensions are app-wide.
+- `features/<area>/`: components for one area (actors, agents, articles, calendar, connectors, contacts, dashboard, documents, extensions, folders, rewind, settings, tables, tags, tasks, threads).
 - `ui/`: about 70 shared components (buttons, dialogs, side panels, menus, pickers, fields, `Markdown`, `Editor`, avatars, toasts, status pills) and `motion.ts`.
 - `shell/`: the app frame: sidebar, palette, shortcuts, linked items, split view, notices.
 - `format/`: bytes, dates (`shortTime`, a 12-hour clock everywhere), money, search, usage.
@@ -2832,6 +2832,14 @@ failure ends that store's pass, sets its `sync_failure` and is logged; a
 full pass clears it and sets `last_synced_at`. `CalendarSyncSummary` counts
 stores synced and failed, and events pulled, pushed and in conflict.
 Calendar changes raise `calendars` and `calendarEvents`; no hook fires yet.
+
+The web UI's Calendar page (`/w/[ws]/calendar`, the same in every
+workspace) shows the events by month, week (from Sunday) or day, timed ones
+in the browser's time zone, colored by their palette color (`nearest`). Its
+calendar list sits in the column right of the sheet, or a side panel below
+1100px; which calendars show is the browser's own choice (localStorage), not
+the daemon's. An event opens in a side panel that saves each change with
+`UpdateCalendarEvent`; a new one is created once it has a title.
 
 ### 21. Feeds and articles
 

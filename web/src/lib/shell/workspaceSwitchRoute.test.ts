@@ -5,6 +5,7 @@ describe('workspaceSwitchRoute', () => {
 	it('keeps the kind of page', () => {
 		expect(workspaceSwitchRoute('/w/1/documents', 2)).toBe(routes.documents(2));
 		expect(workspaceSwitchRoute('/w/1/tasks', 2)).toBe(routes.tasks(2));
+		expect(workspaceSwitchRoute('/w/1/calendar', 2)).toBe(routes.calendar(2));
 		expect(workspaceSwitchRoute('/w/1/articles/research', 2)).toBe(routes.research(2));
 	});
 

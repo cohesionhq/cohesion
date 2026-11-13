@@ -29,6 +29,7 @@
 	import BookUser from '@lucide/svelte/icons/book-user';
 	import Cable from '@lucide/svelte/icons/cable';
 	import CalendarDays from '@lucide/svelte/icons/calendar-days';
+	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import CheckSquare from '@lucide/svelte/icons/square-check';
 	import Eye from '@lucide/svelte/icons/eye';
@@ -253,6 +254,7 @@
 				kind: 'tasks',
 				children: taskRows
 			},
+			{ href: routes.calendar(workspaceId), label: 'Calendar', icon: CalendarIcon },
 			{ href: routes.articles(workspaceId), label: 'Articles', icon: Newspaper },
 			{ href: routes.contacts(workspaceId), label: 'Contacts', icon: BookUser }
 		];
