@@ -1,6 +1,7 @@
 <!--
 	A second column, on the canvas to the right of the page's sheet, that
-	speaks for the conversation open in the main half: what `children` draws.
+	speaks for the conversation open in the main half (or lists the calendar
+	page's calendars): what `children` draws.
 	It shows only on a wide screen, sliding in and out as the side panel does,
 	except in a page fade (`shell/fade.ts`): there it opens or shuts at once
 	and fades with the page, and between two conversations it stays open while
@@ -12,7 +13,14 @@
 	import { pageFading } from './fade';
 	import { motion } from '$lib/ui/motion';
 
-	let { open, children }: { open: boolean; children: Snippet } = $props();
+	interface Props {
+		open: boolean;
+		/** What the column is, for assistive tech; a conversation's by default. */
+		label?: string;
+		children: Snippet;
+	}
+
+	let { open, label = 'About this conversation', children }: Props = $props();
 
 	/** Opens or closes the column's width, the page's sheet giving way, as it fades. */
 	function column(node: Element, params: SlideParams) {
@@ -29,7 +37,7 @@
 	<div class="flex flex-none max-lg:hidden" in:column={motion.slideIn} out:column={motion.slideOut}>
 		<aside
 			class="-ml-px flex w-60 flex-none [scrollbar-width:none] flex-col overflow-y-auto pt-[max(var(--sheet-inset),var(--titlebar-inset))] pr-(--sheet-inset) pb-(--sheet-inset) pl-px [view-transition-name:page-aside]"
-			aria-label="About this conversation"
+			aria-label={label}
 		>
 			{@render children()}
 		</aside>

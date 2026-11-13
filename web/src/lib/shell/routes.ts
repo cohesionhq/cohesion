@@ -36,6 +36,11 @@ export const routes = {
 	document: (ws: number, id: number) =>
 		resolve('/w/[ws]/documents/[id]', { ws: String(ws), id: String(id) }),
 	tasks: (ws: number) => resolve('/w/[ws]/tasks', { ws: String(ws) }),
+	/** The calendar; every workspace shows the same calendars. */
+	calendar: (ws: number) => resolve('/w/[ws]/calendar', { ws: String(ws) }),
+	/** The calendar at event `id`'s first day, with the event open. */
+	calendarEvent: (ws: number, id: number) =>
+		`${resolve('/w/[ws]/calendar', { ws: String(ws) })}?event=${id}`,
 	/** The Documents page at a folder, which shows as a table when it is one. */
 	documentFolder: (ws: number, id: number) => `${routes.documents(ws)}?folder=${id}`,
 	contacts: (ws: number) => resolve('/w/[ws]/contacts', { ws: String(ws) }),
@@ -102,6 +107,7 @@ export function mainPages(ws: number): string[] {
 		routes.journal(ws),
 		routes.documents(ws),
 		routes.tasks(ws),
+		routes.calendar(ws),
 		routes.articles(ws),
 		routes.contacts(ws),
 		routes.rewind(ws),
@@ -132,6 +138,8 @@ export function workspaceSwitchRoute(pathname: string, ws: number): string {
 			return routes.documents(ws);
 		case 'tasks':
 			return routes.tasks(ws);
+		case 'calendar':
+			return routes.calendar(ws);
 		case 'articles':
 			return pathname.endsWith('/articles/research') ? routes.research(ws) : routes.articles(ws);
 		case 'contacts':

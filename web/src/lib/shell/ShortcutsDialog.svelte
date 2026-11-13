@@ -83,6 +83,18 @@
 			rows: [{ keys: [keyLabel('mod', 'enter')], label: 'Edit the description, then finish' }]
 		},
 		{
+			title: 'Calendar',
+			rows: [
+				{
+					keys: [keyLabel('left'), keyLabel('right')],
+					label: 'Previous / next month, week or day'
+				},
+				{ keys: ['t'], label: 'Today' },
+				{ keys: ['m', 'w', 'd'], label: 'Month, week or day' },
+				{ keys: ['n'], label: 'New event' }
+			]
+		},
+		{
 			title: 'Menus',
 			rows: [
 				{ keys: ['1–4', '0'], label: 'Priority: choose, or clear' },

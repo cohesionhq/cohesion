@@ -1,5 +1,5 @@
-// The one place an agent colour becomes a class. Agents pick one, as do a
-// task size, a task folder and a table's option; a tile standing in for a missing icon (an
+// The one place an agent colour becomes a class. Agents pick one, as do a calendar or its event,
+// a task size, a task folder and a table's option; a tile standing in for a missing icon (an
 // extension, a connected service) is given one hashed from a stable string,
 // so it never changes.
 
@@ -39,6 +39,18 @@ export const agentChip: Record<IntelligenceAgentColor, string> = {
 	pink: 'bg-agent-pink/15 text-agent-pink',
 	teal: 'bg-agent-teal/15 text-agent-teal',
 	yellow: 'bg-agent-yellow/15 text-agent-yellow'
+};
+
+/** A faint wash of an agent colour, under text in the page's own colour (a calendar's event). */
+export const agentWash: Record<IntelligenceAgentColor, string> = {
+	blue: 'bg-agent-blue/15',
+	green: 'bg-agent-green/15',
+	orange: 'bg-agent-orange/15',
+	purple: 'bg-agent-purple/15',
+	red: 'bg-agent-red/15',
+	pink: 'bg-agent-pink/15',
+	teal: 'bg-agent-teal/15',
+	yellow: 'bg-agent-yellow/15'
 };
 
 const TILE_COLORS = Object.values(agentFill);
