@@ -51,6 +51,13 @@ impl<'c, M: Model> Update<'c, M> {
         self
     }
 
+    /// Adds one to the number in `column`.
+    pub fn increment(mut self, column: cohesion_core::Column<M, i64>) -> Self {
+        let name = column.name();
+        self.values.raw_set(name, format!("{name} + 1"));
+        self
+    }
+
     pub fn filter(mut self, condition: &str) -> Self {
         self.filter.push(condition);
         self

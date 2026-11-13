@@ -39,7 +39,7 @@ const AREAS: Record<StorageArea, Omit<StorageRow, 'bytes'>> = {
 	},
 	other: {
 		label: 'Everything else',
-		help: 'Workspace search, contacts, settings, extensions, models and spending.',
+		help: 'Workspace search, contacts, calendars, settings, extensions, models and spending.',
 		fill: 'bg-fg-subtle'
 	}
 };

@@ -23,6 +23,7 @@ use super::activity_requests::*;
 use super::actor_requests::*;
 use super::agent_requests::*;
 use super::article_requests::*;
+use super::calendar_requests::*;
 use super::client_requests::*;
 use super::connector_requests::*;
 use super::contact_requests::*;
@@ -46,14 +47,14 @@ use super::task_requests::*;
 use super::workspace_requests::*;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem,
-    AgentSkill, Article, Attachment, CatalogModel, Client, Component, Contact, ContactMethod,
-    DeletedItem, Document, DocumentFolder, DocumentFolderProperty, DocumentSummary, Embed,
-    EndpointModel, ExperimentSetting, ExtensionHook, ExtensionPermission, Feed, FeedSummary,
-    IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun,
-    IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault, IntelligenceSpend, Memory,
-    OrganizationUnit, Profile, Resource, RestoredItem, SavedTaskView, SearchResult,
-    SecuritySettings, StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection, Version,
-    VersionSummary, Workspace, WorkspaceResourceKind,
+    AgentSkill, Article, Attachment, Calendar, CalendarEvent, CalendarStore, CatalogModel, Client,
+    Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
+    DocumentFolderProperty, DocumentSummary, Embed, EndpointModel, ExperimentSetting,
+    ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
+    IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
+    IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
+    RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings, TableRow, Tag,
+    Task, TaskFolder, TextSection, Version, VersionSummary, Workspace, WorkspaceResourceKind,
 };
 
 /// Every request a client can send; the `args` of a [`Request`](super::Request).
@@ -312,6 +313,48 @@ pub enum Command {
     /// Sets or removes contact `contact_id`'s photo.
     #[reply(Contact)]
     SetContactPhoto(SetContactPhotoRequest),
+    /// Lists every calendar store.
+    #[reply(Vec<CalendarStore>, request = ListCalendarStoresRequest)]
+    ListCalendarStores,
+    /// Creates a local calendar store.
+    #[reply(CalendarStore)]
+    CreateCalendarStore(CreateCalendarStoreRequest),
+    /// Deletes local calendar store `store_id` with its calendars.
+    #[reply(CalendarStore)]
+    DeleteCalendarStore(DeleteCalendarStoreRequest),
+    /// Lists every live calendar.
+    #[reply(Vec<Calendar>, request = ListCalendarsRequest)]
+    ListCalendars,
+    /// Creates a calendar in a local store.
+    #[reply(Calendar)]
+    CreateCalendar(CreateCalendarRequest),
+    /// Retitles calendar `calendar_id`, of a local store.
+    #[reply(Calendar)]
+    RenameCalendar(RenameCalendarRequest),
+    /// Sets calendar `calendar_id`'s color.
+    #[reply(Calendar)]
+    SetCalendarColor(SetCalendarColorRequest),
+    /// Deletes calendar `calendar_id`, of a local store, with its events.
+    #[reply(Calendar)]
+    DeleteCalendar(DeleteCalendarRequest),
+    /// Lists the live events overlapping a range of time.
+    #[reply(Vec<CalendarEvent>)]
+    ListCalendarEvents(ListCalendarEventsRequest),
+    /// Fetches live event `event_id`.
+    #[reply(CalendarEvent)]
+    GetCalendarEvent(GetCalendarEventRequest),
+    /// Creates an event on a calendar.
+    #[reply(CalendarEvent)]
+    CreateCalendarEvent(CreateCalendarEventRequest),
+    /// Replaces what event `event_id` says.
+    #[reply(CalendarEvent)]
+    UpdateCalendarEvent(UpdateCalendarEventRequest),
+    /// Deletes event `event_id`.
+    #[reply(CalendarEvent)]
+    DeleteCalendarEvent(DeleteCalendarEventRequest),
+    /// Syncs every backend account's calendars with its backend now.
+    #[reply(CalendarSyncSummary, request = SyncCalendarsRequest, via = Local)]
+    SyncCalendars,
     /// Lists a page of the live tasks the filters cover.
     #[reply(TaskPage)]
     ListTasks(ListTasksRequest),

@@ -68,7 +68,7 @@ pub enum StorageArea {
     /// Rewind's earlier versions of tasks, documents and journal entries.
     RewindVersions,
     /// Everything else: the workspace search index, metadata, contacts,
-    /// workspaces, settings, extensions and their storage, actors,
+    /// calendars, workspaces, settings, extensions and their storage, actors,
     /// connectors, models and spend records.
     Other,
 }

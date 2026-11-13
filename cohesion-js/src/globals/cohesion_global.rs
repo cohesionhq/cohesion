@@ -3,10 +3,11 @@ use std::collections::HashMap;
 use cohesion_core::model::TagFilter;
 use cohesion_core::protocol::Vocabulary;
 use cohesion_db::{
-    CreateAgentTeamCommand, GetAgentTeamCommand, GetIntelligenceAgentCommand, GetWorkspaceCommand,
-    GuardedDatabaseContext, ListAgentTeamsCommand, ListFeedsCommand, ListIntelligenceAgentsCommand,
-    ListTasksCommand, ListWorkspacesCommand, LookupWorkspaceByTitleCommand,
-    SearchFeedCorpusArticlesCommand,
+    CreateAgentTeamCommand, CreateCalendarCommand, CreateCalendarStoreCommand, GetAgentTeamCommand,
+    GetIntelligenceAgentCommand, GetWorkspaceCommand, GuardedDatabaseContext,
+    ListAgentTeamsCommand, ListCalendarEventsCommand, ListCalendarStoresCommand,
+    ListCalendarsCommand, ListFeedsCommand, ListIntelligenceAgentsCommand, ListTasksCommand,
+    ListWorkspacesCommand, LookupWorkspaceByTitleCommand, SearchFeedCorpusArticlesCommand,
 };
 use rquickjs::function::Opt;
 use rquickjs::{Ctx, Exception, JsLifetime, Type, Value, class::Trace};
@@ -19,6 +20,9 @@ use crate::conversion::{OneOrMore, plain};
 use crate::entities::agent::JsAgent;
 use crate::entities::agent_team::JsTeam;
 use crate::entities::article::JsArticle;
+use crate::entities::calendar::{
+    CalendarEventListOptions, JsCalendar, JsCalendarEvent, JsCalendarStore, color_choice,
+};
 use crate::entities::feed::JsFeed;
 use crate::entities::task::JsTask;
 use crate::entities::workspace::JsWorkspace;
@@ -170,6 +174,86 @@ impl CohesionGlobal {
             .collect())
     }
 
+    /// Every calendar store: Cohesion's own, then each calendar backend
+    /// account's.
+    #[qjs(rename = "calendarStores")]
+    pub fn calendar_stores<'js>(&self, ctx: Ctx<'js>) -> rquickjs::Result<Vec<JsCalendarStore>> {
+        let stores = read(&ctx, &self.database, ListCalendarStoresCommand {})?;
+        Ok(stores
+            .into_iter()
+            .map(|store| JsCalendarStore::new(store, self.database.clone()))
+            .collect())
+    }
+
+    /// Adds a store only in Cohesion, titled `title`, to make calendars in.
+    /// An empty title throws. Not available in read-only contexts.
+    #[qjs(rename = "createCalendarStore")]
+    pub fn create_calendar_store<'js>(
+        &self,
+        ctx: Ctx<'js>,
+        title: String,
+    ) -> rquickjs::Result<JsCalendarStore> {
+        let store = write(&ctx, &self.database, CreateCalendarStoreCommand { title })?;
+        Ok(JsCalendarStore::new(store, self.database.clone()))
+    }
+
+    /// Every calendar, by store, then title.
+    ///
+    /// Calendars are shared by every workspace.
+    pub fn calendars<'js>(&self, ctx: Ctx<'js>) -> rquickjs::Result<Vec<JsCalendar>> {
+        let calendars = read(&ctx, &self.database, ListCalendarsCommand {})?;
+        Ok(calendars
+            .into_iter()
+            .map(|calendar| JsCalendar::new(calendar, self.database.clone()))
+            .collect())
+    }
+
+    /// Makes a calendar in a store only in Cohesion (`CalendarStore.accountId`
+    /// is `null`); a backend's calendars come from the backend. Throws on an
+    /// empty title or a color that isn't one. Not available in read-only
+    /// contexts.
+    #[qjs(rename = "createCalendar")]
+    pub fn create_calendar<'js>(
+        &self,
+        ctx: Ctx<'js>,
+        options: CalendarCreateOptions,
+    ) -> rquickjs::Result<JsCalendar> {
+        let color = color_choice(&ctx, &options.color)?;
+        let calendar = write(
+            &ctx,
+            &self.database,
+            CreateCalendarCommand {
+                store_id: options.store_id,
+                title: options.title,
+                color,
+            },
+        )?;
+        Ok(JsCalendar::new(calendar, self.database.clone()))
+    }
+
+    /// The events on every calendar that overlap `from` to `to`, in Unix
+    /// seconds, by when they start.
+    #[qjs(rename = "calendarEvents")]
+    pub fn calendar_events<'js>(
+        &self,
+        ctx: Ctx<'js>,
+        options: CalendarEventListOptions,
+    ) -> rquickjs::Result<Vec<JsCalendarEvent>> {
+        let events = read(
+            &ctx,
+            &self.database,
+            ListCalendarEventsCommand {
+                calendar_ids: None,
+                from: options.from,
+                to: options.to,
+            },
+        )?;
+        Ok(events
+            .into_iter()
+            .map(|event| JsCalendarEvent::new(event, self.database.clone()))
+            .collect())
+    }
+
     /// Full-text search over every article that came from a feed: the feed
     /// corpus, which `Workspace.search()` doesn't cover.
     ///
@@ -284,6 +368,16 @@ pub struct WorkspaceListOptions {
     pub has_metadata: Option<OneOrMore<String>>,
 }
 
+/// Options for `cohesion.createCalendar()`.
+#[derive(JsOptions)]
+pub struct CalendarCreateOptions {
+    /// The store to make it in (`CalendarStore.id`), one only in Cohesion.
+    pub store_id: i64,
+    /// May not be empty.
+    pub title: String,
+    /// A palette color's name (`"blue"`) or an exact `"#rrggbb"`.
+    pub color: String,
+}
 /// Options for `cohesion.searchCorpus()`.
 #[derive(JsOptions, Default)]
 pub struct CorpusSearchOptions {

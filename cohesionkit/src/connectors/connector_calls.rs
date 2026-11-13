@@ -192,8 +192,8 @@ impl ExtensionFn for RenderResourceFn {
 /// How an account's items are reached: through the extension serving it,
 /// with the account's credential.
 pub(crate) struct Connection {
-    extension: Extension,
-    credential: Credential,
+    pub(crate) extension: Extension,
+    pub(crate) credential: Credential,
 }
 
 impl Connection {
@@ -244,20 +244,20 @@ impl Connection {
     }
 }
 
-/// How `account`'s items are reached. An extension's account needs its
-/// extension granted `connector` and `oauth`, and its credential, refreshed
-/// first if it is about to expire. An orphaned account is reached by
-/// nothing.
+/// How `account`'s items are reached, for calls that need `permission`
+/// (`connector` to import, `calendar:backend` to sync calendars). An
+/// extension's account needs its extension granted `permission` and
+/// `oauth`, and its credential, refreshed first if it is about to expire.
+/// An orphaned account is reached by nothing.
 pub(crate) async fn connect(
     extensions: &ExtensionManager,
     database: &DatabaseContext,
     account: &ConnectorAccount,
+    permission: ExtensionPermissionKind,
 ) -> Result<Connection, ServerError> {
     match &account.host {
         AccountHost::Extension { extension_id, .. } => {
-            let extension = extensions
-                .granted(*extension_id, ExtensionPermissionKind::Connector)
-                .await?;
+            let extension = extensions.granted(*extension_id, permission).await?;
             let credential = fresh_credential(extensions, database, &extension, account).await?;
             Ok(Connection {
                 extension,
@@ -353,7 +353,13 @@ async fn connected_account(
     let account = database
         .send(GetConnectorAccountCommand { account_id })
         .await?;
-    connect(extensions, database, &account).await
+    connect(
+        extensions,
+        database,
+        &account,
+        ExtensionPermissionKind::Connector,
+    )
+    .await
 }
 
 /// The organization units of account `account_id`: what its extension's
@@ -480,7 +486,7 @@ pub(crate) async fn render_resource(
 }
 
 /// Passes `value` to a script as a plain object.
-pub(super) fn json_argument(value: &impl serde::Serialize) -> ScriptArgument {
+pub(crate) fn json_argument(value: &impl serde::Serialize) -> ScriptArgument {
     ScriptArgument::Json(serde_json::to_value(value).expect("contract types serialize"))
 }
 

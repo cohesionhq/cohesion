@@ -325,7 +325,9 @@
 			if (id !== null)
 				void answer(
 					send('searchWorkspace', { workspace_id: id, query: fts }),
-					(found) => (results = found.slice(0, 12))
+					// The web UI has no page for a calendar event yet, so its hits aren't offered.
+					(found) =>
+						(results = found.filter((hit) => hit.entity_kind !== 'calendarEvent').slice(0, 12))
 				);
 			else results = [];
 			void answer(

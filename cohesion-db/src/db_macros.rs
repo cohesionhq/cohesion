@@ -54,6 +54,9 @@ macro_rules! every_model {
         $check::<StorageEntry>($db);
         $check::<Contact>($db);
         $check::<ContactMethod>($db);
+        $check::<CalendarStore>($db);
+        $check::<Calendar>($db);
+        $check::<CalendarEvent>($db);
         $check::<Tag>($db);
         $check::<TaskTag>($db);
         $check::<SavedTaskView>($db);

@@ -14,6 +14,7 @@ import { daemonHandlers } from './mock/handlers/daemon';
 import { documentsHandlers } from './mock/handlers/documents';
 import { tablesHandlers } from './mock/handlers/tables';
 import { rewindHandlers } from './mock/handlers/rewind';
+import { calendarsHandlers } from './mock/handlers/calendars';
 import { contactsHandlers } from './mock/handlers/contacts';
 import { tasksHandlers } from './mock/handlers/tasks';
 import { linksHandlers } from './mock/handlers/links';
@@ -54,6 +55,7 @@ export function createMock(): Mock {
 		...tablesHandlers(core),
 		...rewindHandlers(core),
 		...contactsHandlers(core),
+		...calendarsHandlers(core),
 		...tasksHandlers(core),
 		...linksHandlers(core),
 		...intelligenceHandlers(core),

@@ -11,6 +11,8 @@ mod agent_thread_mark;
 mod article;
 mod attachment;
 mod backlink;
+mod calendar;
+mod calendar_backend;
 mod catalog_model;
 mod client;
 mod cohesion_ui;
@@ -72,6 +74,14 @@ pub use article::{
 };
 pub use attachment::{Attachment, AttachmentMessage};
 pub use backlink::{Backlink, LinkSource, OutgoingLink, item_links, outgoing_links};
+pub use calendar::{
+    Calendar, CalendarColor, CalendarColorChoice, CalendarEvent, CalendarEventFields,
+    CalendarStore, CalendarStoreBackend, EventInvitee, EventTiming, InviteeResponse,
+};
+pub use calendar_backend::{
+    BackendAllDayEvent, BackendCalendar, BackendEvent, BackendEventFields, BackendEventTiming,
+    BackendInvitee, BackendTimedEvent,
+};
 pub use catalog_model::CatalogModel;
 pub use client::{Client, ClientKeyKind};
 pub use cohesion_ui::{

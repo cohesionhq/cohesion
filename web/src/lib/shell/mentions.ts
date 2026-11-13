@@ -36,9 +36,14 @@ export async function searchMentions(
 				detail: word('agent'),
 				href: itemLinkHref({ kind: 'agent', ws: null, id: agent.id })
 			})),
-		// A task folder or a feed has no link of its own, so it isn't offered.
+		// A task folder, a feed or a calendar event has no link of its own, so it isn't offered.
 		...items.flatMap((hit) => {
-			if (hit.entity_kind === 'taskFolder' || hit.entity_kind === 'feed') return [];
+			if (
+				hit.entity_kind === 'taskFolder' ||
+				hit.entity_kind === 'feed' ||
+				hit.entity_kind === 'calendarEvent'
+			)
+				return [];
 			const kind = hit.entity_kind === 'documentFolder' ? 'document-folder' : hit.entity_kind;
 			return [
 				{

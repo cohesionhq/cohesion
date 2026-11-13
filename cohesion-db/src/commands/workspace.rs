@@ -210,9 +210,10 @@ impl DatabaseCommand for SearchWorkspaceCommand {
         LEFT JOIN tasks AS task
             ON entry.entity_kind = 'task' AND task.id = entry.entity_id
         WHERE idx.search_fts MATCH ?1
-            -- A feed belongs to no workspace, so every workspace finds it.
-            AND (entry.workspace_id = ?2
-                OR (entry.workspace_id IS NULL AND entry.entity_kind = 'feed'))
+            -- A feed or a calendar event belongs to no workspace, so every
+            -- workspace finds it.
+            AND (entry.workspace_id = ?2 OR (entry.workspace_id IS NULL
+                AND entry.entity_kind IN ('feed', 'calendarEvent')))
         -- The title alone scores 0 when only the contents matched, and
         -- best for the shortest title holding the query.
         ORDER BY bm25(search_fts, 1.0, 0.0), bm25(search_fts, 5.0, 1.0)

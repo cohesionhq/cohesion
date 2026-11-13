@@ -4,13 +4,14 @@ use cohesion_core::{
         AccountHost, Activity, ActivityStatus, Actor, ActorMessageContent, ActorPermissionDecision,
         ActorSession, ActorSessionMessage, ActorSessionMessageContent, ActorSessionStatus,
         ActorToolKind, ActorUserContent, AgentAgendaItem, AgentCodeOutcome, AgentMessageContent,
-        AgentSkill, AgentThreadMark, Article, Attachment, Backlink, CatalogModel, Connector,
-        ConnectorAccount, Contact, ContactMethod, DocumentFolderProperty, DocumentValue,
-        EnabledExperiment, EndpointModel, Extension, ExtensionHook, ExtensionPermission,
-        ExtensionService, ExtensionServiceFunction, Feed, FeedFullPagePolicy, FeedStatus, HookKind,
-        IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun,
-        IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault, IntelligenceEffort,
-        IntelligenceEndpoint, IntelligenceSpendLimit, IntelligenceThread, IntelligenceThreadImage,
+        AgentSkill, AgentThreadMark, Article, Attachment, Backlink, Calendar, CalendarEvent,
+        CalendarStore, CatalogModel, Connector, ConnectorAccount, Contact, ContactMethod,
+        DocumentFolderProperty, DocumentValue, EnabledExperiment, EndpointModel, Extension,
+        ExtensionHook, ExtensionPermission, ExtensionService, ExtensionServiceFunction, Feed,
+        FeedFullPagePolicy, FeedStatus, HookKind, IntelligenceAgent, IntelligenceAgentCue,
+        IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
+        IntelligenceCostEvent, IntelligenceDefault, IntelligenceEffort, IntelligenceEndpoint,
+        IntelligenceSpendLimit, IntelligenceThread, IntelligenceThreadImage,
         IntelligenceThreadMessage, LinkKind, Memory, MemoryScope, Metadata, PairingOpener, Photo,
         Profile, PropertyOption, PublishedPrecision, Resource, ResourceKind, RewindWriter,
         SavedTaskView, SavedTaskViewPriority, SavedTaskViewSize, SavedTaskViewTag, SecurityEvent,
@@ -416,6 +417,8 @@ const UNMODELED: &[(&str, &str)] = &[("connector_accounts", "authorization")];
 /// provider, dialect, base URL and cache lifetime, a connector account that isn't a client's
 /// an extension, identifier, description and credential, and a skill an agent or a team.
 const CHECKED: &[(&str, &str)] = &[
+    ("calendar_events", "start_date"),
+    ("calendar_events", "end_date"),
     ("intelligence_thread_messages", "text"),
     ("intelligence_agent_messages", "text"),
     ("actor_session_messages", "text"),
@@ -465,6 +468,9 @@ const WORDS: &[(&str, &str, &str)] = &[
     ("backlinks", "source_kind", "document"),
     ("backlinks", "target_kind", "task"),
     ("document_folder_properties", "data_type", "text"),
+    ("calendars", "color", "#4a6fb5"),
+    ("calendar_events", "start_date", "2026-11-13"),
+    ("calendar_events", "end_date", "2026-11-13"),
 ];
 
 /// Required JSON columns of a table's own, which take `[]`.
@@ -568,7 +574,7 @@ fn every_model_matches_the_schema() {
     // `agent_id = 0`, `connector_id = 0`, `account_id = 0`, `kind_id = 0`, `workspace_id = 0`,
     // `service_id = 0`, `message_id = 0`, `feed_id = 0`, `endpoint_id = 0`
     // `endpoint_model_id = 0`, `client_id = 0`, `actor_id = 0`,
-    // `task_id = 0`, `contact_id = 0`, `tag_id = 0` (a task tag, with task 0 in
+    // `task_id = 0`, `contact_id = 0`, `store_id = 0`, `calendar_id = 0`, `tag_id = 0` (a task tag, with task 0 in
     // workspace 0 to put it on) and `view_id = 0` (a saved view of
     // workspace 0), `folder_id = 0`, `document_id = 0` and `property_id = 0`
     // (a document's value, on document 0 in folder 0 and that folder's
@@ -629,7 +635,9 @@ fn every_model_matches_the_schema() {
                  VALUES (0, 0, '', '', '', '[]', '[]');
              INSERT INTO actor_sessions (id, actor_id, title) VALUES (0, 0, '');
              INSERT INTO actor_session_messages (id, session_id, sender, kind, text)
-                 VALUES (0, 0, 'user', 'text', '');",
+                 VALUES (0, 0, 'user', 'text', '');
+             INSERT INTO calendar_stores (id, title) VALUES (0, 'checked');
+             INSERT INTO calendars (id, store_id, title, color) VALUES (0, 0, 'checked', '#4a6fb5');",
         )
         .unwrap();
     let db = WriteContainer::new(&db);

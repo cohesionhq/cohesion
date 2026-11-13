@@ -7,6 +7,7 @@ import AlarmClock from '@lucide/svelte/icons/alarm-clock';
 import Bell from '@lucide/svelte/icons/bell';
 import Blocks from '@lucide/svelte/icons/blocks';
 import Bot from '@lucide/svelte/icons/bot';
+import CalendarSync from '@lucide/svelte/icons/calendar-sync';
 import Cable from '@lucide/svelte/icons/cable';
 import Eye from '@lucide/svelte/icons/eye';
 import Gauge from '@lucide/svelte/icons/gauge';
@@ -30,6 +31,7 @@ export const PERMISSION_ICONS: Record<ExtensionPermissionKind, GrantIcon> = {
 	registry: Store,
 	oauth: KeyRound,
 	connector: Cable,
+	'calendar:backend': CalendarSync,
 	service: MessageSquareReply,
 	'service:isolated': MessageSquareLock,
 	services: Blocks,

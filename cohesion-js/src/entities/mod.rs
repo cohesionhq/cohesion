@@ -11,6 +11,7 @@ pub mod actor_session;
 pub mod agent;
 pub mod agent_team;
 pub mod article;
+pub mod calendar;
 pub mod connector;
 pub mod connector_account;
 pub mod connector_account_options;

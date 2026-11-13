@@ -267,7 +267,7 @@ fills its `?` placeholders, as it does those of the most recent
 a value, but prefer the typed ones: `set_null(column)` (nullable columns
 only), `set_true(column)` and `set_false(column)` (no bind), `set_now(column)`, `set_max_incremented(column)`
 and `set_max_incremented_within(column, scope_column, scope)` (the end of a sorted
-list), `append(column, text)` and `append_line` on an `Update`. There is no
+list), `append(column, text)`, `append_line` and `increment(column)` (adds one) on an `Update`. There is no
 `raw_filter`: membership is typed, from `Filtered`.
 
 - `filter_in(column, subquery)` and `filter_not_in`: the subquery is another

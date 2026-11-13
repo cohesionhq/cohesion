@@ -60,6 +60,9 @@ pub struct CohesionContext {
     pub security: Security,
     /// The PKCE verifier of each extension's sign-in under way.
     pub(crate) sign_ins: PendingSignIns,
+    /// Held by the calendar sync pass under way, so two never push the same
+    /// change.
+    pub(crate) calendar_sync: Arc<tokio::sync::Mutex<()>>,
     /// An import a client finished, which cohesiond restarts onto.
     pub pending_import: PendingImport,
     /// The work in flight: client requests, queued hooks, agent turns and
@@ -119,6 +122,7 @@ impl CohesionContext {
             presence: Presence::new(ctx.clone()),
             security: Security::new(ctx.clone()),
             sign_ins: PendingSignIns::default(),
+            calendar_sync: Arc::default(),
             pending_import: PendingImport::default(),
             database: ctx,
             work,
@@ -129,7 +133,7 @@ impl CohesionContext {
     /// database (first, so nothing has started any work yet), then refreshes the model catalog in the background, queues
     /// the launch hooks and the formulas a stopped daemon left outdated, and
     /// starts the clock hooks and the periodic cleanup, continuous formula,
-    /// resource, feed and extension-update passes.
+    /// resource, calendar, feed and extension-update passes.
     pub async fn start(&self) {
         if let Err(e) = self.database.send(ShutdownCleanupCommand).await {
             log_error!(Module::Database, "Startup cleanup failed: {e:?}");
@@ -142,6 +146,7 @@ impl CohesionContext {
         self.start_periodic_cleanup();
         self.start_continuous_formulas();
         self.start_resource_refresh();
+        self.start_calendar_sync();
         self.start_feed_refresh();
         self.start_update_checks();
     }

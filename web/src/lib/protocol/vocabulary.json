@@ -36,6 +36,11 @@
 			"description": "Bring an account’s pages and records in as resources."
 		},
 		{
+			"kind": "calendar:backend",
+			"title": "Sync calendars with a service",
+			"description": "Keep an account’s calendars and events in step with Cohesion, both ways."
+		},
+		{
 			"kind": "service",
 			"title": "Run as a service",
 			"description": "Answer requests from Cohesion’s apps, the CLI, agents and scripts."

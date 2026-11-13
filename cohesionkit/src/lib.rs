@@ -30,6 +30,7 @@ pub mod db {
     pub use cohesion_db::*;
 }
 mod actor_sessions;
+mod calendars;
 mod capability_clients;
 mod capability_store;
 mod client_request;

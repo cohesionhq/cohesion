@@ -193,7 +193,10 @@ pub struct ServiceFunctionManifest {
 /// removed. It also grants the `accounts` global, which lists those
 /// accounts with their credentials. `connector` lets the daemon call `getOrganizationUnits`,
 /// `listResources` and `getResource` to import an account's items as resources; a
-/// manifest that lists `connector` must list `oauth` too. `service` grants
+/// manifest that lists `connector` must list `oauth` too. `calendar:backend`
+/// lets the daemon call `listCalendars`, `listEvents`, `createEvent`,
+/// `updateEvent` and `deleteEvent` to sync each account's calendar store both
+/// ways; it too needs `oauth`. `service` grants
 /// no global: it makes the extension a service clients call, through the
 /// `callExtension` command, at its global
 /// `serviceRequest(name: string, args: unknown)`, receiving what it returns;
@@ -224,6 +227,8 @@ pub enum ExtensionPermissionKind {
     OAuth,
     #[text_enum("connector")]
     Connector,
+    #[text_enum("calendar:backend")]
+    CalendarBackend,
     #[text_enum("service")]
     Service,
     #[text_enum("service:isolated")]
@@ -242,12 +247,13 @@ pub enum ExtensionPermissionKind {
 
 impl ExtensionPermissionKind {
     /// The permission this one only works beside: `connector` imports the
-    /// items of accounts that `oauth` signs in to. A manifest listing this
+    /// items of, and `calendar:backend` syncs the calendars of, accounts
+    /// that `oauth` signs in to. A manifest listing this
     /// one must list that one, and a call needing this one needs that one
     /// enabled too.
     pub fn needs(&self) -> Option<ExtensionPermissionKind> {
         match self {
-            Self::Connector => Some(Self::OAuth),
+            Self::Connector | Self::CalendarBackend => Some(Self::OAuth),
             Self::GlobalReadOnly
             | Self::GlobalReadWrite
             | Self::Network

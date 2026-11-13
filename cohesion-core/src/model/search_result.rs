@@ -2,7 +2,8 @@ use cohesion_macros::{Fields, Model, TextEnum, TsWire};
 use serde::{Deserialize, Serialize};
 
 /// What kind of item a search result points at: `"document"`, `"task"`,
-/// `"resource"`, `"contact"`, `"taskFolder"`, `"documentFolder"` or `"feed"`.
+/// `"resource"`, `"contact"`, `"taskFolder"`, `"documentFolder"`, `"feed"` or
+/// `"calendarEvent"`.
 #[derive(Clone, Serialize, Deserialize, TextEnum, TsWire)]
 #[serde(rename_all = "camelCase")]
 pub enum SearchEntityKind {
@@ -13,11 +14,13 @@ pub enum SearchEntityKind {
     TaskFolder,
     DocumentFolder,
     Feed,
+    CalendarEvent,
 }
 
 /// One full-text search hit: a snapshot of the matched document's, task's,
-/// resource's, contact's, folder's or feed's indexed text, plus a pointer back
-/// to it. A folder or a feed is indexed by its title alone.
+/// resource's, contact's, folder's, feed's or calendar event's indexed text,
+/// plus a pointer back to it. A folder or a feed is indexed by its title
+/// alone.
 #[derive(Clone, Serialize, Deserialize, Model, Fields, TsWire)]
 #[model(table = "search_fts", backup = Included)]
 pub struct SearchResult {
@@ -26,20 +29,20 @@ pub struct SearchResult {
     /// This is **not** the matched item's id; that is the entity id.
     pub id: i64,
     /// Whether the hit is a document, a task, a resource, a contact, a task
-    /// or document folder, or a feed.
+    /// or document folder, a feed or a calendar event.
     pub entity_kind: SearchEntityKind,
-    /// Id of the matched document, task, resource, contact, folder or feed
-    /// (which one depends on the entity kind).
+    /// Id of the matched document, task, resource, contact, folder, feed or
+    /// calendar event (which one depends on the entity kind).
     pub entity_id: i64,
-    /// Id of the workspace the matched item belongs to; for a feed, which
-    /// belongs to none, the workspace searched.
+    /// Id of the workspace the matched item belongs to; for a feed or a
+    /// calendar event, which belong to none, the workspace searched.
     pub workspace_id: i64,
 
     /// The matched item's title; a contact's full name.
     pub title: Option<String>,
     /// The matched document's full contents, a Markdown resource's text or a
-    /// contact's notes; always `""` for tasks, folders, feeds and JSON
-    /// resources.
+    /// contact's notes, or a calendar event's location and description;
+    /// always `""` for tasks, folders, feeds and JSON resources.
     pub contents: String,
     /// The matched task's status (`"incomplete"`, `"completed"` or
     /// `"cancelled"`); `"none"` for every other kind, which
