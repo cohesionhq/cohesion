@@ -11,9 +11,10 @@
 		placeholder: string;
 		/** Names the field for assistive tech: "Filter documents by title". */
 		label: string;
+		onkeydown?: (e: KeyboardEvent) => void;
 	}
 
-	let { value = $bindable(), placeholder, label }: Props = $props();
+	let { value = $bindable(), placeholder, label, onkeydown }: Props = $props();
 </script>
 
 <!-- The list's full width, so the field ends where its rows do. -->
@@ -31,5 +32,6 @@
 		{placeholder}
 		aria-label={label}
 		autocomplete="off"
+		{onkeydown}
 	/>
 </div>
