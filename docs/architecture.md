@@ -63,7 +63,7 @@ package, the web UI in `web/`. No crate declares cargo `[features]`.
 | `cohesion-macros` | proc-macro | The derives and attributes every other crate uses: `Model`, `Projection`, `ColumnGroup`, `Fields`, `FromRequest`, `Commands`, `Replies`, `TextEnum`, `TsInterface`, `TsWire`, `JsOptions`, `#[js_entity]`, `#[js_global]`. cohesion-core re-exports them. | none |
 | `cohesion-rs` | lib, `MIT` | What a client needs to talk to a daemon, for clients outside this repository (the Linux WebUI harness): keys, certificates, `key_fingerprint`, setup codes, the socket handshake and the name a client gets when its user gives none (`auth/`), private file helpers (`private_files.rs`), and the client's view of the protocol's envelope (`protocol.rs`: `Frame`, `Hello`, `Reply`, `Outcome`, the `WebBundle` reply, `RegisterRequest`, `PROTOCOL_VERSION`), which leaves every other message and reply as raw JSON. cohesion-core re-exports all but `protocol.rs`'s client types from its own paths, and its `protocol/envelope/client_tests.rs` checks the daemon's frames decode into them. | none |
 | `cohesion-core` | lib | Types every crate shares: the domain models (`model/`), the wire protocol (`protocol/`), invalidations, keys, certificates and setup codes (`auth/`, re-exported from cohesion-rs but for PKCE), the `Caller`, logging (`log/`), config paths (`paths.rs`), private file helpers (`private_files`, from cohesion-rs), the storage-agnostic `Value` layer, and `ts_wire`, which declares the protocol as TypeScript. No database and no script engine. | cohesion-macros, cohesion-rs |
-| `cohesion-db` | lib | SQLite persistence: `Container` (the rusqlite connection, query builders, migrations), the `DatabaseCommand` trait and every command, `DatabaseContext` (the one writing thread and the read-only readers), events and `InvalidationWatch`, `GuardedDatabaseContext` (what scripts hold), `CredentialManager`, `Secrets` (the pairing window), `WorkTracker`, `ActivityTracker`, backup, export and import (`transfer.rs`), retention. | cohesion-core |
+| `cohesion-db` | lib | SQLite persistence: `Container` (the rusqlite connection, query builders, migrations), the `DatabaseCommand` trait and every command, `DatabaseContext` (the one writing thread and the read-only readers), events and `InvalidationWatch`, `GuardedDatabaseContext` (what scripts hold), `CredentialManager`, `Secrets` (the pairing window), `WorkTracker`, backup, export and import (`transfer.rs`), retention. | cohesion-core |
 | `cohesion-internet` | lib (+ `build.rs`) | Reading the web: `article_snapshot` (a page as Markdown), `feed` (RSS, Atom and JSON Feed, with autodiscovery), `fetch`, `pipeline`, and Coherence, Cohesion's own HTML reader (`coherence/`, whose JSON rules `build.rs` compiles in). Blocking reqwest; knows nothing of the database or scripts. | cohesion-core |
 | `cohesion-internet-harness` | bin, `publish = false` | A tool: `cargo run -p cohesion-internet-harness -- page <url>` or `feed <url>` prints the Markdown the daemon would store, for building Coherence's rules. Nothing depends on it. | cohesion-core, cohesion-internet |
 | `cohesion-js` | lib | The QuickJS script runtime (rquickjs): `ScriptEngine` and its worker pools, `Sandbox`, globals and `Mount`, JS entities, `script_api` (which yields the `.d.ts`), `service_declarations`, `AgentRole`, and the traits a higher crate implements: `ConnectorAccess`, `ServiceAccess`, `ActorAccess`. Strips TypeScript with its own parser (`sandbox/strip_types`); vendors the Pele diagram renderer in `vendor/pele`. | cohesion-core, cohesion-db, cohesion-internet, cohesion-macros |
@@ -343,11 +343,11 @@ certificate and setup key. `Security` remembers refused pairings for at most
 
 **Shutdown** (`cohesiond/src/shutdown.rs`, `CohesionContext::shutdown`):
 
-1. `work.close()`: `WorkTracker` refuses new work. Every request on every transport is answered "Cohesion is shutting down. Try again once it has restarted.", and so are `/register`, offers, day-clock ticks and timed passes; running work may still start follow-on work (hooks, cue runs, scripts, model calls). Running activities are cancelled. The listeners keep answering.
+1. `work.close()`: `WorkTracker` refuses new work. Every request on every transport is answered "Cohesion is shutting down. Try again once it has restarted.", and so are `/register`, offers, day-clock ticks and timed passes; running work may still start follow-on work (hooks, cue runs, scripts, model calls). The listeners keep answering.
 2. `hooks.settle_all()`: every `journal:settled` and `document:settled` hook still waiting is queued now ([7](#7-hooks-and-events)).
 3. `work.idle()`: wait for all work.
 4. `script_engine.shutdown()`: every script worker thread, scoped ones included, ends once its queue has drained; a script submitted after is cancelled. Without it the threads would outlive the context, since the engine's clones hold one another.
-5. `database.close()`: run what is queued, then `ShutdownCleanupCommand` as the last write, then drop the connection. In one transaction it runs `SettleAgentThreadMarksCommand`, `SettleAgentActivityCommand`, `SettleActivitiesCommand`, `SettleActorSessionsCommand` and `SettleAgentAsksCommand` (`cohesion-db/src/commands/shutdown_cleanup.rs`). Startup runs it again, for a daemon that crashed. State a stopped daemon must not leave behind is one more `ctx.run` there.
+5. `database.close()`: run what is queued, then `ShutdownCleanupCommand` as the last write, then drop the connection. In one transaction it runs `SettleAgentThreadMarksCommand`, `SettleAgentActivityCommand`, `SettleActorSessionsCommand` and `SettleAgentAsksCommand` (`cohesion-db/src/commands/shutdown_cleanup.rs`). Startup runs it again, for a daemon that crashed. State a stopped daemon must not leave behind is one more `ctx.run` there.
 
 Every 5 seconds the daemon logs what it is still waiting for. After 5 minutes,
 or a second signal, it stops waiting, still closes the database, and exits 1.
@@ -465,7 +465,7 @@ which no list filters or sorts by, so a list refetches just its row),
 `tags(ws)`, `contacts(ws)`, `calendars` (stores and calendars, shared by every
 workspace), `calendarEvents` (every event, one key), `savedTaskViews(ws)`,
 `extensionUpdates`,
-`memories`, `agentSkills`, `activities`, `actors`, `actorSessions`, `actorSession(id)`
+`memories`, `agentSkills`, `actors`, `actorSessions`, `actorSession(id)`
 (the session as a whole: its context, a stretch of work ending, its
 subagents, a subagent's request), `actorSessionMessage{session_id, message_id}`
 (one message added, changed or taken out: a transcript refetches just it,
@@ -831,7 +831,7 @@ active development. There is no negotiation: the web UI compares the number in
 (`web/src/lib/protocol/connection.svelte.ts`). The wire changes together with
 the daemon and its clients. `hello.vocabulary` (`protocol/vocabulary.rs`) holds
 the daemon's words for its kinds, in display order: permissions, hooks, task
-priorities and sizes, version changes, activity and actor session statuses
+priorities and sizes, version changes, actor session statuses
 and stops, agent colours, personalities and verbosities, tiers, spend periods,
 providers, dialects, reactions, pairing openers, security events, embed kinds,
 property data types and formula update modes. A new
@@ -1016,7 +1016,8 @@ the hook structs are declared in `cohesionkit/src/hooks/hook_events.rs`):
 | `agent:message` | `onAgentMessage(message)` | `AgentMessageCreated` (not for bookkeeping kinds: notes, wakes, rebuilt contexts) |
 | `agent:reaction` | `onAgentReaction(message)` | `AgentMessageReacted` |
 | `agent:turn:start`, `agent:turn:end` | `onAgentTurnStart(agent)`, `onAgentTurnEnd(agent)` | `AgentTurnStarted`, `AgentTurnEnded` (an agent starts or stops answering the user) |
-| `activity:started`, `activity:updated`, `activity:ended` | `onActivityStarted(activity)`, `onActivityUpdated(activity)`, `onActivityEnded(activity)` | `ActivityStarted`, `ActivityUpdated`, `ActivityEnded` |
+| `actor:started` | `onActorStarted(session)` | `ActorSessionStarted`, once an actor's client takes a session Cohesion started (`AnnounceActorSessionCommand`; not for a start the client refused, or a subagent) |
+| `actor:progress` | `onActorProgress(session)` | `ActorSessionProgressed`, an actor session's `progress` or `title` really changing (not for a subagent) |
 | `actor:moved` | `onActorMoved(session)` | `ActorSessionMoved`, an actor session's status really changing |
 | `actor:resolved` | `onActorResolved(session)` | `ActorSessionResolved`, an actor session moving into resolved, once (not for one already resolved or a subagent) |
 | `day:start` | `onDayStart()` | The day clock at 06:00 local time |
@@ -1224,14 +1225,13 @@ invalidates `experiments`.
 | `agent_thread_marks` | One per agent: which model thread the conversation is on and how far it has heard ([12](#12-how-a-turn-runs)). |
 | `thread_prompts`, `intelligence_threads`, `intelligence_thread_messages`, `intelligence_thread_images` | Model threads: their system prompts (stored once), forks (`parent_thread_id`), a Responses API chain (`remote_id`, `remote_cursor`), and every item sent and received. |
 | `attachments` | Images on an agent message or an actor session message: `media_type`, `data` (a blob). |
-| `activities` | Work under way that clients show, one per actor session: `actor_session_id`, `title`, `status`, `progress`, `started_at`, `ended_at`. |
 
 **Actors**
 
 | Table | Holds |
 |---|---|
 | `actors` (soft) | What a client offers: `client_id`, `identifier`, `product`, `scope`, `modes`, `models` (JSON). |
-| `actor_sessions` | `actor_id`, `title`, `mode`, `model`, `effort`, `started_at`, `status_changed_at`, `status`, `unread`, `read_at`, context usage, `follower_agent_id`, `follower_initiative`; for a subagent, `parent_session_id` (cascading), `subagent_key` (unique per actor), `subagent_type`, `subagent_message_id` and `subagent_background`. |
+| `actor_sessions` | `actor_id`, `title`, `mode`, `model`, `effort`, `started_at`, `status_changed_at`, `status`, `progress` (while it works or needs attention), `unread`, `read_at`, context usage, `follower_agent_id`, `follower_initiative`; for a subagent, `parent_session_id` (cascading), `subagent_key` (unique per actor), `subagent_type`, `subagent_message_id` and `subagent_background`. |
 | `actor_session_messages` | The transcript: `sender`, `kind`, and the columns for each kind ([14](#14-actor-clients-and-actor-sessions)); one response per request (unique `request_id`). |
 
 **Intelligence settings and spending**
@@ -1310,7 +1310,6 @@ erDiagram
   actor_sessions ||--o{ actor_session_messages : C
   actor_sessions ||--o{ actor_sessions : C
   actor_session_messages ||--o{ attachments : C
-  actor_sessions ||--o{ activities : C
   intelligence_agents |o--o{ actor_sessions : N
   intelligence_endpoints ||--o{ endpoint_models : C
   endpoint_models ||--o{ intelligence_defaults : C
@@ -1322,8 +1321,7 @@ erDiagram
 `actor_session_messages_search_*`); Rewind (`tasks_version_*`,
 `documents_version_*`, `version_writes_write`); deletion times
 (`tasks_deleted_at`, `documents_deleted_at`); and integrity
-(`activities_valid_*`, `actor_sessions_valid_*`,
-`actor_sessions_status_changed`, `activities_actor_session_unread`,
+(`actor_sessions_valid_*`, `actor_sessions_status_changed`,
 `intelligence_agent_messages_reply_to`, `intelligence_agent_messages_unread`,
 `resources_same_connector`, `saved_task_views_folder_in_workspace`,
 `documents_folder_in_workspace*`, `tasks_assignee_contact_*`, `contacts_deleted_assign_nothing`,
@@ -1357,7 +1355,7 @@ transaction, reading `storage_settings` once:
 
 1. `DeleteIdleThreadsCommand`: deletes model threads nothing was added to for `thread_retention_days` and that nothing forked, then unused system prompts. Runs and cost events stay.
 2. `BlankOldThreadMessagesCommand` and `BlankOldCodeResultsCommand`: empty the text of old thread items and old script results in agent chats, keeping the rows.
-3. `DeleteOldActorSessionsCommand`: deletes actor sessions resolved at least `actor_session_retention_days` ago, with their messages, images and activities.
+3. `DeleteOldActorSessionsCommand`: deletes actor sessions resolved at least `actor_session_retention_days` ago, with their messages and images.
 4. `DeleteOldSecurityEventsCommand`: 30 days.
 5. `DeleteOldVersionsCommand`: Rewind versions older than `rewind_retention_days`.
 6. `PurgeDeletedItemsCommand`: hard-deletes tasks and documents deleted longer ago than the larger of `deleted_item_retention_days` and `rewind_retention_days`. This is the only way a task or document leaves the database.
@@ -2050,29 +2048,27 @@ stateDiagram-v2
 
 | Action | What happens |
 |---|---|
-| Dispatch (`StartActorSession`, `actors.dispatch`) | `CreateActorSessionCommand` checks the prompt ("Say what to do."), images, and that the mode, model and effort are offered, then inserts the session as `working` with the prompt as its first message and the title from the given title or the prompt's first line (at most 80 characters). It opens an activity and calls `startActorSession`. If the call fails, the session is deleted and the error returned. Creating raises no `actor:moved`. |
+| Dispatch (`StartActorSession`, `actors.dispatch`) | `CreateActorSessionCommand` checks the prompt ("Say what to do."), images, and that the mode, model and effort are offered, then inserts the session as `working` with the prompt as its first message and the title from the given title or the prompt's first line (at most 80 characters). It calls `startActorSession`; once the client takes it, `AnnounceActorSessionCommand` raises `ActorSessionStarted` (the `actor:started` hook). If the call fails, the session is deleted, the error returned and nothing raised. Creating raises no `actor:moved`. |
 | Send (`SendActorSessionMessage`, `actors.send`) | Stores the user's message, moves the session to `working`, calls `sendActorSessionMessage`. If the call fails, the message is deleted and the status put back. |
 | Stop (`StopActorSession`, `actors.stop`) | Calls `stopActorSession` (a failure to reach the client is only logged) and moves to `idle` as `stopped`. Wakes no one. |
 | Resolve (`ResolveActorSession`, `session.resolve()`) | Stops it first if it is working or needs attention, then moves to `resolved`. Wakes no one. |
 | Set mode (`SetActorSessionMode`) | The mode must be offered; on a failed call the old mode is restored. Status unchanged. |
 | The device reports a status | `working`, `needsYou`, `finished` or `failed`, as above. |
-| The device reports progress | Moves to `working` (or stays `needsAttention`) and sets the activity's progress line. |
-| The device's serving session closes | `ActorSessions::client_left`: that client's working sessions become `idle` as `interrupted`. Not when it was replaced by another session of the same client. |
+| The device reports progress | Moves to `working` (or stays `needsAttention`), then `SetActorSessionProgressCommand` keeps it as the session's `progress`, raising `ActorSessionProgressed` (`actor:progress`) when it changed. |
+| The device reports a title | `SetActorSessionTitleCommand` renames the session, raising `ActorSessionProgressed` when the title changed. |
+| The device's serving session closes | `ActorSessions::client_left`: `InterruptActorSessionsCommand` moves that client's working and needs-attention sessions to `idle` as `interrupted`. Not when it was replaced by another session of the same client. |
 | The daemon stops, or starts after a crash | `SettleActorSessionsCommand` sets working and needs-attention sessions to `idle`, raising no event, so no follower wakes. |
 
-**Activities.** A session has one activity for its whole life
-(`activities`, unique per session), which mirrors it while it works:
-`running` while working, `paused` while it needs attention. It ends
-`succeeded` when the actor reports `idle`, `failed` when it reports
-`failed`, and `cancelled` for a stop, resolve, interruption, rolled-back
-send or shutdown. When the session works again, `StartActivityCommand`
-reopens that row: `running`, its title the session's, progress and
-`ended_at` cleared, its id and `started_at` kept. A trigger (`activities_actor_session_unread`)
-marks the session unread only when its activity ends `succeeded` or `failed`;
-`SetActorSessionStatusCommand` does the same when the actor reports `idle` or
-`failed` with no activity open, but never for a subagent or a session
-resolved meanwhile. `MarkActorSessionRead` clears it and sets `read_at`, and
-so does resolving the session.
+**Progress and unread.** A session's `progress` is the line its actor last
+reported while it goes on, such as "Read 12 of 40 files"; a move to `idle`,
+`failed` or `resolved` clears it, and so does `SettleActorSessionsCommand`.
+`SetActorSessionStatusCommand` marks the session unread when its actor
+reports `idle` (`finished`) or `failed`, but never for a subagent, a stop,
+an interruption or a session resolved meanwhile. `MarkActorSessionRead`
+clears it and sets `read_at`, and so does resolving the session. Hooks follow
+a session through `actor:started`, `actor:progress`, `actor:moved` and
+`actor:resolved`, each with the session as it stood; there is no separate
+record of its work.
 
 **Reports from the device** (`actorSessionUpdate`, `ActorSessionReport`
 tagged `kind`), queued per session (64) and handled in order; the session must
@@ -2140,8 +2136,8 @@ global: `list`, `actor`, `sessions`, `session`, `messages`, `dispatch`, `send`,
 `stop`, and `session.markRead()` and `session.resolve()`.
 
 **Retention.** The hourly cleanup deletes sessions resolved at least
-`actor_session_retention_days` ago (default 7), with their messages, images
-and activities. A session never resolved is never deleted.
+`actor_session_retention_days` ago (default 7), with their messages and
+images. A session never resolved is never deleted.
 
 **Reconnecting.** When the serving session ends, its pending calls fail as
 offline, its usage is dropped, and (unless it was replaced) its working
@@ -2161,7 +2157,7 @@ has a transcript, a status, a title and context like any session.
 - **Addressing.** The client reports on a subagent under the session Cohesion started, `session_id`, naming it by its own `subagent` key, the id its SDK gives it, so it needs no Cohesion id and can catch up after a restart. A key is unique among its actor's subagents. A report naming a subagent's own id as `session_id`, or a key never launched, is refused ("Launch subagent "a1" first.").
 - **Launching** (`LaunchActorSubagentCommand`). The first `launch` adds the subagent, `working`, under the session or under the subagent whose key `parent` gives, at most 4 deep and 256 in all below one session; `message_id` must be a `toolUse` in the transcript one level up, the call that launched it. A `launch` again makes it what the new one says, its status as it stands; it can't move it under another parent. The title follows the session title's rule; `agent_type` is at most 64 bytes and `model` 128, stored as given.
 - **Reports into it.** `message`, `status`, `end`, `context` and `title` work as for a session; `progress` only marks it working. A subagent's transcript holds at most 2,000 messages.
-- **What it doesn't do.** It has no activity, so it is never unread; its moves raise no `actor:moved` and wake no follower; it is not in `ListActorSessions`, search, the sidebar or `@`; it can't be stopped, resolved or switched on its own ("A subagent goes with its session."), and the user tells it nothing but responses to its requests ("A subagent takes only responses to what it asked."). A response goes out as `sendActorSessionMessage` with the session Cohesion started as `session_id` and the subagent's `subagent` key.
+- **What it doesn't do.** It keeps no progress and is never unread; its moves, progress and title raise no `actor:*` hook and wake no follower; it is not in `ListActorSessions`, search, the sidebar or `@`; it can't be stopped, resolved or switched on its own ("A subagent goes with its session."), and the user tells it nothing but responses to its requests ("A subagent takes only responses to what it asked."). A response goes out as `sendActorSessionMessage` with the session Cohesion started as `session_id` and the subagent's `subagent` key.
 - **Settling.** Stopping or resolving a session leaves its subagents still going `idle` as stopped; its client going away (not replaced) leaves its working subagents `idle` as interrupted; the daemon stopping settles them with every session. A session's turn ending leaves its subagents be, since a background one goes on.
 - **Reads.** `ListActorSubagents{session_id}` lists one session's subagents one level down, first launched first; `ListUnansweredSubagentRequests{session_id}` lists the requests waiting on the user in its subagents at any depth, those of subagents still going; `ListActorSessionFamily{session_id}` lists the family of any session or subagent: the session Cohesion started, then every subagent beneath it, each right after the one it runs under, siblings first launched first. A subagent's launch, status, title or context invalidates `actorSession` of itself, of the session one level up and of the session Cohesion started; a message in it only its own, and the started session's too when it is a request or a response.
 - **Retention.** Subagents go with the session they run under (the rows cascade).

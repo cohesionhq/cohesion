@@ -352,7 +352,7 @@ impl AgentCoordinator {
                 [
                     ScriptArgument::ActorSession {
                         actor_session,
-                        moved,
+                        moved: Some(moved),
                     },
                 ],
             ) => {

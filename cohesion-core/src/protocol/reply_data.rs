@@ -28,15 +28,15 @@ use super::storage_requests::{
 };
 use super::task_requests::TaskPage;
 use crate::model::{
-    Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem,
-    AgentSkill, Article, Attachment, Calendar, CalendarEvent, CalendarStore, CatalogModel, Client,
-    Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
-    DocumentFolderProperty, DocumentSummary, Embed, EndpointModel, ExperimentSetting,
-    ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
-    IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
-    IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
-    RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings, TableRow, Tag,
-    Task, TaskFolder, TextSection, Version, VersionSummary, Workspace, WorkspaceResourceKind,
+    Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem, AgentSkill,
+    Article, Attachment, Calendar, CalendarEvent, CalendarStore, CatalogModel, Client, Component,
+    Contact, ContactMethod, DeletedItem, Document, DocumentFolder, DocumentFolderProperty,
+    DocumentSummary, Embed, EndpointModel, ExperimentSetting, ExtensionHook, ExtensionPermission,
+    Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage,
+    IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault,
+    IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource, RestoredItem, SavedTaskView,
+    SearchResult, SecuritySettings, StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection,
+    Version, VersionSummary, Workspace, WorkspaceResourceKind,
 };
 
 /// The payload of a successful reply.
@@ -127,7 +127,6 @@ pub enum ReplyData {
     AgentSkill(AgentSkill),
     AgentSkills(Vec<AgentSkill>),
     AgentRuns(Vec<IntelligenceAgentRun>),
-    Activities(Vec<Activity>),
     Actors(Vec<Actor>),
     ActorUsage(Vec<ListedActorUsage>),
     ActorSessions(Vec<ActorSession>),

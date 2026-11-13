@@ -1,4 +1,4 @@
-// Agents: teams, messages, skills, cues, memories, activities and runs.
+// Agents: teams, messages, skills, cues, memories and runs.
 
 import { ProtocolError } from '../../errors';
 import type {
@@ -372,16 +372,6 @@ export function agentsHandlers(core: MockCore) {
 			if (!state.agentCues.some((c) => c.id === cue_id)) notFound('intelligence agent cue');
 			state.agentCues = state.agentCues.filter((c) => c.id !== cue_id);
 			return null;
-		},
-		listActivities: ({ limit }) => {
-			const running = state.activities
-				.filter((a) => a.ended_at === null)
-				.sort((a, b) => b.started_at - a.started_at);
-			const ended = state.activities
-				.filter((a) => a.ended_at !== null)
-				.sort((a, b) => b.ended_at! - a.ended_at!)
-				.slice(0, limit);
-			return [...running, ...ended].map((a) => structuredClone(a));
 		},
 		listAgentRuns: ({ agent_id, limit }) => {
 			agent(agent_id);

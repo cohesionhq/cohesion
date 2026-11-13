@@ -106,8 +106,7 @@ pub struct ActorEffort {
 }
 
 /// One session an actor works on, such as a Claude Code session: a thread in
-/// the actor's own system, which it reports to Cohesion as it goes. While
-/// it works, or needs the user, an activity shows it. A session stays until the
+/// the actor's own system, which it reports to Cohesion as it goes. A session stays until the
 /// user, or an agent for them, resolves it, and never ends for good: a
 /// message to one that is done, failed or resolved starts it again.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Model, Fields, TsWire)]
@@ -127,6 +126,11 @@ pub struct ActorSession {
     pub status_changed_at: i64,
     /// Where it stands, as its actor last reported.
     pub status: ActorSessionStatus,
+    /// What its actor last said it is doing while it works or needs
+    /// attention, such as "Read 12 of 40 files"; `null` when it said
+    /// nothing, and once the session is idle, failed or resolved. A
+    /// subagent's stays `null`.
+    pub progress: Option<String>,
     /// Whether its actor finished a stretch of work, done or failed, since
     /// the user last read it; stopping it, or its client going away, doesn't.
     /// Resolving it reads it.
@@ -145,7 +149,7 @@ pub struct ActorSession {
     pub follower: Option<ActorSessionFollower>,
     /// What makes it a subagent: the session one level up whose actor
     /// launched it, and how; `null` for a session Cohesion started. A
-    /// subagent leaves the lists, has no activity, is never unread and wakes
+    /// subagent leaves the lists, has no progress, is never unread and wakes
     /// no follower; it goes with the session above it.
     #[model(group)]
     #[fields(skip)]
@@ -331,9 +335,6 @@ pub struct ActorSessionSearchHit {
 ///   of sessions leave it out, and it is deleted once it has sat resolved
 ///   for the actor session retention. The user may say more to start it
 ///   again.
-///
-/// A working session, or one that needs attention, has an activity open, which
-/// ends succeeded as it goes idle and failed as it fails.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TextEnum, TsWire)]
 #[serde(rename_all = "camelCase")]
 #[text_enum(rename_all = "camelCase")]

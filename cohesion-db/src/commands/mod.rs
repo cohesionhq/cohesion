@@ -5,7 +5,6 @@
 //! the check every title passes, and `agent_name`, the name an agent created
 //! without one gets.
 
-mod activity;
 mod actor;
 mod actor_session_follower;
 mod actor_subagent;
@@ -67,18 +66,15 @@ mod title;
 mod workspace;
 mod workspace_scope;
 
-pub(crate) use activity::{
-    ActivityReport, FinishActivityCommand, ReportActivityCommand, StartActivityCommand,
-};
-pub use activity::{ListActivitiesCommand, SettleActivitiesCommand};
 pub use actor::{
-    AddActorSessionMessageCommand, CreateActorSessionCommand, DeleteActorSessionCommand,
-    DeleteActorSessionMessageCommand, DeleteOldActorSessionsCommand, EndActorSessionMessageCommand,
-    GetActorCommand, GetActorIncludingDeletedCommand, GetActorSessionCommand,
-    ListActorSessionAncestorsCommand, ListActorSessionMessageAttachmentsCommand,
-    ListActorSessionMessagesCommand, ListActorSessionsCommand, ListActorsCommand,
-    MarkActorSessionReadCommand, SUBAGENT_MESSAGE_LIMIT, SetActorSessionContextCommand,
-    SetActorSessionModeCommand, SetActorSessionStatusCommand, SetActorSessionTitleCommand,
+    AddActorSessionMessageCommand, AnnounceActorSessionCommand, CreateActorSessionCommand,
+    DeleteActorSessionCommand, DeleteActorSessionMessageCommand, DeleteOldActorSessionsCommand,
+    EndActorSessionMessageCommand, GetActorCommand, GetActorIncludingDeletedCommand,
+    GetActorSessionCommand, InterruptActorSessionsCommand, ListActorSessionAncestorsCommand,
+    ListActorSessionMessageAttachmentsCommand, ListActorSessionMessagesCommand,
+    ListActorSessionsCommand, ListActorsCommand, MarkActorSessionReadCommand,
+    SUBAGENT_MESSAGE_LIMIT, SetActorSessionContextCommand, SetActorSessionModeCommand,
+    SetActorSessionProgressCommand, SetActorSessionStatusCommand, SetActorSessionTitleCommand,
     SettleActorSessionsCommand,
 };
 pub use actor_session_follower::{FollowActorSessionCommand, UnfollowActorSessionCommand};

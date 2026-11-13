@@ -150,6 +150,7 @@ export function actorsHandlers(core: MockCore) {
 				started_at: now,
 				status_changed_at: now,
 				status: 'working',
+				progress: null,
 				unread: false,
 				read_at: null,
 				context: null,
@@ -214,6 +215,7 @@ export function actorsHandlers(core: MockCore) {
 			if (session.status !== 'idle' && session.status !== 'resolved') {
 				session.status = 'idle';
 				session.status_changed_at = nowSeconds();
+				session.progress = null;
 			}
 			return { ...session };
 		},
@@ -222,6 +224,7 @@ export function actorsHandlers(core: MockCore) {
 			if (session.status !== 'resolved') {
 				session.status = 'resolved';
 				session.status_changed_at = nowSeconds();
+				session.progress = null;
 			}
 			return { ...session };
 		},

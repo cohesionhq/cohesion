@@ -19,7 +19,6 @@
 use cohesion_macros::Commands;
 use serde::{Deserialize, Serialize};
 
-use super::activity_requests::*;
 use super::actor_requests::*;
 use super::agent_requests::*;
 use super::article_requests::*;
@@ -46,15 +45,15 @@ use super::tag_requests::*;
 use super::task_requests::*;
 use super::workspace_requests::*;
 use crate::model::{
-    Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem,
-    AgentSkill, Article, Attachment, Calendar, CalendarEvent, CalendarStore, CatalogModel, Client,
-    Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
-    DocumentFolderProperty, DocumentSummary, Embed, EndpointModel, ExperimentSetting,
-    ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
-    IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
-    IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
-    RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings, TableRow, Tag,
-    Task, TaskFolder, TextSection, Version, VersionSummary, Workspace, WorkspaceResourceKind,
+    Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem, AgentSkill,
+    Article, Attachment, Calendar, CalendarEvent, CalendarStore, CatalogModel, Client, Component,
+    Contact, ContactMethod, DeletedItem, Document, DocumentFolder, DocumentFolderProperty,
+    DocumentSummary, Embed, EndpointModel, ExperimentSetting, ExtensionHook, ExtensionPermission,
+    Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage,
+    IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault,
+    IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource, RestoredItem, SavedTaskView,
+    SearchResult, SecuritySettings, StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection,
+    Version, VersionSummary, Workspace, WorkspaceResourceKind,
 };
 
 /// Every request a client can send; the `args` of a [`Request`](super::Request).
@@ -678,10 +677,6 @@ pub enum Command {
     /// Lists agent `agent_id`'s most recent background runs, newest first.
     #[reply(Vec<IntelligenceAgentRun>)]
     ListAgentRuns(ListAgentRunsRequest),
-    /// Lists the activities still running or waiting, then the `limit`
-    /// that ended most recently.
-    #[reply(Vec<Activity>)]
-    ListActivities(ListActivitiesRequest),
     /// Lists the actors the clients offer.
     #[reply(Vec<Actor>, request = ListActorsRequest)]
     ListActors,

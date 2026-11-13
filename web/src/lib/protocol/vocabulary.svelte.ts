@@ -28,7 +28,6 @@ const EMPTY: Words = {
 	task_priorities: [],
 	version_changes: [],
 	task_sizes: [],
-	activity_statuses: [],
 	actor_session_statuses: [],
 	actor_session_stops: [],
 	agent_colors: [],

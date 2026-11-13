@@ -2,7 +2,6 @@
 //! the script API mounted, limited in time and memory by its
 //! [`SandboxOptions`].
 
-mod activity;
 mod agent_message;
 mod caught_error;
 mod notification;
@@ -15,7 +14,6 @@ mod strip_types;
 pub(crate) use caught_error::{INTERRUPTED, caught};
 pub(crate) use strip_types::strip_types;
 
-pub use activity::Activity;
 pub use agent_message::AgentMessage;
 pub use notification::Notification;
 pub use revoked_client::RevokedClient;

@@ -222,7 +222,7 @@ impl DatabaseCommand for SearchActorSessionsCommand {
 }
 
 /// Marks actor session `session_id` read, now; the next stretch of work its actor
-/// finishes marks it unread again (a trigger on `activities`).
+/// finishes marks it unread again ([`SetActorSessionStatusCommand`]).
 #[derive(FromRequest)]
 #[request(MarkActorSessionReadRequest)]
 pub struct MarkActorSessionReadCommand {
@@ -385,7 +385,8 @@ pub(super) fn given_title(text: &str) -> Result<String, ValidationError> {
 
 /// Calls actor session `session_id` `title` from now on, cut to its first line
 /// and short past [`TITLE_LIMIT`] characters; a blank one is refused.
-/// Answers the session as it stands.
+/// Answers the session as it stands, and raises `ActorSessionProgressed`
+/// when the title changed on a session Cohesion started.
 pub struct SetActorSessionTitleCommand {
     pub session_id: i64,
     pub title: String,
@@ -397,15 +398,103 @@ impl DatabaseCommand for SetActorSessionTitleCommand {
         self,
         ctx: &mut CommandContext<'_>,
     ) -> DatabaseCommandResult<Changed<Self::Response>> {
-        let session: ActorSession = ctx
+        let title = given_title(&self.title)?;
+        let retitled: Option<ActorSession> = ctx
             .db
             .update()
-            .set(ActorSession::TITLE, given_title(&self.title)?)
+            .set(ActorSession::TITLE, title.clone())
             .filter_eq(ActorSession::ID, self.session_id)
-            .returning_one()
-            .found()?;
+            .filter("title IS NOT ?")
+            .bind(title)
+            .returning_one()?;
+        let session = match retitled {
+            Some(session) => {
+                progressed(ctx, &session);
+                session
+            }
+            None => GetActorSessionCommand {
+                id: self.session_id,
+            }
+            .handle(&mut ctx.as_read())?,
+        };
         let keys = session_keys(&mut ctx.as_read(), &session)?;
         Ok(session.invalidating(keys))
+    }
+}
+
+/// Keeps `progress` as what actor session `session_id`'s actor says it is
+/// doing, or clears it, raising `ActorSessionProgressed` when that changed.
+/// Only a session Cohesion started keeps progress: a subagent's is left
+/// `null`. Answers the session as it stands.
+pub struct SetActorSessionProgressCommand {
+    pub session_id: i64,
+    pub progress: Option<String>,
+}
+impl DatabaseCommand for SetActorSessionProgressCommand {
+    type Response = ActorSession;
+    type Access = Write;
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_>,
+    ) -> DatabaseCommandResult<Changed<Self::Response>> {
+        let updated: Option<ActorSession> = ctx
+            .db
+            .update()
+            .set(ActorSession::PROGRESS, self.progress.clone())
+            .filter_eq(ActorSession::ID, self.session_id)
+            .filter("parent_session_id IS NULL AND progress IS NOT ?")
+            .bind(self.progress)
+            .returning_one()?;
+        let Some(session) = updated else {
+            let session = GetActorSessionCommand {
+                id: self.session_id,
+            }
+            .handle(&mut ctx.as_read())?;
+            return Ok(session.invalidating_nothing());
+        };
+        progressed(ctx, &session);
+        let keys = session_keys(&mut ctx.as_read(), &session)?;
+        Ok(session.invalidating(keys))
+    }
+}
+
+/// Raises `ActorSessionProgressed` for `session`, whose progress or title
+/// just changed, unless it is a subagent, whose changes no hook hears.
+fn progressed(ctx: &mut CommandContext<'_>, session: &ActorSession) {
+    if session.subagent.is_some() {
+        return;
+    }
+    let event = DatabaseEventKind::ActorSessionProgressed {
+        actor_session: session.clone(),
+    };
+    ctx.events.send(ctx.trace.event(event));
+}
+
+/// Raises `ActorSessionStarted` for actor session `session_id`, which
+/// Cohesion started and its actor's client has just taken. It writes
+/// nothing: the session was recorded before the client was called, and a
+/// client that refused leaves none to announce. Answers the session.
+pub struct AnnounceActorSessionCommand {
+    pub session_id: i64,
+}
+impl DatabaseCommand for AnnounceActorSessionCommand {
+    type Response = ActorSession;
+    type Access = Write;
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_>,
+    ) -> DatabaseCommandResult<Changed<Self::Response>> {
+        let session = GetActorSessionCommand {
+            id: self.session_id,
+        }
+        .handle(&mut ctx.as_read())?;
+        if session.subagent.is_none() {
+            let event = DatabaseEventKind::ActorSessionStarted {
+                actor_session: session.clone(),
+            };
+            ctx.events.send(ctx.trace.event(event));
+        }
+        Ok(session.invalidating_nothing())
     }
 }
 
@@ -768,8 +857,8 @@ pub(super) fn recounted_agents(
         .map(Invalidation::Agent)
 }
 
-/// Removes actor session `id`, with what was said in it and its activities:
-/// its actor never took it.
+/// Removes actor session `id`, with what was said in it: its actor never
+/// took it.
 pub struct DeleteActorSessionCommand {
     pub id: i64,
 }
@@ -786,7 +875,7 @@ impl DatabaseCommand for DeleteActorSessionCommand {
             .filter_eq(ActorSession::ID, self.id)
             .execute()?;
         Ok(().invalidating(
-            [Invalidation::ActorSessions, Invalidation::Activities]
+            [Invalidation::ActorSessions]
                 .into_iter()
                 .chain(session.counted_by().map(Invalidation::Agent)),
         ))
@@ -832,6 +921,13 @@ impl DatabaseCommand for SetActorSessionStatusCommand {
                 .set_false(ActorSession::UNREAD)
                 .set_now(ActorSession::READ_AT),
             _ => update,
+        };
+        // Progress is what a session says while it goes on.
+        let update = match status {
+            ActorSessionStatus::Working | ActorSessionStatus::NeedsAttention => update,
+            ActorSessionStatus::Idle
+            | ActorSessionStatus::Failed
+            | ActorSessionStatus::Resolved => update.set_null(ActorSession::PROGRESS),
         };
         let update = if self.moved.keeps_resolved() {
             update
@@ -935,6 +1031,40 @@ impl DatabaseCommand for SetActorSessionModeCommand {
     }
 }
 
+/// Leaves client `client_id`'s actors' sessions that Cohesion started and
+/// that are working, or need attention, idle as interrupted: it went away, so
+/// none of them is going on any longer. Each moves as
+/// [`SetActorSessionStatusCommand`] moves it, raising its move.
+pub struct InterruptActorSessionsCommand {
+    pub client_id: i64,
+}
+impl DatabaseCommand for InterruptActorSessionsCommand {
+    type Response = ();
+    type Access = Write;
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_>,
+    ) -> DatabaseCommandResult<Changed<Self::Response>> {
+        let going: Vec<ActorSession> = ctx
+            .db
+            .select()
+            .filter("parent_session_id IS NULL AND status IN (?, ?)")
+            .bind(ActorSessionStatus::Working)
+            .bind(ActorSessionStatus::NeedsAttention)
+            .filter("actor_id IN (SELECT id FROM actors WHERE client_id = ?)")
+            .bind(self.client_id)
+            .all()?;
+        // Each move names the keys it touched.
+        for session in going {
+            ctx.run(SetActorSessionStatusCommand {
+                session_id: session.id,
+                moved: ActorSessionMove::Interrupted,
+            })?;
+        }
+        Ok(().invalidating_nothing())
+    }
+}
+
 /// Leaves every working actor session, and every one that needs attention,
 /// idle, since a stopped daemon hears from no actor, raising nothing: it
 /// runs as the daemon stops, or as it starts before hooks do. Part of
@@ -951,6 +1081,7 @@ impl DatabaseCommand for SettleActorSessionsCommand {
             .db
             .update::<ActorSession>()
             .set(ActorSession::STATUS, ActorSessionStatus::Idle)
+            .set_null(ActorSession::PROGRESS)
             .filter("status IN (?, ?)")
             .bind(ActorSessionStatus::Working)
             .bind(ActorSessionStatus::NeedsAttention)
@@ -965,7 +1096,7 @@ impl DatabaseCommand for SettleActorSessionsCommand {
 
 /// Deletes the actor sessions that have sat resolved for `days`: a session the
 /// user hasn't resolved, done or not, stays. Its messages and their images,
-/// its activities and its follower go with it (their rows cascade).
+/// and its follower go with it (their rows cascade).
 pub struct DeleteOldActorSessionsCommand {
     pub days: i64,
 }

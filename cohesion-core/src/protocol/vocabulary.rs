@@ -1,5 +1,5 @@
 //! How clients word and order the daemon's kinds: what each permission,
-//! hook, priority, size, activity status and agent setting is called, sent in `Hello` so every
+//! hook, priority, size, actor session status and agent setting is called, sent in `Hello` so every
 //! client shows the same words and none keeps its own copy. A new variant
 //! fails to compile here until it is worded.
 
@@ -7,7 +7,7 @@ use cohesion_macros::TsWire;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    AGENT_REACTIONS, ActivityStatus, ActorSessionStatus, ActorSessionStop, Dialect, EmbedKind,
+    AGENT_REACTIONS, ActorSessionStatus, ActorSessionStop, Dialect, EmbedKind,
     ExtensionPermissionKind, FormulaUpdateMode, HookKind, IntelligenceAgentColor,
     IntelligenceAgentPersonality, IntelligenceAgentVerbosity, IntelligenceProvider,
     IntelligenceTier, ListSymbol, PairingOpener, PropertyDataType, SecurityEventKind, SpendPeriod,
@@ -28,8 +28,7 @@ pub struct Vocabulary {
     pub version_changes: Vec<Labeled<VersionChange>>,
     /// Smallest to largest.
     pub task_sizes: Vec<SizeWording>,
-    pub activity_statuses: Vec<Labeled<ActivityStatus>>,
-    /// An actor session's statuses: idle, then its activity's.
+    /// An actor session's statuses.
     pub actor_session_statuses: Vec<Labeled<ActorSessionStatus>>,
     /// How an actor session stopped on its own, as a wake line says it.
     pub actor_session_stops: Vec<Labeled<ActorSessionStop>>,
@@ -86,9 +85,6 @@ impl Vocabulary {
                 kind: *kind,
                 label: size_label(*kind).to_string(),
                 color: size_color(*kind),
-            }),
-            activity_statuses: words(ActivityStatus::ALL, |kind| {
-                labeled(*kind, activity_status_label(kind))
             }),
             actor_session_statuses: words(ActorSessionStatus::ALL, |kind| {
                 labeled(*kind, actor_session_status_label(kind))
@@ -164,7 +160,7 @@ impl TsDocumentation for Vocabulary {
  *
  * ```js
  * const words = cohesion.vocabulary();
- * words.activity_statuses.find(w => w.kind === activity.status)?.label; // "Needs you"
+ * words.actor_session_statuses.find(w => w.kind === session.status)?.label; // "Needs you"
  * ```
  */
 interface Vocabulary {
@@ -178,12 +174,8 @@ interface Vocabulary {
   version_changes: { kind: VersionChange; label: string }[];
   /** Smallest to largest, each with the color it is drawn in. */
   task_sizes: { kind: TaskSize; label: string; color: IntelligenceAgentColor }[];
-  activity_statuses: { kind: ActivityStatus; label: string }[];
-  /** An actor session's statuses: idle, then its activity's. */
-  actor_session_statuses: {
-    kind: "idle" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "cancelled";
-    label: string;
-  }[];
+  /** An actor session's statuses. */
+  actor_session_statuses: { kind: ActorSessionStatus; label: string }[];
   /** How an actor session stopped on its own, as a wake line says it. */
   actor_session_stops: { kind: ActorSessionStop; label: string }[];
   agent_colors: { kind: IntelligenceAgentColor; label: string }[];
@@ -431,10 +423,9 @@ fn hook_clause(kind: &HookKind) -> &'static str {
         AgentReaction => "someone reacts to a message in an agent’s conversation",
         AgentTurnStart => "an agent starts replying to you",
         AgentTurnEnd => "an agent finishes replying to you",
-        ActivityStarted => "an activity starts",
-        ActivityUpdated => "an activity’s progress, status or title changes",
-        ActivityEnded => "an activity ends",
-        ActorMoved => "an actor makes progress",
+        ActorStarted => "an actor session starts",
+        ActorProgress => "an actor session reports progress or is renamed",
+        ActorMoved => "an actor session’s status changes",
         ActorResolved => "an actor session is resolved",
         DayStart => "the day starts at 6:00 AM",
         DayEnd => "the day ends at 11:00 PM",
@@ -489,17 +480,6 @@ fn size_color(kind: TaskSize) -> IntelligenceAgentColor {
     use IntelligenceAgentColor::*;
     const COLORS: [IntelligenceAgentColor; TaskSize::ALL.len()] = [Teal, Green, Blue, Purple, Pink];
     COLORS[usize::from(kind.get()) - 1]
-}
-
-fn activity_status_label(kind: &ActivityStatus) -> &'static str {
-    match kind {
-        ActivityStatus::Running => "Running",
-        ActivityStatus::Waiting => "Waiting",
-        ActivityStatus::Paused => "Needs you",
-        ActivityStatus::Succeeded => "Done",
-        ActivityStatus::Failed => "Failed",
-        ActivityStatus::Cancelled => "Stopped",
-    }
 }
 
 /// How an actor session stopped on its own, as a clause after its title.

@@ -3,8 +3,7 @@
 //! that runs them (`DatabaseContext`), the events they raise and the
 //! `InvalidationWatch` that waits in the server for what they change, the commands
 //! that read and write models, the `WorkTracker` that counts the daemon's
-//! work in flight so a shutdown can wait for it, and the `ActivityTracker`
-//! that runs long work as activities the user follows. Each command declares `Read` or
+//! work in flight so a shutdown can wait for it. Each command declares `Read` or
 //! `Write` access; `Access` picks the view of the connection its context
 //! holds (`ReadContainer` or `WriteContainer`), and reads on either come from
 //! `ReadableDatabase`, so a `Read` command's context cannot write. Scripts hold
@@ -19,7 +18,6 @@
 // Lets `#[derive(FromRequest)]`'s `::cohesion_db::...` paths resolve inside this crate.
 extern crate self as cohesion_db;
 
-mod activity_tracker;
 mod backup;
 mod changed;
 mod command_error;
@@ -45,7 +43,6 @@ mod test_support;
 mod transfer;
 mod work_tracker;
 
-pub use activity_tracker::{ActivityEnd, ActivityHandle, ActivityTracker, WorkOutcome};
 pub use changed::{Changed, Invalidates};
 pub use command_error::{CommandError, DatabaseCommandResult, Found, ValidationError, searched};
 pub use commands::*;

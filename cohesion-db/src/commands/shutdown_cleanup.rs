@@ -1,8 +1,7 @@
 use crate::changed::{Changed, Invalidates};
 use crate::{
-    CommandContext, DatabaseCommand, DatabaseCommandResult, SettleActivitiesCommand,
-    SettleActorSessionsCommand, SettleAgentActivityCommand, SettleAgentAsksCommand,
-    SettleAgentThreadMarksCommand, Write,
+    CommandContext, DatabaseCommand, DatabaseCommandResult, SettleActorSessionsCommand,
+    SettleAgentActivityCommand, SettleAgentAsksCommand, SettleAgentThreadMarksCommand, Write,
 };
 
 /// Leaves the database as a stopped daemon should: no work marked as
@@ -17,7 +16,6 @@ impl DatabaseCommand for ShutdownCleanupCommand {
     fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<()>> {
         ctx.run(SettleAgentThreadMarksCommand)?;
         ctx.run(SettleAgentActivityCommand)?;
-        ctx.run(SettleActivitiesCommand)?;
         ctx.run(SettleActorSessionsCommand)?;
         ctx.run(SettleAgentAsksCommand)?;
         Ok(().invalidating_nothing())

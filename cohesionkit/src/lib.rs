@@ -17,8 +17,8 @@
 //! through `CapabilityStore` (`capability_store.rs`). The agents get the
 //! credentials of the accounts endpoints sign in with through
 //! `EndpointRelay` (`endpoint_relay.rs`). [`ActorSessions`] hands
-//! sessions to the actors clients offer and keeps an activity for each while it
-//! goes on, and scripts reach it through `ScriptActors` (`script_actors.rs`). [`web_bundle`] is the web UI
+//! sessions to the actors clients offer and keeps their status and progress,
+//! and scripts reach it through `ScriptActors` (`script_actors.rs`). [`web_bundle`] is the web UI
 //! the daemon was built with, which it hands clients, and [`web_bundle_hash`] identifies it.
 //! [`PendingImport`] holds an import a client finished until cohesiond
 //! restarts onto it.

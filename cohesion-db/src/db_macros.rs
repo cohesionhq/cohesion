@@ -32,7 +32,6 @@ macro_rules! every_model {
         $check::<IntelligenceAgentTeam>($db);
         $check::<IntelligenceAgentMessage>($db);
         $check::<IntelligenceAgentRun>($db);
-        $check::<Activity>($db);
         $check::<Actor>($db);
         $check::<ActorSession>($db);
         $check::<ActorSessionMessage>($db);

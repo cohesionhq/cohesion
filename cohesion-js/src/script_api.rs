@@ -9,18 +9,18 @@ use rquickjs::function::Constructor;
 use rquickjs::{Ctx, Exception, FromJs, IntoJs, Object, Value};
 
 use cohesion_core::model::{
-    AccountDescription, ActivityStatus, ActorEffort, ActorMode, ActorModel, ActorSessionStatus,
-    BackendAllDayEvent, BackendCalendar, BackendEvent, BackendEventFields, BackendEventTiming,
-    BackendInvitee, BackendTimedEvent, Block, CalendarColor, CheckboxBlock, Component,
-    ConnectorResource, ConnectorResourceFilters, ConnectorResourcePreview, ContactMethodKind,
-    Credential, Dialect, DocumentFolderRepresentation, ExtensionManifest, ExtensionPermissionKind,
-    FormulaUpdateMode, HeadingBlock, HeadingLevel, HookKind, IntelligenceAgentColor,
-    IntelligenceAgentPersonality, IntelligenceAgentVerbosity, IntelligenceEffort,
-    IntelligenceProvider, IntelligenceTier, InviteeResponse, LinkBlock, ListSymbol, MetadataKey,
-    NewContactMethod, OrganizationUnit, OverviewBlock, PkceChallenge, PropertyDataType,
-    PublishedPrecision, RegistryResult, ResourceContentKind, ResourceKind, ResourceKindDescription,
-    SearchEntityKind, ServiceDescription, ServiceFunctionManifest, ServiceManifest, TextBlock,
-    VersionAuthor, VersionChange, VersionedItem,
+    AccountDescription, ActorEffort, ActorMode, ActorModel, ActorSessionStatus, BackendAllDayEvent,
+    BackendCalendar, BackendEvent, BackendEventFields, BackendEventTiming, BackendInvitee,
+    BackendTimedEvent, Block, CalendarColor, CheckboxBlock, Component, ConnectorResource,
+    ConnectorResourceFilters, ConnectorResourcePreview, ContactMethodKind, Credential, Dialect,
+    DocumentFolderRepresentation, ExtensionManifest, ExtensionPermissionKind, FormulaUpdateMode,
+    HeadingBlock, HeadingLevel, HookKind, IntelligenceAgentColor, IntelligenceAgentPersonality,
+    IntelligenceAgentVerbosity, IntelligenceEffort, IntelligenceProvider, IntelligenceTier,
+    InviteeResponse, LinkBlock, ListSymbol, MetadataKey, NewContactMethod, OrganizationUnit,
+    OverviewBlock, PkceChallenge, PropertyDataType, PublishedPrecision, RegistryResult,
+    ResourceContentKind, ResourceKind, ResourceKindDescription, SearchEntityKind,
+    ServiceDescription, ServiceFunctionManifest, ServiceManifest, TextBlock, VersionAuthor,
+    VersionChange, VersionedItem,
 };
 use cohesion_core::protocol::{PlanUsage, Vocabulary};
 use cohesion_core::ts_documentation::TsDocumentation;
@@ -47,7 +47,7 @@ use crate::globals::{
     ServicesGlobal, StorageGlobal, TimerGlobal, TimerOptions, TimerUnit, UsageGlobal, UsageOptions,
     WorkspaceListOptions,
 };
-use crate::sandbox::{Activity, AgentMessage, Notification, RevokedClient};
+use crate::sandbox::{AgentMessage, Notification, RevokedClient};
 
 /// Defines one entity class on the global object.
 pub type Definer = for<'js> fn(&Ctx<'js>, &Object<'js>) -> rquickjs::Result<()>;
@@ -78,7 +78,6 @@ script_api! {
             TaskPriority,
             TaskSort,
             PublishedPrecision,
-            ActivityStatus,
         ],
         options: [
             workspace_options::TaskListOptions,
@@ -203,18 +202,18 @@ script_api! {
     }
 
     /// What `agent.cue` takes, the `AgentMessage` an `agent:message` or
-    /// `agent:reaction` cue wakes with, the `Activity` an `activity:*`
-    /// cue wakes with and the `RevokedClient` a `client:revoke` one does.
+    /// `agent:reaction` cue wakes with and the `RevokedClient` a
+    /// `client:revoke` one does.
     CUES = "cues", on_demand, "`agent.cue` options: hooks, the `AgentMessage` an \
-        `agent:message` or `agent:reaction` cue receives, the `Activity` an `activity:*` \
-        cue receives and the `RevokedClient` a `client:revoke` cue receives." {
+        `agent:message` or `agent:reaction` cue receives and the `RevokedClient` a \
+        `client:revoke` cue receives." {
         enums: [HookKind],
         options: [AgentCueOptions],
-        interfaces: [AgentMessage, Activity, RevokedClient],
+        interfaces: [AgentMessage, RevokedClient],
     }
 
     /// The `actors` global, the actors and sessions it returns, and the
-    /// `ActorSession` an `actor:moved` or `actor:resolved` cue wakes with.
+    /// `ActorSession` an `actor:*` cue wakes with.
     ACTORS = "actors", on_demand, "`actors`: the actors on the user's devices (Claude Code in a \
         directory, say): hand them sessions, follow and reply in them." {
         globals: [ActorsGlobal],

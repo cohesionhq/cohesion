@@ -229,24 +229,19 @@
 			"cue_clause": "an agent finishes replying to you"
 		},
 		{
-			"kind": "activity:started",
-			"extension_clause": "an activity starts",
-			"cue_clause": "an activity starts"
+			"kind": "actor:started",
+			"extension_clause": "an actor session starts",
+			"cue_clause": "an actor session starts"
 		},
 		{
-			"kind": "activity:updated",
-			"extension_clause": "an activity’s progress, status or title changes",
-			"cue_clause": "an activity’s progress, status or title changes"
-		},
-		{
-			"kind": "activity:ended",
-			"extension_clause": "an activity ends",
-			"cue_clause": "an activity ends"
+			"kind": "actor:progress",
+			"extension_clause": "an actor session reports progress or is renamed",
+			"cue_clause": "an actor session reports progress or is renamed"
 		},
 		{
 			"kind": "actor:moved",
-			"extension_clause": "an actor makes progress",
-			"cue_clause": "an actor makes progress"
+			"extension_clause": "an actor session’s status changes",
+			"cue_clause": "an actor session’s status changes"
 		},
 		{
 			"kind": "actor:resolved",
@@ -300,14 +295,6 @@
 		{ "kind": 3, "label": "Medium", "color": "blue" },
 		{ "kind": 4, "label": "Large", "color": "purple" },
 		{ "kind": 5, "label": "Huge", "color": "pink" }
-	],
-	"activity_statuses": [
-		{ "kind": "running", "label": "Running" },
-		{ "kind": "waiting", "label": "Waiting" },
-		{ "kind": "paused", "label": "Needs you" },
-		{ "kind": "succeeded", "label": "Done" },
-		{ "kind": "failed", "label": "Failed" },
-		{ "kind": "cancelled", "label": "Stopped" }
 	],
 	"actor_session_statuses": [
 		{ "kind": "working", "label": "Working" },
