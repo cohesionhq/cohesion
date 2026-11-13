@@ -22,7 +22,7 @@
 	import type { Tag, TaskFolder, TaskPriority, TaskSize } from '$lib/protocol/types';
 	import { vocabulary } from '$lib/protocol/vocabulary.svelte';
 	import type { NewTaskDetails } from '$lib/stores/tasks.svelte';
-	import { agentText } from '$lib/ui/colors';
+	import ListIcon from '$lib/ui/ListIcon.svelte';
 	import Picker, { type PickerItem } from '$lib/ui/Picker.svelte';
 	import TextInput from '$lib/ui/TextInput.svelte';
 	import Textarea from '$lib/ui/Textarea.svelte';
@@ -399,10 +399,12 @@
 						{#if folder === null}
 							<Inbox size={13} strokeWidth={1.75} />
 						{:else}
-							<Folder
-								class={folderColor ? agentText[folderColor] : undefined}
+							<ListIcon
+								symbol={chosenFolder?.symbol ?? null}
+								fallback={Folder}
+								color={folderColor}
 								size={13}
-								strokeWidth={1.75}
+								quiet=""
 							/>
 						{/if}
 						<span class="truncate">{folderName}</span>

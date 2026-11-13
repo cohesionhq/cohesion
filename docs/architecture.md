@@ -562,6 +562,55 @@ folder's icon in it. `SetTaskFolderColor{workspace_id, folder_id, color?}`
 sets it, or takes it away when `color` is absent, and invalidates
 `taskFolders(ws)`; a script assigns `TaskFolder.color`.
 
+**List symbols.** A task folder's and a saved task view's `symbol` is a
+`ListSymbol`, one of a fixed set of everyday things, or `null` for none,
+which is what a new one has and draws a plain folder (a view, its filter
+icon). Only the name travels; each client maps it to an icon of its own, the
+web UI in `ui/listSymbols.ts` and the iPhone app to an SF Symbol, and draws
+it in place of the folder (in the folder's color when it has one). The
+vocabulary's `list_symbols` names them in the order a picker lists them.
+`SetTaskFolderSymbol{workspace_id, folder_id, symbol?}` and
+`SetSavedTaskViewSymbol{workspace_id, view_id, symbol?}` set one, or take it
+away when `symbol` is absent, and invalidate `taskFolders(ws)` or
+`savedTaskViews(ws)`; a script assigns `TaskFolder.symbol`. The built-in
+lists (All, the Inbox, Done, Cancelled) keep their own icons, and document
+folders have no symbol.
+
+| Name | Label | Web (Lucide) | iPhone (SF Symbol) |
+| --- | --- | --- | --- |
+| `home` | Home | `house` | `house` |
+| `work` | Work | `briefcase` | `briefcase` |
+| `inbox` | Inbox | `inbox` | `tray` |
+| `star` | Star | `star` | `star` |
+| `heart` | Heart | `heart` | `heart` |
+| `flag` | Flag | `flag` | `flag` |
+| `bookmark` | Bookmark | `bookmark` | `bookmark` |
+| `book` | Book | `book-open` | `book` |
+| `cart` | Shopping | `shopping-cart` | `cart` |
+| `money` | Money | `banknote` | `banknote` |
+| `calendar` | Calendar | `calendar` | `calendar` |
+| `people` | People | `users` | `person.2` |
+| `person` | Person | `user` | `person` |
+| `health` | Health | `briefcase-medical` | `cross.case` |
+| `fitness` | Fitness | `dumbbell` | `dumbbell` |
+| `travel` | Travel | `plane` | `airplane` |
+| `car` | Car | `car` | `car` |
+| `food` | Food | `utensils` | `fork.knife` |
+| `code` | Code | `code` | `chevron.left.forwardslash.chevron.right` |
+| `idea` | Idea | `lightbulb` | `lightbulb` |
+| `music` | Music | `music` | `music.note` |
+| `camera` | Camera | `camera` | `camera` |
+| `gift` | Gift | `gift` | `gift` |
+| `school` | School | `graduation-cap` | `graduationcap` |
+| `tools` | Tools | `wrench` | `wrench.and.screwdriver` |
+| `garden` | Garden | `leaf` | `leaf` |
+| `pets` | Pets | `paw-print` | `pawprint` |
+| `bug` | Bug | `bug` | `ladybug` |
+| `globe` | Globe | `globe` | `globe` |
+| `chat` | Chat | `message-circle` | `bubble.left` |
+| `mail` | Mail | `mail` | `envelope` |
+| `lock` | Lock | `lock` | `lock` |
+
 **Pinned documents.** A document's `pinned` says whether the Dashboard lists
 it as part of the user's working set. `SetDocumentPinned{workspace_id,
 document_id, pinned}` sets it without counting as an edit (the modified time
@@ -969,6 +1018,7 @@ the hook structs are declared in `cohesionkit/src/hooks/hook_events.rs`):
 | `agent:turn:start`, `agent:turn:end` | `onAgentTurnStart(agent)`, `onAgentTurnEnd(agent)` | `AgentTurnStarted`, `AgentTurnEnded` (an agent starts or stops answering the user) |
 | `activity:started`, `activity:updated`, `activity:ended` | `onActivityStarted(activity)`, `onActivityUpdated(activity)`, `onActivityEnded(activity)` | `ActivityStarted`, `ActivityUpdated`, `ActivityEnded` |
 | `actor:moved` | `onActorMoved(session)` | `ActorSessionMoved`, an actor session's status really changing |
+| `actor:resolved` | `onActorResolved(session)` | `ActorSessionResolved`, an actor session moving into resolved, once (not for one already resolved or a subagent) |
 | `day:start` | `onDayStart()` | The day clock at 06:00 local time |
 | `day:end` | `onDayEnd()` | The day clock at 23:00 local time |
 | `timer` | `onTimer({time, hour, minute, since})` | The day clock, every minute |
@@ -1972,8 +2022,9 @@ and no device-side session id: Cohesion's `session_id` is the only handle.
 `finished`, `failed`, `interrupted` and `stopped` leave a resolved session
 resolved. A move that changes nothing raises nothing, so repeating a status
 wakes no one. A real change raises `ActorSessionMoved` (the `actor:moved`
-hook) and invalidates `actorSessions`, `actorSession(id)`, and the agents
-whose following count changed.
+hook) and, when the move is to `resolved`, `ActorSessionResolved` (the
+`actor:resolved` hook), and invalidates `actorSessions`, `actorSession(id)`,
+and the agents whose following count changed.
 
 ```mermaid
 stateDiagram-v2
@@ -2234,7 +2285,8 @@ the page down through the folders holding the one shown, and the title of
 what's shown opens a switcher listing everything there is: for Documents,
 All, the Inbox and the folder tree (nesting and reordering by drag); for
 Tasks, All, the Inbox, the folders, Done, Cancelled and the saved views (each
-reordering by drag). A filter narrows it by title, and each folder's tools pin,
+reordering by drag). A filter narrows it by title. A task folder's or view's
+icon opens its symbols ("List symbols"), and each folder's tools pin,
 rename and delete it (a document folder also makes one inside it); "New
 folder…" ends it. The dialogs are in the root layout (`FolderDialogs`). The
 Tasks header's Views menu saves what's shown as a view or updates one. Search

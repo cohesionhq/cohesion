@@ -42,6 +42,7 @@ mod intelligence_spend_limit;
 mod intelligence_thread;
 mod intelligence_usage;
 mod item_link;
+mod list_symbol;
 mod memory;
 mod metadata;
 mod photo;
@@ -127,6 +128,7 @@ pub use intelligence_spend_limit::{IntelligenceSpend, IntelligenceSpendLimit, Sp
 pub use intelligence_thread::*;
 pub use intelligence_usage::{IntelligenceUsage, ModelUsage};
 pub use item_link::{ItemLink, LinkKind, LinkTarget, NotAnItemLink};
+pub use list_symbol::ListSymbol;
 pub use memory::{Memory, MemoryFilter, MemoryScope};
 pub use metadata::{HasMetadata, Metadata, MetadataOwner};
 pub use photo::Photo;

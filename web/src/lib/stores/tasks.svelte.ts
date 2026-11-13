@@ -4,6 +4,7 @@ import type {
 	DayFilter,
 	IntelligenceAgentColor,
 	Invalidation,
+	ListSymbol,
 	ListTasksRequest,
 	SavedTaskView,
 	Send,
@@ -659,6 +660,17 @@ export class TasksStore {
 			this.folders.update((list) => list.map((f) => (f.id === folder_id ? folder : f)));
 	}
 
+	/** Sets the symbol a folder is drawn with, or takes it away with `null`. */
+	async setFolderSymbol(
+		workspace_id: number,
+		folder_id: number,
+		symbol: ListSymbol | null
+	): Promise<void> {
+		const folder = await this.#send('setTaskFolderSymbol', { workspace_id, folder_id, symbol });
+		if (this.folders.key === workspace_id)
+			this.folders.update((list) => list.map((f) => (f.id === folder_id ? folder : f)));
+	}
+
 	/** Puts the folders in the order of `folder_ids`, showing it before the daemon confirms. */
 	async reorderFolders(workspace_id: number, folder_ids: number[]): Promise<void> {
 		this.folders.update((list) => folder_ids.map((id) => list.find((f) => f.id === id)!));
@@ -714,6 +726,16 @@ export class TasksStore {
 		const view = await this.#send('renameSavedTaskView', { workspace_id, view_id, name });
 		this.views.update((list) => list.map((v) => (v.id === view_id ? view : v)));
 		return view;
+	}
+
+	/** Sets the symbol a saved view is drawn with, or takes it away with `null`. */
+	async setViewSymbol(
+		workspace_id: number,
+		view_id: number,
+		symbol: ListSymbol | null
+	): Promise<void> {
+		const view = await this.#send('setSavedTaskViewSymbol', { workspace_id, view_id, symbol });
+		this.views.update((list) => list.map((v) => (v.id === view_id ? view : v)));
 	}
 
 	/** Puts the saved views in the order of `view_ids`, showing it before the daemon confirms. */

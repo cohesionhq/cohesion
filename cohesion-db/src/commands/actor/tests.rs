@@ -422,6 +422,25 @@ fn a_session_moves_once_per_status_it_takes_and_a_stopped_daemon_raises_nothing(
     );
 }
 
+#[test]
+fn a_session_resolves_once_and_its_move_is_raised_too() {
+    let (db, events) = recording_context();
+    let session = session(&db);
+    events.take();
+    set_status(&db, session.id, ActorSessionStatus::Resolved);
+    set_status(&db, session.id, ActorSessionStatus::Resolved);
+    let events = events.take();
+    let resolved = events
+        .iter()
+        .filter(|event| matches!(event, DatabaseEventKind::ActorSessionResolved { .. }))
+        .count();
+    let moved = events
+        .iter()
+        .filter(|event| matches!(event, DatabaseEventKind::ActorSessionMoved { .. }))
+        .count();
+    assert_eq!((resolved, moved), (1, 1));
+}
+
 /// Backdates session `id`'s status change to `at`.
 struct BackdateStatusChange {
     id: i64,

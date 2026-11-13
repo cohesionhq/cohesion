@@ -3,6 +3,8 @@
 	import { goto, onNavigate, preloadCode } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount, type Snippet } from 'svelte';
+	import { cubicOut } from 'svelte/easing';
+	import { slide } from 'svelte/transition';
 	import { connection, onUnreachable, send, start } from '$lib/protocol/api';
 	import { initSession, missingToken, onUnauthorized } from '$lib/protocol/session';
 	import { trackBack } from '$lib/shell/back';
@@ -95,6 +97,15 @@
 	let hostname = $state<string | null>(null);
 
 	trackBack();
+
+	/** The sidebar's slide, as long as the side panel's; none under reduced motion or on a phone, where it is a bar above the page. */
+	const sidebarSlide = () => ({
+		axis: 'x' as const,
+		easing: cubicOut,
+		duration: matchMedia('(prefers-reduced-motion: reduce), (max-width: 599.98px)').matches
+			? 0
+			: 180
+	});
 
 	const routeWorkspace = $derived(page.params.ws ? Number(page.params.ws) : null);
 	const routeAgent = $derived(page.params.agent ? Number(page.params.agent) : null);
@@ -375,6 +386,7 @@
 		{#if sidebarState.collapsed}
 			<!-- Collapsed: only a restore button is left; ⌘K and the shortcuts do the navigating. -->
 			<div
+				transition:slide={sidebarSlide()}
 				class="flex flex-none items-start px-1.5 pt-[calc(--spacing(3)+var(--titlebar-inset))] max-sm:px-2 max-sm:pt-[calc(--spacing(1)+var(--titlebar-inset))] max-sm:pb-1"
 			>
 				<button
@@ -387,37 +399,39 @@
 				</button>
 			</div>
 		{:else}
-			<Sidebar
-				pathname={page.url.pathname}
-				search={page.url.search}
-				workspaceId={workspaces.currentId}
-				status={connection.status}
-				{hostname}
-				agents={agents.list.value}
-				teams={agents.teams.value}
-				actorSessions={actors.current}
-				goingActorSessions={actors.goingCount}
-				kinds={shownKinds}
-				documentFolders={documents.folders.key === workspaces.currentId
-					? documents.folders.value
-					: []}
-				taskFolders={tasks.folders.key === workspaces.currentId ? tasks.folders.value : []}
-				onunpinfolder={(kind, id) =>
-					workspaces.currentId !== null &&
-					(kind === 'documents' ? documents : tasks)
-						.setFolderPinned(workspaces.currentId, id, false)
-						.catch((e) => toasts.error(e))}
-				onfiledocument={fileDocument}
-				onresolve={resolveSession}
-				onsearch={() => (paletteOpen = true)}
-				onchoosekinds={() => (choosingKinds = true)}
-				onpin={(id, pinned) => agents.setPinned(id, pinned).catch((e) => toasts.error(e))}
-				onreorder={(ids) => agents.reorder(ids).catch((e) => toasts.error(e))}
-				onreorderkinds={(ids) =>
-					workspaces.currentId !== null &&
-					resources.reorderShown(workspaces.currentId, ids).catch((e) => toasts.error(e))}
-				oncollapse={() => sidebarState.set(true)}
-			/>
+			<div transition:slide={sidebarSlide()} class="flex flex-none max-sm:h-auto">
+				<Sidebar
+					pathname={page.url.pathname}
+					search={page.url.search}
+					workspaceId={workspaces.currentId}
+					status={connection.status}
+					{hostname}
+					agents={agents.list.value}
+					teams={agents.teams.value}
+					actorSessions={actors.current}
+					goingActorSessions={actors.goingCount}
+					kinds={shownKinds}
+					documentFolders={documents.folders.key === workspaces.currentId
+						? documents.folders.value
+						: []}
+					taskFolders={tasks.folders.key === workspaces.currentId ? tasks.folders.value : []}
+					onunpinfolder={(kind, id) =>
+						workspaces.currentId !== null &&
+						(kind === 'documents' ? documents : tasks)
+							.setFolderPinned(workspaces.currentId, id, false)
+							.catch((e) => toasts.error(e))}
+					onfiledocument={fileDocument}
+					onresolve={resolveSession}
+					onsearch={() => (paletteOpen = true)}
+					onchoosekinds={() => (choosingKinds = true)}
+					onpin={(id, pinned) => agents.setPinned(id, pinned).catch((e) => toasts.error(e))}
+					onreorder={(ids) => agents.reorder(ids).catch((e) => toasts.error(e))}
+					onreorderkinds={(ids) =>
+						workspaces.currentId !== null &&
+						resources.reorderShown(workspaces.currentId, ids).catch((e) => toasts.error(e))}
+					oncollapse={() => sidebarState.set(true)}
+				/>
+			</div>
 		{/if}
 		<!-- The page is a sheet inset in the window, the sidebar on the canvas around it. It reserves
 		     no scrollbar gutter, so a bar across its top (a conversation's header) meets both edges
@@ -434,7 +448,7 @@
 		     on it dissolves. -->
 		<div
 			class={[
-				'm-(--sheet-inset) ml-0 flex min-h-0 min-w-0 flex-1 rounded-(--sheet-radius) bg-bg shadow-sheet max-sm:m-0 max-sm:shadow-none',
+				'm-(--sheet-inset) ml-0 flex min-h-0 min-w-0 flex-1 rounded-(--sheet-radius) bg-bg shadow-sheet transition-[margin-top] max-sm:m-0 max-sm:shadow-none',
 				sidebarState.collapsed
 					? 'mt-[calc(var(--sheet-inset)+var(--titlebar-inset))]'
 					: 'mt-[max(var(--sheet-inset),var(--titlebar-inset))]'

@@ -2,7 +2,7 @@
 	The Documents page's folder switcher, under its heading: All, the Inbox, then every folder as
 	a tree (a nested one a step in, folding away under its chevron, a table wearing a table's
 	icon), and "New folder…". Typing in the filter lists the folders whose titles match, each
-	with the folders holding it. Each folder pins to the sidebar, makes a folder inside it,
+	with the folders holding it; ↓/↑ move through them and Enter opens the highlighted one. Each folder pins to the sidebar, makes a folder inside it,
 	renames or deletes from its tools. Drag a folder onto another to nest it, or onto a folder's
 	top or bottom edge to put it beside that one; Alt+↑/↓ moves it among its siblings.
 -->
@@ -19,6 +19,8 @@
 	import Trash from '@lucide/svelte/icons/trash';
 	import { SvelteSet } from 'svelte/reactivity';
 	import {
+		scrollIntoViewWhen,
+		stepHighlight,
 		switcherAction,
 		switcherLink,
 		switcherRow,
@@ -53,6 +55,8 @@
 	let { folders, current, href, onpick, onmove, onpin }: Props = $props();
 
 	let query = $state('');
+	let active = $state(0);
+	let root = $state<HTMLElement>();
 	const collapsed = new SvelteSet<number>();
 	const live = $derived(folders.filter((f) => !f.deleted));
 	const rows = $derived(visibleNodes(folderTree(live), collapsed));
@@ -72,6 +76,19 @@
 					.join(' › ')
 			}));
 	});
+
+	// A new search starts on its first result.
+	$effect.pre(() => {
+		void query;
+		active = 0;
+	});
+
+	function searchKey(e: KeyboardEvent) {
+		const next = stepHighlight(e, active, matches?.length ?? 0);
+		if (next !== null) active = next;
+		else if (e.key === 'Enter')
+			root?.querySelector<HTMLAnchorElement>('[data-active=true] a')?.click();
+	}
 
 	// The folder shown stays in sight: its parents open.
 	$effect(() => {
@@ -223,41 +240,52 @@
 	</div>
 {/snippet}
 
-<div class="p-1 pb-1.5">
-	<SearchField bind:value={query} placeholder="Filter folders" label="Filter folders by title" />
-</div>
+<div class="contents" bind:this={root}>
+	<div class="p-1 pb-1.5">
+		<SearchField
+			bind:value={query}
+			placeholder="Filter folders"
+			label="Filter folders by title"
+			onkeydown={searchKey}
+		/>
+	</div>
 
-{#if matches === null}
-	{@render fixedRow('all', 'All documents')}
-	{@render fixedRow('inbox', 'Inbox')}
-	{#if rows.length > 0}
+	{#if matches === null}
+		{@render fixedRow('all', 'All documents')}
+		{@render fixedRow('inbox', 'Inbox')}
+		{#if rows.length > 0}
+			<div class={switcherRule}></div>
+			{#each rows as node (node.folder.id)}
+				{@render treeRow(node)}
+			{/each}
+		{/if}
 		<div class={switcherRule}></div>
-		{#each rows as node (node.folder.id)}
-			{@render treeRow(node)}
+		<button class={switcherAction} type="button" onclick={() => newFolder(null)}>
+			<FolderPlus size={14} strokeWidth={1.75} aria-hidden="true" />New folder…
+		</button>
+	{:else if matches.length === 0}
+		<p class="px-2 py-1.5 text-fg-muted">No folders match “{query.trim()}”.</p>
+	{:else}
+		{#each matches as { folder, within }, i (folder.id)}
+			<div
+				class={[switcherRow, i === active && 'bg-bg-hover']}
+				data-active={i === active}
+				{@attach (n) => scrollIntoViewWhen(n, i === active)}
+			>
+				<a
+					class={[switcherLink, 'py-1']}
+					href={href(folder.id)}
+					aria-current={current === folder.id ? 'page' : undefined}
+					onclick={onpick}
+				>
+					{@render folderIcon(folder)}
+					<span class="flex min-w-0 flex-col">
+						<span class="truncate">{folder.title}</span>
+						{#if within}<span class="truncate text-xs text-fg-subtle">{within}</span>{/if}
+					</span>
+				</a>
+				{@render tools(folder)}
+			</div>
 		{/each}
 	{/if}
-	<div class={switcherRule}></div>
-	<button class={switcherAction} type="button" onclick={() => newFolder(null)}>
-		<FolderPlus size={14} strokeWidth={1.75} aria-hidden="true" />New folder…
-	</button>
-{:else if matches.length === 0}
-	<p class="px-2 py-1.5 text-fg-muted">No folders match “{query.trim()}”.</p>
-{:else}
-	{#each matches as { folder, within } (folder.id)}
-		<div class={switcherRow}>
-			<a
-				class={[switcherLink, 'py-1']}
-				href={href(folder.id)}
-				aria-current={current === folder.id ? 'page' : undefined}
-				onclick={onpick}
-			>
-				{@render folderIcon(folder)}
-				<span class="flex min-w-0 flex-col">
-					<span class="truncate">{folder.title}</span>
-					{#if within}<span class="truncate text-xs text-fg-subtle">{within}</span>{/if}
-				</span>
-			</a>
-			{@render tools(folder)}
-		</div>
-	{/each}
-{/if}
+</div>

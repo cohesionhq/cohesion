@@ -249,6 +249,11 @@
 			"cue_clause": "an actor makes progress"
 		},
 		{
+			"kind": "actor:resolved",
+			"extension_clause": "an actor session is resolved",
+			"cue_clause": "an actor session is resolved"
+		},
+		{
 			"kind": "day:start",
 			"extension_clause": "the day starts at 6:00 AM",
 			"cue_clause": "the day starts at 6:00 AM"
@@ -326,6 +331,40 @@
 		{ "kind": "pink", "label": "Pink" },
 		{ "kind": "teal", "label": "Teal" },
 		{ "kind": "yellow", "label": "Yellow" }
+	],
+	"list_symbols": [
+		{ "kind": "home", "label": "Home" },
+		{ "kind": "work", "label": "Work" },
+		{ "kind": "inbox", "label": "Inbox" },
+		{ "kind": "star", "label": "Star" },
+		{ "kind": "heart", "label": "Heart" },
+		{ "kind": "flag", "label": "Flag" },
+		{ "kind": "bookmark", "label": "Bookmark" },
+		{ "kind": "book", "label": "Book" },
+		{ "kind": "cart", "label": "Shopping" },
+		{ "kind": "money", "label": "Money" },
+		{ "kind": "calendar", "label": "Calendar" },
+		{ "kind": "people", "label": "People" },
+		{ "kind": "person", "label": "Person" },
+		{ "kind": "health", "label": "Health" },
+		{ "kind": "fitness", "label": "Fitness" },
+		{ "kind": "travel", "label": "Travel" },
+		{ "kind": "car", "label": "Car" },
+		{ "kind": "food", "label": "Food" },
+		{ "kind": "code", "label": "Code" },
+		{ "kind": "idea", "label": "Idea" },
+		{ "kind": "music", "label": "Music" },
+		{ "kind": "camera", "label": "Camera" },
+		{ "kind": "gift", "label": "Gift" },
+		{ "kind": "school", "label": "School" },
+		{ "kind": "tools", "label": "Tools" },
+		{ "kind": "garden", "label": "Garden" },
+		{ "kind": "pets", "label": "Pets" },
+		{ "kind": "bug", "label": "Bug" },
+		{ "kind": "globe", "label": "Globe" },
+		{ "kind": "chat", "label": "Chat" },
+		{ "kind": "mail", "label": "Mail" },
+		{ "kind": "lock", "label": "Lock" }
 	],
 	"agent_personalities": [
 		{ "kind": "balanced", "label": "Balanced" },

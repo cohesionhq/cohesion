@@ -56,3 +56,15 @@ export const switcherRule = 'mx-1 my-1 h-px flex-none bg-border';
 /** A quiet button ending the switcher, such as "New folder…". */
 export const switcherAction =
 	'flex min-h-7.5 cursor-pointer items-center gap-2 rounded-sm px-2 text-left text-fg-subtle hover:bg-bg-hover hover:text-fg';
+
+/** The row a filtered switcher highlights after `e`: ArrowDown/ArrowUp step through `count` rows, wrapping. */
+export function stepHighlight(e: KeyboardEvent, active: number, count: number): number | null {
+	if (count === 0 || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return null;
+	e.preventDefault();
+	return (active + (e.key === 'ArrowDown' ? 1 : count - 1)) % count;
+}
+
+/** Keeps the highlighted row of a filtered switcher in view. */
+export function scrollIntoViewWhen(node: HTMLElement, on: boolean) {
+	if (on) node.scrollIntoView({ block: 'nearest' });
+}

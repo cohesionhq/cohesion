@@ -2,13 +2,14 @@ use std::io::{self, IsTerminal};
 
 use clap::builder::{PossibleValuesParser, TypedValueParser};
 use clap::{ArgGroup, Args, Subcommand};
-use cohesion_core::model::TagFilter;
+use cohesion_core::model::{ListSymbol, TagFilter};
 use cohesion_core::{
     Task, TaskFolder, TaskFolderFilter, TaskPriority, TaskSort, TaskStatus,
     protocol::{
         ChangeTasksStatusRequest, CreateTaskFolderRequest, CreateTaskRequest,
         DeleteTaskFolderRequest, EditTaskDescriptionRequest, ListTaskFoldersRequest,
-        ListTasksRequest, ScheduleTaskRequest, SetTaggedRequest, SetTaskPriorityRequest,
+        ListTasksRequest, ScheduleTaskRequest, SetTaggedRequest, SetTaskFolderSymbolRequest,
+        SetTaskPriorityRequest,
     },
 };
 
@@ -128,6 +129,18 @@ pub enum TaskFolderCommand {
         #[arg(short = 'y', long)]
         yes: bool,
     },
+    /// Draw a task folder with a symbol, or with a plain folder when none is given.
+    Symbol {
+        /// Folder id or title.
+        folder: String,
+        #[arg(value_parser = symbol_parser())]
+        symbol: Option<ListSymbol>,
+    },
+}
+
+fn symbol_parser() -> impl TypedValueParser<Value = ListSymbol> {
+    PossibleValuesParser::new(ListSymbol::CASES.iter().copied())
+        .map(|text| ListSymbol::from_str_strict(&text).expect("clap only passes listed cases"))
 }
 
 fn priority_parser() -> impl TypedValueParser<Value = TaskPriority> {
@@ -165,6 +178,9 @@ pub async fn run(ctx: &Context, TaskArgs { verb, list }: TaskArgs) -> Result<(),
             Some(TaskFolderCommand::Create { title }) => create_folder(ctx, title).await,
             Some(TaskFolderCommand::Delete { folder, yes }) => {
                 delete_folder(ctx, folder, yes).await
+            }
+            Some(TaskFolderCommand::Symbol { folder, symbol }) => {
+                set_folder_symbol(ctx, folder, symbol).await
             }
         },
         Some(TaskCommand::Complete { ids }) => mark_tasks(ctx, ids, TaskStatus::Completed).await,
@@ -500,6 +516,27 @@ async fn delete_folder(ctx: &Context, folder: String, yes: bool) -> Result<(), C
         })
         .await?;
     println!("Deleted {}.", describe(&deleted));
+    Ok(())
+}
+
+async fn set_folder_symbol(
+    ctx: &Context,
+    folder: String,
+    symbol: Option<ListSymbol>,
+) -> Result<(), CliError> {
+    let workspace_id = ctx.workspace().await?;
+    let found = ctx.find_folder(workspace_id, &folder).await?;
+    let folder = ctx
+        .call(SetTaskFolderSymbolRequest {
+            workspace_id,
+            folder_id: found.id,
+            symbol,
+        })
+        .await?;
+    match folder.symbol {
+        Some(symbol) => println!("Gave {} the {} symbol.", describe(&folder), symbol.as_str()),
+        None => println!("Took the symbol off {}.", describe(&folder)),
+    }
     Ok(())
 }
 

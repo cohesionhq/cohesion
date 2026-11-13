@@ -3546,3 +3546,62 @@ fn task_folders_already_there_have_no_color_and_take_only_the_palettes() {
             .is_err()
     );
 }
+
+#[test]
+fn folders_and_views_already_there_have_no_symbol_and_take_only_the_set() {
+    let mut db = migrated_before("list_symbols");
+    db.connection()
+        .execute_batch(
+            "INSERT INTO workspaces (id, title) VALUES (1, 'w');
+             INSERT INTO task_folders (id, workspace_id, title, sort_order)
+                 VALUES (1, 1, 'Errands', 1);
+             INSERT INTO saved_task_views (id, workspace_id, name, list, sort, descending)
+                 VALUES (1, 1, 'Mine', 'inbox', 'title', 0);",
+        )
+        .unwrap();
+    db.migrate().unwrap();
+
+    for table in ["task_folders", "saved_task_views"] {
+        let symbol: Option<String> = db
+            .connection()
+            .query_row(
+                &format!("SELECT symbol FROM {table} WHERE id = 1"),
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(symbol, None);
+        db.connection()
+            .execute(
+                &format!("UPDATE {table} SET symbol = 'cart' WHERE id = 1"),
+                [],
+            )
+            .unwrap();
+        assert!(
+            db.connection()
+                .execute(
+                    &format!("UPDATE {table} SET symbol = 'unicorn' WHERE id = 1"),
+                    []
+                )
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn the_symbol_columns_take_every_list_symbol() {
+    let mut db = migrated_before("list_symbols");
+    db.connection()
+        .execute_batch(
+            "INSERT INTO workspaces (id, title) VALUES (1, 'w');
+             INSERT INTO task_folders (id, workspace_id, title, sort_order)
+                 VALUES (1, 1, 'Errands', 1);",
+        )
+        .unwrap();
+    db.migrate().unwrap();
+    for symbol in cohesion_core::model::ListSymbol::CASES {
+        db.connection()
+            .execute("UPDATE task_folders SET symbol = ?1 WHERE id = 1", [symbol])
+            .unwrap();
+    }
+}

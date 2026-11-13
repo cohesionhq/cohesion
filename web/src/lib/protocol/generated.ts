@@ -2816,7 +2816,8 @@ export type HeadingLevel = 1 | 2 | 3;
  * `activity:updated` `onActivityUpdated(activity)` when its progress,
  * status or title changes and `activity:ended` `onActivityEnded(activity)` when it
  * ends; `actor:moved` calls `onActorMoved(session)` when an actor session's
- * status changes; `agent:turn:start` calls
+ * status changes and `actor:resolved` calls `onActorResolved(session)` when
+ * one is resolved; `agent:turn:start` calls
  * `onAgentTurnStart(agent)` when an agent starts answering the user and
  * `agent:turn:end` `onAgentTurnEnd(agent)` when it finishes; `day:start` calls `onDayStart()` at 6:00 and
  * `day:end` calls `onDayEnd()` at 23:00, and `timer` calls
@@ -2864,6 +2865,7 @@ export type HookKind =
 	| 'activity:updated'
 	| 'activity:ended'
 	| 'actor:moved'
+	| 'actor:resolved'
 	| 'day:start'
 	| 'day:end'
 	| 'timer'
@@ -3742,6 +3744,46 @@ export interface ListSecurityEventsRequest {
 	offset?: number;
 	limit?: number | null;
 }
+
+/**
+ * The symbol a task folder or a saved task view is drawn with, from a fixed
+ * set of everyday things. Each client maps a name to an icon of its own (the
+ * web UI to a Lucide icon, the iPhone app to an SF Symbol), so only the name
+ * travels; "List symbols" in `docs/architecture.md` lists both.
+ */
+export type ListSymbol =
+	| 'home'
+	| 'work'
+	| 'inbox'
+	| 'star'
+	| 'heart'
+	| 'flag'
+	| 'bookmark'
+	| 'book'
+	| 'cart'
+	| 'money'
+	| 'calendar'
+	| 'people'
+	| 'person'
+	| 'health'
+	| 'fitness'
+	| 'travel'
+	| 'car'
+	| 'food'
+	| 'code'
+	| 'idea'
+	| 'music'
+	| 'camera'
+	| 'gift'
+	| 'school'
+	| 'tools'
+	| 'garden'
+	| 'pets'
+	| 'bug'
+	| 'globe'
+	| 'chat'
+	| 'mail'
+	| 'lock';
 
 /**
  * Lists a folder's live documents as rows, with their values: those
@@ -4849,6 +4891,8 @@ export interface SavedTaskView {
 	descending: boolean;
 	/** Where the view sits among its workspace's views; lower comes first. */
 	sort_order: number;
+	/** The symbol the view is drawn with, or none. */
+	symbol: ListSymbol | null;
 }
 
 /**
@@ -5397,6 +5441,16 @@ export interface SetResourceKindShownRequest {
 }
 
 /**
+ * Sets the symbol saved view `view_id` is drawn with, or takes it away when
+ * `symbol` is left out.
+ */
+export interface SetSavedTaskViewSymbolRequest {
+	workspace_id: number;
+	view_id: number;
+	symbol?: ListSymbol | null;
+}
+
+/**
  * Puts tag `tag_id` of workspace `workspace_id` on the workspace's task
  * `task_id`, or takes it off.
  */
@@ -5432,6 +5486,16 @@ export interface SetTaskFolderPinnedRequest {
 	workspace_id: number;
 	folder_id: number;
 	pinned: boolean;
+}
+
+/**
+ * Sets the symbol task folder `folder_id` in a workspace is drawn with, or
+ * takes it away when `symbol` is left out.
+ */
+export interface SetTaskFolderSymbolRequest {
+	workspace_id: number;
+	folder_id: number;
+	symbol?: ListSymbol | null;
 }
 
 /** Sets the priority of task `task_id` in a workspace. */
@@ -5767,6 +5831,8 @@ export interface TaskFolder {
 	pinned: boolean;
 	/** The color the folder is drawn in, from the agents' palette, or none. */
 	color: IntelligenceAgentColor | null;
+	/** The symbol the folder is drawn with in place of a folder, or none. */
+	symbol: ListSymbol | null;
 }
 
 /**
@@ -6190,6 +6256,11 @@ export interface Vocabulary {
 	/** How an actor session stopped on its own, as a wake line says it. */
 	actor_session_stops: { kind: ActorSessionStop; label: string }[];
 	agent_colors: { kind: IntelligenceAgentColor; label: string }[];
+	/**
+	 * The symbols a task folder or saved task view can be drawn with, in the
+	 * order a picker lists them.
+	 */
+	list_symbols: { kind: ListSymbol; label: string }[];
 	agent_personalities: { kind: IntelligenceAgentPersonality; label: string }[];
 	agent_verbosities: { kind: IntelligenceAgentVerbosity; label: string }[];
 	/** Model tiers, with what each is used for. */
@@ -6460,6 +6531,8 @@ export interface Requests {
 	setTaskFolderPinned: SetTaskFolderPinnedRequest;
 	/** Sets the color a task folder is drawn in, or takes it away. */
 	setTaskFolderColor: SetTaskFolderColorRequest;
+	/** Sets the symbol a task folder is drawn with, or takes it away. */
+	setTaskFolderSymbol: SetTaskFolderSymbolRequest;
 	/** Reorders a workspace's task folders; replies with them in their new order. */
 	reorderTaskFolders: ReorderTaskFoldersRequest;
 	/** Lists a workspace's saved task views, in their order. */
@@ -6470,6 +6543,8 @@ export interface Requests {
 	updateSavedTaskView: UpdateSavedTaskViewRequest;
 	/** Renames saved task view `view_id` in a workspace. */
 	renameSavedTaskView: RenameSavedTaskViewRequest;
+	/** Sets the symbol saved task view `view_id` is drawn with, or takes it away. */
+	setSavedTaskViewSymbol: SetSavedTaskViewSymbolRequest;
 	/** Reorders a workspace's saved task views; replies with them in their new order. */
 	reorderSavedTaskViews: ReorderSavedTaskViewsRequest;
 	/** Deletes saved task view `view_id` in a workspace. */
@@ -7120,6 +7195,8 @@ export interface Replies {
 	setTaskFolderPinned: TaskFolder;
 	/** Sets the color a task folder is drawn in, or takes it away. */
 	setTaskFolderColor: TaskFolder;
+	/** Sets the symbol a task folder is drawn with, or takes it away. */
+	setTaskFolderSymbol: TaskFolder;
 	/** Reorders a workspace's task folders; replies with them in their new order. */
 	reorderTaskFolders: TaskFolder[];
 	/** Lists a workspace's saved task views, in their order. */
@@ -7130,6 +7207,8 @@ export interface Replies {
 	updateSavedTaskView: SavedTaskView;
 	/** Renames saved task view `view_id` in a workspace. */
 	renameSavedTaskView: SavedTaskView;
+	/** Sets the symbol saved task view `view_id` is drawn with, or takes it away. */
+	setSavedTaskViewSymbol: SavedTaskView;
 	/** Reorders a workspace's saved task views; replies with them in their new order. */
 	reorderSavedTaskViews: SavedTaskView[];
 	/** Deletes saved task view `view_id` in a workspace. */

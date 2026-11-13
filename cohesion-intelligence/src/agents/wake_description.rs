@@ -88,6 +88,7 @@ pub(super) fn wake_description(hook: &HookKind, subject: &ScriptOutput) -> Strin
         ActivityUpdated => format!("“{title}” was updated"),
         ActivityEnded => format!("“{title}” ended"),
         ActorMoved => format!("“{title}” changed status"),
+        ActorResolved => format!("“{title}” was resolved"),
         NotificationSend => format!("Notification “{title}” was sent"),
         Launch | AgentMessage | AgentReaction | AgentTurnStart | AgentTurnEnd | DayStart
         | DayEnd | Timer | ExtensionUpdate | ClientRevoke => {

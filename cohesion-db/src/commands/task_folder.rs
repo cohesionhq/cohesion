@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use cohesion_core::invalidation::Invalidation;
-use cohesion_core::model::IntelligenceAgentColor;
+use cohesion_core::model::{IntelligenceAgentColor, ListSymbol};
 use cohesion_core::protocol::{
     CreateTaskFolderRequest, DeleteTaskFolderRequest, ListTaskFoldersRequest,
     RenameTaskFolderRequest, ReorderTaskFoldersRequest, SetTaskFolderColorRequest,
-    SetTaskFolderPinnedRequest,
+    SetTaskFolderPinnedRequest, SetTaskFolderSymbolRequest,
 };
 use cohesion_core::{FromRequest, Task, TaskFolder};
 
@@ -236,6 +236,31 @@ impl DatabaseCommand for SetTaskFolderColorCommand {
             .db
             .update_live()
             .set(TaskFolder::COLOR, self.color)
+            .filter_eq(TaskFolder::WORKSPACE_ID, self.workspace_id)
+            .filter_eq(TaskFolder::ID, self.folder_id)
+            .returning_one()
+            .found()?;
+        Ok(folder.invalidating([Invalidation::TaskFolders(self.workspace_id)]))
+    }
+}
+
+/// Sets the symbol a live task folder is drawn with, or takes it away.
+#[derive(FromRequest)]
+#[request(SetTaskFolderSymbolRequest)]
+pub struct SetTaskFolderSymbolCommand {
+    pub workspace_id: i64,
+    pub folder_id: i64,
+    pub symbol: Option<ListSymbol>,
+}
+impl DatabaseCommand for SetTaskFolderSymbolCommand {
+    type Response = TaskFolder;
+    type Access = Write;
+    fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<TaskFolder>> {
+        ensure_workspace(ctx.db, self.workspace_id)?;
+        let folder: TaskFolder = ctx
+            .db
+            .update_live()
+            .set(TaskFolder::SYMBOL, self.symbol)
             .filter_eq(TaskFolder::WORKSPACE_ID, self.workspace_id)
             .filter_eq(TaskFolder::ID, self.folder_id)
             .returning_one()

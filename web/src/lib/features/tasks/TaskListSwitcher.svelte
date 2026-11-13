@@ -1,8 +1,10 @@
 <!--
 	The Tasks page's switcher, under its heading: All and the Inbox, the folders, Done and
 	Cancelled, then the saved views, and "New folder…". Typing in the filter lists the folders
-	and views whose names match. A folder is drawn in its color, and pins to the sidebar, takes a color, renames or deletes from its tools;
-	a view renames or deletes. Folders and views reorder by dragging, or with Alt+↑/↓.
+	and views whose names match; ↓/↑ move through them and Enter opens the highlighted one. A folder
+	or view is drawn with its symbol, and a folder in its color; clicking the icon picks the symbol. A
+	folder pins to the sidebar, takes a color, renames or deletes from its tools; a view renames or
+	deletes. Folders and views reorder by dragging, or with Alt+↑/↓.
 -->
 <script lang="ts">
 	import Ban from '@lucide/svelte/icons/ban';
@@ -18,6 +20,8 @@
 	import Trash from '@lucide/svelte/icons/trash';
 	import type { Component } from 'svelte';
 	import {
+		scrollIntoViewWhen,
+		stepHighlight,
 		switcherAction,
 		switcherHeading,
 		switcherLink,
@@ -26,13 +30,18 @@
 		switcherTool,
 		switcherTools
 	} from '$lib/features/folders/nav';
-	import type { IntelligenceAgentColor, SavedTaskView, TaskFolder } from '$lib/protocol/types';
+	import type {
+		IntelligenceAgentColor,
+		ListSymbol,
+		SavedTaskView,
+		TaskFolder
+	} from '$lib/protocol/types';
 	import { folderDialogs } from '$lib/shell/folderDialogs.svelte';
 	import { savedViewQuery, type TaskView } from '$lib/stores/tasks.svelte';
 	import { Reorderable } from '$lib/ui/reorder.svelte';
 	import ColorPicker from '$lib/ui/ColorPicker.svelte';
-	import { agentText } from '$lib/ui/colors';
 	import SearchField from '$lib/ui/SearchField.svelte';
+	import SymbolPicker from '$lib/ui/SymbolPicker.svelte';
 
 	interface Props {
 		folders: TaskFolder[];
@@ -49,6 +58,8 @@
 		onpickview: (view: SavedTaskView) => void;
 		onpin: (folder: TaskFolder, pinned: boolean) => void;
 		oncolor: (folder: TaskFolder, color: IntelligenceAgentColor | null) => void;
+		onfoldersymbol: (folder: TaskFolder, symbol: ListSymbol | null) => void;
+		onviewsymbol: (view: SavedTaskView, symbol: ListSymbol | null) => void;
 		/** Every folder's id, in the order the user put them. */
 		onreorderfolders: (folderIds: number[]) => void;
 		/** Every saved view's id, in the order the user put them. */
@@ -65,11 +76,15 @@
 		onpickview,
 		onpin,
 		oncolor,
+		onfoldersymbol,
+		onviewsymbol,
 		onreorderfolders,
 		onreorderviews
 	}: Props = $props();
 
 	let query = $state('');
+	let active = $state(0);
+	let root = $state<HTMLElement>();
 	const q = $derived(query.trim().toLowerCase());
 	const live = $derived(folders.filter((f) => !f.deleted));
 
@@ -90,6 +105,21 @@
 	const shownViews = $derived(
 		q === '' ? viewOrder.items : views.filter((v) => v.name.toLowerCase().includes(q))
 	);
+
+	// A new search starts on its first result.
+	$effect.pre(() => {
+		void query;
+		active = 0;
+	});
+
+	// Folders then views, as listed: the rows the arrow keys step through.
+	function searchKey(e: KeyboardEvent) {
+		const next = stepHighlight(e, active, shownFolders.length + shownViews.length);
+		if (next !== null) active = next;
+		else if (e.key === 'Enter')
+			root?.querySelector<HTMLAnchorElement>('[data-active=true] a')?.click();
+	}
+	const rowAttrs = (i: number) => ({ 'data-active': q !== '' && i === active });
 
 	const isCurrent = (list: TaskView) => currentView === null && current === list;
 	const href = (list: TaskView) => `${base}?view=${list}`;
@@ -116,15 +146,28 @@
 
 {#snippet folderRow(folder: TaskFolder, index: number)}
 	<div
-		class={[switcherRow, folderOrder.dragged === folder.id && 'opacity-50']}
+		class={[
+			switcherRow,
+			folderOrder.dragged === folder.id && 'opacity-50',
+			q !== '' && index === active && 'bg-bg-hover'
+		]}
+		{...rowAttrs(index)}
+		{@attach (n) => scrollIntoViewWhen(n, q !== '' && index === active)}
 		role="presentation"
 		draggable={q === '' ? 'true' : undefined}
 		ondragstart={(e) => folderOrder.start(e, folder, folder.title)}
 		{...folderOrder.target(index)}
 		ondragend={() => folderOrder.end()}
 	>
+		<SymbolPicker
+			symbol={folder.symbol}
+			fallback={Folder}
+			color={folder.color}
+			label="Symbol of {folder.title}"
+			onchange={(symbol) => onfoldersymbol(folder, symbol)}
+		/>
 		<a
-			class={switcherLink}
+			class={[switcherLink, 'ps-0!']}
 			href={href(folder.id)}
 			draggable="false"
 			aria-current={isCurrent(folder.id) ? 'page' : undefined}
@@ -132,14 +175,6 @@
 			onclick={onpick}
 			onkeydown={(e) => q === '' && folderOrder.key(e, index)}
 		>
-			{#if folder.color}
-				<!-- The link quiets every icon, so a colored one takes its color from a wrapper. -->
-				<span class={['inline-flex flex-none', agentText[folder.color]]}>
-					<Folder class="text-current!" size={14} strokeWidth={1.75} aria-hidden="true" />
-				</span>
-			{:else}
-				<Folder size={14} strokeWidth={1.75} aria-hidden="true" />
-			{/if}
 			<span class="truncate">{folder.title}</span>
 		</a>
 		<span class={switcherTools}>
@@ -183,15 +218,27 @@
 
 {#snippet viewRow(view: SavedTaskView, index: number)}
 	<div
-		class={[switcherRow, viewOrder.dragged === view.id && 'opacity-50']}
+		class={[
+			switcherRow,
+			viewOrder.dragged === view.id && 'opacity-50',
+			q !== '' && shownFolders.length + index === active && 'bg-bg-hover'
+		]}
+		{...rowAttrs(shownFolders.length + index)}
+		{@attach (n) => scrollIntoViewWhen(n, q !== '' && shownFolders.length + index === active)}
 		role="presentation"
 		draggable={q === '' ? 'true' : undefined}
 		ondragstart={(e) => viewOrder.start(e, view, view.name)}
 		{...viewOrder.target(index)}
 		ondragend={() => viewOrder.end()}
 	>
+		<SymbolPicker
+			symbol={view.symbol}
+			fallback={ListFilter}
+			label="Symbol of {view.name}"
+			onchange={(symbol) => onviewsymbol(view, symbol)}
+		/>
 		<a
-			class={switcherLink}
+			class={[switcherLink, 'ps-0!']}
 			href="{base}{savedViewQuery(view)}"
 			draggable="false"
 			aria-current={currentView === view.id ? 'page' : undefined}
@@ -202,7 +249,6 @@
 			}}
 			onkeydown={(e) => q === '' && viewOrder.key(e, index)}
 		>
-			<ListFilter size={14} strokeWidth={1.75} aria-hidden="true" />
 			<span class="truncate">{view.name}</span>
 		</a>
 		<span class={switcherTools}>
@@ -226,42 +272,53 @@
 	</div>
 {/snippet}
 
-<div class="p-1 pb-1.5">
-	<SearchField bind:value={query} placeholder="Filter folders" label="Filter folders and views" />
-</div>
+<div class="contents" bind:this={root}>
+	<div class="p-1 pb-1.5">
+		<SearchField
+			bind:value={query}
+			placeholder="Filter folders"
+			label="Filter folders and views"
+			onkeydown={searchKey}
+		/>
+	</div>
 
-{#if q === ''}
-	{@render listRow('all', 'All', Layers)}
-	{@render listRow('inbox', 'Inbox', Inbox)}
-	{#if shownFolders.length > 0}
+	{#if q === ''}
+		{@render listRow('all', 'All', Layers)}
+		{@render listRow('inbox', 'Inbox', Inbox)}
+		{#if shownFolders.length > 0}
+			<div class={switcherRule}></div>
+			{#each shownFolders as folder, index (folder.id)}
+				{@render folderRow(folder, index)}
+			{/each}
+		{/if}
 		<div class={switcherRule}></div>
+		{@render listRow('done', 'Done', CircleCheck)}
+		{@render listRow('cancelled', 'Cancelled', Ban)}
+		{#if shownViews.length > 0}
+			<div class={switcherHeading}>Views</div>
+			{#each shownViews as view, index (view.id)}
+				{@render viewRow(view, index)}
+			{/each}
+		{/if}
+		<div class={switcherRule}></div>
+		<button
+			class={switcherAction}
+			type="button"
+			onclick={() => ask({ kind: 'tasks', mode: 'new' })}
+		>
+			<FolderPlus size={14} strokeWidth={1.75} aria-hidden="true" />New folder…
+		</button>
+	{:else if shownFolders.length === 0 && shownViews.length === 0}
+		<p class="px-2 py-1.5 text-fg-muted">Nothing matches “{query.trim()}”.</p>
+	{:else}
 		{#each shownFolders as folder, index (folder.id)}
 			{@render folderRow(folder, index)}
 		{/each}
+		{#if shownViews.length > 0}
+			<div class={switcherHeading}>Views</div>
+			{#each shownViews as view, index (view.id)}
+				{@render viewRow(view, index)}
+			{/each}
+		{/if}
 	{/if}
-	<div class={switcherRule}></div>
-	{@render listRow('done', 'Done', CircleCheck)}
-	{@render listRow('cancelled', 'Cancelled', Ban)}
-	{#if shownViews.length > 0}
-		<div class={switcherHeading}>Views</div>
-		{#each shownViews as view, index (view.id)}
-			{@render viewRow(view, index)}
-		{/each}
-	{/if}
-	<div class={switcherRule}></div>
-	<button class={switcherAction} type="button" onclick={() => ask({ kind: 'tasks', mode: 'new' })}>
-		<FolderPlus size={14} strokeWidth={1.75} aria-hidden="true" />New folder…
-	</button>
-{:else if shownFolders.length === 0 && shownViews.length === 0}
-	<p class="px-2 py-1.5 text-fg-muted">Nothing matches “{query.trim()}”.</p>
-{:else}
-	{#each shownFolders as folder, index (folder.id)}
-		{@render folderRow(folder, index)}
-	{/each}
-	{#if shownViews.length > 0}
-		<div class={switcherHeading}>Views</div>
-		{#each shownViews as view, index (view.id)}
-			{@render viewRow(view, index)}
-		{/each}
-	{/if}
-{/if}
+</div>

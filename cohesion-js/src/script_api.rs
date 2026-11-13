@@ -16,7 +16,7 @@ use cohesion_core::model::{
     Credential, Dialect, DocumentFolderRepresentation, ExtensionManifest, ExtensionPermissionKind,
     FormulaUpdateMode, HeadingBlock, HeadingLevel, HookKind, IntelligenceAgentColor,
     IntelligenceAgentPersonality, IntelligenceAgentVerbosity, IntelligenceEffort,
-    IntelligenceProvider, IntelligenceTier, InviteeResponse, LinkBlock, MetadataKey,
+    IntelligenceProvider, IntelligenceTier, InviteeResponse, LinkBlock, ListSymbol, MetadataKey,
     NewContactMethod, OrganizationUnit, OverviewBlock, PkceChallenge, PropertyDataType,
     PublishedPrecision, RegistryResult, ResourceContentKind, ResourceKind, ResourceKindDescription,
     SearchEntityKind, ServiceDescription, ServiceFunctionManifest, ServiceManifest, TextBlock,
@@ -72,6 +72,7 @@ script_api! {
             DocumentType,
             DocumentFolderRepresentation,
             IntelligenceAgentColor,
+            ListSymbol,
             SearchEntityKind,
             TaskStatus,
             TaskPriority,
@@ -213,7 +214,7 @@ script_api! {
     }
 
     /// The `actors` global, the actors and sessions it returns, and the
-    /// `ActorSession` an `actor:moved` cue wakes with.
+    /// `ActorSession` an `actor:moved` or `actor:resolved` cue wakes with.
     ACTORS = "actors", on_demand, "`actors`: the actors on the user's devices (Claude Code in a \
         directory, say): hand them sessions, follow and reply in them." {
         globals: [ActorsGlobal],

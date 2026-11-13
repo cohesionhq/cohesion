@@ -10,7 +10,7 @@ use crate::model::{
     AGENT_REACTIONS, ActivityStatus, ActorSessionStatus, ActorSessionStop, Dialect, EmbedKind,
     ExtensionPermissionKind, FormulaUpdateMode, HookKind, IntelligenceAgentColor,
     IntelligenceAgentPersonality, IntelligenceAgentVerbosity, IntelligenceProvider,
-    IntelligenceTier, PairingOpener, PropertyDataType, SecurityEventKind, SpendPeriod,
+    IntelligenceTier, ListSymbol, PairingOpener, PropertyDataType, SecurityEventKind, SpendPeriod,
     TaskPriority, TaskSize, VersionChange,
 };
 use crate::ts_documentation::TsDocumentation;
@@ -34,6 +34,9 @@ pub struct Vocabulary {
     /// How an actor session stopped on its own, as a wake line says it.
     pub actor_session_stops: Vec<Labeled<ActorSessionStop>>,
     pub agent_colors: Vec<Labeled<IntelligenceAgentColor>>,
+    /// The symbols a task folder or saved task view can be drawn with, in the
+    /// order a picker lists them.
+    pub list_symbols: Vec<Labeled<ListSymbol>>,
     pub agent_personalities: Vec<Labeled<IntelligenceAgentPersonality>>,
     pub agent_verbosities: Vec<Labeled<IntelligenceAgentVerbosity>>,
     /// Model tiers, with what each is used for.
@@ -96,6 +99,7 @@ impl Vocabulary {
             agent_colors: words(IntelligenceAgentColor::ALL, |kind| {
                 labeled(*kind, color_label(kind))
             }),
+            list_symbols: words(ListSymbol::ALL, |kind| labeled(*kind, symbol_label(*kind))),
             agent_personalities: words(IntelligenceAgentPersonality::ALL, |kind| {
                 labeled(*kind, personality_label(kind))
             }),
@@ -183,6 +187,8 @@ interface Vocabulary {
   /** How an actor session stopped on its own, as a wake line says it. */
   actor_session_stops: { kind: ActorSessionStop; label: string }[];
   agent_colors: { kind: IntelligenceAgentColor; label: string }[];
+  /** The symbols a task folder or saved task view can be drawn with, in the order a picker lists them. */
+  list_symbols: { kind: ListSymbol; label: string }[];
   agent_personalities: { kind: IntelligenceAgentPersonality; label: string }[];
   agent_verbosities: { kind: IntelligenceAgentVerbosity; label: string }[];
   /** Model tiers, with what each is used for. */
@@ -429,6 +435,7 @@ fn hook_clause(kind: &HookKind) -> &'static str {
         ActivityUpdated => "an activity’s progress, status or title changes",
         ActivityEnded => "an activity ends",
         ActorMoved => "an actor makes progress",
+        ActorResolved => "an actor session is resolved",
         DayStart => "the day starts at 6:00 AM",
         DayEnd => "the day ends at 11:00 PM",
         Timer => "a minute begins",
@@ -526,6 +533,44 @@ fn color_label(kind: &IntelligenceAgentColor) -> &'static str {
         Pink => "Pink",
         Teal => "Teal",
         Yellow => "Yellow",
+    }
+}
+
+fn symbol_label(kind: ListSymbol) -> &'static str {
+    use ListSymbol::*;
+    match kind {
+        Home => "Home",
+        Work => "Work",
+        Inbox => "Inbox",
+        Star => "Star",
+        Heart => "Heart",
+        Flag => "Flag",
+        Bookmark => "Bookmark",
+        Book => "Book",
+        Cart => "Shopping",
+        Money => "Money",
+        Calendar => "Calendar",
+        People => "People",
+        Person => "Person",
+        Health => "Health",
+        Fitness => "Fitness",
+        Travel => "Travel",
+        Car => "Car",
+        Food => "Food",
+        Code => "Code",
+        Idea => "Idea",
+        Music => "Music",
+        Camera => "Camera",
+        Gift => "Gift",
+        School => "School",
+        Tools => "Tools",
+        Garden => "Garden",
+        Pets => "Pets",
+        Bug => "Bug",
+        Globe => "Globe",
+        Chat => "Chat",
+        Mail => "Mail",
+        Lock => "Lock",
     }
 }
 

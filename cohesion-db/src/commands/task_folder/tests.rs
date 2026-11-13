@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
-use cohesion_core::model::IntelligenceAgentColor;
+use cohesion_core::model::{IntelligenceAgentColor, ListSymbol};
 
 use crate::CommandError;
 use crate::test_support::context;
 use crate::{
     CreateTaskFolderCommand, CreateWorkspaceCommand, ListTaskFoldersCommand,
     ReorderTaskFoldersCommand, SetTaskFolderColorCommand, SetTaskFolderPinnedCommand,
+    SetTaskFolderSymbolCommand,
 };
 
 #[test]
@@ -144,4 +145,61 @@ fn a_folder_starts_with_no_color_and_takes_one_until_cleared() {
         })
         .unwrap();
     assert_eq!(cleared.color, None);
+}
+
+#[test]
+fn a_folder_starts_with_no_symbol_and_takes_one_until_cleared() {
+    let db = context();
+    let ws = db
+        .send_blocking(CreateWorkspaceCommand {
+            title: "home".to_string(),
+            emoji: None,
+        })
+        .unwrap();
+    let away = db
+        .send_blocking(CreateWorkspaceCommand {
+            title: "away".to_string(),
+            emoji: None,
+        })
+        .unwrap();
+    let folder = db
+        .send_blocking(CreateTaskFolderCommand {
+            workspace_id: ws.id,
+            title: "a".to_string(),
+        })
+        .unwrap();
+    assert_eq!(folder.symbol, None);
+
+    let set = db
+        .send_blocking(SetTaskFolderSymbolCommand {
+            workspace_id: ws.id,
+            folder_id: folder.id,
+            symbol: Some(ListSymbol::Cart),
+        })
+        .unwrap();
+    assert_eq!(set.symbol, Some(ListSymbol::Cart));
+    let listed = db
+        .send_blocking(ListTaskFoldersCommand {
+            workspace_id: ws.id,
+            metadata: HashMap::new(),
+            has_metadata: Vec::new(),
+        })
+        .unwrap();
+    assert_eq!(listed[0].symbol, Some(ListSymbol::Cart));
+
+    let elsewhere = db.send_blocking(SetTaskFolderSymbolCommand {
+        workspace_id: away.id,
+        folder_id: folder.id,
+        symbol: Some(ListSymbol::Home),
+    });
+    assert!(matches!(elsewhere, Err(CommandError::NotFound(_))));
+
+    let cleared = db
+        .send_blocking(SetTaskFolderSymbolCommand {
+            workspace_id: ws.id,
+            folder_id: folder.id,
+            symbol: None,
+        })
+        .unwrap();
+    assert_eq!(cleared.symbol, None);
 }

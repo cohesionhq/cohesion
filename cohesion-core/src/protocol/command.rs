@@ -247,6 +247,9 @@ pub enum Command {
     /// Sets the color a task folder is drawn in, or takes it away.
     #[reply(TaskFolder)]
     SetTaskFolderColor(SetTaskFolderColorRequest),
+    /// Sets the symbol a task folder is drawn with, or takes it away.
+    #[reply(TaskFolder)]
+    SetTaskFolderSymbol(SetTaskFolderSymbolRequest),
     /// Reorders a workspace's task folders; replies with them in their new order.
     #[reply(Vec<TaskFolder>)]
     ReorderTaskFolders(ReorderTaskFoldersRequest),
@@ -262,6 +265,9 @@ pub enum Command {
     /// Renames saved task view `view_id` in a workspace.
     #[reply(SavedTaskView)]
     RenameSavedTaskView(RenameSavedTaskViewRequest),
+    /// Sets the symbol saved task view `view_id` is drawn with, or takes it away.
+    #[reply(SavedTaskView)]
+    SetSavedTaskViewSymbol(SetSavedTaskViewSymbolRequest),
     /// Reorders a workspace's saved task views; replies with them in their new order.
     #[reply(Vec<SavedTaskView>)]
     ReorderSavedTaskViews(ReorderSavedTaskViewsRequest),
