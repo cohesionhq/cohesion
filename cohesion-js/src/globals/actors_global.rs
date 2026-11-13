@@ -121,7 +121,7 @@ impl ActorsGlobal {
 
     /// Hands actor `actorId` a new session and returns it, working.
     ///
-    /// The user follows it among their activities and can reply in it
+    /// The user follows it among their actor sessions and can reply in it
     /// themselves; in your conversation you follow it too, so its next stop
     /// wakes a fork of the conversation. Throws if the actor's device is
     /// offline or refuses it, leaving no session.

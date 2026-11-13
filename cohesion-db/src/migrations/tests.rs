@@ -1,22 +1,22 @@
 use cohesion_core::{
     Client, Document, DocumentFolder, Model, Task, TaskFolder, TaskPriority, Workspace,
     model::{
-        AccountHost, Activity, ActivityStatus, Actor, ActorMessageContent, ActorPermissionDecision,
-        ActorSession, ActorSessionMessage, ActorSessionMessageContent, ActorSessionStatus,
-        ActorToolKind, ActorUserContent, AgentAgendaItem, AgentCodeOutcome, AgentMessageContent,
-        AgentSkill, AgentThreadMark, Article, Attachment, Backlink, Calendar, CalendarEvent,
-        CalendarStore, CatalogModel, Connector, ConnectorAccount, Contact, ContactMethod,
-        DocumentFolderProperty, DocumentValue, EnabledExperiment, EndpointModel, Extension,
-        ExtensionHook, ExtensionPermission, ExtensionService, ExtensionServiceFunction, Feed,
-        FeedFullPagePolicy, FeedStatus, HookKind, IntelligenceAgent, IntelligenceAgentCue,
-        IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
-        IntelligenceCostEvent, IntelligenceDefault, IntelligenceEffort, IntelligenceEndpoint,
-        IntelligenceSpendLimit, IntelligenceThread, IntelligenceThreadImage,
-        IntelligenceThreadMessage, LinkKind, Memory, MemoryScope, Metadata, PairingOpener, Photo,
-        Profile, PropertyOption, PublishedPrecision, Resource, ResourceKind, RewindWriter,
-        SavedTaskView, SavedTaskViewPriority, SavedTaskViewSize, SavedTaskViewTag, SecurityEvent,
-        SecurityEventKind, SecuritySettings, StorageEntry, StorageSettings, Tag, TaskTag,
-        ThreadItem, ThreadOrigin, ThreadPrompt, Version, VersionedItem, WorkspaceResourceKind,
+        AccountHost, Actor, ActorMessageContent, ActorPermissionDecision, ActorSession,
+        ActorSessionMessage, ActorSessionMessageContent, ActorSessionStatus, ActorToolKind,
+        ActorUserContent, AgentAgendaItem, AgentCodeOutcome, AgentMessageContent, AgentSkill,
+        AgentThreadMark, Article, Attachment, Backlink, Calendar, CalendarEvent, CalendarStore,
+        CatalogModel, Connector, ConnectorAccount, Contact, ContactMethod, DocumentFolderProperty,
+        DocumentValue, EnabledExperiment, EndpointModel, Extension, ExtensionHook,
+        ExtensionPermission, ExtensionService, ExtensionServiceFunction, Feed, FeedFullPagePolicy,
+        FeedStatus, HookKind, IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage,
+        IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault,
+        IntelligenceEffort, IntelligenceEndpoint, IntelligenceSpendLimit, IntelligenceThread,
+        IntelligenceThreadImage, IntelligenceThreadMessage, LinkKind, Memory, MemoryScope,
+        Metadata, PairingOpener, Photo, Profile, PropertyOption, PublishedPrecision, Resource,
+        ResourceKind, RewindWriter, SavedTaskView, SavedTaskViewPriority, SavedTaskViewSize,
+        SavedTaskViewTag, SecurityEvent, SecurityEventKind, SecuritySettings, StorageEntry,
+        StorageSettings, Tag, TaskTag, ThreadItem, ThreadOrigin, ThreadPrompt, Version,
+        VersionedItem, WorkspaceResourceKind,
     },
     value::IntoValue,
 };
@@ -1401,86 +1401,6 @@ fn agent_statuses_become_an_activity_and_status_lines_go() {
 }
 
 #[test]
-fn activities_are_an_actor_tasks_and_end_exactly_with_an_outcome() {
-    let db = migrated();
-    db.connection()
-        .execute_batch(
-            "INSERT INTO clients (id, key, client_name) VALUES (1, 'k', 'Mac');
-             INSERT INTO actors (id, client_id, identifier, product, scope, modes, models)
-                 VALUES (1, 1, 'code', 'Claude Code', '/src', '[]', '[]');
-             INSERT INTO actor_sessions (id, actor_id, title) VALUES (1, 1, 'Fix'), (2, 1, 'Ship');",
-        )
-        .unwrap();
-    let insert = |values: &str| {
-        db.connection().execute_batch(&format!(
-            "INSERT INTO activities (title, actor_session_id, status, ended_at) VALUES {values}"
-        ))
-    };
-    insert("('Running', 1, 'running', NULL)").unwrap();
-    insert("('Ended', 2, 'succeeded', 5)").unwrap();
-    // No task.
-    assert!(insert("('Orphan', NULL, 'running', NULL)").is_err());
-    // Ended without an outcome, or with one but not ended.
-    assert!(insert("('Odd', 2, 'running', 5)").is_err());
-    assert!(insert("('Odd', 2, 'failed', NULL)").is_err());
-    assert!(insert("('Odd', 2, 'paused', 5)").is_err());
-    assert!(insert("('Odd', 2, 'stuck', NULL)").is_err());
-    assert!(
-        db.connection()
-            .execute_batch("UPDATE activities SET status = 'cancelled' WHERE title = 'Running'")
-            .is_err()
-    );
-}
-
-#[test]
-fn removing_detached_runs_keeps_actor_task_activities_and_their_unread_trigger() {
-    let mut db = Container::in_memory().unwrap();
-    let at = MIGRATIONS
-        .iter()
-        .position(|migration| migration.name == "remove_detached_runs")
-        .unwrap();
-    for migration in &MIGRATIONS[..at] {
-        db.connection().execute_batch(migration.sql).unwrap();
-    }
-    db.connection()
-        .execute_batch(
-            "INSERT INTO intelligence_agents (id, agent_name, agent_color) VALUES (1, 'Scout', 'blue');
-             INSERT INTO clients (id, key, client_name) VALUES (1, 'k', 'Mac');
-             INSERT INTO actors (id, client_id, identifier, product, scope, modes, models)
-                 VALUES (1, 1, 'code', 'Claude Code', '/src', '[]', '[]');
-             INSERT INTO actor_tasks (id, actor_id, title) VALUES (1, 1, 'Fix');
-             INSERT INTO activities (id, title, agent_id, status, ended_at)
-                 VALUES (1, 'Research', 1, 'succeeded', 5);
-             INSERT INTO intelligence_agent_detached_runs (agent_id, activity_id, instructions, effort)
-                 VALUES (1, 1, 'Look', 'low');
-             INSERT INTO activities (id, title, actor_task_id, status, progress)
-                 VALUES (2, 'Fix', 1, 'running', 'Building');",
-        )
-        .unwrap();
-    db.connection()
-        .pragma_update(None, "user_version", at as i64)
-        .unwrap();
-    db.migrate().unwrap();
-
-    let kept = WriteContainer::new(&db).select::<Activity>().all().unwrap();
-    assert_eq!(kept.len(), 1);
-    assert_eq!(kept[0].id, 2);
-    assert_eq!(kept[0].progress.as_deref(), Some("Building"));
-    db.connection()
-        .execute_batch("UPDATE activities SET status = 'succeeded', ended_at = 9 WHERE id = 2")
-        .unwrap();
-    let unread: bool = db
-        .connection()
-        .query_row(
-            "SELECT unread FROM actor_sessions WHERE id = 1",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap();
-    assert!(unread);
-}
-
-#[test]
 fn actor_tasks_keep_their_messages_and_activities_as_they_take_a_status() {
     let mut db = Container::in_memory().unwrap();
     let at = MIGRATIONS
@@ -1532,7 +1452,6 @@ fn actor_tasks_keep_their_messages_and_activities_as_they_take_a_status() {
         tasks.select::<ActorSessionMessage>().all().unwrap().len(),
         2
     );
-    assert_eq!(tasks.select::<Activity>().all().unwrap().len(), 1);
     db.connection()
         .execute_batch("UPDATE actor_tasks SET status = 'running' WHERE id = 1")
         .unwrap_err();
@@ -2485,7 +2404,6 @@ fn actor_tasks_become_actor_sessions_and_keep_their_rows_links_and_history() {
         .execute_batch("DELETE FROM actor_sessions WHERE id = 1")
         .unwrap();
     assert_eq!(number("SELECT count(*) FROM actor_session_messages"), 0);
-    assert_eq!(number("SELECT count(*) FROM activities"), 0);
 }
 
 #[test]
@@ -2724,11 +2642,11 @@ fn articles_only_from_feeds_drops_saving_and_keeps_the_reader_and_task_tags() {
 }
 
 #[test]
-fn a_sessions_activities_become_its_first_holding_what_the_newest_says() {
+fn activities_go_leaving_a_going_sessions_progress_and_no_activity_hooks() {
     let mut db = Container::in_memory().unwrap();
     let at = MIGRATIONS
         .iter()
-        .position(|migration| migration.name == "one_activity_per_actor_session")
+        .position(|migration| migration.name == "actor_session_hooks")
         .unwrap();
     db.register_migration_functions().unwrap();
     // As `migrate` runs them: the later ones rebuild tables with foreign keys off.
@@ -2743,16 +2661,30 @@ fn a_sessions_activities_become_its_first_holding_what_the_newest_says() {
             "INSERT INTO clients (id, key, client_name) VALUES (1, 'k', 'Mac');
              INSERT INTO actors (id, client_id, identifier, product, scope, modes, models)
                  VALUES (1, 1, 'code', 'Claude Code', '/src', '[]', '[]');
-             INSERT INTO actor_sessions (id, actor_id, title)
-                 VALUES (1, 1, 'Fix'), (2, 1, 'Ship'), (3, 1, 'Read');
+             INSERT INTO actor_sessions (id, actor_id, title, status) VALUES
+                 (1, 1, 'Fix', 'working'), (2, 1, 'Ship', 'idle'), (3, 1, 'Read', 'working');
              INSERT INTO activities (id, title, actor_session_id, status, progress, started_at,
                      ended_at) VALUES
-                 (1, 'Fix', 1, 'succeeded', NULL, 10, 20),
-                 (2, 'Fix it', 1, 'failed', NULL, 30, 40),
-                 (3, 'Fix it now', 1, 'running', 'Building', 50, NULL),
-                 (4, 'Ship', 2, 'cancelled', NULL, 60, 70),
-                 (5, 'Read', 3, 'cancelled', NULL, 80, 90),
-                 (6, 'Read more', 3, 'succeeded', NULL, 100, 110);",
+                 (1, 'Fix', 1, 'running', 'Building', 10, NULL),
+                 (2, 'Ship', 2, 'succeeded', NULL, 20, 30);
+             INSERT INTO extensions (id, name, version, script, script_identifier)
+                 VALUES (1, 'Link', 1, '', 'link');
+             INSERT INTO extension_hooks (extension_id, hook, enabled) VALUES
+                 (1, 'activity:started', TRUE), (1, 'activity:updated', TRUE),
+                 (1, 'activity:ended', TRUE), (1, 'actor:resolved', TRUE);
+             INSERT INTO intelligence_agents (id, agent_name, agent_color, context_tokens)
+                 VALUES (1, 'Ada', 'blue', 50);
+             INSERT INTO intelligence_agent_cues (agent_id, name, hook, script, instructions,
+                     effort) VALUES
+                 (1, 'Started', 'activity:started', '', '', 'low'),
+                 (1, 'Moved', 'actor:moved', '', '', 'low');
+             INSERT INTO intelligence_agent_runs (agent_id, hook, outcome, ended_at) VALUES
+                 (1, 'activity:ended', 'completed', 5), (1, 'actor:moved', 'completed', 5);
+             INSERT INTO intelligence_agent_messages (id, agent_id, sender, kind, wake, cue_name,
+                     hook) VALUES
+                 (1, 1, 'agent', 'woke', 'cue', 'Started', 'activity:started'),
+                 (2, 1, 'agent', 'woke', 'cue', 'Updated', 'activity:updated'),
+                 (3, 1, 'agent', 'woke', 'cue', 'Ended', 'activity:ended');",
         )
         .unwrap();
     db.connection()
@@ -2760,77 +2692,43 @@ fn a_sessions_activities_become_its_first_holding_what_the_newest_says() {
         .unwrap();
     db.migrate().unwrap();
 
-    let kept: Vec<_> = WriteContainer::new(&db)
-        .select::<Activity>()
-        .order("id")
-        .all()
-        .unwrap()
-        .into_iter()
-        .map(|activity| {
-            (
-                activity.id,
-                activity.title,
-                activity.status,
-                activity.progress,
-                activity.started_at,
-                activity.ended_at,
-            )
-        })
-        .collect();
+    let texts = |sql: &str| -> Vec<Option<String>> {
+        let connection = db.connection();
+        let mut statement = connection.prepare(sql).unwrap();
+        statement
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect()
+    };
+    // Only a session going on keeps what its activity last said.
     assert_eq!(
-        kept,
+        texts("SELECT progress FROM actor_sessions ORDER BY id"),
+        [Some("Building".to_string()), None, None]
+    );
+    assert_eq!(
+        texts("SELECT name FROM sqlite_master WHERE name LIKE 'activities%'"),
+        Vec::<Option<String>>::new()
+    );
+    let actor_resolved = Some("actor:resolved".to_string());
+    let actor_moved = Some("actor:moved".to_string());
+    assert_eq!(texts("SELECT hook FROM extension_hooks"), [actor_resolved]);
+    assert_eq!(
+        texts("SELECT hook FROM intelligence_agent_cues"),
+        std::slice::from_ref(&actor_moved)
+    );
+    assert_eq!(
+        texts("SELECT hook FROM intelligence_agent_runs"),
+        std::slice::from_ref(&actor_moved)
+    );
+    assert_eq!(
+        texts("SELECT hook FROM intelligence_agent_messages ORDER BY id"),
         [
-            (
-                1,
-                "Fix it now".to_string(),
-                ActivityStatus::Running,
-                Some("Building".to_string()),
-                10,
-                None
-            ),
-            (
-                4,
-                "Ship".to_string(),
-                ActivityStatus::Cancelled,
-                None,
-                60,
-                Some(70)
-            ),
-            (
-                5,
-                "Read more".to_string(),
-                ActivityStatus::Succeeded,
-                None,
-                80,
-                Some(110)
-            ),
+            Some("actor:started".to_string()),
+            Some("actor:progress".to_string()),
+            actor_moved
         ]
     );
-    let unread = |session: i64| -> bool {
-        db.connection()
-            .query_row(
-                "SELECT unread FROM actor_sessions WHERE id = ?",
-                [session],
-                |row| row.get(0),
-            )
-            .unwrap()
-    };
-    // Merging marks no session unread.
-    assert!(!unread(3));
-    // One activity per session, open or not.
-    assert!(
-        db.connection()
-            .execute_batch(
-                "INSERT INTO activities (title, actor_session_id, status, ended_at)
-                 VALUES ('Ship', 2, 'succeeded', 5)"
-            )
-            .is_err()
-    );
-    // Ending it still marks its session unread.
-    db.connection()
-        .execute_batch("UPDATE activities SET status = 'succeeded', ended_at = 9 WHERE id = 1")
-        .unwrap();
-    assert!(unread(1));
 }
 
 #[test]

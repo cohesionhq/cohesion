@@ -21,13 +21,13 @@ use cohesion_macros::{TextEnum, TsWire};
 /// unread to read;
 /// `agent:message` calls `onAgentMessage(message)` when a message lands in an
 /// agent's conversation and `agent:reaction` calls `onAgentReaction(message)`
-/// when the user or the agent reacts to one; `activity:started` calls
-/// `onActivityStarted(activity)` when an activity starts,
-/// `activity:updated` `onActivityUpdated(activity)` when its progress,
-/// status or title changes and `activity:ended` `onActivityEnded(activity)` when it
-/// ends; `actor:moved` calls `onActorMoved(session)` when an actor session's
-/// status changes and `actor:resolved` calls `onActorResolved(session)` when
-/// one is resolved; `agent:turn:start` calls
+/// when the user or the agent reacts to one; `actor:started` calls
+/// `onActorStarted(session)` once an actor's client takes a session Cohesion
+/// started, `actor:progress` `onActorProgress(session)` when a session's
+/// progress or title changes, `actor:moved`
+/// `onActorMoved(session)` when a session's status changes and
+/// `actor:resolved` `onActorResolved(session)` when one is resolved (a
+/// subagent raises none of them); `agent:turn:start` calls
 /// `onAgentTurnStart(agent)` when an agent starts answering the user and
 /// `agent:turn:end` `onAgentTurnEnd(agent)` when it finishes; `day:start` calls `onDayStart()` at 6:00 and
 /// `day:end` calls `onDayEnd()` at 23:00, and `timer` calls
@@ -103,12 +103,10 @@ pub enum HookKind {
     AgentTurnStart,
     #[text_enum("agent:turn:end")]
     AgentTurnEnd,
-    #[text_enum("activity:started")]
-    ActivityStarted,
-    #[text_enum("activity:updated")]
-    ActivityUpdated,
-    #[text_enum("activity:ended")]
-    ActivityEnded,
+    #[text_enum("actor:started")]
+    ActorStarted,
+    #[text_enum("actor:progress")]
+    ActorProgress,
     #[text_enum("actor:moved")]
     ActorMoved,
     #[text_enum("actor:resolved")]

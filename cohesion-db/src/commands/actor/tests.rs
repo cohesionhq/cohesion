@@ -727,9 +727,6 @@ fn a_permission_takes_only_a_decision_it_offers() {
 
 #[test]
 fn a_session_is_unread_once_its_actor_finishes_a_stretch_not_when_one_is_cut_short() {
-    use crate::{FinishActivityCommand, StartActivityCommand};
-    use cohesion_core::model::{ActivityKind, ActivityOutcome};
-
     let db = context();
     let session = session(&db);
     let unread = |db: &DatabaseContext| {
@@ -737,24 +734,18 @@ fn a_session_is_unread_once_its_actor_finishes_a_stretch_not_when_one_is_cut_sho
             .unwrap()
             .unread
     };
-    let stretch = |db: &DatabaseContext, outcome: ActivityOutcome| {
-        let activity = db
-            .send_blocking(StartActivityCommand {
-                title: session.title.clone(),
-                kind: ActivityKind::ActorSession {
-                    actor_session_id: session.id,
-                },
+    let stretch = |db: &DatabaseContext, ended: ActorSessionMove| {
+        for moved in [ActorSessionMove::Working, ended] {
+            db.send_blocking(SetActorSessionStatusCommand {
+                session_id: session.id,
+                moved,
             })
             .unwrap();
-        db.send_blocking(FinishActivityCommand {
-            activity_id: activity.id,
-            outcome,
-        })
-        .unwrap();
+        }
     };
     assert!(!unread(&db));
 
-    stretch(&db, ActivityOutcome::Succeeded);
+    stretch(&db, ActorSessionMove::Finished);
     assert!(unread(&db));
     let read = db
         .send_blocking(MarkActorSessionReadCommand {
@@ -765,19 +756,143 @@ fn a_session_is_unread_once_its_actor_finishes_a_stretch_not_when_one_is_cut_sho
     assert!(!unread(&db));
 
     // Stopped, or cut off by its client or the daemon going away.
-    stretch(&db, ActivityOutcome::Cancelled);
-    db.send_blocking(StartActivityCommand {
-        title: session.title.clone(),
-        kind: ActivityKind::ActorSession {
-            actor_session_id: session.id,
-        },
-    })
-    .unwrap();
+    stretch(&db, ActorSessionMove::Stopped);
+    stretch(&db, ActorSessionMove::Interrupted);
+    set_status(&db, session.id, ActorSessionStatus::Working);
     db.send_blocking(ShutdownCleanupCommand).unwrap();
     assert!(!unread(&db));
 
-    stretch(&db, ActivityOutcome::Failed);
+    stretch(&db, ActorSessionMove::Failed);
     assert!(unread(&db));
+}
+
+fn set_progress(db: &DatabaseContext, session_id: i64, progress: Option<&str>) -> ActorSession {
+    db.send_blocking(SetActorSessionProgressCommand {
+        session_id,
+        progress: progress.map(str::to_string),
+    })
+    .unwrap()
+}
+
+fn progressed(events: Vec<DatabaseEventKind>) -> Vec<(Option<String>, String)> {
+    events
+        .into_iter()
+        .filter_map(|event| match event {
+            DatabaseEventKind::ActorSessionProgressed { actor_session } => {
+                Some((actor_session.progress, actor_session.title))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_session_keeps_its_progress_while_it_goes_on_raising_each_change_once() {
+    let (db, events) = recording_context();
+    let session = session(&db);
+    assert_eq!(session.progress, None);
+    events.take();
+
+    let kept = set_progress(&db, session.id, Some("Read 12 of 40 files"));
+    assert_eq!(kept.progress.as_deref(), Some("Read 12 of 40 files"));
+    set_progress(&db, session.id, Some("Read 12 of 40 files"));
+    set_status(&db, session.id, ActorSessionStatus::NeedsAttention);
+    assert_eq!(
+        db.send_blocking(GetActorSessionCommand { id: session.id })
+            .unwrap()
+            .progress
+            .as_deref(),
+        Some("Read 12 of 40 files"),
+        "needing attention keeps it"
+    );
+    set_progress(&db, session.id, None);
+    assert_eq!(
+        progressed(events.take()),
+        [
+            (
+                Some("Read 12 of 40 files".to_string()),
+                session.title.clone()
+            ),
+            (None, session.title.clone()),
+        ]
+    );
+
+    // A move to rest clears it, raising only the move.
+    for rest in [
+        ActorSessionStatus::Idle,
+        ActorSessionStatus::Failed,
+        ActorSessionStatus::Resolved,
+    ] {
+        set_status(&db, session.id, ActorSessionStatus::Working);
+        set_progress(&db, session.id, Some("Running the tests"));
+        events.take();
+        set_status(&db, session.id, rest);
+        let stood = db
+            .send_blocking(GetActorSessionCommand { id: session.id })
+            .unwrap();
+        assert_eq!(stood.progress, None, "{rest:?}");
+        assert_eq!(progressed(events.take()), [], "{rest:?}");
+    }
+
+    // So does a daemon stopping.
+    set_status(&db, session.id, ActorSessionStatus::Working);
+    set_progress(&db, session.id, Some("Running the tests"));
+    db.send_blocking(ShutdownCleanupCommand).unwrap();
+    let settled = db
+        .send_blocking(GetActorSessionCommand { id: session.id })
+        .unwrap();
+    assert_eq!(settled.progress, None);
+}
+
+#[test]
+fn a_new_title_raises_progress_and_the_same_one_nothing() {
+    let (db, events) = recording_context();
+    let session = session(&db);
+    events.take();
+    let retitled = db
+        .send_blocking(SetActorSessionTitleCommand {
+            session_id: session.id,
+            title: "Fix the flaky test".to_string(),
+        })
+        .unwrap();
+    assert_eq!(retitled.title, "Fix the flaky test");
+    db.send_blocking(SetActorSessionTitleCommand {
+        session_id: session.id,
+        title: "Fix the flaky test".to_string(),
+    })
+    .unwrap();
+    assert_eq!(
+        progressed(events.take()),
+        [(None, "Fix the flaky test".to_string())]
+    );
+}
+
+#[test]
+fn announcing_a_session_raises_its_start_and_writes_nothing() {
+    let (db, events) = recording_context();
+    let session = session(&db);
+    assert!(
+        !events
+            .take()
+            .iter()
+            .any(|event| matches!(event, DatabaseEventKind::ActorSessionStarted { .. })),
+        "recording a session doesn't announce it"
+    );
+    let announced = db
+        .send_blocking(AnnounceActorSessionCommand {
+            session_id: session.id,
+        })
+        .unwrap();
+    assert_eq!(announced, session);
+    let started: Vec<ActorSession> = events
+        .take()
+        .into_iter()
+        .filter_map(|event| match event {
+            DatabaseEventKind::ActorSessionStarted { actor_session } => Some(actor_session),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(started, [session]);
 }
 
 #[test]
@@ -952,7 +1067,6 @@ fn a_session_resolved_a_week_ago_goes_with_everything_that_pointed_at_it_and_no_
     for sql in [
         "SELECT COUNT(*) AS value FROM actor_session_messages WHERE session_id IN (1, 2)",
         "SELECT COUNT(*) AS value FROM attachments",
-        "SELECT COUNT(*) AS value FROM activities WHERE actor_session_id IN (1, 2)",
     ] {
         assert_eq!(db.send_blocking(Count(sql)).unwrap(), 0, "{sql}");
     }

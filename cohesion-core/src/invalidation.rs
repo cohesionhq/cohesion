@@ -112,9 +112,6 @@ pub enum Invalidation {
     /// The skills changed: one was saved, changed or deleted, or an agent's
     /// or a team's went with it.
     AgentSkills,
-    /// The activities changed: one started, reported progress, waited or
-    /// ended, or an agent's went with it.
-    Activities,
     /// The actors changed: a client offered one, changed one or stopped
     /// offering it.
     Actors,

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use cohesion_core::model::{
     ActorDefinition, ActorMode, ActorSession, ActorSessionStatus, ActorUserContent,
@@ -9,20 +9,38 @@ use cohesion_core::protocol::{
     StartActorSessionRequest,
 };
 use cohesion_db::{
-    ActivityTracker, Container, DatabaseContext, GetActorSessionCommand,
-    ListActorSessionMessagesCommand, ListActorSessionsCommand, ListActorsCommand,
-    RegisterClientCommand, Secrets, WorkTracker,
+    Container, DatabaseContext, DatabaseEvent, DatabaseEventKind, DatabaseEventListener,
+    GetActorSessionCommand, ListActorSessionMessagesCommand, ListActorSessionsCommand,
+    ListActorsCommand, RegisterClientCommand, Secrets,
 };
 use tokio::sync::mpsc;
 
 use super::ActorSessions;
 use crate::capability_clients::{CapabilityClients, ClientSessionHandle};
 
+/// The events the studio's commands raise, for a test to take.
+#[derive(Clone, Debug, Default)]
+struct Events(Arc<Mutex<Vec<DatabaseEventKind>>>);
+impl DatabaseEventListener for Events {
+    fn send(&self, event: DatabaseEvent) {
+        self.0.lock().unwrap().push(event.kind);
+    }
+}
+
+/// What a hook hears of an actor session, as the event that raises it.
+#[derive(Debug, PartialEq)]
+enum Heard {
+    Started,
+    Progressed(Option<String>),
+    Moved(ActorSessionStatus),
+}
+
 /// A daemon's actor sessions with one client, a Mac mini offering the actor
 /// `cohesion` with the modes `ask` and `auto`. The test answers the calls
 /// made to it.
 struct Studio {
     database: DatabaseContext,
+    events: Events,
     sessions: ActorSessions,
     client_id: i64,
     actor_id: i64,
@@ -50,7 +68,8 @@ impl Studio {
         let mut container = Container::in_memory().unwrap();
         container.migrate().unwrap();
         let secrets = Secrets::new();
-        let database = DatabaseContext::new(container, secrets.clone(), ());
+        let events = Events::default();
+        let database = DatabaseContext::new(container, secrets.clone(), events.clone());
         let client = database
             .send(RegisterClientCommand {
                 setup_key: secrets.begin_pairing(),
@@ -73,13 +92,10 @@ impl Studio {
         let (sender, calls) = mpsc::unbounded_channel();
         let serving = clients.register(client.id, offers, sender).await.unwrap();
         let actor_id = database.send(ListActorsCommand).await.unwrap()[0].id;
-        let sessions = ActorSessions::new(
-            database.clone(),
-            clients,
-            ActivityTracker::new(database.clone(), WorkTracker::default()),
-        );
+        let sessions = ActorSessions::new(database.clone(), clients);
         Self {
             database,
+            events,
             sessions,
             client_id: client.id,
             actor_id,
@@ -142,6 +158,38 @@ impl Studio {
         self.read(session.id).await
     }
 
+    /// What hooks heard of actor sessions since last asked.
+    fn heard(&self) -> Vec<Heard> {
+        std::mem::take(&mut *self.events.0.lock().unwrap())
+            .into_iter()
+            .filter_map(|event| match event {
+                DatabaseEventKind::ActorSessionStarted { .. } => Some(Heard::Started),
+                DatabaseEventKind::ActorSessionProgressed { actor_session } => {
+                    Some(Heard::Progressed(actor_session.progress))
+                }
+                DatabaseEventKind::ActorSessionMoved { actor_session, .. } => {
+                    Some(Heard::Moved(actor_session.status))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The client reports `progress` on session `id`.
+    async fn progress(&self, id: i64, progress: &str) {
+        self.sessions
+            .report(
+                self.client_id,
+                id,
+                None,
+                ActorSessionReport::Progress {
+                    progress: Some(progress.to_string()),
+                },
+            )
+            .await
+            .unwrap();
+    }
+
     async fn read(&self, id: i64) -> ActorSession {
         self.database
             .send(GetActorSessionCommand { id })
@@ -179,6 +227,131 @@ async fn a_start_the_client_refuses_leaves_no_session() {
     let error = starting.await.unwrap().unwrap_err();
     assert_eq!(error.message, "busy");
     assert!(studio.all().await.is_empty());
+    assert_eq!(studio.heard(), []);
+}
+
+#[tokio::test]
+async fn a_start_the_client_takes_is_heard_once_it_is_taken() {
+    let mut studio = Studio::new().await;
+    let sessions = studio.sessions.clone();
+    let request = studio.request();
+    let starting = tokio::spawn(async move { sessions.start(request).await });
+    studio.accept().await;
+    let session = starting.await.unwrap().unwrap();
+    assert_eq!(session.status, ActorSessionStatus::Working);
+    assert_eq!(studio.heard(), [Heard::Started]);
+}
+
+#[tokio::test]
+async fn progress_is_kept_and_heard_while_a_session_goes_on_and_gone_once_it_rests() {
+    let mut studio = Studio::new().await;
+    let session = studio.session(ReportedActorSessionStatus::Idle).await;
+    studio.heard();
+
+    // Progress on a session at rest works it again.
+    studio.progress(session.id, "Read 12 of 40 files").await;
+    let working = studio.read(session.id).await;
+    assert_eq!(working.status, ActorSessionStatus::Working);
+    assert_eq!(working.progress.as_deref(), Some("Read 12 of 40 files"));
+    assert_eq!(
+        studio.heard(),
+        [
+            Heard::Moved(ActorSessionStatus::Working),
+            Heard::Progressed(Some("Read 12 of 40 files".to_string())),
+        ]
+    );
+
+    // Said again, it is heard once; a session that needs the user keeps it.
+    studio.progress(session.id, "Read 12 of 40 files").await;
+    studio
+        .sessions
+        .report(
+            studio.client_id,
+            session.id,
+            None,
+            ActorSessionReport::Status {
+                status: ReportedActorSessionStatus::NeedsAttention,
+            },
+        )
+        .await
+        .unwrap();
+    studio.progress(session.id, "Waiting on an answer").await;
+    assert_eq!(
+        studio.read(session.id).await.status,
+        ActorSessionStatus::NeedsAttention
+    );
+    assert_eq!(
+        studio.heard(),
+        [
+            Heard::Moved(ActorSessionStatus::NeedsAttention),
+            Heard::Progressed(Some("Waiting on an answer".to_string())),
+        ]
+    );
+
+    // A new title is heard as progress too.
+    studio
+        .sessions
+        .report(
+            studio.client_id,
+            session.id,
+            None,
+            ActorSessionReport::Title {
+                title: "Fix the flaky build".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        studio.heard(),
+        [Heard::Progressed(Some("Waiting on an answer".to_string()))]
+    );
+
+    studio
+        .sessions
+        .report(
+            studio.client_id,
+            session.id,
+            None,
+            ActorSessionReport::Status {
+                status: ReportedActorSessionStatus::Idle,
+            },
+        )
+        .await
+        .unwrap();
+    let rested = studio.read(session.id).await;
+    assert_eq!(rested.title, "Fix the flaky build");
+    assert_eq!(rested.progress, None);
+    assert_eq!(studio.heard(), [Heard::Moved(ActorSessionStatus::Idle)]);
+}
+
+#[tokio::test]
+async fn a_client_going_away_leaves_its_sessions_going_on_idle() {
+    let mut studio = Studio::new().await;
+    let working = studio.session(ReportedActorSessionStatus::Working).await;
+    let attention = studio
+        .session(ReportedActorSessionStatus::NeedsAttention)
+        .await;
+    let idle = studio.session(ReportedActorSessionStatus::Idle).await;
+    studio.progress(working.id, "Building").await;
+    studio.heard();
+
+    studio.sessions.client_left(studio.client_id).await;
+    for session in [working.id, attention.id, idle.id] {
+        let left = studio.read(session).await;
+        assert_eq!(left.status, ActorSessionStatus::Idle, "{session}");
+        assert_eq!(left.progress, None, "{session}");
+    }
+    // Cut short, not finished: neither is unread.
+    for session in [working.id, attention.id] {
+        assert!(!studio.read(session).await.unread, "{session}");
+    }
+    assert_eq!(
+        studio.heard(),
+        [
+            Heard::Moved(ActorSessionStatus::Idle),
+            Heard::Moved(ActorSessionStatus::Idle),
+        ]
+    );
 }
 
 #[tokio::test]

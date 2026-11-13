@@ -5,11 +5,12 @@ use std::sync::Arc;
 
 use cohesion_core::LocalIdentity;
 use cohesion_core::model::{
-    ActivityStatus, AgentCodeExecution, AgentCodeOutcome, AgentMessageContent, ConnectorDefinition,
-    ConnectorResource, ConnectorResourceFilters, Credential, ExtensionManifest,
-    ExtensionPermissionKind, HookKind, IntelligenceAgentColor, IntelligenceAgentMessageSender,
-    IntelligenceEffort, MetadataKey, RegistryResult, ResourceContentKind, ResourceKindDescription,
-    ServiceDescription, ServiceFunctionManifest, ServiceManifest,
+    ActorSessionStatus, AgentCodeExecution, AgentCodeOutcome, AgentMessageContent,
+    ConnectorDefinition, ConnectorResource, ConnectorResourceFilters, Credential,
+    ExtensionManifest, ExtensionPermissionKind, HookKind, IntelligenceAgentColor,
+    IntelligenceAgentMessageSender, IntelligenceEffort, MetadataKey, RegistryResult,
+    ResourceContentKind, ResourceKindDescription, ServiceDescription, ServiceFunctionManifest,
+    ServiceManifest,
 };
 use cohesion_core::protocol::{ClientCapabilities, ServerError, Vocabulary};
 use cohesion_db::{
@@ -840,18 +841,18 @@ fn a_missing_agent_throws_a_reference_error() {
 }
 
 #[test]
-fn vocabulary_words_an_activity_status_as_hello_does() {
+fn vocabulary_words_an_actor_session_status_as_hello_does() {
     let db = database();
     let label = json(
         &db,
-        "cohesion.vocabulary().activity_statuses.find(w => w.kind === 'paused')?.label",
+        "cohesion.vocabulary().actor_session_statuses.find(w => w.kind === 'needsAttention')?.label",
     );
-    let paused = Vocabulary::new()
-        .activity_statuses
+    let needs_attention = Vocabulary::new()
+        .actor_session_statuses
         .into_iter()
-        .find(|word| word.kind == ActivityStatus::Paused)
+        .find(|word| word.kind == ActorSessionStatus::NeedsAttention)
         .unwrap();
-    assert_eq!(label, serde_json::json!(paused.label));
+    assert_eq!(label, serde_json::json!(needs_attention.label));
 }
 
 #[test]
@@ -2845,17 +2846,21 @@ fn agent_turns_and_runs_dispatch_to_actors_and_a_cue_cannot() {
         .send_blocking(cohesion_db::ListActorSessionsCommand { actor_id: None })
         .unwrap()
         .remove(0);
-    let cue = block_on(engine.evaluate_cue(
-        1,
-        DatabaseEventTrace::default(),
-        "(session) => [typeof actors, session instanceof ActorSession, session.title]".to_string(),
-        vec![ScriptArgument::ActorSession {
-            actor_session: session,
-            moved: cohesion_core::model::ActorSessionMove::Finished,
-        }],
-    ))
+    let cue = block_on(
+        engine.evaluate_cue(
+            1,
+            DatabaseEventTrace::default(),
+            "(session) => [typeof actors, session instanceof ActorSession, session.title, \
+         session.progress]"
+                .to_string(),
+            vec![ScriptArgument::ActorSession {
+                actor_session: session,
+                moved: Some(cohesion_core::model::ActorSessionMove::Finished),
+            }],
+        ),
+    )
     .unwrap();
-    assert_eq!(cue.payload.0, r#"["undefined",true,"Run the tests"]"#);
+    assert_eq!(cue.payload.0, r#"["undefined",true,"Run the tests",null]"#);
 
     // A turn resolves a session for the user, which leaves the list; a job,
     // read-only, may not.

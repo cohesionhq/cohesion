@@ -5317,6 +5317,38 @@ pub const MIGRATIONS: &[Migration] = &[
             'school', 'tools', 'garden', 'pets', 'bug', 'globe', 'chat', 'mail',
             'lock'));",
     },
+    // Activities go: an actor session, their only kind, holds what they
+    // showed, and hooks follow sessions (`actor:started`, `actor:progress`)
+    // instead of `activity:*`. A session going on keeps the progress its
+    // activity last showed; the unread trigger goes with the table, since
+    // moving a session to rest marks it unread. Cues, extension hooks and
+    // runs on an `activity:*` hook go, as no such hook fires any more; a
+    // message a cue on one woke keeps its place in the conversation, its
+    // hook named for the one that now fires for that change.
+    Migration {
+        name: "actor_session_hooks",
+        sql: "
+        ALTER TABLE actor_sessions ADD COLUMN progress TEXT;
+        UPDATE actor_sessions SET progress =
+            (SELECT activities.progress FROM activities
+             WHERE activities.actor_session_id = actor_sessions.id
+                AND activities.ended_at IS NULL)
+        WHERE status IN ('working', 'needsAttention') AND parent_session_id IS NULL;
+        DROP TABLE activities;
+
+        DELETE FROM extension_hooks
+            WHERE hook IN ('activity:started', 'activity:updated', 'activity:ended');
+        DELETE FROM intelligence_agent_cues
+            WHERE hook IN ('activity:started', 'activity:updated', 'activity:ended');
+        DELETE FROM intelligence_agent_runs
+            WHERE hook IN ('activity:started', 'activity:updated', 'activity:ended');
+        UPDATE intelligence_agent_messages SET hook = CASE hook
+                WHEN 'activity:started' THEN 'actor:started'
+                WHEN 'activity:updated' THEN 'actor:progress'
+                ELSE 'actor:moved'
+            END
+            WHERE hook IN ('activity:started', 'activity:updated', 'activity:ended');",
+    },
 ];
 
 #[cfg(test)]

@@ -31,7 +31,7 @@ fn placement(table: &str) -> Option<Placement> {
         | "intelligence_thread_images"
         | "thread_prompts"
         | "agent_thread_marks" => AgentChats,
-        "actor_sessions" | "actor_session_messages" | "activities" => ActorSessions,
+        "actor_sessions" | "actor_session_messages" => ActorSessions,
         t if t.starts_with("actor_sessions_fts") || t.starts_with("actor_session_messages_fts") => {
             ActorSessions
         }

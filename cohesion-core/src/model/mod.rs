@@ -1,7 +1,6 @@
 //! The domain models: every table-backed struct, plus the plain structs and
 //! enums they carry.
 
-mod activity;
 mod actor;
 mod actor_message_columns;
 mod agent_agenda_item;
@@ -60,7 +59,6 @@ mod task_folder;
 mod text_section;
 mod workspace;
 
-pub use activity::{Activity, ActivityKind, ActivityOutcome, ActivityStanding, ActivityStatus};
 pub use actor::*;
 pub use actor_message_columns::{ActorMessageKind, ActorMessageSender};
 pub use agent_agenda_item::{AGENDA_ITEM_CHARS, AGENDA_LIMIT, AgentAgendaItem};
