@@ -1,8 +1,9 @@
 <!--
 	The Tasks page's switcher, under its heading: All and the Inbox, the folders, Done and
 	Cancelled, then the saved views, and "New folder…". Typing in the filter lists the folders
-	and views whose names match. A folder is drawn in its color, and pins to the sidebar, takes a color, renames or deletes from its tools;
-	a view renames or deletes. Folders and views reorder by dragging, or with Alt+↑/↓.
+	and views whose names match. A folder or view is drawn with its symbol, and a folder in its
+	color; clicking the icon picks the symbol. A folder pins to the sidebar, takes a color,
+	renames or deletes from its tools; a view renames or deletes. Folders and views reorder by dragging, or with Alt+↑/↓.
 -->
 <script lang="ts">
 	import Ban from '@lucide/svelte/icons/ban';
@@ -26,13 +27,18 @@
 		switcherTool,
 		switcherTools
 	} from '$lib/features/folders/nav';
-	import type { IntelligenceAgentColor, SavedTaskView, TaskFolder } from '$lib/protocol/types';
+	import type {
+		IntelligenceAgentColor,
+		ListSymbol,
+		SavedTaskView,
+		TaskFolder
+	} from '$lib/protocol/types';
 	import { folderDialogs } from '$lib/shell/folderDialogs.svelte';
 	import { savedViewQuery, type TaskView } from '$lib/stores/tasks.svelte';
 	import { Reorderable } from '$lib/ui/reorder.svelte';
 	import ColorPicker from '$lib/ui/ColorPicker.svelte';
-	import { agentText } from '$lib/ui/colors';
 	import SearchField from '$lib/ui/SearchField.svelte';
+	import SymbolPicker from '$lib/ui/SymbolPicker.svelte';
 
 	interface Props {
 		folders: TaskFolder[];
@@ -49,6 +55,8 @@
 		onpickview: (view: SavedTaskView) => void;
 		onpin: (folder: TaskFolder, pinned: boolean) => void;
 		oncolor: (folder: TaskFolder, color: IntelligenceAgentColor | null) => void;
+		onfoldersymbol: (folder: TaskFolder, symbol: ListSymbol | null) => void;
+		onviewsymbol: (view: SavedTaskView, symbol: ListSymbol | null) => void;
 		/** Every folder's id, in the order the user put them. */
 		onreorderfolders: (folderIds: number[]) => void;
 		/** Every saved view's id, in the order the user put them. */
@@ -65,6 +73,8 @@
 		onpickview,
 		onpin,
 		oncolor,
+		onfoldersymbol,
+		onviewsymbol,
 		onreorderfolders,
 		onreorderviews
 	}: Props = $props();
@@ -123,8 +133,15 @@
 		{...folderOrder.target(index)}
 		ondragend={() => folderOrder.end()}
 	>
+		<SymbolPicker
+			symbol={folder.symbol}
+			fallback={Folder}
+			color={folder.color}
+			label="Symbol of {folder.title}"
+			onchange={(symbol) => onfoldersymbol(folder, symbol)}
+		/>
 		<a
-			class={switcherLink}
+			class={[switcherLink, 'ps-0!']}
 			href={href(folder.id)}
 			draggable="false"
 			aria-current={isCurrent(folder.id) ? 'page' : undefined}
@@ -132,14 +149,6 @@
 			onclick={onpick}
 			onkeydown={(e) => q === '' && folderOrder.key(e, index)}
 		>
-			{#if folder.color}
-				<!-- The link quiets every icon, so a colored one takes its color from a wrapper. -->
-				<span class={['inline-flex flex-none', agentText[folder.color]]}>
-					<Folder class="text-current!" size={14} strokeWidth={1.75} aria-hidden="true" />
-				</span>
-			{:else}
-				<Folder size={14} strokeWidth={1.75} aria-hidden="true" />
-			{/if}
 			<span class="truncate">{folder.title}</span>
 		</a>
 		<span class={switcherTools}>
@@ -190,8 +199,14 @@
 		{...viewOrder.target(index)}
 		ondragend={() => viewOrder.end()}
 	>
+		<SymbolPicker
+			symbol={view.symbol}
+			fallback={ListFilter}
+			label="Symbol of {view.name}"
+			onchange={(symbol) => onviewsymbol(view, symbol)}
+		/>
 		<a
-			class={switcherLink}
+			class={[switcherLink, 'ps-0!']}
 			href="{base}{savedViewQuery(view)}"
 			draggable="false"
 			aria-current={currentView === view.id ? 'page' : undefined}
@@ -202,7 +217,6 @@
 			}}
 			onkeydown={(e) => q === '' && viewOrder.key(e, index)}
 		>
-			<ListFilter size={14} strokeWidth={1.75} aria-hidden="true" />
 			<span class="truncate">{view.name}</span>
 		</a>
 		<span class={switcherTools}>

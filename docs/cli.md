@@ -50,6 +50,7 @@ cohesion task describe 12            # edit the description in $EDITOR, or pass 
 cohesion task add file taxes --due 2027-04-15 --start today
 cohesion task schedule 12 --due tomorrow --start none
 cohesion task folder                 # list folders, or `create`, `delete`
+cohesion task folder symbol errands cart   # draw a folder with a symbol; leave it out for none
 cohesion tag list                    # list tags, or `create`, `rename`, `delete`
 cohesion article                     # what your feeds brought in, or `show <id|title>` to print a page's text
 cohesion article feed add https://example.com/feed.xml  # every workspace shares feeds

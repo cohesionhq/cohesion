@@ -1,11 +1,12 @@
 use cohesion_core::invalidation::Invalidation;
 use cohesion_core::model::{
-    SavedTaskView, SavedTaskViewPriority, SavedTaskViewSize, SavedTaskViewTag, TagFilter, TagMatch,
-    TaskViewScope,
+    ListSymbol, SavedTaskView, SavedTaskViewPriority, SavedTaskViewSize, SavedTaskViewTag,
+    TagFilter, TagMatch, TaskViewScope,
 };
 use cohesion_core::protocol::{
     CreateSavedTaskViewRequest, DeleteSavedTaskViewRequest, ListSavedTaskViewsRequest,
-    RenameSavedTaskViewRequest, ReorderSavedTaskViewsRequest, UpdateSavedTaskViewRequest,
+    RenameSavedTaskViewRequest, ReorderSavedTaskViewsRequest, SetSavedTaskViewSymbolRequest,
+    UpdateSavedTaskViewRequest,
 };
 use cohesion_core::{FromRequest, TaskPriority, TaskSize, TaskSort};
 
@@ -237,6 +238,30 @@ impl DatabaseCommand for RenameSavedTaskViewCommand {
             .filter_eq(SavedTaskView::ID, self.view_id)
             .returning_one();
         let view = named(written, &self.name)?;
+        Ok(view.invalidating([Invalidation::SavedTaskViews(self.workspace_id)]))
+    }
+}
+
+/// Sets the symbol a saved view is drawn with, or takes it away.
+#[derive(FromRequest)]
+#[request(SetSavedTaskViewSymbolRequest)]
+pub struct SetSavedTaskViewSymbolCommand {
+    pub workspace_id: i64,
+    pub view_id: i64,
+    pub symbol: Option<ListSymbol>,
+}
+impl DatabaseCommand for SetSavedTaskViewSymbolCommand {
+    type Response = SavedTaskView;
+    type Access = Write;
+    fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<SavedTaskView>> {
+        let view: SavedTaskView = ctx
+            .db
+            .update()
+            .set(SavedTaskView::SYMBOL, self.symbol)
+            .filter_eq(SavedTaskView::WORKSPACE_ID, self.workspace_id)
+            .filter_eq(SavedTaskView::ID, self.view_id)
+            .returning_one()
+            .found()?;
         Ok(view.invalidating([Invalidation::SavedTaskViews(self.workspace_id)]))
     }
 }

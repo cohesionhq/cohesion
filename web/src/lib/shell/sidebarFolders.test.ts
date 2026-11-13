@@ -35,6 +35,7 @@ const taskFolder = (
 	deleted: false,
 	pinned: true,
 	color: null,
+	symbol: null,
 	...extra
 });
 
@@ -70,7 +71,7 @@ describe('documentFolderRows', () => {
 
 describe('taskFolderRows', () => {
 	const folders = [
-		taskFolder(2, 'WebUI', 2, { color: 'purple' }),
+		taskFolder(2, 'WebUI', 2, { color: 'purple', symbol: 'globe' }),
 		taskFolder(1, 'Core', 1),
 		taskFolder(4, 'Plus', 4, { pinned: false }),
 		taskFolder(3, 'Gone', 3, { deleted: true })
@@ -80,6 +81,7 @@ describe('taskFolderRows', () => {
 		const rows = taskFolderRows(1, folders, '/', '');
 		expect(rows.map((r) => r.label)).toEqual(['WebUI', 'Core']);
 		expect(rows.map((r) => r.color)).toEqual(['purple', null]);
+		expect(rows.map((r) => r.symbol)).toEqual(['globe', null]);
 		expect(rows[0].href).toBe(`${routes.tasks(1)}?view=2`);
 	});
 
@@ -108,6 +110,7 @@ describe('savedViewQuery', () => {
 		sort: 'created',
 		descending: false,
 		sort_order: 1,
+		symbol: null,
 		...extra
 	});
 

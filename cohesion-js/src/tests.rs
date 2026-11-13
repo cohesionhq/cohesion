@@ -2529,6 +2529,30 @@ fn a_script_colors_a_task_folder_from_the_agents_palette() {
 }
 
 #[test]
+fn a_script_gives_a_task_folder_a_symbol_from_the_set() {
+    let db = database();
+    create_workspace(&db, "Home");
+    let result = json(
+        &db,
+        r#"
+        const home = cohesion.workspace("Home");
+        const folder = home.createTaskFolder({ title: "Errands" });
+        const before = folder.symbol;
+        folder.symbol = "cart";
+        const set = [folder.symbol, home.taskFolder(folder.id).symbol];
+        let refused = false;
+        try { folder.symbol = "unicorn"; } catch (e) { refused = e instanceof TypeError; }
+        folder.symbol = null;
+        [before, set, refused, home.taskFolder(folder.id).symbol]
+        "#,
+    );
+    assert_eq!(
+        result,
+        serde_json::json!([null, ["cart", "cart"], true, null])
+    );
+}
+
+#[test]
 fn task_and_document_lookups_find_any_status_in_their_workspace_only() {
     let db = database();
     create_workspace(&db, "Home");

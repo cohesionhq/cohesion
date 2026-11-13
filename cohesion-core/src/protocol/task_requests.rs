@@ -4,7 +4,7 @@ use cohesion_macros::TsWire;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{
-    DayFilter, IntelligenceAgentColor, TagFilter, Task, TaskAssignee, TaskFolderFilter,
+    DayFilter, IntelligenceAgentColor, ListSymbol, TagFilter, Task, TaskAssignee, TaskFolderFilter,
     TaskPriority, TaskSize, TaskSort, TaskStatus, TaskViewScope,
 };
 
@@ -213,6 +213,16 @@ pub struct SetTaskFolderColorRequest {
     pub color: Option<IntelligenceAgentColor>,
 }
 
+/// Sets the symbol task folder `folder_id` in a workspace is drawn with, or
+/// takes it away when `symbol` is left out.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+#[ts_wire(input)]
+pub struct SetTaskFolderSymbolRequest {
+    pub workspace_id: i64,
+    pub folder_id: i64,
+    pub symbol: Option<ListSymbol>,
+}
+
 /// Lists a workspace's saved task views, in their order.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct ListSavedTaskViewsRequest {
@@ -260,6 +270,16 @@ pub struct RenameSavedTaskViewRequest {
     pub workspace_id: i64,
     pub view_id: i64,
     pub name: String,
+}
+
+/// Sets the symbol saved view `view_id` is drawn with, or takes it away when
+/// `symbol` is left out.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+#[ts_wire(input)]
+pub struct SetSavedTaskViewSymbolRequest {
+    pub workspace_id: i64,
+    pub view_id: i64,
+    pub symbol: Option<ListSymbol>,
 }
 
 /// Puts a workspace's saved task views in the order of `view_ids`, first to

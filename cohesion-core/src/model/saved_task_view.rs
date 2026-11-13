@@ -1,7 +1,7 @@
 use cohesion_macros::{ColumnGroup, Model, TextEnum, TsWire};
 use serde::{Deserialize, Serialize};
 
-use super::{TagFilter, TaskPriority, TaskSize, TaskSort};
+use super::{ListSymbol, TagFilter, TaskPriority, TaskSize, TaskSort};
 use crate::value::{FromValue, Value, ValueError};
 
 /// A way of looking at a workspace's tasks kept under a name: which tasks it
@@ -32,6 +32,8 @@ pub struct SavedTaskView {
     pub descending: bool,
     /// Where the view sits among its workspace's views; lower comes first.
     pub sort_order: i64,
+    /// The symbol the view is drawn with, or none.
+    pub symbol: Option<ListSymbol>,
 }
 
 impl SavedTaskView {

@@ -702,6 +702,7 @@ export function seed(): MockState {
 				workspace_id: 1,
 				title: 'Core',
 				color: 'blue',
+				symbol: 'code',
 				pinned: true,
 				sort_order: 1,
 				deleted: false
@@ -711,6 +712,7 @@ export function seed(): MockState {
 				workspace_id: 1,
 				title: 'WebUI',
 				color: 'purple',
+				symbol: 'globe',
 				pinned: true,
 				sort_order: 2,
 				deleted: false
@@ -720,6 +722,7 @@ export function seed(): MockState {
 				workspace_id: 1,
 				title: 'Plus',
 				color: 'orange',
+				symbol: null,
 				pinned: false,
 				sort_order: 3,
 				deleted: false
@@ -729,6 +732,7 @@ export function seed(): MockState {
 				workspace_id: 1,
 				title: 'Cloud',
 				color: null,
+				symbol: 'lock',
 				pinned: false,
 				sort_order: 4,
 				deleted: false
@@ -738,6 +742,7 @@ export function seed(): MockState {
 				workspace_id: 1,
 				title: 'JavaScript',
 				color: 'yellow',
+				symbol: null,
 				pinned: false,
 				sort_order: 5,
 				deleted: false
@@ -747,6 +752,7 @@ export function seed(): MockState {
 				workspace_id: 1,
 				title: 'WebUI Harnesses',
 				color: 'teal',
+				symbol: 'tools',
 				pinned: false,
 				sort_order: 6,
 				deleted: false
@@ -756,6 +762,7 @@ export function seed(): MockState {
 				workspace_id: 2,
 				title: 'PCO',
 				color: null,
+				symbol: null,
 				pinned: false,
 				sort_order: 1,
 				deleted: false
