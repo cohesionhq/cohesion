@@ -7,6 +7,12 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- `network.fetch` can send any HTTP method, including `PROPFIND`, `REPORT` and
+  `MKCALENDAR`, and a plain text body (XML, iCalendar) with `textBody`; the
+  `Content-Type` in `headers` is kept. `method` is now a string (a
+  `NetworkMethod` value still works) and a method that isn't a valid token
+  throws. `jsonBody`, `formBody` and `textBody` are mutually exclusive.
+  Scripts written before keep working unchanged.
 - A task folder or saved task view can take a symbol from a set of 32
   everyday ones (home, work, cart, travel…), picked by clicking its icon in
   the switcher under the Tasks page's title; a folder's symbol also shows in

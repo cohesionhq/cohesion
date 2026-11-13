@@ -2440,6 +2440,116 @@ fn fetch_refuses_a_body_over_the_cap() {
     assert_eq!(text, r#"[200,"hi"]"#);
 }
 
+/// Accepts one connection, answers 200 and returns what the request was.
+fn listen_and_record() -> (String, std::sync::mpsc::Receiver<String>) {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        use std::io::{Read, Write};
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        let mut chunk = [0u8; 1024];
+        loop {
+            let read = stream.read(&mut chunk).unwrap();
+            request.extend_from_slice(&chunk[..read]);
+            let text = String::from_utf8_lossy(&request).to_string();
+            if let Some((head, body)) = text.split_once("\r\n\r\n") {
+                let length = head
+                    .lines()
+                    .find_map(|l| {
+                        l.to_lowercase()
+                            .strip_prefix("content-length:")
+                            .map(str::to_owned)
+                    })
+                    .and_then(|v| v.trim().parse::<usize>().ok())
+                    .unwrap_or(0);
+                if body.len() >= length {
+                    break;
+                }
+            }
+            if read == 0 {
+                break;
+            }
+        }
+        _ = stream.write_all(b"HTTP/1.1 207 Multi-Status\r\nContent-Length: 2\r\n\r\nok");
+        _ = sender.send(String::from_utf8_lossy(&request).to_string());
+    });
+    (format!("http://{address}/"), receiver)
+}
+
+#[test]
+fn fetch_sends_a_custom_method_with_a_text_body_and_its_content_type() {
+    let (url, request) = listen_and_record();
+    let ScriptOutput(text) = network_sandbox(60)
+        .evaluate(format!(
+            "const r = network.fetch({{ url: '{url}', method: 'PROPFIND', \
+             headers: {{ 'Content-Type': 'application/xml; charset=utf-8', Depth: '1' }}, \
+             textBody: '<d:propfind xmlns:d=\"DAV:\"/>' }}); [r.code, r.body]"
+        ))
+        .unwrap();
+    assert_eq!(text, r#"[207,"ok"]"#);
+    let request = request.recv().unwrap();
+    assert!(request.starts_with("PROPFIND / HTTP/1.1"), "{request}");
+    let lower = request.to_lowercase();
+    assert!(
+        lower.contains("content-type: application/xml; charset=utf-8"),
+        "{request}"
+    );
+    assert!(lower.contains("depth: 1"), "{request}");
+    assert!(
+        request.ends_with("<d:propfind xmlns:d=\"DAV:\"/>"),
+        "{request}"
+    );
+}
+
+#[test]
+fn fetch_still_sends_json_and_form_bodies_with_the_enum_methods() {
+    let (url, request) = listen_and_record();
+    network_sandbox(60)
+        .evaluate(format!(
+            "network.fetch({{ url: '{url}', method: NetworkMethod.post, jsonBody: {{ a: 1 }} }})"
+        ))
+        .unwrap();
+    let request = request.recv().unwrap();
+    assert!(request.starts_with("POST / HTTP/1.1"), "{request}");
+    assert!(
+        request
+            .to_lowercase()
+            .contains("content-type: application/json"),
+        "{request}"
+    );
+    assert!(request.ends_with(r#"{"a":1}"#), "{request}");
+
+    let (url, request) = listen_and_record();
+    network_sandbox(60)
+        .evaluate(format!(
+            "network.fetch({{ url: '{url}', method: 'PUT', formBody: {{ k: 'v w' }} }})"
+        ))
+        .unwrap();
+    let request = request.recv().unwrap();
+    assert!(request.starts_with("PUT / HTTP/1.1"), "{request}");
+    assert!(request.ends_with("k=v+w"), "{request}");
+}
+
+#[test]
+fn fetch_rejects_an_invalid_method_and_more_than_one_body() {
+    let sandbox = network_sandbox(60);
+    let Err(ScriptError::Exception { message, .. }) =
+        sandbox.evaluate("network.fetch({ url: 'http://127.0.0.1:9/', method: 'GET /x' })".into())
+    else {
+        panic!("an invalid method should throw");
+    };
+    assert!(message.contains("not a valid HTTP method"), "{message}");
+    let Err(ScriptError::Exception { message, .. }) = sandbox.evaluate(
+        "network.fetch({ url: 'http://127.0.0.1:9/', method: 'POST', textBody: 'a', jsonBody: {} })"
+            .into(),
+    ) else {
+        panic!("two bodies should throw");
+    };
+    assert!(message.contains("only one of"), "{message}");
+}
+
 #[test]
 fn storage_caps_a_value_and_a_whole_store() {
     let db = database();
