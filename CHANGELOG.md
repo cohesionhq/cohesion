@@ -7,6 +7,24 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- Calendars are a new kind of item, shared by every workspace: calendar
+  stores hold calendars, which hold events with a title, location, start and
+  end (timed in a time zone, or all-day), invitees, description and an
+  optional color of their own. Colors are stored exactly and read with the
+  nearest palette color. A store is local, or one account of an extension
+  granted the new `calendar:backend` permission (with `oauth`), whose
+  calendars sync both ways every 10 minutes and on `syncCalendars`; when an
+  event changed on both sides, the later change wins. New requests:
+  `listCalendarStores`, `createCalendarStore`, `deleteCalendarStore`,
+  `listCalendars`, `createCalendar`, `renameCalendar`, `setCalendarColor`,
+  `deleteCalendar`, `listCalendarEvents`, `getCalendarEvent`,
+  `createCalendarEvent`, `updateCalendarEvent`, `deleteCalendarEvent` and
+  `syncCalendars`; invalidations `calendars` and `calendarEvents`. Scripts
+  reach them through `cohesion.calendars()` and its neighbours. Workspace
+  search finds events, as `entity_kind` `calendarEvent`: a client that
+  decodes `SearchEntityKind` or `ExtensionPermissionKind` strictly, such as
+  the iPhone app, has to learn the new values. The web UI has no calendar
+  page yet.
 - A task folder can take a color from the palette agents use, picked from
   the folder's row in the switcher under the Tasks page's title; its icon
   shows the color there, in the sidebar and in a new task's folder chip.

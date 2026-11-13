@@ -7,7 +7,9 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use cohesion_core::log::Module;
-use cohesion_core::model::{AccountHost, ConnectorAccount, ConnectorResourceFilters, Resource};
+use cohesion_core::model::{
+    AccountHost, ConnectorAccount, ConnectorResourceFilters, ExtensionPermissionKind, Resource,
+};
 use cohesion_core::protocol::{ResourceRefreshSummary, ServerError};
 use cohesion_core::{log_error, log_info};
 use cohesion_db::{
@@ -118,7 +120,14 @@ async fn refresh_account(
             e.message
         );
     };
-    let connection = match connect(&ctx.extensions, &ctx.database, account).await {
+    let connection = match connect(
+        &ctx.extensions,
+        &ctx.database,
+        account,
+        ExtensionPermissionKind::Connector,
+    )
+    .await
+    {
         Ok(connection) => connection,
         Err(e) => {
             failed(e);

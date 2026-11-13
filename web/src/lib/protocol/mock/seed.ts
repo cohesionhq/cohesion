@@ -5,6 +5,7 @@ import type {
 	Actor,
 	ActorMessageContent,
 	ActorSessionMessage,
+	CalendarEvent,
 	ActorSessionMessageContent,
 	AgentChoice,
 	AgentCodeExecution,
@@ -1210,6 +1211,7 @@ export function seed(): MockState {
 		articles: seedArticles(now),
 		feeds: seedFeeds(now),
 		...seedContacts(now),
+		...seedCalendars(now),
 		tags: ['Evaluating', 'Feature', 'Ready', 'Research', 'Visual Bug', 'Working'].map(
 			(name, i) => ({
 				id: i + 1,
@@ -1246,6 +1248,61 @@ export const CONTACT_PHOTO: Photo = {
 	photo_data:
 		'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAACAklEQVR42tXPWVLCUBCF4bM6F+FyXE6QSUAIMgkBAoEwyCguwGVIeTF1DRBC91XSVd9rV/8HlvshGqz+TjSk+jvRkOrtRMNj7100pLvvoskfkHG2oiHrbEVDtrMVDbnORjTk2hvRkG9vRMPT61q0Pxnw6VjnmB9QaK0NikjXGfyIYmttRMx0nZG/+wErPkL9zwbua5SaKyZyvcL8Ln/Ac2PJwaxXOAEoN5YcRgZwAlCuL8mM1B82UBtQqS/IDA4gN8CuLcgMDiA3yB9QfXkjMziA3CB/wEv1jczgAHIDatU5mcEB5AbU7DmZyQHUBtTtOYeRek4AGvacw8gATgAalRkTt573Hc3KjIk5gPkdzfKM6e7+gVy/v2V+R6s8Jdu/D9DqA+QGvD5PCfTfhBnnzgklMFgfZ8bF26sHtEuTq1ws4LuqB53SJL5/qFfiJ6FTnMTxb+m/ZsQIg1P047jJgDhhcAr+RTepP2y41IZuwY92w3olOg+9p3GEm9crEYVIfn30BvTz43MSNeBcJNz8+KRE1SsnO/cDRiclcsCJTgxyo2MJrFeOU+UPGGa9kMTWK6FaeFkvJOEDQrXwMp4u4fWHDVowRpmhTsQAPRjj9FAnYoAeDHH1oQ3wHwcBQQOCZvkDJqlBQNCAoBnTlKsIqldUNqaWq8gb8J2NmeUq4gao7C92itymzsyHpAAAAABJRU5ErkJggg=='
 };
+
+/** One local store with a calendar, and two events on it today. */
+export function seedCalendars(
+	now: number
+): Pick<MockState, 'calendarStores' | 'calendars' | 'calendarEvents'> {
+	const today = localMidnight(0);
+	const event = (id: number, title: string, hour: number, location: string): CalendarEvent => ({
+		id,
+		calendar_id: 1,
+		deleted: false,
+		title,
+		location,
+		description: '',
+		timing: {
+			kind: 'timed',
+			starts_at: today + hour * 3_600,
+			ends_at: today + (hour + 1) * 3_600,
+			time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone
+		},
+		invitees: [],
+		color: null,
+		remote_identifier: null,
+		remote_modified: null,
+		pending_push: false,
+		revision: 0,
+		created_at: now - 86_400,
+		modified: now - 86_400
+	});
+	return {
+		calendarStores: [
+			{
+				id: 1,
+				title: 'Cohesion',
+				backend: { kind: 'local' },
+				last_synced_at: null,
+				sync_failure: null,
+				created_at: now - 7 * 86_400
+			}
+		],
+		calendars: [
+			{
+				id: 1,
+				store_id: 1,
+				deleted: false,
+				title: 'Home',
+				color: { hex: '#3d8a8a', nearest: 'teal' },
+				remote_identifier: null,
+				read_only: false,
+				created_at: now - 7 * 86_400,
+				modified: now - 7 * 86_400
+			}
+		],
+		calendarEvents: [event(1, 'Dentist', 10, 'High Street'), event(2, 'Piano lesson', 17, '')]
+	};
+}
 
 /** Three contacts in the first workspace, the first with a photo. */
 export function seedContacts(now: number): Pick<MockState, 'contacts' | 'contactMethods'> {

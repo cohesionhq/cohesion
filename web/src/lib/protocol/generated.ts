@@ -1086,6 +1086,201 @@ export type Block =
 	| ({ kind: 'heading' } & HeadingBlock)
 	| ({ kind: 'link' } & LinkBlock);
 
+/** A calendar: a named, colored set of events in a store. */
+export interface Calendar {
+	/** Unique, stable identifier. */
+	id: number;
+	/** Id of the store that holds it. */
+	store_id: number;
+	/**
+	 * Whether the calendar has been deleted. Listings skip deleted
+	 * calendars, so this is normally `false`.
+	 */
+	deleted: boolean;
+	/**
+	 * Never empty. A backend's calendar takes its backend's title at each
+	 * sync.
+	 */
+	title: string;
+	/**
+	 * The color its events take unless they have their own. A backend's
+	 * calendar starts in the backend's color; after that it is Cohesion's.
+	 */
+	color: CalendarColor;
+	/** The backend's identifier for it; `null` in a local store. */
+	remote_identifier: string | null;
+	/**
+	 * Whether its backend refuses changes to it, so Cohesion does too.
+	 * Always `false` in a local store.
+	 */
+	read_only: boolean;
+	/** When the calendar was added, in Unix seconds. */
+	created_at: number;
+	/** When its title or color last changed, in Unix seconds. */
+	modified: number;
+}
+
+/**
+ * An exact color, stored as `"#rrggbb"`, with the palette color nearest to
+ * it.
+ *
+ * A color chosen in the apps is a palette color's exact value; one a
+ * calendar backend sends can be any color, and `nearest` is how a client
+ * that only draws the palette shows it.
+ */
+export interface CalendarColor {
+	/** The exact color, as `"#rrggbb"` in lowercase. */
+	hex: string;
+	/** The palette color nearest to `hex`. */
+	nearest: IntelligenceAgentColor;
+}
+
+/**
+ * The color a client sets on a calendar or an event. The apps' picker
+ * offers the palette; scripts and backends may give any exact color.
+ *
+ * - `"palette"`: palette color `color`, stored as its exact value.
+ * - `"exact"`: `hex`, as `"#rrggbb"` or `"#rgb"`.
+ */
+export type CalendarColorChoice =
+	| {
+			kind: 'palette';
+			color: IntelligenceAgentColor;
+	  }
+	| {
+			kind: 'exact';
+			hex: string;
+	  };
+
+/** An event on a calendar. */
+export interface CalendarEvent {
+	/** Unique, stable identifier. */
+	id: number;
+	/** Id of the calendar it is on. */
+	calendar_id: number;
+	/**
+	 * Whether the event has been deleted. Listings skip deleted events, so
+	 * this is normally `false`.
+	 */
+	deleted: boolean;
+	/** Never empty. */
+	title: string;
+	/** Where it happens, as written; `""` when it says nowhere. */
+	location: string;
+	/** Free text about it, as plain text / Markdown. */
+	description: string;
+	/** When it happens. */
+	timing: EventTiming;
+	/** Who is invited, in the order they were given. */
+	invitees: EventInvitee[];
+	/** Its own color; `null` to take its calendar's. */
+	color: CalendarColor | null;
+	/**
+	 * The backend's identifier for it; `null` in a local store, or until
+	 * it is first pushed.
+	 */
+	remote_identifier: string | null;
+	/**
+	 * The backend's `lastModified` for it when it last synced, in Unix
+	 * seconds.
+	 */
+	remote_modified: number | null;
+	/**
+	 * Whether it changed in Cohesion since it last synced, so the next sync
+	 * pushes it. Always `false` in a local store.
+	 */
+	pending_push: boolean;
+	/**
+	 * Counts its changes, so a sync writes over an event only as it read
+	 * it.
+	 */
+	revision: number;
+	/** When the event was added, in Unix seconds. */
+	created_at: number;
+	/**
+	 * When it last changed, in Cohesion or from its backend, in Unix
+	 * seconds.
+	 */
+	modified: number;
+}
+
+/** What an event says, as a client or script creates or replaces it. */
+export interface CalendarEventFields {
+	/** May not be empty. */
+	title: string;
+	location: string;
+	description: string;
+	/**
+	 * A timed event may not end before it starts, nor an all-day one end
+	 * on a day before it starts.
+	 */
+	timing: EventTiming;
+	invitees: EventInvitee[];
+	/** `null` to take the calendar's color. */
+	color: CalendarColorChoice | null;
+}
+
+/**
+ * What holds calendars: Cohesion itself, or an account of a calendar
+ * backend, which calendars sync with both ways.
+ */
+export interface CalendarStore {
+	/** Unique, stable identifier. */
+	id: number;
+	/**
+	 * The store's name: for a backend's, the account's description when it
+	 * was added.
+	 */
+	title: string;
+	/** Where its calendars live. */
+	backend: CalendarStoreBackend;
+	/**
+	 * When it last synced with its backend in full, in Unix seconds;
+	 * `null` for a local store, or one that hasn't yet.
+	 */
+	last_synced_at: number | null;
+	/** Why its last sync failed; `null` when it worked, or for a local store. */
+	sync_failure: string | null;
+	/** When the store was added, in Unix seconds. */
+	created_at: number;
+}
+
+/**
+ * Where a store's calendars live. The table's check gives every row
+ * exactly one of these.
+ *
+ * - `"local"`: only in Cohesion.
+ * - `"account"`: connector account `account_id`, whose extension holds
+ *   `calendar:backend`. An account backs at most one store, and removing
+ *   the account removes the store and its calendars.
+ */
+export type CalendarStoreBackend =
+	| { kind: 'local' }
+	| {
+			kind: 'account';
+			account_id: number;
+	  };
+
+/** What a sync did, over every store it reached. */
+export interface CalendarSyncSummary {
+	/** How many stores synced in full. */
+	synced: number;
+	/** How many stores failed; each one's `sync_failure` says why. */
+	failed: number;
+	/**
+	 * Events written in Cohesion from their backend: added, changed or
+	 * removed.
+	 */
+	pulled: number;
+	/** Events written to their backend: added, changed or deleted. */
+	pushed: number;
+	/**
+	 * Events changed both in Cohesion and on their backend since the last
+	 * sync, settled by which changed later.
+	 */
+	conflicts: number;
+}
+
 /**
  * Calls the global `serviceRequest(name, args, caller)` of the extension
  * whose manifest declares `identifier`, which the extension needs the
@@ -1394,6 +1589,34 @@ export interface CreateAgentTeamRequest {
 }
 
 /**
+ * Creates an event on live calendar `calendar_id`; a backend's calendar
+ * pushes it at its next sync. A read-only calendar refuses it.
+ */
+export interface CreateCalendarEventRequest {
+	calendar_id: number;
+	event: CalendarEventFields;
+}
+
+/**
+ * Creates a calendar titled `title`, which may not be empty, in local
+ * store `store_id`. A backend's calendars come from the backend.
+ */
+export interface CreateCalendarRequest {
+	store_id: number;
+	title: string;
+	color: CalendarColorChoice;
+}
+
+/**
+ * Creates a local calendar store titled `title`, which may not be empty. A
+ * backend account's store is made by the daemon, once the account's
+ * extension holds `calendar:backend`.
+ */
+export interface CreateCalendarStoreRequest {
+	title: string;
+}
+
+/**
  * Creates a contact in workspace `workspace_id`, with `methods` in their
  * order. The first and last names may not be empty, nor may a method's
  * value; an empty middle name is none.
@@ -1636,6 +1859,27 @@ export interface DeleteAgentSkillRequest {
  */
 export interface DeleteAgentTeamRequest {
 	team_id: number;
+}
+
+/**
+ * Deletes live event `event_id`; a backend's event is deleted there at its
+ * next sync. A read-only calendar refuses it.
+ */
+export interface DeleteCalendarEventRequest {
+	event_id: number;
+}
+
+/** Deletes live calendar `calendar_id`, of a local store, with its events. */
+export interface DeleteCalendarRequest {
+	calendar_id: number;
+}
+
+/**
+ * Deletes local calendar store `store_id` with its calendars and their
+ * events. A backend account's store goes with the account.
+ */
+export interface DeleteCalendarStoreRequest {
+	store_id: number;
 }
 
 /** Revokes client `id`; its certificate is no longer trusted. */
@@ -2126,6 +2370,38 @@ export type ErrorCode =
 	| 'notFound'
 	| 'unauthorized';
 
+/** Someone invited to an event. */
+export interface EventInvitee {
+	/** Their email address; never empty. */
+	email: string;
+	/** Their name, when it is known. */
+	name?: string | null;
+	/** How they answered. */
+	response?: InviteeResponse;
+}
+
+/**
+ * When an event happens. The table's check gives every row exactly one of
+ * these.
+ *
+ * - `"timed"`: from `starts_at` to `ends_at`, in Unix seconds, in IANA time
+ *   zone `time_zone` (such as `"Europe/London"`), which says how to show it.
+ * - `"allDay"`: whole days, from `start_date` to `end_date` inclusive, as
+ *   `"YYYY-MM-DD"`, the same wherever they are read.
+ */
+export type EventTiming =
+	| {
+			kind: 'timed';
+			starts_at: number;
+			ends_at: number;
+			time_zone: string;
+	  }
+	| {
+			kind: 'allDay';
+			start_date: string;
+			end_date: string;
+	  };
+
 /** An experiment and whether it is on, as Settings › Experiments lists it. */
 export interface ExperimentSetting {
 	/** [`Experiment::key`]. */
@@ -2218,7 +2494,10 @@ export interface ExtensionPermission {
  * removed. It also grants the `accounts` global, which lists those
  * accounts with their credentials. `connector` lets the daemon call `getOrganizationUnits`,
  * `listResources` and `getResource` to import an account's items as resources; a
- * manifest that lists `connector` must list `oauth` too. `service` grants
+ * manifest that lists `connector` must list `oauth` too. `calendar:backend`
+ * lets the daemon call `listCalendars`, `listEvents`, `createEvent`,
+ * `updateEvent` and `deleteEvent` to sync each account's calendar store both
+ * ways; it too needs `oauth`. `service` grants
  * no global: it makes the extension a service clients call, through the
  * `callExtension` command, at its global
  * `serviceRequest(name: string, args: unknown)`, receiving what it returns;
@@ -2241,6 +2520,7 @@ export type ExtensionPermissionKind =
 	| 'registry'
 	| 'oauth'
 	| 'connector'
+	| 'calendar:backend'
 	| 'service'
 	| 'service:isolated'
 	| 'services'
@@ -2438,6 +2718,11 @@ export interface GetAgentMessageRequest {
 /** Fetches live article `article_id`, whole. Fetching it doesn't mark it read. */
 export interface GetArticleRequest {
 	article_id: number;
+}
+
+/** Fetches live event `event_id`. */
+export interface GetCalendarEventRequest {
+	event_id: number;
 }
 
 /** Fetches live contact `contact_id` in workspace `workspace_id`. */
@@ -3132,6 +3417,8 @@ export type Invalidation =
 	| { kind: 'profile' }
 	| { kind: 'tags'; id: number }
 	| { kind: 'contacts'; id: number }
+	| { kind: 'calendars' }
+	| { kind: 'calendarEvents' }
 	| { kind: 'savedTaskViews'; id: number }
 	| { kind: 'extensionUpdates' }
 	| { kind: 'memories' }
@@ -3160,6 +3447,17 @@ export type Invalidation =
 export interface InvalidationBatch {
 	keys: Invalidation[];
 }
+
+/**
+ * How an invitee answered an event's invitation; stored in the event's
+ * JSON.
+ *
+ * - `"needsAction"`: hasn't answered.
+ * - `"accepted"`: is coming.
+ * - `"declined"`: isn't coming.
+ * - `"tentative"`: might come.
+ */
+export type InviteeResponse = 'needsAction' | 'accepted' | 'declined' | 'tentative';
 
 /** `kind: "link"`: text that opens `destination`. */
 export interface LinkBlock {
@@ -3312,6 +3610,18 @@ export interface ListArticlesRequest {
 	offset?: number;
 	/** The most articles to list: 50 when absent, and never over 500. */
 	limit?: number | null;
+}
+
+/**
+ * Lists the live events on calendars `calendar_ids` (every calendar when
+ * `null`) that overlap `from` to `to`, in Unix seconds, by when they
+ * start. An all-day event overlaps when one of its days is one of the UTC
+ * days the range touches.
+ */
+export interface ListCalendarEventsRequest {
+	calendar_ids?: number[] | null;
+	from: number;
+	to: number;
 }
 
 /**
@@ -4135,6 +4445,15 @@ export interface RenameArticleRequest {
 	title: string;
 }
 
+/**
+ * Retitles live calendar `calendar_id`, of a local store, to `title`,
+ * which may not be empty.
+ */
+export interface RenameCalendarRequest {
+	calendar_id: number;
+	title: string;
+}
+
 /** Renames client `id`. */
 export interface RenameClientRequest {
 	id: number;
@@ -4578,10 +4897,18 @@ export interface SearchDocumentRequest {
 
 /**
  * What kind of item a search result points at: `"document"`, `"task"`,
- * `"resource"`, `"contact"`, `"taskFolder"`, `"documentFolder"` or `"feed"`.
+ * `"resource"`, `"contact"`, `"taskFolder"`, `"documentFolder"`, `"feed"` or
+ * `"calendarEvent"`.
  */
 export type SearchEntityKind =
-	'document' | 'task' | 'resource' | 'contact' | 'taskFolder' | 'documentFolder' | 'feed';
+	| 'document'
+	| 'task'
+	| 'resource'
+	| 'contact'
+	| 'taskFolder'
+	| 'documentFolder'
+	| 'feed'
+	| 'calendarEvent';
 
 /**
  * Asks every extension with the `registry` permission granted for the
@@ -4607,8 +4934,9 @@ export interface SearchFeedCorpusRequest {
 
 /**
  * One full-text search hit: a snapshot of the matched document's, task's,
- * resource's, contact's, folder's or feed's indexed text, plus a pointer back
- * to it. A folder or a feed is indexed by its title alone.
+ * resource's, contact's, folder's, feed's or calendar event's indexed text,
+ * plus a pointer back to it. A folder or a feed is indexed by its title
+ * alone.
  */
 export interface SearchResult {
 	/**
@@ -4619,25 +4947,25 @@ export interface SearchResult {
 	id: number;
 	/**
 	 * Whether the hit is a document, a task, a resource, a contact, a task
-	 * or document folder, or a feed.
+	 * or document folder, a feed or a calendar event.
 	 */
 	entity_kind: SearchEntityKind;
 	/**
-	 * Id of the matched document, task, resource, contact, folder or feed
-	 * (which one depends on the entity kind).
+	 * Id of the matched document, task, resource, contact, folder, feed or
+	 * calendar event (which one depends on the entity kind).
 	 */
 	entity_id: number;
 	/**
-	 * Id of the workspace the matched item belongs to; for a feed, which
-	 * belongs to none, the workspace searched.
+	 * Id of the workspace the matched item belongs to; for a feed or a
+	 * calendar event, which belong to none, the workspace searched.
 	 */
 	workspace_id: number;
 	/** The matched item's title; a contact's full name. */
 	title: string | null;
 	/**
 	 * The matched document's full contents, a Markdown resource's text or a
-	 * contact's notes; always `""` for tasks, folders, feeds and JSON
-	 * resources.
+	 * contact's notes, or a calendar event's location and description;
+	 * always `""` for tasks, folders, feeds and JSON resources.
 	 */
 	contents: string;
 	/**
@@ -4845,6 +5173,15 @@ export interface SetAgentTeamRequest {
 export interface SetArticleReadRequest {
 	article_id: number;
 	read: boolean;
+}
+
+/**
+ * Sets live calendar `calendar_id`'s color, in any store. A backend's
+ * calendar keeps it in Cohesion: it isn't pushed.
+ */
+export interface SetCalendarColorRequest {
+	calendar_id: number;
+	color: CalendarColorChoice;
 }
 
 /**
@@ -5637,6 +5974,15 @@ export interface UpdateAgentSkillRequest {
 }
 
 /**
+ * Replaces what live event `event_id` says; a backend's event pushes it at
+ * its next sync. A read-only calendar refuses it.
+ */
+export interface UpdateCalendarEventRequest {
+	event_id: number;
+	event: CalendarEventFields;
+}
+
+/**
  * Replaces contact method `method_id`'s kind and value, which may not be
  * empty, on a live contact in workspace `workspace_id`.
  */
@@ -6158,6 +6504,34 @@ export interface Requests {
 	deleteContactMethod: DeleteContactMethodRequest;
 	/** Sets or removes contact `contact_id`'s photo. */
 	setContactPhoto: SetContactPhotoRequest;
+	/** Lists every calendar store. */
+	listCalendarStores: NoArgs;
+	/** Creates a local calendar store. */
+	createCalendarStore: CreateCalendarStoreRequest;
+	/** Deletes local calendar store `store_id` with its calendars. */
+	deleteCalendarStore: DeleteCalendarStoreRequest;
+	/** Lists every live calendar. */
+	listCalendars: NoArgs;
+	/** Creates a calendar in a local store. */
+	createCalendar: CreateCalendarRequest;
+	/** Retitles calendar `calendar_id`, of a local store. */
+	renameCalendar: RenameCalendarRequest;
+	/** Sets calendar `calendar_id`'s color. */
+	setCalendarColor: SetCalendarColorRequest;
+	/** Deletes calendar `calendar_id`, of a local store, with its events. */
+	deleteCalendar: DeleteCalendarRequest;
+	/** Lists the live events overlapping a range of time. */
+	listCalendarEvents: ListCalendarEventsRequest;
+	/** Fetches live event `event_id`. */
+	getCalendarEvent: GetCalendarEventRequest;
+	/** Creates an event on a calendar. */
+	createCalendarEvent: CreateCalendarEventRequest;
+	/** Replaces what event `event_id` says. */
+	updateCalendarEvent: UpdateCalendarEventRequest;
+	/** Deletes event `event_id`. */
+	deleteCalendarEvent: DeleteCalendarEventRequest;
+	/** Syncs every backend account's calendars with its backend now. */
+	syncCalendars: NoArgs;
 	/** Lists a page of the live tasks the filters cover. */
 	listTasks: ListTasksRequest;
 	createTask: CreateTaskRequest;
@@ -6790,6 +7164,34 @@ export interface Replies {
 	deleteContactMethod: ContactMethod;
 	/** Sets or removes contact `contact_id`'s photo. */
 	setContactPhoto: Contact;
+	/** Lists every calendar store. */
+	listCalendarStores: CalendarStore[];
+	/** Creates a local calendar store. */
+	createCalendarStore: CalendarStore;
+	/** Deletes local calendar store `store_id` with its calendars. */
+	deleteCalendarStore: CalendarStore;
+	/** Lists every live calendar. */
+	listCalendars: Calendar[];
+	/** Creates a calendar in a local store. */
+	createCalendar: Calendar;
+	/** Retitles calendar `calendar_id`, of a local store. */
+	renameCalendar: Calendar;
+	/** Sets calendar `calendar_id`'s color. */
+	setCalendarColor: Calendar;
+	/** Deletes calendar `calendar_id`, of a local store, with its events. */
+	deleteCalendar: Calendar;
+	/** Lists the live events overlapping a range of time. */
+	listCalendarEvents: CalendarEvent[];
+	/** Fetches live event `event_id`. */
+	getCalendarEvent: CalendarEvent;
+	/** Creates an event on a calendar. */
+	createCalendarEvent: CalendarEvent;
+	/** Replaces what event `event_id` says. */
+	updateCalendarEvent: CalendarEvent;
+	/** Deletes event `event_id`. */
+	deleteCalendarEvent: CalendarEvent;
+	/** Syncs every backend account's calendars with its backend now. */
+	syncCalendars: CalendarSyncSummary;
 	/** Lists a page of the live tasks the filters cover. */
 	listTasks: TaskPage;
 	createTask: Task;

@@ -1,7 +1,7 @@
 use cohesion_core::model::ExtensionPermissionKind;
 
 use crate::script_api::{
-    ACCOUNTS, ACTORS, AGENT, AGENTS, ARTICLES, CONNECTORS, CONTACTS, CORE, CUES, IMAGES,
+    ACCOUNTS, ACTORS, AGENT, AGENTS, ARTICLES, CALENDARS, CONNECTORS, CONTACTS, CORE, CUES, IMAGES,
     INTELLIGENCE, LOG, NETWORK, NOTIFICATIONS, RESOURCES, REWIND, SERVICES, STORAGE, ScriptModule,
     TABLES, TIMER, USAGE, VOCABULARY,
 };
@@ -67,6 +67,8 @@ impl Mount {
             ExtensionPermissionKind::OAuth => Some(Mount::Accounts),
             // Lets the daemon call the import functions; no global.
             ExtensionPermissionKind::Connector => None,
+            // Lets the daemon call the calendar sync functions; no global.
+            ExtensionPermissionKind::CalendarBackend => None,
             // Lets clients call `serviceRequest`; no global.
             ExtensionPermissionKind::Service => None,
             // Lets clients call `serviceRequest`, and nothing else; no global.
@@ -107,7 +109,7 @@ impl Mount {
     pub fn modules(self) -> &'static [ScriptModule] {
         match self {
             Mount::Cohesion => &[
-                CORE, TABLES, AGENTS, ARTICLES, RESOURCES, CONTACTS, REWIND, VOCABULARY,
+                CORE, TABLES, AGENTS, ARTICLES, RESOURCES, CONTACTS, CALENDARS, REWIND, VOCABULARY,
             ],
             Mount::Intelligence => &[INTELLIGENCE],
             Mount::Log => &[LOG],

@@ -9,6 +9,8 @@
 //!   `FromClient`, on [`ClientRequest`](crate::ClientRequest).
 //! - `extension_routes`: installing, granting, registries, updates and
 //!   calling a `service` extension.
+//! - `calendar_routes`: syncing calendar stores with their
+//!   `calendar:backend` extensions now.
 //! - `connector_routes`: accounts, importing and refreshing resources on
 //!   `oauth` and `connector` extensions.
 //! - `article_routes` and `feed_routes`: re-fetching articles and following feeds,
@@ -23,6 +25,7 @@
 mod actor_routes;
 mod agent_routes;
 mod article_routes;
+mod calendar_routes;
 mod catalog_routes;
 mod client_routes;
 mod connector_routes;

@@ -5199,6 +5199,106 @@ pub const MIGRATIONS: &[Migration] = &[
         ALTER TABLE task_folders ADD COLUMN color TEXT CHECK (color IN
             ('blue', 'green', 'orange', 'purple', 'red', 'pink', 'teal', 'yellow'));",
     },
+    // Calendars, daemon-wide like feeds: the stores that hold them (Cohesion
+    // itself, or a calendar backend's account, at most one store each), the
+    // calendars, and their events, which sync both ways with a backend.
+    // Colors are exact, as "#rrggbb". Events are in search, by title, with
+    // their location and description as contents, while they are live.
+    Migration {
+        name: "calendars",
+        sql: "
+        CREATE TABLE calendar_stores (
+            id INTEGER PRIMARY KEY,
+            title TEXT NOT NULL,
+            account_id INTEGER UNIQUE REFERENCES connector_accounts(id) ON DELETE CASCADE,
+            last_synced_at INTEGER,
+            sync_failure TEXT,
+            created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+            CHECK (account_id IS NOT NULL OR (last_synced_at IS NULL AND sync_failure IS NULL))
+        );
+
+        CREATE TABLE calendars (
+            id INTEGER PRIMARY KEY,
+            store_id INTEGER NOT NULL REFERENCES calendar_stores(id) ON DELETE CASCADE,
+            deleted BOOLEAN NOT NULL DEFAULT FALSE,
+            title TEXT NOT NULL,
+            color TEXT NOT NULL CHECK (color GLOB '#[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'),
+            remote_identifier TEXT,
+            read_only BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+            modified INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX calendars_store ON calendars(store_id);
+        CREATE UNIQUE INDEX calendars_remote ON calendars(store_id, remote_identifier)
+            WHERE remote_identifier IS NOT NULL;
+
+        CREATE TABLE calendar_events (
+            id INTEGER PRIMARY KEY,
+            calendar_id INTEGER NOT NULL REFERENCES calendars(id) ON DELETE CASCADE,
+            deleted BOOLEAN NOT NULL DEFAULT FALSE,
+            title TEXT NOT NULL,
+            location TEXT NOT NULL DEFAULT '',
+            description TEXT NOT NULL DEFAULT '',
+            starts_at INTEGER,
+            ends_at INTEGER,
+            time_zone TEXT,
+            start_date TEXT CHECK (start_date IS date(start_date)),
+            end_date TEXT CHECK (end_date IS date(end_date)),
+            invitees TEXT NOT NULL DEFAULT '[]',
+            color TEXT CHECK (color IS NULL OR color GLOB '#[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'),
+            remote_identifier TEXT,
+            remote_modified INTEGER,
+            pending_push BOOLEAN NOT NULL DEFAULT FALSE,
+            revision INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+            modified INTEGER NOT NULL DEFAULT (unixepoch()),
+            CHECK (
+                (starts_at IS NOT NULL AND ends_at IS NOT NULL AND ends_at >= starts_at
+                    AND time_zone IS NOT NULL AND time_zone <> ''
+                    AND start_date IS NULL AND end_date IS NULL)
+                OR (start_date IS NOT NULL AND end_date IS NOT NULL AND end_date >= start_date
+                    AND starts_at IS NULL AND ends_at IS NULL AND time_zone IS NULL)
+            )
+        );
+        CREATE INDEX calendar_events_starts ON calendar_events(calendar_id, starts_at);
+        CREATE INDEX calendar_events_start_date ON calendar_events(calendar_id, start_date);
+        CREATE UNIQUE INDEX calendar_events_remote ON calendar_events(calendar_id, remote_identifier)
+            WHERE remote_identifier IS NOT NULL;
+
+        CREATE TRIGGER calendar_events_search_ai AFTER INSERT ON calendar_events
+        WHEN new.deleted = 0
+        BEGIN
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                VALUES ('calendarEvent', new.id, NULL);
+            INSERT INTO search_fts (rowid, title, contents)
+                VALUES (last_insert_rowid(), new.title, concat_ws(char(10), new.location, new.description));
+        END;
+        CREATE TRIGGER calendar_events_search_ad AFTER DELETE ON calendar_events BEGIN
+            DELETE FROM search_fts WHERE rowid = (SELECT id FROM search_entries
+                WHERE entity_kind = 'calendarEvent' AND entity_id = old.id);
+            DELETE FROM search_entries WHERE entity_kind = 'calendarEvent' AND entity_id = old.id;
+        END;
+        CREATE TRIGGER calendar_events_search_au
+        AFTER UPDATE OF title, location, description, deleted ON calendar_events BEGIN
+            DELETE FROM search_fts WHERE rowid = (SELECT id FROM search_entries
+                WHERE entity_kind = 'calendarEvent' AND entity_id = old.id);
+            DELETE FROM search_entries WHERE entity_kind = 'calendarEvent' AND entity_id = old.id;
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                SELECT 'calendarEvent', new.id, NULL WHERE new.deleted = 0;
+            INSERT INTO search_fts (rowid, title, contents)
+                SELECT last_insert_rowid(), new.title,
+                    concat_ws(char(10), new.location, new.description)
+                WHERE new.deleted = 0;
+        END;
+        -- Deleting a calendar deletes its events, which leaves nothing to
+        -- push: a calendar is only deleted in Cohesion or by its backend.
+        CREATE TRIGGER calendars_deleted_delete_events
+        AFTER UPDATE OF deleted ON calendars WHEN new.deleted AND NOT old.deleted
+        BEGIN
+            UPDATE calendar_events SET deleted = TRUE, pending_push = FALSE
+                WHERE calendar_id = new.id AND NOT deleted;
+        END;",
+    },
 ];
 
 #[cfg(test)]

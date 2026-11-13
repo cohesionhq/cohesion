@@ -10,6 +10,9 @@ import type {
 	AgentSkill,
 	Article,
 	Attachment,
+	Calendar,
+	CalendarEvent,
+	CalendarStore,
 	CatalogModel,
 	Client,
 	Component,
@@ -190,6 +193,9 @@ export interface MockState {
 	shownKinds: WorkspaceResourceKind[];
 	articles: Article[];
 	feeds: Feed[];
+	calendarStores: CalendarStore[];
+	calendars: Calendar[];
+	calendarEvents: CalendarEvent[];
 	contacts: Omit<Contact, 'methods'>[];
 	/** A contact method's row, which has no workspace of its own. */
 	contactMethods: MockContactMethod[];

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::actor_requests::ListedActorUsage;
 use super::article_requests::{ArticlePage, ArticlesMarkedRead, RefetchedArticle};
+use super::calendar_requests::CalendarSyncSummary;
 use super::client_requests::ListedClient;
 use super::connector_requests::{
     ConnectorAuthentication, ConnectorService, ImportableResource, RedactedConnectorAccount,
@@ -28,14 +29,14 @@ use super::storage_requests::{
 use super::task_requests::TaskPage;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem,
-    AgentSkill, Article, Attachment, CatalogModel, Client, Component, Contact, ContactMethod,
-    DeletedItem, Document, DocumentFolder, DocumentFolderProperty, DocumentSummary, Embed,
-    EndpointModel, ExperimentSetting, ExtensionHook, ExtensionPermission, Feed, FeedSummary,
-    IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun,
-    IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault, IntelligenceSpend, Memory,
-    OrganizationUnit, Profile, Resource, RestoredItem, SavedTaskView, SearchResult,
-    SecuritySettings, StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection, Version,
-    VersionSummary, Workspace, WorkspaceResourceKind,
+    AgentSkill, Article, Attachment, Calendar, CalendarEvent, CalendarStore, CatalogModel, Client,
+    Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
+    DocumentFolderProperty, DocumentSummary, Embed, EndpointModel, ExperimentSetting,
+    ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
+    IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
+    IntelligenceDefault, IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource,
+    RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings, TableRow, Tag,
+    Task, TaskFolder, TextSection, Version, VersionSummary, Workspace, WorkspaceResourceKind,
 };
 
 /// The payload of a successful reply.
@@ -89,6 +90,13 @@ pub enum ReplyData {
     Contacts(Vec<Contact>),
     Contact(Contact),
     ContactMethod(ContactMethod),
+    CalendarStores(Vec<CalendarStore>),
+    CalendarStore(CalendarStore),
+    Calendars(Vec<Calendar>),
+    Calendar(Calendar),
+    CalendarEvents(Vec<CalendarEvent>),
+    CalendarEvent(Box<CalendarEvent>),
+    CalendarSyncSummary(CalendarSyncSummary),
     Tasks(Vec<Task>),
     Task(Task),
     Results(Vec<SearchResult>),

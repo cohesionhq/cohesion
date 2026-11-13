@@ -42,7 +42,9 @@ pub use agent_effect::{Effects, ForegroundEffect};
 pub use agent_global::AgentGlobal;
 pub use agent_options::AgentCueOptions;
 pub use article_fetch_mount::ArticleFetchMount;
-pub use cohesion_global::{CohesionGlobal, CorpusSearchOptions, WorkspaceListOptions};
+pub use cohesion_global::{
+    CalendarCreateOptions, CohesionGlobal, CorpusSearchOptions, WorkspaceListOptions,
+};
 pub use connectors_global::ConnectorsGlobal;
 pub use global::Global;
 pub use images_global::{ImageOptions, ImagesGlobal};

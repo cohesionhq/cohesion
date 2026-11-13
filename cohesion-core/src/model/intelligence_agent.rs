@@ -18,6 +18,23 @@ pub enum IntelligenceAgentColor {
     Yellow,
 }
 
+impl IntelligenceAgentColor {
+    /// The palette color's exact value, the light scheme's
+    /// `--agent-<color>` in `web/src/lib/tokens.css`.
+    pub const fn hex(self) -> &'static str {
+        match self {
+            Self::Blue => "#4a6fb5",
+            Self::Green => "#4f8a5a",
+            Self::Orange => "#c4702e",
+            Self::Purple => "#7a5bb0",
+            Self::Red => "#b54848",
+            Self::Pink => "#b8578f",
+            Self::Teal => "#3d8a8a",
+            Self::Yellow => "#b8932a",
+        }
+    }
+}
+
 /// The manner an agent speaks in.
 ///
 /// - `"balanced"`: plain and even, like a helpful co-worker.

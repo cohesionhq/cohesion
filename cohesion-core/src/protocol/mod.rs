@@ -7,6 +7,7 @@ mod activity_requests;
 mod actor_requests;
 mod agent_requests;
 mod article_requests;
+mod calendar_requests;
 mod call;
 mod capabilities;
 mod client_requests;
@@ -41,6 +42,7 @@ pub use activity_requests::*;
 pub use actor_requests::*;
 pub use agent_requests::*;
 pub use article_requests::*;
+pub use calendar_requests::*;
 pub use call::{Call, ReplyPayload};
 pub use capabilities::{
     ActorCall, ActorSessionReport, ActorSessionUpdate, ActorUsage, ActorUsageUpdate, ClientCall,

@@ -462,7 +462,9 @@ deleted), `taskList{workspace_id, folder_id}` (null folder is the inbox),
 which no list filters or sorts by, so a list refetches just its row),
 `connectorAccounts`, `resources(ws)`, `resourceKinds(ws)`, `feeds`,
 `feedArticles`, `intelligence`, `clients`, `security`, `storage`, `profile`,
-`tags(ws)`, `contacts(ws)`, `savedTaskViews(ws)`, `extensionUpdates`,
+`tags(ws)`, `contacts(ws)`, `calendars` (stores and calendars, shared by every
+workspace), `calendarEvents` (every event, one key), `savedTaskViews(ws)`,
+`extensionUpdates`,
 `memories`, `agentSkills`, `activities`, `actors`, `actorSessions`, `actorSession(id)`
 (the session as a whole: its context, a stretch of work ending, its
 subagents, a subagent's request), `actorSessionMessage{session_id, message_id}`
@@ -1134,6 +1136,7 @@ invalidates `experiments`.
 | `tags`, `task_tags` | Per-workspace tags (names unique ignoring case) and which tasks carry them; composite keys keep both in one workspace. |
 | `saved_task_views` and `saved_task_view_priorities`, `_sizes`, `_tags` | Saved task filters: a list or a folder, a sort, and filter sets. |
 | `contacts` (soft), `contact_methods` | People in a workspace, and their emails and phone numbers. A deleted contact is unassigned from tasks. |
+| `calendar_stores`, `calendars` (soft), `calendar_events` (soft) | Daemon-wide, in no workspace ("Calendar backends" in [20](#20-connectors)). A store is local or one connector account's (`account_id`, unique, cascading). Colors are exact `#rrggbb` (`CalendarColor` adds the nearest palette color when read). An event is timed (`starts_at`, `ends_at`, `time_zone`) or all-day (`start_date`, `end_date`, inclusive), held by a `CHECK`; `invitees` is JSON; `remote_identifier`, `remote_modified`, `pending_push` and `revision` drive the sync. Deleting a calendar deletes its events (trigger `calendars_deleted_delete_events`). |
 | `metadata` | Key-value pairs on exactly one workspace, document, task, folder or resource. Scripts only: a request can't carry metadata filters. |
 | `backlinks` | What links to what: `source_kind` and `source_id` (a document or a task so far), `target_kind` and `target_id` (a `LinkKind` and an id), and `link` as first written; one row per source and target, never a source to itself. Rewritten by `FollowLinksCommand` on every document and task write; a document or task removed for good takes its rows (triggers `documents_backlinks_ad`, `tasks_backlinks_ad`). The `backlinks` migration filled it from every live document, and `task_backlinks` from every live task's description, through the SQL function `outgoing_links`, which runs the same Rust rule; the `databases` migration rebuilt it, with those two triggers, to admit `database` and `databaseRow`, `contacts_search_and_links` to admit `contact`, filling in the links to contacts that live documents and tasks already held, and `document_tables` rebuilt it again to admit `documentFolder` in place of the two database kinds, dropping the rows that named a database or a row. The `document_tables` migration also turned each database into a top-level folder and each row into a document in it (see "Tables" in [5](#5-the-wire-protocol)). |
 | `versions` | Rewind: past versions of tasks and documents, with `change` (`created`, `edited`, `deleted`, `restored`, `earlier`), `author` and `author_name`. Written by triggers through the `version_writes` view, which folds edits within 120 s into one version. |
@@ -1321,7 +1324,7 @@ English stemming, case-insensitive, accents ignored.
 
 | Index | Columns | Covers | Kept by |
 |---|---|---|---|
-| `search_fts` (rows mapped by `search_entries`: `entity_kind`, `entity_id`, `workspace_id`) | `title`, `contents` | Live documents (journal entries and tables' rows included), live tasks (the description as contents), resources (contents only if not JSON), live contacts (the full name as title, the notes as contents; not their emails or phone numbers), live task and document folders (the title only), live feeds (the title only, with no workspace) | `documents_search_*`, `tasks_search_*`, `resources_search_*`, `contacts_search_*`, `task_folders_search_*`, `document_folders_search_*`, `feeds_search_*` |
+| `search_fts` (rows mapped by `search_entries`: `entity_kind`, `entity_id`, `workspace_id`) | `title`, `contents` | Live documents (journal entries and tables' rows included), live tasks (the description as contents), resources (contents only if not JSON), live contacts (the full name as title, the notes as contents; not their emails or phone numbers), live task and document folders (the title only), live feeds (the title only, with no workspace), live calendar events (the title, with the location and description as contents, and no workspace) | `documents_search_*`, `tasks_search_*`, `resources_search_*`, `contacts_search_*`, `task_folders_search_*`, `document_folders_search_*`, `feeds_search_*`, `calendar_events_search_*` |
 | `feed_corpus_fts` | `title`, `author`, `contents` | Live articles | `articles_feed_corpus_*` |
 | `actor_sessions_fts` | `title` | Actor sessions | `actor_sessions_search_*` |
 | `actor_session_messages_fts` | `text` | Actor session messages of kind `text`, from either side | `actor_session_messages_search_*` |
@@ -1348,7 +1351,7 @@ internal error.
 
 | Search | Request and command | Ranks by | Returns |
 |---|---|---|---|
-| Workspace | `SearchWorkspace{workspace_id, query}`, `SearchWorkspaceCommand` | Title matches before matches only in contents, by `bm25(search_fts, 1.0, 0.0)` (the shortest title holding the query, an exact title, first), then `bm25(search_fts, 5.0, 1.0)`: title weighs 5, contents 1 | `Vec<SearchResult>` (`id` of the index entry, `entity_kind` (`document`, `task`, `resource`, `contact`, `taskFolder`, `documentFolder`, `feed`), `entity_id`, `workspace_id` (for a feed, which has none, the workspace searched), `title`, `contents`, `status`: a task's status, `"none"` for the other kinds, read from `tasks` when searched); no paging, no snippet. Scripts: `workspace.search(query)`. CLI: `cohesion search`. |
+| Workspace | `SearchWorkspace{workspace_id, query}`, `SearchWorkspaceCommand` | Title matches before matches only in contents, by `bm25(search_fts, 1.0, 0.0)` (the shortest title holding the query, an exact title, first), then `bm25(search_fts, 5.0, 1.0)`: title weighs 5, contents 1 | `Vec<SearchResult>` (`id` of the index entry, `entity_kind` (`document`, `task`, `resource`, `contact`, `taskFolder`, `documentFolder`, `feed`, `calendarEvent`), `entity_id`, `workspace_id` (for a feed or a calendar event, which have none, the workspace searched), `title`, `contents`, `status`: a task's status, `"none"` for the other kinds, read from `tasks` when searched); no paging, no snippet. Scripts: `workspace.search(query)`. CLI: `cohesion search`. |
 | Corpus (articles) | `SearchFeedCorpus{query, feed_ids?, offset, limit?}`, `SearchFeedCorpusCommand` | `bm25(feed_corpus_fts, 5.0, 2.0, 1.0)` | `FeedCorpusPage{hits, total}`, each hit with a 24-token snippet of the text; 50 a page by default, 500 at most. Scripts: `cohesion.searchCorpus(query, {feedIds})`, the best 200 whole articles. |
 | Actor sessions | `SearchActorSessions{query}`, `SearchActorSessionsCommand` | Title matches at `5.0 * bm25`, message matches at `bm25`; each session's best match, then most recently changed | `Vec<ActorSessionSearchHit>` across every actor, resolved sessions included, with a snippet when a message matched |
 
@@ -1849,8 +1852,8 @@ doesn't have or a write its database refuses, never a check inside a mount.
 | Started by | A user message, pick or reaction, and the questions, follow-ups and assigned-task forks descending from them | A cue firing, and what that fork asks or follows | A hook, to decide whether to wake |
 | Mounts | `cohesion`, `network`, `agent`, `connectors`, `actors`, `images`, `services`, `storage`, `notifications`, ArticleFetch, Sleep | The same without `network` and ArticleFetch | `cohesion`, `services`, `storage`, `notifications` |
 | Database writes | Every area | `Notifications` only | `Notifications` only |
-| Read workspaces, tasks, documents, journals, contacts, resources, feeds, articles, agents, teams, versions | Yes | Yes | Yes |
-| Create, change or delete user data (tasks, documents, workspaces, folders, tags, contacts, imports, teams) | Yes | No: writes throw | No |
+| Read workspaces, tasks, documents, journals, contacts, calendars, resources, feeds, articles, agents, teams, versions | Yes | Yes | Yes |
+| Create, change or delete user data (tasks, documents, workspaces, folders, tags, contacts, calendars and events, imports, teams) | Yes | No: writes throw | No |
 | Fetch the web (`network`), refetch an article | Yes | No | No |
 | Connectors: browse accounts and items | Yes, and import | Browse; imports refused | No |
 | Actors: list, read, dispatch, send, stop | Yes; follows what it dispatches or sends to | Yes; follows with `event` | No |
@@ -2626,6 +2629,7 @@ installs one. Every extension is installed by the user.
 | `registry` | | | The daemon calls its `registryResults(query)` and `registryLookup(identifiers)` |
 | `oauth` | `accounts` | | The daemon calls its sign-in functions |
 | `connector` (needs `oauth`) | | | The daemon calls `getOrganizationUnits`, `listResources`, `getResource`, and the optional `renderResource` |
+| `calendar:backend` (needs `oauth`) | | | The daemon calls `listCalendars`, `listEvents`, `createEvent`, `updateEvent` and `deleteEvent` to sync the account's calendars ([20](#20-connectors)) |
 | `service` | | | Clients and scripts holding `services` may call its `serviceRequest` |
 | `service:isolated` | | | Clients only may call its `serviceRequest` |
 | `services` | `services` (`services.use`) | | |
@@ -2776,6 +2780,58 @@ resource's page in place of its contents.
 
 Agents on a user-started turn reach connectors through the `connectors`
 global (`agent_connectors.rs`); there is no CLI command for them.
+
+**Calendar backends** (`cohesionkit/src/calendars/`). Calendars are
+daemon-wide, like feeds: a `CalendarStore` holds `Calendar`s, which hold
+`CalendarEvent`s (`cohesion-core/src/model/calendar.rs`). A store is local,
+only in Cohesion, or backed by one connector account whose extension holds
+`calendar:backend` (with `oauth`); the sync makes that store the first time it
+reaches the account, titled with the account's description, and removing the
+account removes it with its calendars. A backend's calendars and their titles
+come from the backend: Cohesion can't create, rename or delete them, only
+recolor them, and a `readOnly` one refuses changes to its events. A local
+store's calendars are created, renamed and deleted freely.
+
+Colors are stored exact (`#rrggbb`); every read carries `{hex, nearest}`, the
+nearest of the eight palette colors by Oklab distance
+(`IntelligenceAgentColor::hex`, the light scheme's `--agent-*`). Clients set
+one as `CalendarColorChoice`: `{kind: "palette", color}` (what the apps'
+picker sends) or `{kind: "exact", hex}`.
+
+The contract (`cohesion-core/src/model/calendar_backend.rs`, camelCase, every
+call with the account's fresh credential last):
+
+| Function | Returns |
+|---|---|
+| `listCalendars(credential)` | `BackendCalendar[]`: `{identifier, title, color?, readOnly?}` |
+| `listEvents(calendarIdentifier, credential)` | `BackendEvent[]`: every event of the calendar Cohesion should hold |
+| `createEvent(calendarIdentifier, event, credential)` | The new `BackendEvent` |
+| `updateEvent(calendarIdentifier, identifier, event, credential)` | The changed `BackendEvent` |
+| `deleteEvent(calendarIdentifier, identifier, credential)` | Nothing |
+
+A `BackendEvent` is `{identifier, lastModified, title, location?, description?,
+timing, invitees?, color?}`; `timing` is `{kind: "timed", startsAt, endsAt,
+timeZone}` or `{kind: "allDay", startDate, endDate}` (`endDate` inclusive);
+an invitee is `{email, name?, response?}`. `event` is the same without
+`identifier` and `lastModified`.
+
+**Sync** (`calendar_sync.rs`): a minute after start, then every 10 minutes,
+and on `SyncCalendars`, one pass at a time. For each account granted
+`calendar:backend`, it brings the store's calendars in line with
+`listCalendars` (a new one takes the backend's color; one no longer listed is
+deleted), then for each calendar lists its events and settles each:
+
+- changed only on the backend (`lastModified` differs from `remote_modified`) or new there: written in Cohesion, `modified` set to `lastModified`;
+- changed only in Cohesion (`pending_push`, set by every write to a backend's event): pushed with `createEvent`, `updateEvent` or `deleteEvent`; a deleted event stays, deleted and pending, until its deletion is pushed;
+- changed on both: the later change wins, `lastModified` against `modified`, and Cohesion wins a tie;
+- no longer listed: removed from Cohesion, even with a change waiting, since a backend gives no time for a deletion.
+
+Each of the sync's writes names the `revision` it read and does nothing if the
+event changed since, so an edit made mid-sync waits for the next pass. A
+failure ends that store's pass, sets its `sync_failure` and is logged; a
+full pass clears it and sets `last_synced_at`. `CalendarSyncSummary` counts
+stores synced and failed, and events pulled, pushed and in conflict.
+Calendar changes raise `calendars` and `calendarEvents`; no hook fires yet.
 
 ### 21. Feeds and articles
 

@@ -10,11 +10,13 @@ use rquickjs::{Ctx, Exception, FromJs, IntoJs, Object, Value};
 
 use cohesion_core::model::{
     AccountDescription, ActivityStatus, ActorEffort, ActorMode, ActorModel, ActorSessionStatus,
-    Block, CheckboxBlock, Component, ConnectorResource, ConnectorResourceFilters,
-    ConnectorResourcePreview, ContactMethodKind, Credential, Dialect, DocumentFolderRepresentation,
-    ExtensionManifest, ExtensionPermissionKind, FormulaUpdateMode, HeadingBlock, HeadingLevel,
-    HookKind, IntelligenceAgentColor, IntelligenceAgentPersonality, IntelligenceAgentVerbosity,
-    IntelligenceEffort, IntelligenceProvider, IntelligenceTier, LinkBlock, MetadataKey,
+    BackendAllDayEvent, BackendCalendar, BackendEvent, BackendEventFields, BackendEventTiming,
+    BackendInvitee, BackendTimedEvent, Block, CalendarColor, CheckboxBlock, Component,
+    ConnectorResource, ConnectorResourceFilters, ConnectorResourcePreview, ContactMethodKind,
+    Credential, Dialect, DocumentFolderRepresentation, ExtensionManifest, ExtensionPermissionKind,
+    FormulaUpdateMode, HeadingBlock, HeadingLevel, HookKind, IntelligenceAgentColor,
+    IntelligenceAgentPersonality, IntelligenceAgentVerbosity, IntelligenceEffort,
+    IntelligenceProvider, IntelligenceTier, InviteeResponse, LinkBlock, MetadataKey,
     NewContactMethod, OrganizationUnit, OverviewBlock, PkceChallenge, PropertyDataType,
     PublishedPrecision, RegistryResult, ResourceContentKind, ResourceKind, ResourceKindDescription,
     SearchEntityKind, ServiceDescription, ServiceFunctionManifest, ServiceManifest, TextBlock,
@@ -30,19 +32,20 @@ use cohesion_core::{
 use crate::conversion::{FromJsField, ToJs};
 use crate::entities::workspace_options::TaskFolderListOptions;
 use crate::entities::{
-    account, actor, actor_session, agent, agent_team, article, connector, connector_account,
-    connector_account_options, contact, document, document_folder, document_folder_property,
-    endpoint_model, feed, intelligence_endpoint, resource, rewind, search_result, tag, task,
-    task_folder, usage, workspace, workspace_options,
+    account, actor, actor_session, agent, agent_team, article, calendar, connector,
+    connector_account, connector_account_options, contact, document, document_folder,
+    document_folder_property, endpoint_model, feed, intelligence_endpoint, resource, rewind,
+    search_result, tag, task, task_folder, usage, workspace, workspace_options,
 };
 use crate::globals::{
     AccountEndpointOptions, AccountsGlobal, ActorDispatchOptions, ActorSessionMessage,
-    ActorsGlobal, AgentCueOptions, AgentGlobal, CohesionGlobal, ConnectorsGlobal,
-    CorpusSearchOptions, CustomEndpointOptions, EndpointModelOptions, EndpointOptions,
-    ImageOptions, ImagesGlobal, IntelligenceGlobal, LoggerGlobal, ModelPriceOptions, Mount,
-    NetworkBodyEncoding, NetworkFetchOptions, NetworkGlobal, NetworkMethod, NetworkResponse,
-    NotificationsGlobal, ProviderEndpointOptions, ServiceMap, ServicesGlobal, StorageGlobal,
-    TimerGlobal, TimerOptions, TimerUnit, UsageGlobal, UsageOptions, WorkspaceListOptions,
+    ActorsGlobal, AgentCueOptions, AgentGlobal, CalendarCreateOptions, CohesionGlobal,
+    ConnectorsGlobal, CorpusSearchOptions, CustomEndpointOptions, EndpointModelOptions,
+    EndpointOptions, ImageOptions, ImagesGlobal, IntelligenceGlobal, LoggerGlobal,
+    ModelPriceOptions, Mount, NetworkBodyEncoding, NetworkFetchOptions, NetworkGlobal,
+    NetworkMethod, NetworkResponse, NotificationsGlobal, ProviderEndpointOptions, ServiceMap,
+    ServicesGlobal, StorageGlobal, TimerGlobal, TimerOptions, TimerUnit, UsageGlobal, UsageOptions,
+    WorkspaceListOptions,
 };
 use crate::sandbox::{Activity, AgentMessage, Notification, RevokedClient};
 
@@ -168,6 +171,34 @@ script_api! {
         options: [workspace_options::ContactCreateOptions, contact::ContactPhotoImage],
         interfaces: [NewContactMethod],
         mounted: [ContactMethodKind],
+    }
+
+    /// Calendars, which `cohesion` returns, and the shapes a calendar
+    /// backend's functions take and return.
+    CALENDARS = "calendars", on_demand, "Calendars: the user's calendar stores, calendars and \
+        their events, shared by every workspace, and the Calendar Backend contract a \
+        `calendar:backend` extension implements." {
+        entities: [
+            calendar::JsCalendarStore,
+            calendar::JsCalendar,
+            calendar::JsCalendarEvent,
+        ],
+        enums: [InviteeResponse],
+        options: [
+            calendar::CalendarEventListOptions,
+            calendar::CalendarEventOptions,
+            CalendarCreateOptions,
+        ],
+        interfaces: [
+            CalendarColor,
+            BackendCalendar,
+            BackendEvent,
+            BackendEventFields,
+            BackendEventTiming,
+            BackendTimedEvent,
+            BackendAllDayEvent,
+            BackendInvitee,
+        ],
     }
 
     /// What `agent.cue` takes, the `AgentMessage` an `agent:message` or
