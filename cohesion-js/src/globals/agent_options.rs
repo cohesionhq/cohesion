@@ -18,8 +18,8 @@ pub struct AgentCueOptions {
     /// `Document` for `journal:settled`, the `Resource` for `resource:*`, the
     /// `AgentMessage` for `agent:message` and, as reacted to, for
     /// `agent:reaction` (never one from your own conversation), the
-    /// `Activity` for `activity:*` and the `ActorSession` for `actor:moved`
-    /// (load `actors`), each as it stood then, nothing for
+    /// `Activity` for `activity:*` and the `ActorSession` for `actor:moved` and
+    /// `actor:resolved` (load `actors`), each as it stood then, nothing for
     /// `launch`, `day:start` (6:00 local time) or `day:end` (23:00), and for
     /// `timer`, at the start of every local minute,
     /// `{ time, hour, minute, since }`: when the minute began in milliseconds

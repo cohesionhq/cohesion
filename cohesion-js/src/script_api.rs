@@ -213,7 +213,7 @@ script_api! {
     }
 
     /// The `actors` global, the actors and sessions it returns, and the
-    /// `ActorSession` an `actor:moved` cue wakes with.
+    /// `ActorSession` an `actor:moved` or `actor:resolved` cue wakes with.
     ACTORS = "actors", on_demand, "`actors`: the actors on the user's devices (Claude Code in a \
         directory, say): hand them sessions, follow and reply in them." {
         globals: [ActorsGlobal],

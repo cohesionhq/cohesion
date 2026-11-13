@@ -429,6 +429,7 @@ fn hook_clause(kind: &HookKind) -> &'static str {
         ActivityUpdated => "an activity’s progress, status or title changes",
         ActivityEnded => "an activity ends",
         ActorMoved => "an actor makes progress",
+        ActorResolved => "an actor session is resolved",
         DayStart => "the day starts at 6:00 AM",
         DayEnd => "the day ends at 11:00 PM",
         Timer => "a minute begins",

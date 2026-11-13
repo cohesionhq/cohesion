@@ -2816,7 +2816,8 @@ export type HeadingLevel = 1 | 2 | 3;
  * `activity:updated` `onActivityUpdated(activity)` when its progress,
  * status or title changes and `activity:ended` `onActivityEnded(activity)` when it
  * ends; `actor:moved` calls `onActorMoved(session)` when an actor session's
- * status changes; `agent:turn:start` calls
+ * status changes and `actor:resolved` calls `onActorResolved(session)` when
+ * one is resolved; `agent:turn:start` calls
  * `onAgentTurnStart(agent)` when an agent starts answering the user and
  * `agent:turn:end` `onAgentTurnEnd(agent)` when it finishes; `day:start` calls `onDayStart()` at 6:00 and
  * `day:end` calls `onDayEnd()` at 23:00, and `timer` calls
@@ -2864,6 +2865,7 @@ export type HookKind =
 	| 'activity:updated'
 	| 'activity:ended'
 	| 'actor:moved'
+	| 'actor:resolved'
 	| 'day:start'
 	| 'day:end'
 	| 'timer'

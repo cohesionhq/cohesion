@@ -348,7 +348,7 @@ impl AgentCoordinator {
     ) {
         match (&hook, arguments.as_slice()) {
             (
-                _,
+                HookKind::ActorMoved,
                 [
                     ScriptArgument::ActorSession {
                         actor_session,

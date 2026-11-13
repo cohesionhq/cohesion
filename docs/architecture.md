@@ -969,6 +969,7 @@ the hook structs are declared in `cohesionkit/src/hooks/hook_events.rs`):
 | `agent:turn:start`, `agent:turn:end` | `onAgentTurnStart(agent)`, `onAgentTurnEnd(agent)` | `AgentTurnStarted`, `AgentTurnEnded` (an agent starts or stops answering the user) |
 | `activity:started`, `activity:updated`, `activity:ended` | `onActivityStarted(activity)`, `onActivityUpdated(activity)`, `onActivityEnded(activity)` | `ActivityStarted`, `ActivityUpdated`, `ActivityEnded` |
 | `actor:moved` | `onActorMoved(session)` | `ActorSessionMoved`, an actor session's status really changing |
+| `actor:resolved` | `onActorResolved(session)` | `ActorSessionResolved`, an actor session moving into resolved, once (not for one already resolved or a subagent) |
 | `day:start` | `onDayStart()` | The day clock at 06:00 local time |
 | `day:end` | `onDayEnd()` | The day clock at 23:00 local time |
 | `timer` | `onTimer({time, hour, minute, since})` | The day clock, every minute |
@@ -1972,8 +1973,9 @@ and no device-side session id: Cohesion's `session_id` is the only handle.
 `finished`, `failed`, `interrupted` and `stopped` leave a resolved session
 resolved. A move that changes nothing raises nothing, so repeating a status
 wakes no one. A real change raises `ActorSessionMoved` (the `actor:moved`
-hook) and invalidates `actorSessions`, `actorSession(id)`, and the agents
-whose following count changed.
+hook) and, when the move is to `resolved`, `ActorSessionResolved` (the
+`actor:resolved` hook), and invalidates `actorSessions`, `actorSession(id)`,
+and the agents whose following count changed.
 
 ```mermaid
 stateDiagram-v2

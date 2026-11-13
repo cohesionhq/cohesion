@@ -249,6 +249,11 @@
 			"cue_clause": "an actor makes progress"
 		},
 		{
+			"kind": "actor:resolved",
+			"extension_clause": "an actor session is resolved",
+			"cue_clause": "an actor session is resolved"
+		},
+		{
 			"kind": "day:start",
 			"extension_clause": "the day starts at 6:00 AM",
 			"cue_clause": "the day starts at 6:00 AM"

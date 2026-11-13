@@ -796,7 +796,8 @@ impl DatabaseCommand for DeleteActorSessionCommand {
 /// Moves actor session `session_id` as `moved` says, into its status, answering
 /// the session as it stands, and raises `ActorSessionMoved` with why when that
 /// changed the status of a session Cohesion started (a subagent's raises
-/// nothing). A resolved session stays resolved through a move that
+/// nothing), and `ActorSessionResolved` too when it was resolved. A resolved
+/// session stays resolved through a move that
 /// [keeps it](ActorSessionMove::keeps_resolved).
 pub struct SetActorSessionStatusCommand {
     pub session_id: i64,
@@ -855,6 +856,13 @@ impl DatabaseCommand for SetActorSessionStatusCommand {
                 moved: self.moved,
             };
             ctx.events.send(ctx.trace.event(event));
+            if status == ActorSessionStatus::Resolved {
+                let event = DatabaseEventKind::ActorSessionResolved {
+                    actor_session: session.clone(),
+                    moved: self.moved,
+                };
+                ctx.events.send(ctx.trace.event(event));
+            }
         }
         let keys = session_keys(&mut ctx.as_read(), &session)?
             .into_iter()
