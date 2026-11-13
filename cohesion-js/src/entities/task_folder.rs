@@ -1,9 +1,10 @@
 //! `TaskFolder` in scripts.
 
-use cohesion_core::model::{IntelligenceAgentColor, TagFilter};
+use cohesion_core::model::{IntelligenceAgentColor, ListSymbol, TagFilter};
 use cohesion_core::{TaskFolder, TaskFolderFilter};
 use cohesion_db::{
     CreateTaskCommand, DeleteTaskFolderCommand, ListTasksCommand, SetTaskFolderColorCommand,
+    SetTaskFolderSymbolCommand,
 };
 use cohesion_macros::js_entity;
 use rquickjs::{Ctx, Value};
@@ -33,6 +34,27 @@ impl JsTaskFolder {
                 workspace_id: self.inner.workspace_id,
                 folder_id: self.inner.id,
                 color,
+            },
+        )?;
+        Ok(())
+    }
+    /// Assigning saves immediately, e.g. `folder.symbol = "home"`, or `null`
+    /// for none, which draws a plain folder. The symbols are `ListSymbol`'s.
+    ///
+    /// Any other value throws a `TypeError`.
+    #[qjs(set, rename = "symbol")]
+    pub fn set_symbol<'js>(
+        &mut self,
+        ctx: Ctx<'js>,
+        #[ts(type = "ListSymbol | null")] symbol: Value<'js>,
+    ) -> rquickjs::Result<()> {
+        let symbol = Option::<ListSymbol>::from_js_field(&ctx, symbol)?;
+        self.inner = self.write(
+            &ctx,
+            SetTaskFolderSymbolCommand {
+                workspace_id: self.inner.workspace_id,
+                folder_id: self.inner.id,
+                symbol,
             },
         )?;
         Ok(())

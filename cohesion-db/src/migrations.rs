@@ -5299,6 +5299,24 @@ pub const MIGRATIONS: &[Migration] = &[
                 WHERE calendar_id = new.id AND NOT deleted;
         END;",
     },
+    // A task folder or a saved task view can take a symbol, `ListSymbol`;
+    // those already there have none.
+    Migration {
+        name: "list_symbols",
+        sql: "
+        ALTER TABLE task_folders ADD COLUMN symbol TEXT CHECK (symbol IN (
+            'home', 'work', 'inbox', 'star', 'heart', 'flag', 'bookmark', 'book',
+            'cart', 'money', 'calendar', 'people', 'person', 'health', 'fitness',
+            'travel', 'car', 'food', 'code', 'idea', 'music', 'camera', 'gift',
+            'school', 'tools', 'garden', 'pets', 'bug', 'globe', 'chat', 'mail',
+            'lock'));
+        ALTER TABLE saved_task_views ADD COLUMN symbol TEXT CHECK (symbol IN (
+            'home', 'work', 'inbox', 'star', 'heart', 'flag', 'bookmark', 'book',
+            'cart', 'money', 'calendar', 'people', 'person', 'health', 'fitness',
+            'travel', 'car', 'food', 'code', 'idea', 'music', 'camera', 'gift',
+            'school', 'tools', 'garden', 'pets', 'bug', 'globe', 'chat', 'mail',
+            'lock'));",
+    },
 ];
 
 #[cfg(test)]

@@ -32,6 +32,7 @@ const EMPTY: Words = {
 	actor_session_statuses: [],
 	actor_session_stops: [],
 	agent_colors: [],
+	list_symbols: [],
 	agent_personalities: [],
 	agent_verbosities: [],
 	tiers: [],

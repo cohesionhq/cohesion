@@ -347,6 +347,11 @@ describe('tasks store', () => {
 		expect(store.folders.value.at(-1)?.color).toBe('teal');
 		await store.setFolderColor(1, folder.id, null);
 		expect(store.folders.value.at(-1)?.color).toBeNull();
+		expect(folder.symbol).toBeNull();
+		await store.setFolderSymbol(1, folder.id, 'garden');
+		expect(store.folders.value.at(-1)?.symbol).toBe('garden');
+		await store.setFolderSymbol(1, folder.id, null);
+		expect(store.folders.value.at(-1)?.symbol).toBeNull();
 		await store.deleteFolder(1, folder.id);
 		expect(store.folders.value.map((f) => f.title)).toEqual(FOLDERS);
 

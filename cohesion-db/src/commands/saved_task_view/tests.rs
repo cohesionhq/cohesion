@@ -1,11 +1,12 @@
-use cohesion_core::model::{SavedTaskView, TagFilter, TaskViewList, TaskViewScope};
+use cohesion_core::model::{ListSymbol, SavedTaskView, TagFilter, TaskViewList, TaskViewScope};
 use cohesion_core::{TaskPriority, TaskSort};
 
 use crate::test_support::context;
 use crate::{
     CommandError, CreateSavedTaskViewCommand, CreateTagCommand, CreateTaskFolderCommand,
     CreateWorkspaceCommand, DatabaseContext, DeleteTagCommand, DeleteTaskFolderCommand,
-    ListSavedTaskViewsCommand, RenameSavedTaskViewCommand, UpdateSavedTaskViewCommand,
+    ListSavedTaskViewsCommand, RenameSavedTaskViewCommand, SetSavedTaskViewSymbolCommand,
+    UpdateSavedTaskViewCommand,
 };
 
 fn workspace(db: &DatabaseContext) -> i64 {
@@ -185,4 +186,42 @@ fn a_view_goes_with_its_folder_and_loses_a_deleted_tag() {
     assert_eq!(views.len(), 1);
     assert_eq!(views[0].name, "Tagged");
     assert_eq!(views[0].tags, filter(vec![core], vec![]));
+}
+
+#[test]
+fn a_view_starts_with_no_symbol_and_takes_one_until_cleared() {
+    let db = context();
+    let ws = workspace(&db);
+    let away = workspace(&db);
+    let view = create(&db, ws, "Mine", INBOX, TagFilter::default()).unwrap();
+    assert_eq!(view.symbol, None);
+
+    let set = db
+        .send_blocking(SetSavedTaskViewSymbolCommand {
+            workspace_id: ws,
+            view_id: view.id,
+            symbol: Some(ListSymbol::Star),
+        })
+        .unwrap();
+    assert_eq!(set.symbol, Some(ListSymbol::Star));
+    let listed = db
+        .send_blocking(ListSavedTaskViewsCommand { workspace_id: ws })
+        .unwrap();
+    assert_eq!(listed[0].symbol, Some(ListSymbol::Star));
+
+    let elsewhere = db.send_blocking(SetSavedTaskViewSymbolCommand {
+        workspace_id: away,
+        view_id: view.id,
+        symbol: Some(ListSymbol::Home),
+    });
+    assert!(matches!(elsewhere, Err(CommandError::NotFound(_))));
+
+    let cleared = db
+        .send_blocking(SetSavedTaskViewSymbolCommand {
+            workspace_id: ws,
+            view_id: view.id,
+            symbol: None,
+        })
+        .unwrap();
+    assert_eq!(cleared.symbol, None);
 }

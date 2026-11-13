@@ -37,7 +37,8 @@ export function tasksHandlers(core: MockCore) {
 				sort_order,
 				deleted: false,
 				pinned: false,
-				color: null
+				color: null,
+				symbol: null
 			};
 			state.folders.push(created);
 			return { ...created };
@@ -67,6 +68,11 @@ export function tasksHandlers(core: MockCore) {
 		setTaskFolderColor: ({ workspace_id, folder_id, color }) => {
 			const f = folder(workspace_id, folder_id);
 			f.color = color ?? null;
+			return { ...f };
+		},
+		setTaskFolderSymbol: ({ workspace_id, folder_id, symbol }) => {
+			const f = folder(workspace_id, folder_id);
+			f.symbol = symbol ?? null;
 			return { ...f };
 		},
 		reorderTaskFolders: ({ workspace_id, folder_ids }) => {
@@ -99,7 +105,8 @@ export function tasksHandlers(core: MockCore) {
 				sizes: [...sizes],
 				sort,
 				descending,
-				sort_order
+				sort_order,
+				symbol: null
 			};
 			state.savedTaskViews.push(created);
 			return structuredClone(created);
@@ -130,6 +137,11 @@ export function tasksHandlers(core: MockCore) {
 			const v = savedView(workspace_id, view_id);
 			ensureViewName(workspace_id, name, view_id);
 			v.name = name;
+			return structuredClone(v);
+		},
+		setSavedTaskViewSymbol: ({ workspace_id, view_id, symbol }) => {
+			const v = savedView(workspace_id, view_id);
+			v.symbol = symbol ?? null;
 			return structuredClone(v);
 		},
 		reorderSavedTaskViews: ({ workspace_id, view_ids }) => {

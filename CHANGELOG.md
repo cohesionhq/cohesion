@@ -7,6 +7,15 @@ under "Unreleased" with any change users would notice.
 
 ## Unreleased
 
+- A task folder or saved task view can take a symbol from a set of 32
+  everyday ones (home, work, cart, travel…), picked by clicking its icon in
+  the switcher under the Tasks page's title; a folder's symbol also shows in
+  the sidebar and in a new task's folder chip. Task folders and saved task
+  views gain `symbol`, set with `setTaskFolderSymbol` and
+  `setSavedTaskViewSymbol`, `cohesion task folder symbol` or a script's
+  `TaskFolder.symbol`; the vocabulary gains `list_symbols`. A client decoding
+  `TaskFolder`, `SavedTaskView` or the vocabulary strictly has to learn the
+  new fields.
 - Calendars are a new kind of item, shared by every workspace: calendar
   stores hold calendars, which hold events with a title, location, start and
   end (timed in a time zone, or all-day), invitees, description and an
