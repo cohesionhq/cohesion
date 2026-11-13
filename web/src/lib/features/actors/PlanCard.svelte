@@ -1,8 +1,8 @@
 <!--
 	A plan an actor asks the user to approve before it starts, inline in the
-	transcript: the plan, then approving it or asking for changes, with what
-	to change. Once decided, the card is read-only and the decision follows
-	it.
+	transcript and across the whole column, not in a bubble: the plan, then
+	approving it or asking for changes, with what to change. Once decided, the
+	card is read-only and the decision follows it.
 -->
 <script lang="ts">
 	import Button from '$lib/ui/Button.svelte';
@@ -33,9 +33,7 @@
 	}
 </script>
 
-<article
-	class="flex w-full max-w-[70%] min-w-0 flex-col gap-2 rounded-md border border-border bg-bg px-3 py-2.5 max-sm:max-w-full"
->
+<article class="flex w-full min-w-0 flex-col gap-2">
 	<Markdown source={plan} diagrams />
 	{#if !answered}
 		<TextInput
