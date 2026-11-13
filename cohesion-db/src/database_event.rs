@@ -148,6 +148,13 @@ pub enum DatabaseEventKind {
         actor_session: ActorSession,
         moved: ActorSessionMove,
     },
+    /// An actor session was resolved, carrying the actor_session as its
+    /// command wrote it; raised once, when it moved into the resolved status,
+    /// beside the `ActorSessionMoved` that move raises.
+    ActorSessionResolved {
+        actor_session: ActorSession,
+        moved: ActorSessionMove,
+    },
     /// A script or an agent sent the user a notification, which nothing
     /// stores: the event is all there is of it.
     NotificationSent {

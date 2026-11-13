@@ -129,6 +129,8 @@ hook_events! {
         from ActivityEnded => Activity { activity: Activity };
     ActorMovedHook: ActorMoved, "onActorMoved",
         from ActorSessionMoved => ActorSession { actor_session: ActorSession, moved: ActorSessionMove };
+    ActorResolvedHook: ActorResolved, "onActorResolved",
+        from ActorSessionResolved => ActorSession { actor_session: ActorSession, moved: ActorSessionMove };
     NotificationSendHook: NotificationSend, "onNotification",
         from NotificationSent => Notification { title: String, message: String };
     ClientRevokeHook: ClientRevoke, "onClientRevoke",

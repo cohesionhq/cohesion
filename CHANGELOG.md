@@ -16,6 +16,14 @@ under "Unreleased" with any change users would notice.
   `TaskFolder.symbol`; the vocabulary gains `list_symbols`. A client decoding
   `TaskFolder`, `SavedTaskView` or the vocabulary strictly has to learn the
   new fields.
+- A new hook, `actor:resolved`, calls `onActorResolved(session)` with the
+  `ActorSession` once when a session is resolved, from the web UI, the iPhone
+  app or `session.resolve()`, never for one already resolved. Extensions list
+  it under `hooks` in their manifest, and `agent.cue({ hook: "actor:resolved" })`
+  wakes an agent with the session. Resolving still raises `actor:moved` as
+  before. A client that decodes `HookKind` strictly has to learn the new
+  value.
+
 - Calendars are a new kind of item, shared by every workspace: calendar
   stores hold calendars, which hold events with a title, location, start and
   end (timed in a time zone, or all-day), invitees, description and an

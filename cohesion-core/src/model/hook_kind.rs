@@ -26,7 +26,8 @@ use cohesion_macros::{TextEnum, TsWire};
 /// `activity:updated` `onActivityUpdated(activity)` when its progress,
 /// status or title changes and `activity:ended` `onActivityEnded(activity)` when it
 /// ends; `actor:moved` calls `onActorMoved(session)` when an actor session's
-/// status changes; `agent:turn:start` calls
+/// status changes and `actor:resolved` calls `onActorResolved(session)` when
+/// one is resolved; `agent:turn:start` calls
 /// `onAgentTurnStart(agent)` when an agent starts answering the user and
 /// `agent:turn:end` `onAgentTurnEnd(agent)` when it finishes; `day:start` calls `onDayStart()` at 6:00 and
 /// `day:end` calls `onDayEnd()` at 23:00, and `timer` calls
@@ -110,6 +111,8 @@ pub enum HookKind {
     ActivityEnded,
     #[text_enum("actor:moved")]
     ActorMoved,
+    #[text_enum("actor:resolved")]
+    ActorResolved,
     #[text_enum("day:start")]
     DayStart,
     #[text_enum("day:end")]
