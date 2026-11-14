@@ -116,8 +116,12 @@
 	function searchKey(e: KeyboardEvent) {
 		const next = stepHighlight(e, active, shownFolders.length + shownViews.length);
 		if (next !== null) active = next;
-		else if (e.key === 'Enter')
+		else if (e.key === 'Enter') {
+			// Enter's default action would land on the trigger the close hands focus back
+			// to, and press it: the switcher would open again.
+			e.preventDefault();
 			root?.querySelector<HTMLAnchorElement>('[data-active=true] a')?.click();
+		}
 	}
 	const rowAttrs = (i: number) => ({ 'data-active': q !== '' && i === active });
 
