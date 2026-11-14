@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { notify, openNotificationsWith } from './notify';
+import { notificationPreview, notify, openNotificationsWith } from './notify';
 import { toasts } from './toasts.svelte';
 
 describe('notify', () => {
@@ -45,5 +45,23 @@ describe('notify', () => {
 		expect(open.mock.calls).toEqual([['/w/1/agents/3']]);
 		undo();
 		expect(window.cohesionOpen).toBeUndefined();
+	});
+});
+
+describe('notificationPreview', () => {
+	it('drops Markdown marks and collapses whitespace', () => {
+		expect(
+			notificationPreview('## Done\n\nI **fixed** the [bug](http://x.y) in `main`.\n- next')
+		).toBe('Done I fixed the bug in main. next');
+	});
+
+	it('cuts long text with an ellipsis', () => {
+		const out = notificationPreview('word '.repeat(100), 20);
+		expect([...out]).toHaveLength(20);
+		expect(out.endsWith('…')).toBe(true);
+	});
+
+	it('is empty for text with nothing readable', () => {
+		expect(notificationPreview(' \n ')).toBe('');
 	});
 });

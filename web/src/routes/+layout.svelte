@@ -58,7 +58,7 @@
 	import { workspaces } from '$lib/stores/workspaces.svelte';
 	import Toast from '$lib/ui/Toast.svelte';
 	import { UNREACHABLE_MESSAGE, toasts } from '$lib/ui/toasts.svelte';
-	import { notify, openNotificationsWith } from '$lib/ui/notify';
+	import { notificationPreview, notify, openNotificationsWith } from '$lib/ui/notify';
 	import { planOf } from '$lib/features/actors/plan';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 
@@ -229,12 +229,20 @@
 		ready = true;
 		void workspaces.load();
 		// Loaded app-wide so the sidebar's agents and new-message toasts work on every page.
-		agents.onNewMessage = (agent) =>
+		agents.onNewMessage = async (agent) => {
+			const announcement = `${agent.agent_name} sent you a message.`;
+			const content = await agents
+				.latestText(agent.id)
+				.then((text) => notificationPreview(text ?? ''))
+				.catch(() => '');
 			notify({
-				message: `${agent.agent_name} sent you a message.`,
+				// With the message's text as the body, the line that names the agent is the title.
+				message: content || announcement,
+				title: content ? announcement : undefined,
 				href: routes.agent(agent.id),
 				avatar: { name: agent.agent_name, color: agent.agent_color, emoji: agent.agent_emoji }
 			});
+		};
 		void agents.loadList();
 		void actors.load();
 		void connectors.load();

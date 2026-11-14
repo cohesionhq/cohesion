@@ -55,3 +55,26 @@ export function openNotificationsWith(open: (href: string) => void): () => void 
 		if (window.cohesionOpen === opener) delete window.cohesionOpen;
 	};
 }
+
+const PREVIEW_LENGTH = 140;
+
+/**
+ * A message's text as a notification body: Markdown marks dropped, whitespace collapsed
+ * and cut to a short length with an ellipsis. Empty when nothing readable is left.
+ */
+export function notificationPreview(text: string, max = PREVIEW_LENGTH): string {
+	const plain = text
+		.replace(/```[^\n]*\n?/g, ' ')
+		.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+		.replace(/^\s{0,3}(?:#{1,6}|>|[-*+]|\d+\.)\s+/gm, '')
+		.replace(/(\*\*|__|~~|[*_`])/g, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+	const chars = [...plain];
+	return chars.length > max
+		? `${chars
+				.slice(0, max - 1)
+				.join('')
+				.trimEnd()}…`
+		: plain;
+}
