@@ -10,7 +10,7 @@
 //! - `extension_routes`: installing, granting, registries, updates and
 //!   calling a `service` extension.
 //! - `calendar_routes`: syncing calendar stores with their
-//!   `calendar:backend` extensions now.
+//!   `calendar:account` extensions now.
 //! - `connector_routes`: accounts, importing and refreshing resources on
 //!   `oauth` and `connector` extensions.
 //! - `article_routes` and `feed_routes`: re-fetching articles and following feeds,

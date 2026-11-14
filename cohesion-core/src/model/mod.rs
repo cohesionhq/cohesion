@@ -44,6 +44,7 @@ mod item_link;
 mod list_symbol;
 mod memory;
 mod metadata;
+mod module;
 mod photo;
 mod profile;
 mod resource;
@@ -74,12 +75,14 @@ pub use article::{
 pub use attachment::{Attachment, AttachmentMessage};
 pub use backlink::{Backlink, LinkSource, OutgoingLink, item_links, outgoing_links};
 pub use calendar::{
-    Calendar, CalendarColor, CalendarColorChoice, CalendarEvent, CalendarEventFields,
-    CalendarStore, CalendarStoreBackend, EventInvitee, EventTiming, InviteeResponse,
+    Calendar, CalendarColorChoice, CalendarColorSupport, CalendarEvent, CalendarEventFields,
+    CalendarPerspective, CalendarPerspectiveCalendar, CalendarPerspectiveRow, CalendarStore,
+    CalendarStoreBackend, EventInvitee, EventTiming, InviteeResponse, LOCAL_STORE_TITLE,
+    nearest_palette_color,
 };
 pub use calendar_backend::{
-    BackendAllDayEvent, BackendCalendar, BackendEvent, BackendEventFields, BackendEventTiming,
-    BackendInvitee, BackendTimedEvent,
+    BackendAllDayEvent, BackendCalendar, BackendCalendarChanges, BackendEvent, BackendEventFields,
+    BackendEventTiming, BackendInvitee, BackendTimedEvent,
 };
 pub use catalog_model::CatalogModel;
 pub use client::{Client, ClientKeyKind};
@@ -129,6 +132,7 @@ pub use item_link::{ItemLink, LinkKind, LinkTarget, NotAnItemLink};
 pub use list_symbol::ListSymbol;
 pub use memory::{Memory, MemoryFilter, MemoryScope};
 pub use metadata::{HasMetadata, Metadata, MetadataOwner};
+pub use module::{EnabledModule, Module, ModuleSetting};
 pub use photo::Photo;
 pub use profile::Profile;
 pub use resource::{

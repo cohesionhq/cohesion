@@ -154,7 +154,7 @@ impl WriteArea {
             | ExtensionPermissionKind::Registry
             | ExtensionPermissionKind::OAuth
             | ExtensionPermissionKind::Connector
-            | ExtensionPermissionKind::CalendarBackend
+            | ExtensionPermissionKind::CalendarAccount
             | ExtensionPermissionKind::Service
             | ExtensionPermissionKind::ServiceIsolated
             | ExtensionPermissionKind::Services

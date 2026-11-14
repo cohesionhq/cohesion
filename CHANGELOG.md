@@ -23,7 +23,38 @@ under "Unreleased" with any change users would notice.
   `activity:*` hook, and renames the hook on messages such cues posted. An
   extension whose manifest lists an `activity:*` hook no longer installs or
   updates; the iOS companion needs a version on the `actor:*` hooks.
-
+- A workspace can turn Calendar off under Settings › Workspaces, in the
+  workspace's "Modules…" menu item. With Calendar off, the workspace's sidebar
+  and ⌘K leave out Calendar and calendar events, and its calendar page opens
+  the Dashboard. Calendars, sync, scripts and agents work as before. New
+  commands `listWorkspaceModules` and `setModuleEnabled` answer
+  `ModuleSetting`s, and a change invalidates `modules(ws)`. Existing clients
+  are unaffected, and keep showing Calendar until they read the setting.
+- Calendars start over: the stores, calendars and events made so far are
+  dropped, and one store only in Cohesion, titled "Cohesion", is there from
+  the start. People see a store as an account. A store's title is the name a
+  person gave it or its backend's (kept up to date at each sync for a connected
+  account); `renameCalendarStore` names it, or with `null` gives the backend's
+  name back. Colors are palette colors: calendars and events have
+  `selected_color` and `declared_color` in place of `color`, and calendars
+  `color_pending_push`; a hex color a person or backend gives binds to the
+  nearest palette color. Stores gain `named_by_user` and `color_support`
+  (`exact`, `declared` or `none`). `CalendarEventFields.color` is now
+  `selected_color`, and `createCalendar` takes an optional `workspace_id`.
+  Each workspace can choose which calendars it shows, its perspective, with
+  `getCalendarPerspective` and `setCalendarPerspective` (invalidation
+  `calendarPerspective`); one that never chose shows every calendar. The web
+  UI's calendar list edits the perspective, has Bypass perspective to show
+  every calendar for the visit, New calendar under each local account and
+  New account at its foot. The `calendar:backend` permission is now
+  `calendar:account` ("Provides a calendar account"); grants of the old name
+  are dropped and extensions naming it must be updated. A calendar account
+  extension may define `calendarColorSupport()` and `updateCalendar(identifier,
+  changes, credential)`; a backend that keeps any color has colors chosen in
+  Cohesion pushed. In scripts, `Calendar.selectedColor` replaces `color`, and
+  stores gain `rename`. Clients decoding `Calendar`, `CalendarEvent`,
+  `CalendarStore`, `ExtensionPermissionKind` or `Invalidation` strictly, such
+  as the iPhone app, have to learn the new shapes.
 - `network.fetch` can send any HTTP method, including `PROPFIND`, `REPORT` and
   `MKCALENDAR`, and a plain text body (XML, iCalendar) with `textBody`; the
   `Content-Type` in `headers` is kept. `method` is now a string (a

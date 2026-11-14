@@ -1,4 +1,4 @@
-//! Calendars: calling a `calendar:backend` extension's sync functions with
+//! Calendars: calling a `calendar:account` extension's sync functions with
 //! an account's credential, and the pass that syncs each account's calendar
 //! store with its backend, both ways.
 

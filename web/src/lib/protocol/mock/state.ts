@@ -52,6 +52,7 @@ import type {
 	SpendPeriod,
 	StorageSettings,
 	ExperimentSetting,
+	Module,
 	Tag,
 	Task,
 	TaskFolder,
@@ -160,6 +161,8 @@ export interface MockState {
 	storage: StorageSettings;
 	/** Every experiment, with whether it is on. None are offered yet. */
 	experiments: ExperimentSetting[];
+	/** A module turned off or on in a workspace; with no entry, a module is on. */
+	enabledModules: { workspace_id: number; module: Module; enabled: boolean }[];
 	versions: Version[];
 	databaseSize: DatabaseSize;
 	profile: Profile;
@@ -194,6 +197,8 @@ export interface MockState {
 	calendarStores: CalendarStore[];
 	calendars: Calendar[];
 	calendarEvents: CalendarEvent[];
+	/** Each workspace's chosen calendars; missing or `null` shows every one. */
+	calendarPerspectives: Record<number, number[] | null>;
 	contacts: Omit<Contact, 'methods'>[];
 	/** A contact method's row, which has no workspace of its own. */
 	contactMethods: MockContactMethod[];

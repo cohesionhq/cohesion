@@ -1,16 +1,51 @@
-//! Calling a `calendar:backend` extension's sync functions on its scoped
+//! Calling a `calendar:account` extension's sync functions on its scoped
 //! worker, typed by the Calendar Backend contract, each with the account's
 //! fresh credential.
 
 use cohesion_core::model::{
-    BackendCalendar, BackendEvent, BackendEventFields, CalendarEvent, Credential,
-    ExtensionPermissionKind,
+    BackendCalendar, BackendCalendarChanges, BackendEvent, BackendEventFields,
+    CalendarColorSupport, CalendarEvent, Credential, ExtensionPermissionKind,
+    IntelligenceAgentColor,
 };
 use cohesion_core::protocol::ServerError;
-use cohesion_js::ScriptArgument;
+use cohesion_js::{ScriptArgument, ScriptError};
 
-use crate::connectors::{Connection, call_connector, json_argument};
-use crate::extension_manager::{ExtensionFn, ExtensionManager};
+use crate::connectors::{Connection, call_connector, connector_error, json_argument};
+use crate::extension_manager::{ExtensionError, ExtensionFn, ExtensionManager};
+
+/// `calendarColorSupport()`: what colors the backend keeps. Optional: one
+/// that doesn't define it is `"declared"`.
+struct ColorSupportFn;
+impl ExtensionFn for ColorSupportFn {
+    const NAME: &'static str = "calendarColorSupport";
+    const REQUIRES: ExtensionPermissionKind = ExtensionPermissionKind::CalendarAccount;
+    type Output = CalendarColorSupport;
+    fn arguments(self) -> Vec<ScriptArgument> {
+        Vec::new()
+    }
+}
+
+/// `updateCalendar(identifier, changes, credential)`: changes a calendar
+/// as it was changed in Cohesion, returning the backend's copy. Optional:
+/// only a backend whose color support is `"exact"` is called, and one that
+/// doesn't define it keeps its own color.
+struct UpdateCalendarFn<'a> {
+    identifier: String,
+    changes: BackendCalendarChanges,
+    credential: &'a Credential,
+}
+impl ExtensionFn for UpdateCalendarFn<'_> {
+    const NAME: &'static str = "updateCalendar";
+    const REQUIRES: ExtensionPermissionKind = ExtensionPermissionKind::CalendarAccount;
+    type Output = BackendCalendar;
+    fn arguments(self) -> Vec<ScriptArgument> {
+        vec![
+            ScriptArgument::String(self.identifier),
+            json_argument(&self.changes),
+            json_argument(self.credential),
+        ]
+    }
+}
 
 /// `listCalendars(credential)`: the account's calendars.
 struct ListCalendarsFn<'a> {
@@ -18,7 +53,7 @@ struct ListCalendarsFn<'a> {
 }
 impl ExtensionFn for ListCalendarsFn<'_> {
     const NAME: &'static str = "listCalendars";
-    const REQUIRES: ExtensionPermissionKind = ExtensionPermissionKind::CalendarBackend;
+    const REQUIRES: ExtensionPermissionKind = ExtensionPermissionKind::CalendarAccount;
     type Output = Vec<BackendCalendar>;
     fn arguments(self) -> Vec<ScriptArgument> {
         vec![json_argument(self.credential)]
@@ -33,7 +68,7 @@ struct ListEventsFn<'a> {
 }
 impl ExtensionFn for ListEventsFn<'_> {
     const NAME: &'static str = "listEvents";
-    const REQUIRES: ExtensionPermissionKind = ExtensionPermissionKind::CalendarBackend;
+    const REQUIRES: ExtensionPermissionKind = ExtensionPermissionKind::CalendarAccount;
     type Output = Vec<BackendEvent>;
     fn arguments(self) -> Vec<ScriptArgument> {
         vec![
@@ -52,7 +87,7 @@ struct CreateEventFn<'a> {
 }
 impl ExtensionFn for CreateEventFn<'_> {
     const NAME: &'static str = "createEvent";
-    const REQUIRES: ExtensionPermissionKind = ExtensionPermissionKind::CalendarBackend;
+    const REQUIRES: ExtensionPermissionKind = ExtensionPermissionKind::CalendarAccount;
     type Output = BackendEvent;
     fn arguments(self) -> Vec<ScriptArgument> {
         vec![
@@ -73,7 +108,7 @@ struct UpdateEventFn<'a> {
 }
 impl ExtensionFn for UpdateEventFn<'_> {
     const NAME: &'static str = "updateEvent";
-    const REQUIRES: ExtensionPermissionKind = ExtensionPermissionKind::CalendarBackend;
+    const REQUIRES: ExtensionPermissionKind = ExtensionPermissionKind::CalendarAccount;
     type Output = BackendEvent;
     fn arguments(self) -> Vec<ScriptArgument> {
         vec![
@@ -94,7 +129,7 @@ struct DeleteEventFn<'a> {
 }
 impl ExtensionFn for DeleteEventFn<'_> {
     const NAME: &'static str = "deleteEvent";
-    const REQUIRES: ExtensionPermissionKind = ExtensionPermissionKind::CalendarBackend;
+    const REQUIRES: ExtensionPermissionKind = ExtensionPermissionKind::CalendarAccount;
     type Output = ();
     fn arguments(self) -> Vec<ScriptArgument> {
         vec![
@@ -105,15 +140,21 @@ impl ExtensionFn for DeleteEventFn<'_> {
     }
 }
 
-/// What `event` says, as a backend takes it.
-fn fields(event: &CalendarEvent) -> BackendEventFields {
+/// What `event` says, as a backend keeping colors as `support` says takes
+/// it: only one that keeps any color is sent the event's own.
+fn fields(event: &CalendarEvent, support: CalendarColorSupport) -> BackendEventFields {
     BackendEventFields {
         title: event.title.clone(),
         location: event.location.clone(),
         description: event.description.clone(),
         timing: event.timing.clone().into(),
         invitees: event.invitees.iter().cloned().map(Into::into).collect(),
-        color: event.color.as_ref().map(|color| color.hex.clone()),
+        color: match support {
+            CalendarColorSupport::Exact => {
+                event.selected_color.map(|color| color.hex().to_string())
+            }
+            CalendarColorSupport::Declared | CalendarColorSupport::None => None,
+        },
     }
 }
 
@@ -121,11 +162,64 @@ fn fields(event: &CalendarEvent) -> BackendEventFields {
 pub(super) struct Backend<'a> {
     pub(super) extensions: &'a ExtensionManager,
     pub(super) connection: Connection,
+    /// What colors it keeps, from [`color_support`](Backend::color_support).
+    pub(super) color_support: CalendarColorSupport,
 }
 
 impl Backend<'_> {
     async fn call<F: ExtensionFn>(&self, function: F) -> Result<F::Output, ServerError> {
         call_connector(self.extensions, &self.connection.extension, function).await
+    }
+
+    /// What colors the backend keeps: what its `calendarColorSupport()`
+    /// returns, or `"declared"` when it doesn't define one.
+    pub(super) async fn color_support(
+        extensions: &ExtensionManager,
+        connection: &Connection,
+    ) -> Result<CalendarColorSupport, ServerError> {
+        match extensions
+            .call(connection.extension.id, ColorSupportFn)
+            .await
+        {
+            Ok(support) => Ok(support),
+            Err(ExtensionError::Script(ScriptError::MissingFunction(_))) => {
+                Ok(CalendarColorSupport::Declared)
+            }
+            Err(e) => Err(connector_error(
+                &connection.extension,
+                ColorSupportFn::NAME,
+                e,
+            )),
+        }
+    }
+
+    /// Pushes `color`, chosen in Cohesion, to calendar `identifier`: the
+    /// backend's copy, or `None` when it doesn't define `updateCalendar`.
+    pub(super) async fn recolor(
+        &self,
+        identifier: &str,
+        color: IntelligenceAgentColor,
+    ) -> Result<Option<BackendCalendar>, ServerError> {
+        let function = UpdateCalendarFn {
+            identifier: identifier.to_string(),
+            changes: BackendCalendarChanges {
+                color: color.hex().to_string(),
+            },
+            credential: &self.connection.credential,
+        };
+        match self
+            .extensions
+            .call(self.connection.extension.id, function)
+            .await
+        {
+            Ok(calendar) => Ok(Some(calendar)),
+            Err(ExtensionError::Script(ScriptError::MissingFunction(_))) => Ok(None),
+            Err(e) => Err(connector_error(
+                &self.connection.extension,
+                UpdateCalendarFn::NAME,
+                e,
+            )),
+        }
     }
 
     pub(super) async fn calendars(&self) -> Result<Vec<BackendCalendar>, ServerError> {
@@ -150,7 +244,7 @@ impl Backend<'_> {
     ) -> Result<BackendEvent, ServerError> {
         self.call(CreateEventFn {
             calendar: calendar.to_string(),
-            event: fields(event),
+            event: fields(event, self.color_support),
             credential: &self.connection.credential,
         })
         .await
@@ -165,7 +259,7 @@ impl Backend<'_> {
         self.call(UpdateEventFn {
             calendar: calendar.to_string(),
             identifier: identifier.to_string(),
-            event: fields(event),
+            event: fields(event, self.color_support),
             credential: &self.connection.credential,
         })
         .await

@@ -1,8 +1,9 @@
 <!--
-	The calendar: every calendar's events (every workspace sees the same) by
-	month, week or day, around one day. The header steps back and forward and
-	to today, switches the view, syncs the accounts and makes an event; the
-	calendars, which show and which don't, sit in the column right of the sheet,
+	The calendar: the events of the calendars this workspace shows (its
+	perspective, or every calendar while it is bypassed) by month, week or day,
+	around one day. The header steps back and forward and to today, switches the
+	view, syncs the accounts and makes an event; the calendars, which this
+	workspace shows and which it doesn't, sit in the column right of the sheet,
 	or below its width in a panel from the header. An event opens in a panel
 	(`EventPanel`); dragging across empty time or clicking a day makes one, and
 	dragging an event moves it. `?view=` and `?day=` say what shows; without a
@@ -32,7 +33,7 @@
 		VIEWS,
 		type CalendarView
 	} from '$lib/features/calendar/days';
-	import { calendarVisibility } from '$lib/features/calendar/visibility.svelte';
+	import { isDrawn } from '$lib/features/calendar/perspective.svelte';
 	import { localDay } from '$lib/format/dates';
 	import type { CalendarEvent, EventTiming } from '$lib/protocol/types';
 	import { pane, panes } from '$lib/shell/pane.svelte';
@@ -40,6 +41,7 @@
 	import { routes } from '$lib/shell/routes';
 	import { isTyping } from '$lib/shell/shortcuts.svelte';
 	import { calendars, fieldsOf } from '$lib/stores/calendars.svelte';
+	import { modules } from '$lib/stores/modules.svelte';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import PageHeader from '$lib/ui/PageHeader.svelte';
@@ -54,6 +56,12 @@
 	const hasGutter = paneChrome()?.hasGutter ?? false;
 
 	const ws = $derived(Number(here.params.ws));
+
+	// A workspace with Calendar turned off has no calendar page: it opens the Dashboard instead.
+	$effect(() => {
+		if (modules.current.key === ws && modules.current.loaded && !modules.isEnabled('calendar'))
+			void here.goto(routes.dashboard(ws), { replaceState: true });
+	});
 
 	// ---- What shows ----------------------------------------------------------
 
@@ -90,7 +98,8 @@
 	// ---- Data ---------------------------------------------------------------
 
 	$effect(() => {
-		untrack(() => void calendars.load());
+		const id = ws;
+		untrack(() => void calendars.load(id));
 	});
 	$effect(() => {
 		const r = range;
@@ -98,11 +107,9 @@
 	});
 	$effect(() => () => calendarEvents.list.release());
 
-	const shown = $derived(
-		calendarEvents.list.value.filter((e) => calendarVisibility.isShown(e.calendar_id))
-	);
+	const shown = $derived(calendarEvents.list.value.filter((e) => isDrawn(ws, e.calendar_id)));
 	const colorOf = (event: CalendarEvent) =>
-		event.color?.nearest ?? calendars.calendar(event.calendar_id)?.color.nearest ?? 'blue';
+		event.selected_color ?? calendars.calendar(event.calendar_id)?.selected_color ?? 'blue';
 	const canEdit = (event: CalendarEvent) =>
 		!(calendars.calendar(event.calendar_id)?.read_only ?? true);
 
@@ -110,10 +117,7 @@
 	const writable = $derived(
 		calendars.calendars.value
 			.filter((c) => !c.read_only)
-			.sort(
-				(a, b) =>
-					Number(calendarVisibility.isShown(b.id)) - Number(calendarVisibility.isShown(a.id))
-			)
+			.sort((a, b) => Number(isDrawn(ws, b.id)) - Number(isDrawn(ws, a.id)))
 	);
 
 	// ---- Events -------------------------------------------------------------
@@ -159,7 +163,7 @@
 	function create(timing: EventTiming) {
 		const calendar = writable[0];
 		if (!calendar) {
-			toasts.error('Make a calendar first: New store, then New calendar, in the calendar list.');
+			toasts.error('Make a calendar first: New calendar, under an account in the calendar list.');
 			return;
 		}
 		openId = null;
@@ -332,6 +336,6 @@
 
 <SidePanel bind:open={listOpen} title="Calendars">
 	<div class="-mx-2 flex flex-col">
-		<CalendarList inDialog onleave={() => (listOpen = false)} />
+		<CalendarList workspaceId={ws} inDialog onleave={() => (listOpen = false)} />
 	</div>
 </SidePanel>

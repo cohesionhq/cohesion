@@ -3,28 +3,43 @@
 //! `listEvents` returns (`BackendEventTiming`, `BackendInvitee`).
 
 use cohesion_core::model::{
-    BackendEventTiming, BackendInvitee, Calendar, CalendarColor, CalendarColorChoice,
-    CalendarEvent, CalendarEventFields, CalendarStore, CalendarStoreBackend,
-    IntelligenceAgentColor,
+    BackendEventTiming, BackendInvitee, Calendar, CalendarColorChoice, CalendarEvent,
+    CalendarEventFields, CalendarStore, CalendarStoreBackend, IntelligenceAgentColor,
+    nearest_palette_color,
 };
 use cohesion_db::{
     CreateCalendarEventCommand, DeleteCalendarCommand, DeleteCalendarEventCommand,
-    ListCalendarEventsCommand, RenameCalendarCommand, SetCalendarColorCommand,
-    UpdateCalendarEventCommand,
+    ListCalendarEventsCommand, RenameCalendarCommand, RenameCalendarStoreCommand,
+    SetCalendarColorCommand, UpdateCalendarEventCommand,
 };
 use cohesion_macros::{JsOptions, js_entity};
 use rquickjs::{Ctx, Exception, Value};
 
 use crate::conversion::FromJsField;
 
-/// What holds calendars: Cohesion itself, or an account of a calendar
-/// backend, whose calendars sync with it both ways every 10 minutes.
+/// What holds calendars, shown to people as an account: Cohesion itself, or
+/// a connector account of a calendar backend, whose calendars sync with it
+/// both ways every 10 minutes.
 ///
-/// Get them from `cohesion.calendarStores()`. `lastSyncedAt` and
-/// `createdAt` are in Unix seconds; `syncFailure` says why the last sync
-/// failed.
+/// Get them from `cohesion.calendarStores()`. `title` is the name a person
+/// gave it (`namedByUser`) or its backend's; `colorSupport` says what colors
+/// its backend keeps. `lastSyncedAt` and `createdAt` are in Unix seconds;
+/// `syncFailure` says why the last sync failed.
 #[js_entity(CalendarStore)]
 impl JsCalendarStore {
+    /// Names the store `title`, or with `null` gives it its backend's name
+    /// back. An empty title throws. Not available in read-only contexts.
+    pub fn rename<'js>(&mut self, ctx: Ctx<'js>, title: Option<String>) -> rquickjs::Result<()> {
+        self.inner = self.write(
+            &ctx,
+            RenameCalendarStoreCommand {
+                store_id: self.inner.id,
+                title,
+            },
+        )?;
+        Ok(())
+    }
+
     /// The connector account whose backend holds the store's calendars, or
     /// `null` for a store only in Cohesion.
     #[qjs(get, rename = "accountId")]
@@ -39,23 +54,23 @@ impl JsCalendarStore {
 /// A calendar: a named, colored set of events, shared by every workspace.
 ///
 /// Get them from `cohesion.calendars()` or `cohesion.createCalendar()`. A
-/// calendar from a backend takes its title from the backend; its color is
-/// Cohesion's own. `readOnly` calendars refuse new, changed and deleted
-/// events.
+/// calendar from a backend takes its title from the backend. Its colors are
+/// palette colors (`IntelligenceAgentColor`): `declaredColor` is its
+/// backend's, and `selectedColor` the one it is drawn in, which follows the
+/// declared one whenever that changes. `readOnly` calendars refuse new,
+/// changed and deleted events.
 #[js_entity(Calendar)]
 impl JsCalendar {
-    /// The calendar's color: `{ hex: "#rrggbb", nearest }`, where `nearest`
-    /// is the palette color closest to it.
-    #[qjs(get)]
-    #[ts(returns = "CalendarColor")]
-    pub fn color<'js>(&self, ctx: Ctx<'js>) -> rquickjs::Result<Value<'js>> {
-        json_value(&ctx, &self.inner.color)
-    }
-
     /// Assigning saves immediately: a palette color's name (`"blue"`) or an
-    /// exact `"#rrggbb"`. Anything else throws.
-    #[qjs(set, rename = "color")]
-    pub fn set_color<'js>(&mut self, ctx: Ctx<'js>, color: String) -> rquickjs::Result<()> {
+    /// exact `"#rrggbb"`, bound to the nearest palette color. Anything else
+    /// throws. A backend that keeps any color has it pushed at the next
+    /// sync.
+    #[qjs(set, rename = "selectedColor")]
+    pub fn set_selected_color<'js>(
+        &mut self,
+        ctx: Ctx<'js>,
+        color: String,
+    ) -> rquickjs::Result<()> {
         let color = color_choice(&ctx, &color)?;
         self.inner = self.write(
             &ctx,
@@ -141,6 +156,8 @@ impl JsCalendar {
 /// `Calendar.createEvent()`. `modified` is when it last changed, in
 /// Cohesion or on its backend, in Unix seconds; `pendingPush` says a change
 /// made in Cohesion waits for the next sync to reach its backend.
+/// `selectedColor` and `declaredColor` work as a calendar's, `null` when it
+/// takes its calendar's.
 #[js_entity(CalendarEvent)]
 impl JsCalendarEvent {
     /// When it happens: `{ kind: "timed", startsAt, endsAt, timeZone }` or
@@ -163,14 +180,6 @@ impl JsCalendarEvent {
             .map(Into::into)
             .collect();
         json_value(&ctx, &invitees)
-    }
-
-    /// Its own color, `{ hex, nearest }`, or `null` when it takes its
-    /// calendar's.
-    #[qjs(get)]
-    #[ts(returns = "CalendarColor | null")]
-    pub fn color<'js>(&self, ctx: Ctx<'js>) -> rquickjs::Result<Value<'js>> {
-        json_value(&ctx, &self.inner.color)
     }
 
     /// Replaces what the event says with `options`, as `createEvent` takes
@@ -231,8 +240,8 @@ pub struct CalendarEventOptions {
     pub description: Option<String>,
     /// Who is invited (`[{ email: "ada@example.com" }]`); none when left out.
     pub invitees: Option<Vec<BackendInvitee>>,
-    /// A palette color's name (`"blue"`) or an exact `"#rrggbb"`; the
-    /// calendar's color when left out.
+    /// A palette color's name (`"blue"`) or an exact `"#rrggbb"`, bound to
+    /// the nearest palette color; the calendar's color when left out.
     pub color: Option<String>,
 }
 
@@ -249,7 +258,7 @@ impl CalendarEventOptions {
                 .into_iter()
                 .map(Into::into)
                 .collect(),
-            color: self
+            selected_color: self
                 .color
                 .map(|color| color_choice(ctx, &color))
                 .transpose()?,
@@ -266,7 +275,7 @@ pub(crate) fn color_choice(ctx: &Ctx<'_>, color: &str) -> rquickjs::Result<Calen
     {
         return Ok(CalendarColorChoice::Palette { color: *palette });
     }
-    if CalendarColor::parse(color).is_some() {
+    if nearest_palette_color(color).is_some() {
         return Ok(CalendarColorChoice::Exact {
             hex: color.to_string(),
         });

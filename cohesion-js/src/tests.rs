@@ -187,7 +187,7 @@ fn contacts_and_their_methods_save_each_assignment() {
 }
 
 #[test]
-fn calendars_and_events_are_shared_and_colored_exactly() {
+fn calendars_and_events_are_shared_and_colored_by_the_palette() {
     let db = database();
     create_workspace(&db, "W");
     assert_eq!(
@@ -199,17 +199,24 @@ fn calendars_and_events_are_shared_and_colored_exactly() {
              const e = cal.createEvent({ title: 'Dentist', location: 'High St', \
                  timing: { kind: 'timed', startsAt: 1000, endsAt: 4600, timeZone: 'UTC' }, \
                  invitees: [{ email: 'ada@example.com' }], color: '#d50000' }); \
-             cal.color = '#1e88e5'; \
+             cal.selectedColor = '#1e88e5'; \
              e.update({ title: 'Dentist', \
                  timing: { kind: 'allDay', startDate: '1970-01-01', endDate: '1970-01-02' } }); \
              const hit = cohesion.workspace('W').search('dentist')[0]; \
-             [store.accountId, cohesion.calendars()[0].color, e.timing, e.invitees, e.color, \
+             const own = cohesion.calendarStores()[0]; own.rename('Personal'); \
+             [store.accountId, store.namedByUser, own.title, own.colorSupport, \
+              cohesion.calendars()[0].selectedColor, cohesion.calendars()[0].declaredColor, \
+              e.timing, e.invitees, e.selectedColor, \
               cal.events({ from: 0, to: 3600 }).length, \
               hit.open() instanceof CalendarEvent, cohesion.calendarEvents({ from: 0, to: 1 })[0].title]",
         ),
         serde_json::json!([
             null,
-            { "hex": "#1e88e5", "nearest": "blue" },
+            true,
+            "Personal",
+            "none",
+            "blue",
+            null,
             { "kind": "allDay", "startDate": "1970-01-01", "endDate": "1970-01-02" },
             [],
             null,
@@ -221,7 +228,7 @@ fn calendars_and_events_are_shared_and_colored_exactly() {
     // A color that isn't one, an empty title, or an event that ends before
     // it starts throws and saves nothing.
     for script in [
-        "cohesion.calendars()[0].color = 'mauve'",
+        "cohesion.calendars()[0].selectedColor = 'mauve'",
         "cohesion.calendars()[0].createEvent({ title: '', \
              timing: { kind: 'allDay', startDate: '2026-01-01', endDate: '2026-01-01' } })",
         "cohesion.calendars()[0].createEvent({ title: 'x', \

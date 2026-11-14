@@ -10,17 +10,17 @@ use rquickjs::{Ctx, Exception, FromJs, IntoJs, Object, Value};
 
 use cohesion_core::model::{
     AccountDescription, ActorEffort, ActorMode, ActorModel, ActorSessionStatus, BackendAllDayEvent,
-    BackendCalendar, BackendEvent, BackendEventFields, BackendEventTiming, BackendInvitee,
-    BackendTimedEvent, Block, CalendarColor, CheckboxBlock, Component, ConnectorResource,
-    ConnectorResourceFilters, ConnectorResourcePreview, ContactMethodKind, Credential, Dialect,
-    DocumentFolderRepresentation, ExtensionManifest, ExtensionPermissionKind, FormulaUpdateMode,
-    HeadingBlock, HeadingLevel, HookKind, IntelligenceAgentColor, IntelligenceAgentPersonality,
-    IntelligenceAgentVerbosity, IntelligenceEffort, IntelligenceProvider, IntelligenceTier,
-    InviteeResponse, LinkBlock, ListSymbol, MetadataKey, NewContactMethod, OrganizationUnit,
-    OverviewBlock, PkceChallenge, PropertyDataType, PublishedPrecision, RegistryResult,
-    ResourceContentKind, ResourceKind, ResourceKindDescription, SearchEntityKind,
-    ServiceDescription, ServiceFunctionManifest, ServiceManifest, TextBlock, VersionAuthor,
-    VersionChange, VersionedItem,
+    BackendCalendar, BackendCalendarChanges, BackendEvent, BackendEventFields, BackendEventTiming,
+    BackendInvitee, BackendTimedEvent, Block, CalendarColorSupport, CheckboxBlock, Component,
+    ConnectorResource, ConnectorResourceFilters, ConnectorResourcePreview, ContactMethodKind,
+    Credential, Dialect, DocumentFolderRepresentation, ExtensionManifest, ExtensionPermissionKind,
+    FormulaUpdateMode, HeadingBlock, HeadingLevel, HookKind, IntelligenceAgentColor,
+    IntelligenceAgentPersonality, IntelligenceAgentVerbosity, IntelligenceEffort,
+    IntelligenceProvider, IntelligenceTier, InviteeResponse, LinkBlock, ListSymbol, MetadataKey,
+    NewContactMethod, OrganizationUnit, OverviewBlock, PkceChallenge, PropertyDataType,
+    PublishedPrecision, RegistryResult, ResourceContentKind, ResourceKind, ResourceKindDescription,
+    SearchEntityKind, ServiceDescription, ServiceFunctionManifest, ServiceManifest, TextBlock,
+    VersionAuthor, VersionChange, VersionedItem,
 };
 use cohesion_core::protocol::{PlanUsage, Vocabulary};
 use cohesion_core::ts_documentation::TsDocumentation;
@@ -175,23 +175,23 @@ script_api! {
 
     /// Calendars, which `cohesion` returns, and the shapes a calendar
     /// backend's functions take and return.
-    CALENDARS = "calendars", on_demand, "Calendars: the user's calendar stores, calendars and \
-        their events, shared by every workspace, and the Calendar Backend contract a \
-        `calendar:backend` extension implements." {
+    CALENDARS = "calendars", on_demand, "Calendars: the user's calendar stores (shown as \
+        accounts), calendars and their events, shared by every workspace, and the Calendar \
+        Account contract a `calendar:account` extension implements." {
         entities: [
             calendar::JsCalendarStore,
             calendar::JsCalendar,
             calendar::JsCalendarEvent,
         ],
-        enums: [InviteeResponse],
+        enums: [InviteeResponse, CalendarColorSupport],
         options: [
             calendar::CalendarEventListOptions,
             calendar::CalendarEventOptions,
             CalendarCreateOptions,
         ],
         interfaces: [
-            CalendarColor,
             BackendCalendar,
+            BackendCalendarChanges,
             BackendEvent,
             BackendEventFields,
             BackendEventTiming,

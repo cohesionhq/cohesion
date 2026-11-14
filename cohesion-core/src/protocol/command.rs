@@ -34,6 +34,7 @@ use super::extension_requests::*;
 use super::feed_requests::*;
 use super::intelligence_requests::*;
 use super::mermaid_requests::{RenderMermaidRequest, RenderedMermaid};
+use super::module_requests::*;
 use super::profile_requests::*;
 use super::rewind_requests::*;
 use super::route_kinds::{FromClient, Intelligence, Local, Script};
@@ -46,14 +47,15 @@ use super::task_requests::*;
 use super::workspace_requests::*;
 use crate::model::{
     Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem, AgentSkill,
-    Article, Attachment, Calendar, CalendarEvent, CalendarStore, CatalogModel, Client, Component,
-    Contact, ContactMethod, DeletedItem, Document, DocumentFolder, DocumentFolderProperty,
-    DocumentSummary, Embed, EndpointModel, ExperimentSetting, ExtensionHook, ExtensionPermission,
-    Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage,
-    IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault,
-    IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource, RestoredItem, SavedTaskView,
-    SearchResult, SecuritySettings, StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection,
-    Version, VersionSummary, Workspace, WorkspaceResourceKind,
+    Article, Attachment, Calendar, CalendarEvent, CalendarPerspective, CalendarStore, CatalogModel,
+    Client, Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
+    DocumentFolderProperty, DocumentSummary, Embed, EndpointModel, ExperimentSetting,
+    ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
+    IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
+    IntelligenceDefault, IntelligenceSpend, Memory, ModuleSetting, OrganizationUnit, Profile,
+    Resource, RestoredItem, SavedTaskView, SearchResult, SecuritySettings, StorageSettings,
+    TableRow, Tag, Task, TaskFolder, TextSection, Version, VersionSummary, Workspace,
+    WorkspaceResourceKind,
 };
 
 /// Every request a client can send; the `args` of a [`Request`](super::Request).
@@ -327,6 +329,9 @@ pub enum Command {
     /// Deletes local calendar store `store_id` with its calendars.
     #[reply(CalendarStore)]
     DeleteCalendarStore(DeleteCalendarStoreRequest),
+    /// Names calendar store `store_id`, or gives it its backend's name back.
+    #[reply(CalendarStore)]
+    RenameCalendarStore(RenameCalendarStoreRequest),
     /// Lists every live calendar.
     #[reply(Vec<Calendar>, request = ListCalendarsRequest)]
     ListCalendars,
@@ -357,6 +362,12 @@ pub enum Command {
     /// Deletes event `event_id`.
     #[reply(CalendarEvent)]
     DeleteCalendarEvent(DeleteCalendarEventRequest),
+    /// Fetches which calendars workspace `workspace_id` shows.
+    #[reply(CalendarPerspective)]
+    GetCalendarPerspective(GetCalendarPerspectiveRequest),
+    /// Sets which calendars workspace `workspace_id` shows.
+    #[reply(CalendarPerspective)]
+    SetCalendarPerspective(SetCalendarPerspectiveRequest),
     /// Syncs every backend account's calendars with its backend now.
     #[reply(CalendarSyncSummary, request = SyncCalendarsRequest, via = Local)]
     SyncCalendars,
@@ -537,6 +548,12 @@ pub enum Command {
     /// Turns an experiment on or off.
     #[reply(Vec<ExperimentSetting>)]
     SetExperiment(SetExperimentRequest),
+    /// Answers every module and whether it is on in a workspace.
+    #[reply(Vec<ModuleSetting>)]
+    ListWorkspaceModules(ListWorkspaceModulesRequest),
+    /// Turns a module on or off in a workspace.
+    #[reply(Vec<ModuleSetting>)]
+    SetModuleEnabled(SetModuleEnabledRequest),
     /// Answers how large the database file is.
     #[reply(DatabaseSize, request = GetDatabaseSizeRequest)]
     GetDatabaseSize,

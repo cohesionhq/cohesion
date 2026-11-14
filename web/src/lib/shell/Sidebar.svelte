@@ -65,7 +65,8 @@
 	import { routes } from '$lib/shell/routes';
 	import { DocumentFolderDrag } from '$lib/shell/documentFolderDrag.svelte';
 	import { documentFolderRows, taskFolderRows, type FolderRow } from '$lib/shell/sidebarFolders';
-	import { isGoing } from '$lib/stores/actors.svelte';
+	import { listedInSidebar } from '$lib/stores/actors.svelte';
+	import { modules } from '$lib/stores/modules.svelte';
 	import type { ConnectorKind } from '$lib/stores/connectors.svelte';
 	import AgentCard from '$lib/features/agents/AgentCard.svelte';
 	import WorkspaceSwitcher from '$lib/shell/WorkspaceSwitcher.svelte';
@@ -254,7 +255,9 @@
 				kind: 'tasks',
 				children: taskRows
 			},
-			{ href: routes.calendar(workspaceId), label: 'Calendar', icon: CalendarIcon },
+			...(modules.isEnabled('calendar')
+				? [{ href: routes.calendar(workspaceId), label: 'Calendar', icon: CalendarIcon }]
+				: []),
 			{ href: routes.articles(workspaceId), label: 'Articles', icon: Newspaper },
 			{ href: routes.contacts(workspaceId), label: 'Contacts', icon: BookUser }
 		];
@@ -264,13 +267,9 @@
 	// or started moves only once it leaves and a row never shifts under a click. Each held
 	// row still shows where its session stands, and goes the moment the sidebar stops listing it
 	// (a session resolved from here leaves at once, pointer or not).
-	// Sessions going on (working, or waiting on the user), finished ones not yet read, and the one
-	// open: a finished session stays until it is read or resolved, so completed work isn't lost.
-	const liveSessions = $derived(
-		actorSessions.filter(
-			(session) => isGoing(session) || session.unread || active(routes.actorSession(session.id))
-		)
-	);
+	// Sessions needing attention, working, failed, or done and not yet resolved, as in the
+	// iPhone app; a resolved session never shows.
+	const liveSessions = $derived(actorSessions.filter(listedInSidebar));
 	let heldSessions = $state.raw<ActorSession[] | null>(null);
 	const shownTasks = $derived(
 		heldSessions?.flatMap((held) => liveSessions.find((session) => session.id === held.id) ?? []) ??
@@ -677,7 +676,7 @@
 				<!-- The column folds a team away; the rail and the top bar have no room for its name, so it lies open there. -->
 				<!-- A folder row among the agents, not a third section label: the chevron in the icons' slot. -->
 				<button
-					class={[linkClass, 'mt-1 text-fg-muted max-md:hidden']}
+					class={[linkClass, 'mt-0.5 text-fg-muted max-md:hidden']}
 					type="button"
 					aria-expanded={open}
 					aria-controls="nav-team-{team.id}"
@@ -709,7 +708,7 @@
 				</div>
 			{/each}
 			{#if teamGroups.length && unteamed.length}
-				<div class="mx-2 my-1 h-px flex-none bg-border max-md:mx-1 max-sm:hidden"></div>
+				<div class="mx-2 my-0.5 h-px flex-none bg-border max-md:mx-1 max-sm:hidden"></div>
 			{/if}
 			{#each unteamed as agent (agent.id)}
 				{@render agentLink(agent)}

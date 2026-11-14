@@ -68,7 +68,7 @@ impl Mount {
             // Lets the daemon call the import functions; no global.
             ExtensionPermissionKind::Connector => None,
             // Lets the daemon call the calendar sync functions; no global.
-            ExtensionPermissionKind::CalendarBackend => None,
+            ExtensionPermissionKind::CalendarAccount => None,
             // Lets clients call `serviceRequest`; no global.
             ExtensionPermissionKind::Service => None,
             // Lets clients call `serviceRequest`, and nothing else; no global.

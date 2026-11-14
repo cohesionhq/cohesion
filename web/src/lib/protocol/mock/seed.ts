@@ -1099,6 +1099,8 @@ export function seed(): MockState {
 			memory_limit: 20
 		},
 		experiments: [],
+		// Containers has Calendar turned off, so mock mode shows a workspace without it.
+		enabledModules: [{ workspace_id: 3, module: 'calendar', enabled: false }],
 		versions: [],
 		databaseSize: {
 			bytes: 48_234_496,
@@ -1258,21 +1260,23 @@ export const CONTACT_PHOTO: Photo = {
 };
 
 /**
- * A local store with two calendars, and an account's store (synced an hour
- * ago) with a calendar and a read-only one of holidays. Events through this
+ * Cohesion's own store with two calendars, and an account's store (synced
+ * an hour ago, keeping colors of its own) with a calendar and a read-only
+ * one of holidays; the first workspace shows all but the holidays. Events through this
  * week: overlapping ones today, an all-day one over three days, one with
  * invitees, and a holiday.
  */
 export function seedCalendars(
 	now: number
-): Pick<MockState, 'calendarStores' | 'calendars' | 'calendarEvents'> {
+): Pick<MockState, 'calendarStores' | 'calendars' | 'calendarEvents' | 'calendarPerspectives'> {
 	const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 	const base = {
 		deleted: false,
 		location: '',
 		description: '',
 		invitees: [],
-		color: null,
+		selected_color: null,
+		declared_color: null,
 		remote_identifier: null,
 		remote_modified: null,
 		pending_push: false,
@@ -1319,14 +1323,16 @@ export function seedCalendars(
 		id: number,
 		store_id: number,
 		title: string,
-		color: { hex: string; nearest: IntelligenceAgentColor },
+		color: IntelligenceAgentColor,
 		read_only = false
 	) => ({
 		id,
 		store_id,
 		deleted: false,
 		title,
-		color,
+		selected_color: color,
+		declared_color: store_id === 2 ? color : null,
+		color_pending_push: false,
 		remote_identifier: store_id === 2 ? `cal-${id}` : null,
 		read_only,
 		created_at: now - 7 * DAY,
@@ -1337,7 +1343,9 @@ export function seedCalendars(
 			{
 				id: 1,
 				title: 'Cohesion',
+				named_by_user: false,
 				backend: { kind: 'local' },
+				color_support: 'none',
 				last_synced_at: null,
 				sync_failure: null,
 				created_at: now - 7 * DAY
@@ -1345,18 +1353,21 @@ export function seedCalendars(
 			{
 				id: 2,
 				title: 'sam@example.com',
+				named_by_user: false,
 				backend: { kind: 'account', account_id: 1 },
+				color_support: 'declared',
 				last_synced_at: now - 3_600,
 				sync_failure: null,
 				created_at: now - 7 * DAY
 			}
 		],
 		calendars: [
-			calendar(1, 1, 'Home', { hex: '#3d8a8a', nearest: 'teal' }),
-			calendar(2, 1, 'Fitness', { hex: '#c4702e', nearest: 'orange' }),
-			calendar(3, 2, 'Work', { hex: '#4a6fb5', nearest: 'blue' }),
-			calendar(4, 2, 'Holidays', { hex: '#2e8b57', nearest: 'green' }, true)
+			calendar(1, 1, 'Home', 'teal'),
+			calendar(2, 1, 'Fitness', 'orange'),
+			calendar(3, 2, 'Work', 'blue'),
+			calendar(4, 2, 'Holidays', 'green', true)
 		],
+		calendarPerspectives: { 1: [1, 2, 3] },
 		calendarEvents: [
 			timed(1, 1, 'Dentist', 0, 10, 11, { location: 'High Street' }),
 			timed(2, 1, 'Piano lesson', 0, 17, 18),
@@ -1372,7 +1383,7 @@ export function seedCalendars(
 			timed(4, 3, 'Standup', 1, 9, 9.25),
 			timed(5, 3, 'Standup', 2, 9, 9.25),
 			timed(6, 2, 'Run', -1, 7, 8),
-			timed(7, 2, 'Climbing', 2, 18.5, 20.5, { color: { hex: '#b54848', nearest: 'red' } }),
+			timed(7, 2, 'Climbing', 2, 18.5, 20.5, { selected_color: 'red' }),
 			timed(8, 3, 'Planning', -2, 14, 15.5),
 			allDay(9, 1, 'Visiting Mum', 1, 3),
 			allDay(10, 4, 'Bank holiday', 4, 4),

@@ -86,8 +86,12 @@
 	function searchKey(e: KeyboardEvent) {
 		const next = stepHighlight(e, active, matches?.length ?? 0);
 		if (next !== null) active = next;
-		else if (e.key === 'Enter')
+		else if (e.key === 'Enter') {
+			// Enter's default action would land on the trigger the close hands focus back
+			// to, and press it: the switcher would open again.
+			e.preventDefault();
 			root?.querySelector<HTMLAnchorElement>('[data-active=true] a')?.click();
+		}
 	}
 
 	// The folder shown stays in sight: its parents open.
