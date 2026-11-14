@@ -24,6 +24,20 @@ export function isGoing(session: ActorSession): boolean {
 }
 
 /**
+ * Whether the sidebar lists `session`, as the iPhone app does: waiting on the
+ * user, working, failed, or done and not yet resolved. A resolved session
+ * never shows.
+ */
+export function listedInSidebar(session: ActorSession): boolean {
+	return (
+		session.status === 'needsAttention' ||
+		session.status === 'working' ||
+		session.status === 'failed' ||
+		session.status === 'idle'
+	);
+}
+
+/**
  * Where `session` falls in the sidebar: waiting on the user, then working,
  * then done and unread, then done and read.
  */
