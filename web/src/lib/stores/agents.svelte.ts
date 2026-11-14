@@ -248,6 +248,15 @@ export class AgentsStore {
 	}
 
 	/** Loads the agents and their teams. */
+	/** The text of the newest message `agent_id` wrote, or `null` if its latest are not text. */
+	async latestText(agent_id: number): Promise<string | null> {
+		const recent = await this.#send('listAgentMessages', { agent_id, limit: 10 });
+		for (const m of recent.toReversed()) {
+			if (m.sender !== 'user' && m.message_content.kind === 'text') return m.message_content.text;
+		}
+		return null;
+	}
+
 	async loadList(): Promise<void> {
 		await Promise.all([this.list.load(), this.teams.load()]);
 	}
