@@ -3416,6 +3416,7 @@ export type Invalidation =
 	| { kind: 'security' }
 	| { kind: 'storage' }
 	| { kind: 'experiments' }
+	| { kind: 'modules'; id: number }
 	| { kind: 'profile' }
 	| { kind: 'tags'; id: number }
 	| { kind: 'contacts'; id: number }
@@ -3863,6 +3864,11 @@ export interface ListVersionsRequest {
 	item: VersionTarget;
 }
 
+/** Answers every module and whether it is on in workspace `workspace_id`. */
+export interface ListWorkspaceModulesRequest {
+	workspace_id: number;
+}
+
 /** Lists the kinds of resource shown in workspace `workspace_id`. */
 export interface ListWorkspaceResourceKindsRequest {
 	workspace_id: number;
@@ -4023,6 +4029,29 @@ export interface ModelPrices {
 	output_token_cost: number;
 	cache_read_token_cost?: number | null;
 	cache_write_token_cost?: number | null;
+}
+
+/**
+ * An optional area of the app that a workspace can hide. Every module is on
+ * in a workspace until it is turned off there. Turning one off hides it in
+ * the clients only: the daemon still serves its commands, scripts and
+ * agents.
+ *
+ * Add a variant to offer one, with its arms in [`Module::title`] and
+ * [`Module::description`]; its place among the variants is the order
+ * Settings lists them.
+ */
+export type Module = 'calendar';
+
+/**
+ * A module and whether it is on in a workspace, as Settings › Workspaces
+ * lists it.
+ */
+export interface ModuleSetting {
+	module: Module;
+	title: string;
+	description: string;
+	enabled: boolean;
 }
 
 /**
@@ -5396,6 +5425,13 @@ export interface SetIntelligenceSpendLimitRequest {
 	amount: number;
 }
 
+/** Turns `module` on or off in workspace `workspace_id`. */
+export interface SetModuleEnabledRequest {
+	workspace_id: number;
+	module: Module;
+	enabled: boolean;
+}
+
 /**
  * Sets the user's bio, without the spaces around it, or removes it when it
  * is `null` or empty. A bio past 1,000 characters is refused.
@@ -6755,6 +6791,10 @@ export interface Requests {
 	listExperiments: NoArgs;
 	/** Turns an experiment on or off. */
 	setExperiment: SetExperimentRequest;
+	/** Answers every module and whether it is on in a workspace. */
+	listWorkspaceModules: ListWorkspaceModulesRequest;
+	/** Turns a module on or off in a workspace. */
+	setModuleEnabled: SetModuleEnabledRequest;
 	/** Answers how large the database file is. */
 	getDatabaseSize: NoArgs;
 	/** Writes a backup of the database to a new file on the daemon's computer. */
@@ -7419,6 +7459,10 @@ export interface Replies {
 	listExperiments: ExperimentSetting[];
 	/** Turns an experiment on or off. */
 	setExperiment: ExperimentSetting[];
+	/** Answers every module and whether it is on in a workspace. */
+	listWorkspaceModules: ModuleSetting[];
+	/** Turns a module on or off in a workspace. */
+	setModuleEnabled: ModuleSetting[];
 	/** Answers how large the database file is. */
 	getDatabaseSize: DatabaseSize;
 	/** Writes a backup of the database to a new file on the daemon's computer. */

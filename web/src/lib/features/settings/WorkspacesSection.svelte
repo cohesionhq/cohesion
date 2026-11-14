@@ -1,7 +1,7 @@
 <!--
 	The workspaces, in the order the switcher, sidebar and ⌘1–⌘9 use:
-	renames one in place, deletes one, creates one, and reorders them by
-	their handles or with Alt+↑/↓ on a row.
+	renames one in place, turns its modules on or off, deletes one, creates
+	one, and reorders them by their handles or with Alt+↑/↓ on a row.
 -->
 <script lang="ts">
 	import GripVertical from '@lucide/svelte/icons/grip-vertical';
@@ -20,6 +20,7 @@
 	import RowMenu from '$lib/ui/RowMenu.svelte';
 	import TextInput from '$lib/ui/TextInput.svelte';
 	import { toasts } from '$lib/ui/toasts.svelte';
+	import ModulesDialog from './ModulesDialog.svelte';
 	import Section from './Section.svelte';
 	import { pane } from '$lib/shell/pane.svelte';
 
@@ -32,6 +33,7 @@
 	let newError = $state<string | null>(null);
 	let creating = $state(false);
 	let deleting = $state<Workspace | null>(null);
+	let choosingModules = $state<Workspace | null>(null);
 	let editInput = $state<HTMLInputElement>();
 
 	$effect(() => {
@@ -180,6 +182,7 @@
 									label="More for {workspace.title}"
 									items={[
 										{ label: 'Rename', onSelect: () => startRename(workspace) },
+										{ label: 'Modules…', onSelect: () => (choosingModules = workspace) },
 										{
 											label: 'Delete…',
 											danger: true,
@@ -213,6 +216,8 @@
 		{/snippet}
 	</ResourceState>
 </Section>
+
+<ModulesDialog workspace={choosingModules} onclose={() => (choosingModules = null)} />
 
 <ConfirmDialog
 	subject={deleting}

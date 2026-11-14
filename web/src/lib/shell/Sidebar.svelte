@@ -66,6 +66,7 @@
 	import { DocumentFolderDrag } from '$lib/shell/documentFolderDrag.svelte';
 	import { documentFolderRows, taskFolderRows, type FolderRow } from '$lib/shell/sidebarFolders';
 	import { isGoing } from '$lib/stores/actors.svelte';
+	import { modules } from '$lib/stores/modules.svelte';
 	import type { ConnectorKind } from '$lib/stores/connectors.svelte';
 	import AgentCard from '$lib/features/agents/AgentCard.svelte';
 	import WorkspaceSwitcher from '$lib/shell/WorkspaceSwitcher.svelte';
@@ -254,7 +255,9 @@
 				kind: 'tasks',
 				children: taskRows
 			},
-			{ href: routes.calendar(workspaceId), label: 'Calendar', icon: CalendarIcon },
+			...(modules.isEnabled('calendar')
+				? [{ href: routes.calendar(workspaceId), label: 'Calendar', icon: CalendarIcon }]
+				: []),
 			{ href: routes.articles(workspaceId), label: 'Articles', icon: Newspaper },
 			{ href: routes.contacts(workspaceId), label: 'Contacts', icon: BookUser }
 		];

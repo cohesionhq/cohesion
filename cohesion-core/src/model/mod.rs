@@ -45,6 +45,7 @@ mod item_link;
 mod list_symbol;
 mod memory;
 mod metadata;
+mod module;
 mod photo;
 mod profile;
 mod resource;
@@ -131,6 +132,7 @@ pub use item_link::{ItemLink, LinkKind, LinkTarget, NotAnItemLink};
 pub use list_symbol::ListSymbol;
 pub use memory::{Memory, MemoryFilter, MemoryScope};
 pub use metadata::{HasMetadata, Metadata, MetadataOwner};
+pub use module::{EnabledModule, Module, ModuleSetting};
 pub use photo::Photo;
 pub use profile::Profile;
 pub use resource::{

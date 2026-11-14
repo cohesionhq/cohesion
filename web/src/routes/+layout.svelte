@@ -55,6 +55,7 @@
 	import { connectors } from '$lib/stores/connectors.svelte';
 	import { refreshAll, refreshInvalidated } from '$lib/stores/resource.svelte';
 	import { skills, skillsOf } from '$lib/stores/skills.svelte';
+	import { modules } from '$lib/stores/modules.svelte';
 	import { workspaces } from '$lib/stores/workspaces.svelte';
 	import Toast from '$lib/ui/Toast.svelte';
 	import { UNREACHABLE_MESSAGE, toasts } from '$lib/ui/toasts.svelte';
@@ -170,6 +171,10 @@
 	// order the user put them, while a connector of theirs can import.
 	$effect(() => {
 		if (workspaces.currentId !== null) void resources.shownKinds.load(workspaces.currentId);
+	});
+	// The sidebar, ⌘K and a module's page leave out the modules the current workspace turned off.
+	$effect(() => {
+		if (workspaces.currentId !== null) void modules.current.load(workspaces.currentId);
 	});
 	// The sidebar lists the current workspace's pinned document and task folders; the Tasks
 	// page's switcher, its saved views.
