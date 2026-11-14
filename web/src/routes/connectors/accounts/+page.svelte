@@ -49,17 +49,19 @@
 	}
 
 	const items = $derived<MenuItem[]>(
-		(services ?? []).map((service) => ({
-			id: service.extension_id,
-			label: service.title,
-			detail: service.error ?? undefined,
-			disabled: service.error !== null,
-			onSelect: () => {
-				reauthenticating = null;
-				adding = service;
-				addOpen = true;
-			}
-		}))
+		(services ?? [])
+			.toSorted((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
+			.map((service) => ({
+				id: service.extension_id,
+				label: service.title,
+				detail: service.error ?? undefined,
+				disabled: service.error !== null,
+				onSelect: () => {
+					reauthenticating = null;
+					adding = service;
+					addOpen = true;
+				}
+			}))
 	);
 </script>
 
