@@ -677,7 +677,7 @@
 				<!-- The column folds a team away; the rail and the top bar have no room for its name, so it lies open there. -->
 				<!-- A folder row among the agents, not a third section label: the chevron in the icons' slot. -->
 				<button
-					class={[linkClass, 'mt-1 text-fg-muted max-md:hidden']}
+					class={[linkClass, 'mt-0.5 text-fg-muted max-md:hidden']}
 					type="button"
 					aria-expanded={open}
 					aria-controls="nav-team-{team.id}"
@@ -709,7 +709,7 @@
 				</div>
 			{/each}
 			{#if teamGroups.length && unteamed.length}
-				<div class="mx-2 my-1 h-px flex-none bg-border max-md:mx-1 max-sm:hidden"></div>
+				<div class="mx-2 my-0.5 h-px flex-none bg-border max-md:mx-1 max-sm:hidden"></div>
 			{/if}
 			{#each unteamed as agent (agent.id)}
 				{@render agentLink(agent)}
