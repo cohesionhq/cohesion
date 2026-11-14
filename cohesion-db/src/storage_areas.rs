@@ -62,6 +62,8 @@ fn placement(table: &str) -> Option<Placement> {
         | "calendar_stores"
         | "calendars"
         | "calendar_events"
+        | "calendar_perspectives"
+        | "calendar_perspective_calendars"
         | "clients"
         | "security_settings"
         | "security_events"

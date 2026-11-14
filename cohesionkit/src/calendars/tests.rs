@@ -1,6 +1,6 @@
 use cohesion_core::model::{
-    CalendarEvent, CalendarEventFields, CalendarStoreBackend, EventTiming, ExtensionPermissionKind,
-    IntelligenceAgentColor,
+    CalendarColorChoice, CalendarColorSupport, CalendarEvent, CalendarEventFields, CalendarStore,
+    CalendarStoreBackend, EventTiming, ExtensionPermissionKind, IntelligenceAgentColor,
 };
 use cohesion_core::protocol::{
     CompleteConnectorAuthenticationRequest, Local, Route, SetExtensionPermissionRequest,
@@ -8,7 +8,8 @@ use cohesion_core::protocol::{
 };
 use cohesion_db::{
     Container, CreateCalendarEventCommand, DeleteCalendarEventCommand, ListCalendarEventsCommand,
-    ListCalendarStoresCommand, ListCalendarsCommand, Secrets, UpdateCalendarEventCommand,
+    ListCalendarStoresCommand, ListCalendarsCommand, Secrets, SetCalendarColorCommand,
+    UpdateCalendarEventCommand,
 };
 use serde_json::{Value, json};
 
@@ -28,14 +29,14 @@ fn context() -> CohesionContext {
     )
 }
 
-/// A `calendar:backend` extension holding one calendar, Work, in memory,
+/// A `calendar:account` extension holding one calendar, Work, in memory,
 /// with one event, Standup (`e1`), changed at 1000. What it pushes is
 /// stamped 1000 too. It records each call it answers until `taken()` hands
 /// them over; `remote()` returns its events, and the other helpers change
 /// them as someone using the service would.
 const CALENDAR_EXTENSION: &str = "function manifest() {
        return { identifier: 'com.example.calendar', name: 'Calendar', version: 1,
-                permissions: ['oauth', 'calendar:backend'], hooks: [] };
+                permissions: ['oauth', 'calendar:account'], hooks: [] };
      }
      function serviceDescription() { return { title: 'Calendar', unit: 'Account' }; }
      function authenticationURL() { return 'https://example.com/auth'; }
@@ -49,10 +50,12 @@ const CALENDAR_EXTENSION: &str = "function manifest() {
              timing: { kind: 'timed', startsAt: 5000, endsAt: 5600, timeZone: 'Europe/London' },
              invitees: [{ email: 'ada@example.com', response: 'accepted' }], color: '#d50000' },
      };
+     let workColor = '#039be5';
      function listCalendars(credential) {
        calls.push('calendars:' + credential.authorization);
-       return [{ identifier: 'work', title: 'Work', color: '#039be5' }];
+       return [{ identifier: 'work', title: 'Work', color: workColor }];
      }
+     function recoloredThere() { workColor = '#0b8043'; return null; }
      function listEvents(calendar) { calls.push('list:' + calendar); return Object.values(events); }
      function createEvent(calendar, event) {
        calls.push('create');
@@ -79,7 +82,7 @@ const CALENDAR_EXTENSION: &str = "function manifest() {
      }
      function deletedThere() { delete events.e1; return null; }";
 
-/// Installs `script` with `oauth` on, signs in, and turns `calendar:backend`
+/// Installs `script` with `oauth` on, signs in, and turns `calendar:account`
 /// on when `backend`: the extension's id.
 async fn signed_in(ctx: &CohesionContext, script: &str, backend: bool) -> i64 {
     let extension_id = ctx
@@ -90,7 +93,7 @@ async fn signed_in(ctx: &CohesionContext, script: &str, backend: bool) -> i64 {
         .id;
     let mut permissions = vec![ExtensionPermissionKind::OAuth];
     if backend {
-        permissions.push(ExtensionPermissionKind::CalendarBackend);
+        permissions.push(ExtensionPermissionKind::CalendarAccount);
     }
     for permission in permissions {
         ctx.extensions
@@ -168,8 +171,20 @@ fn fields(title: &str) -> CalendarEventFields {
             end_date: "2026-11-13".to_string(),
         },
         invitees: Vec::new(),
-        color: None,
+        selected_color: None,
     }
+}
+
+/// The store of the account, the last listed after Cohesion's own.
+async fn account_store(ctx: &CohesionContext) -> CalendarStore {
+    let stores = ctx
+        .database
+        .send(ListCalendarStoresCommand {})
+        .await
+        .unwrap();
+    assert_eq!(stores.len(), 2);
+    assert_eq!(stores[0].backend, CalendarStoreBackend::Local);
+    stores[1].clone()
 }
 
 async fn edit(ctx: &CohesionContext, event_id: i64, title: &str) {
@@ -188,29 +203,27 @@ async fn a_sync_pulls_the_accounts_calendars_and_pushes_what_changed_here() {
     let extension_id = signed_in(&ctx, CALENDAR_EXTENSION, true).await;
 
     assert_eq!(sync(&ctx).await, (1, 0, 1, 0, 0));
-    let stores = ctx
-        .database
-        .send(ListCalendarStoresCommand {})
-        .await
-        .unwrap();
-    assert_eq!(stores.len(), 1);
+    let store = account_store(&ctx).await;
     assert!(matches!(
-        stores[0].backend,
+        store.backend,
         CalendarStoreBackend::Account { .. }
     ));
-    assert_eq!(stores[0].title, "ada@example.com");
-    assert!(stores[0].last_synced_at.is_some());
+    assert_eq!(store.title, "ada@example.com");
+    // Without `calendarColorSupport`, a backend's colors are declared ones.
+    assert_eq!(store.color_support, CalendarColorSupport::Declared);
+    assert!(store.last_synced_at.is_some());
     let calendars = ctx.database.send(ListCalendarsCommand {}).await.unwrap();
     assert_eq!(calendars[0].title, "Work");
-    assert_eq!(calendars[0].color.hex, "#039be5");
-    assert_eq!(calendars[0].color.nearest, IntelligenceAgentColor::Blue);
+    assert_eq!(
+        calendars[0].declared_color,
+        Some(IntelligenceAgentColor::Blue)
+    );
+    assert_eq!(calendars[0].selected_color, IntelligenceAgentColor::Blue);
     let pulled = standup(&ctx).await;
     assert_eq!(pulled.title, "Standup");
     assert_eq!(pulled.invitees[0].email, "ada@example.com");
-    assert_eq!(
-        pulled.color.as_ref().unwrap().nearest,
-        IntelligenceAgentColor::Red
-    );
+    assert_eq!(pulled.declared_color, Some(IntelligenceAgentColor::Red));
+    assert_eq!(pulled.selected_color, Some(IntelligenceAgentColor::Red));
     assert_eq!(
         call(&ctx, extension_id, "taken").await,
         json!(["calendars:token", "list:work"])
@@ -299,16 +312,113 @@ async fn deletions_reach_the_other_side() {
 }
 
 #[tokio::test]
-async fn an_account_without_calendar_backend_has_no_store() {
+async fn an_account_without_calendar_account_has_no_store() {
     let ctx = context();
     let extension_id = signed_in(&ctx, CALENDAR_EXTENSION, false).await;
     assert_eq!(sync(&ctx).await, (0, 0, 0, 0, 0));
-    assert!(
-        ctx.database
-            .send(ListCalendarStoresCommand {})
-            .await
-            .unwrap()
-            .is_empty()
-    );
+    let stores = ctx
+        .database
+        .send(ListCalendarStoresCommand {})
+        .await
+        .unwrap();
+    // Only Cohesion's own.
+    assert_eq!(stores.len(), 1);
+    assert_eq!(stores[0].backend, CalendarStoreBackend::Local);
     assert_eq!(call(&ctx, extension_id, "taken").await, json!([]));
+}
+
+/// Sets calendar `calendar_id`'s selected color to `color` from Cohesion.
+async fn choose(ctx: &CohesionContext, calendar_id: i64, color: IntelligenceAgentColor) {
+    ctx.database
+        .send(SetCalendarColorCommand {
+            calendar_id,
+            color: CalendarColorChoice::Palette { color },
+        })
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn a_color_chosen_here_stays_here_on_a_backend_with_colors_of_its_own() {
+    let ctx = context();
+    let extension_id = signed_in(&ctx, CALENDAR_EXTENSION, true).await;
+    sync(&ctx).await;
+    let work = ctx.database.send(ListCalendarsCommand {}).await.unwrap()[0].clone();
+
+    choose(&ctx, work.id, IntelligenceAgentColor::Purple).await;
+    call(&ctx, extension_id, "taken").await;
+    sync(&ctx).await;
+    let work = ctx.database.send(ListCalendarsCommand {}).await.unwrap()[0].clone();
+    assert_eq!(work.selected_color, IntelligenceAgentColor::Purple);
+    assert!(!work.color_pending_push);
+    assert_eq!(
+        call(&ctx, extension_id, "taken").await,
+        json!(["calendars:token", "list:work"])
+    );
+
+    // The backend's color changing there overrides the choice.
+    call(&ctx, extension_id, "recoloredThere").await;
+    sync(&ctx).await;
+    let work = ctx.database.send(ListCalendarsCommand {}).await.unwrap()[0].clone();
+    assert_eq!(work.declared_color, Some(IntelligenceAgentColor::Green));
+    assert_eq!(work.selected_color, IntelligenceAgentColor::Green);
+}
+
+#[tokio::test]
+async fn a_color_chosen_here_is_pushed_to_a_backend_that_keeps_any_color() {
+    let script = format!(
+        "{CALENDAR_EXTENSION}
+         function calendarColorSupport() {{ return 'exact'; }}
+         function updateCalendar(identifier, changes) {{
+           calls.push('recolor:' + identifier + ':' + changes.color);
+           workColor = changes.color;
+           return {{ identifier, title: 'Work', color: workColor }};
+         }}"
+    );
+    let ctx = context();
+    let extension_id = signed_in(&ctx, &script, true).await;
+    sync(&ctx).await;
+    assert_eq!(
+        account_store(&ctx).await.color_support,
+        CalendarColorSupport::Exact
+    );
+    let work = ctx.database.send(ListCalendarsCommand {}).await.unwrap()[0].clone();
+
+    choose(&ctx, work.id, IntelligenceAgentColor::Purple).await;
+    let waiting = ctx.database.send(ListCalendarsCommand {}).await.unwrap()[0].clone();
+    assert!(waiting.color_pending_push);
+    call(&ctx, extension_id, "taken").await;
+    sync(&ctx).await;
+    let purple = IntelligenceAgentColor::Purple.hex();
+    assert_eq!(
+        call(&ctx, extension_id, "taken").await,
+        json!([
+            "calendars:token",
+            format!("recolor:work:{purple}"),
+            "list:work"
+        ])
+    );
+    let work = ctx.database.send(ListCalendarsCommand {}).await.unwrap()[0].clone();
+    assert_eq!(work.declared_color, Some(IntelligenceAgentColor::Purple));
+    assert_eq!(work.selected_color, IntelligenceAgentColor::Purple);
+    assert!(!work.color_pending_push);
+
+    // An event's own color is pushed as its palette color's exact value.
+    let event = standup(&ctx).await;
+    let mut teal = fields("Standup");
+    teal.selected_color = Some(CalendarColorChoice::Palette {
+        color: IntelligenceAgentColor::Teal,
+    });
+    ctx.database
+        .send(UpdateCalendarEventCommand {
+            event_id: event.id,
+            event: teal,
+        })
+        .await
+        .unwrap();
+    sync(&ctx).await;
+    let remote = call(&ctx, extension_id, "remote").await;
+    assert_eq!(remote["e1"]["color"], IntelligenceAgentColor::Teal.hex());
+    let event = standup(&ctx).await;
+    assert_eq!(event.declared_color, Some(IntelligenceAgentColor::Teal));
 }

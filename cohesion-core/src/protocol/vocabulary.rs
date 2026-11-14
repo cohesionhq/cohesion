@@ -302,7 +302,7 @@ fn permission_title(kind: &ExtensionPermissionKind) -> &'static str {
         Registry => "Offer extensions to browse",
         OAuth => "Sign in to a service for you",
         Connector => "Import from a service",
-        CalendarBackend => "Sync calendars with a service",
+        CalendarAccount => "Provides a calendar account",
         Service => "Run as a service",
         ServiceIsolated => "Run as a service for your apps",
         Services => "Use other extensions’ services",
@@ -323,8 +323,8 @@ fn permission_description(kind: &ExtensionPermissionKind) -> &'static str {
         Registry => "List extensions for you to browse and install.",
         OAuth => "Connect accounts at a service and keep them signed in.",
         Connector => "Bring an account’s pages and records in as resources.",
-        CalendarBackend => {
-            "Keep an account’s calendars and events in step with Cohesion, both ways."
+        CalendarAccount => {
+            "Syncs with a third-party service that brings content into your calendar."
         }
         Service => "Answer requests from Cohesion’s apps, the CLI, agents and scripts.",
         ServiceIsolated => "Answer requests from Cohesion’s apps, the web UI and the CLI only.",

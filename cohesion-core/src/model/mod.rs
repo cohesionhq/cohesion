@@ -75,12 +75,14 @@ pub use article::{
 pub use attachment::{Attachment, AttachmentMessage};
 pub use backlink::{Backlink, LinkSource, OutgoingLink, item_links, outgoing_links};
 pub use calendar::{
-    Calendar, CalendarColor, CalendarColorChoice, CalendarEvent, CalendarEventFields,
-    CalendarStore, CalendarStoreBackend, EventInvitee, EventTiming, InviteeResponse,
+    Calendar, CalendarColorChoice, CalendarColorSupport, CalendarEvent, CalendarEventFields,
+    CalendarPerspective, CalendarPerspectiveCalendar, CalendarPerspectiveRow, CalendarStore,
+    CalendarStoreBackend, EventInvitee, EventTiming, InviteeResponse, LOCAL_STORE_TITLE,
+    nearest_palette_color,
 };
 pub use calendar_backend::{
-    BackendAllDayEvent, BackendCalendar, BackendEvent, BackendEventFields, BackendEventTiming,
-    BackendInvitee, BackendTimedEvent,
+    BackendAllDayEvent, BackendCalendar, BackendCalendarChanges, BackendEvent, BackendEventFields,
+    BackendEventTiming, BackendInvitee, BackendTimedEvent,
 };
 pub use catalog_model::CatalogModel;
 pub use client::{Client, ClientKeyKind};

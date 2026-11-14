@@ -94,10 +94,12 @@ pub enum Invalidation {
     /// A workspace's contacts changed: one was created, changed or deleted,
     /// or one of its methods was added, changed or removed.
     Contacts(i64),
-    /// The calendars changed: a store was added, synced or removed, or a
-    /// calendar was created, renamed, recolored or deleted. Calendars are
-    /// shared by every workspace.
+    /// The calendars changed: a store was added, renamed, synced or
+    /// removed, or a calendar was created, renamed, recolored or deleted.
+    /// Calendars are shared by every workspace.
     Calendars,
+    /// Workspace `id`'s perspective changed: which calendars it shows.
+    CalendarPerspective(i64),
     /// Calendar events changed: one was created, changed or deleted, in
     /// Cohesion or by a sync. Calendars are shared by every workspace, so
     /// this is one key.

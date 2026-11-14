@@ -1,6 +1,7 @@
-//! The Calendar Backend contract: what the global functions of a
-//! `calendar:backend` extension take and return. Fields are camelCase, as
-//! the connector contract's are.
+//! The Calendar Account contract: what the global functions of a
+//! `calendar:account` extension take and return. Fields are camelCase, as
+//! the connector contract's are. Nothing here is particular to one kind of
+//! service.
 
 use cohesion_macros::{TsInterface, TsWire};
 use serde::{Deserialize, Serialize};
@@ -14,14 +15,25 @@ pub struct BackendCalendar {
     pub identifier: String,
     /// Its name; may not be empty.
     pub title: String,
-    /// Its color, as `"#rrggbb"`; used only when Cohesion first sees the
-    /// calendar. Missing, or not a color, starts it blue.
+    /// Its color, as `"#rrggbb"`, read at each sync as the calendar's
+    /// declared color, bound to the nearest palette color. Missing, not a
+    /// color, or from a backend whose `calendarColorSupport()` is `"none"`:
+    /// no declared color, and a new calendar starts blue.
     #[serde(default)]
     pub color: Option<String>,
     /// Whether the backend refuses changes to its events, so Cohesion does
     /// too.
     #[serde(rename = "readOnly", default)]
     pub read_only: bool,
+}
+
+/// What `updateCalendar(identifier, changes, credential)` changes on a
+/// calendar. Only called on a backend whose `calendarColorSupport()` is
+/// `"exact"`, after its color was chosen in Cohesion.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, TsWire, TsInterface)]
+pub struct BackendCalendarChanges {
+    /// Its new color, as `"#rrggbb"`.
+    pub color: String,
 }
 
 /// When a backend's event happens, told apart by `kind`.
@@ -140,6 +152,9 @@ pub struct BackendEventFields {
     pub timing: BackendEventTiming,
     pub invitees: Vec<BackendInvitee>,
     /// Its own color, as `"#rrggbb"`; `null` when it takes its calendar's.
+    /// Only a backend whose `calendarColorSupport()` is `"exact"` is sent
+    /// one; any other is always sent `null`, and keeps the event's color as
+    /// it is.
     pub color: Option<String>,
 }
 
@@ -162,8 +177,8 @@ pub struct BackendEvent {
     pub timing: BackendEventTiming,
     #[serde(default)]
     pub invitees: Vec<BackendInvitee>,
-    /// Its own color, as `"#rrggbb"`; missing or `null` when it takes its
-    /// calendar's.
+    /// Its own color, as `"#rrggbb"`, read as the event's declared color;
+    /// missing or `null` when it takes its calendar's.
     #[serde(default)]
     pub color: Option<String>,
 }

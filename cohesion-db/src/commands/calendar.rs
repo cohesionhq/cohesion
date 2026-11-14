@@ -1,5 +1,11 @@
 //! Calendars: their stores, the calendars and their events, as clients and
-//! scripts change them, and the writes a sync with a calendar backend makes.
+//! scripts change them, the writes a sync with a calendar backend makes, and
+//! which calendars each workspace shows (its perspective).
+//!
+//! A calendar's or event's colors are palette colors. The declared one is
+//! its backend's; whenever a sync finds it changed, the selected one follows
+//! it. A color chosen in Cohesion changes only the selected one, and on a
+//! backend that keeps any color (`"exact"`) waits to be pushed.
 //!
 //! An event on a backend's calendar that changes in Cohesion is marked
 //! `pending_push`, so the next sync pushes it; a deleted one stays, deleted
@@ -10,21 +16,24 @@
 use cohesion_core::FromRequest;
 use cohesion_core::invalidation::Invalidation;
 use cohesion_core::model::{
-    BackendCalendar, BackendEvent, Calendar, CalendarColor, CalendarColorChoice, CalendarEvent,
-    CalendarEventFields, CalendarStore, CalendarStoreBackend, EventInvitee, EventTiming,
-    IntelligenceAgentColor,
+    BackendCalendar, BackendEvent, Calendar, CalendarColorChoice, CalendarColorSupport,
+    CalendarEvent, CalendarEventFields, CalendarPerspective, CalendarPerspectiveCalendar,
+    CalendarPerspectiveRow, CalendarStore, CalendarStoreBackend, ConnectorAccount, EventInvitee,
+    EventTiming, IntelligenceAgentColor, LOCAL_STORE_TITLE,
 };
 use cohesion_core::protocol::{
     CreateCalendarEventRequest, CreateCalendarRequest, CreateCalendarStoreRequest,
     DeleteCalendarEventRequest, DeleteCalendarRequest, DeleteCalendarStoreRequest,
-    GetCalendarEventRequest, ListCalendarEventsRequest, ListCalendarStoresRequest,
-    ListCalendarsRequest, RenameCalendarRequest, SetCalendarColorRequest,
+    GetCalendarEventRequest, GetCalendarPerspectiveRequest, ListCalendarEventsRequest,
+    ListCalendarStoresRequest, ListCalendarsRequest, RenameCalendarRequest,
+    RenameCalendarStoreRequest, SetCalendarColorRequest, SetCalendarPerspectiveRequest,
     UpdateCalendarEventRequest,
 };
 use cohesion_core::value::Json;
 
 use crate::changed::{Changed, Invalidates};
 use crate::commands::title::ensure_title;
+use crate::commands::workspace_scope::ensure_workspace;
 use crate::{
     CommandContext, DatabaseCommand, DatabaseCommandResult, Filtered, Found, Read,
     ReadableDatabase, ValidationError, Write,
@@ -33,9 +42,10 @@ use crate::{
 /// The title an event or calendar from a backend takes when it has none.
 const UNTITLED: &str = "Untitled";
 
-/// `color` as an exact color, refused when it isn't one.
-fn chosen_color(color: &CalendarColorChoice) -> Result<CalendarColor, ValidationError> {
-    CalendarColor::chosen(color).ok_or_else(|| {
+/// The palette color `color` chooses, refused when an exact color isn't
+/// one.
+fn chosen_color(color: &CalendarColorChoice) -> Result<IntelligenceAgentColor, ValidationError> {
+    color.palette_color().ok_or_else(|| {
         ValidationError::in_field("color", "A color must be written as #rrggbb.".to_string())
     })
 }
@@ -51,10 +61,29 @@ fn ensure_invitees(invitees: &[EventInvitee]) -> Result<(), ValidationError> {
     Ok(())
 }
 
-/// What a backend sends as an exact color: none when it sends none, or
-/// something that isn't one.
-fn backend_color(color: Option<&str>) -> Option<CalendarColor> {
-    color.and_then(CalendarColor::parse)
+/// A calendar's selected color once its declared color went from `before`
+/// to `after`: the declared one when it changed to a color, else
+/// `selected`, kept.
+fn calendar_selected(
+    selected: IntelligenceAgentColor,
+    before: Option<IntelligenceAgentColor>,
+    after: Option<IntelligenceAgentColor>,
+) -> IntelligenceAgentColor {
+    match after {
+        Some(color) if before != after => color,
+        _ => selected,
+    }
+}
+
+/// An event's selected color once its declared color went from `before` to
+/// `after`: the declared one when it changed, so an event its backend gives
+/// no color of its own takes its calendar's again, else `selected`, kept.
+fn event_selected(
+    selected: Option<IntelligenceAgentColor>,
+    before: Option<IntelligenceAgentColor>,
+    after: Option<IntelligenceAgentColor>,
+) -> Option<IntelligenceAgentColor> {
+    if before != after { after } else { selected }
 }
 
 /// What a backend sends as a title, or [`UNTITLED`] when it is empty.
@@ -150,6 +179,7 @@ impl DatabaseCommand for CreateCalendarStoreCommand {
             .db
             .insert::<CalendarStore>()
             .set(CalendarStore::TITLE, self.title)
+            .set_true(CalendarStore::NAMED_BY_USER)
             .set_group(CalendarStoreBackend::Local)
             .returning_one()
             .found()?;
@@ -182,17 +212,21 @@ impl DatabaseCommand for DeleteCalendarStoreCommand {
     }
 }
 
-/// Account `account_id`'s calendar store, made titled `title` if it has
-/// none. Only the sync calls it, for an account whose extension holds
-/// `calendar:backend`.
+/// Account `account_id`'s calendar store, made if it has none, with its
+/// backend's name `title` (unless a person named it) and what colors its
+/// backend keeps, `color_support` (when given), brought up to date. Only the sync calls
+/// it, for an account whose extension holds `calendar:account`.
 pub struct EnsureCalendarStoreCommand {
     pub account_id: i64,
     pub title: String,
+    /// `None` keeps what it was, or `"declared"` for a new store.
+    pub color_support: Option<CalendarColorSupport>,
 }
 impl DatabaseCommand for EnsureCalendarStoreCommand {
     type Response = CalendarStore;
     type Access = Write;
     fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<CalendarStore>> {
+        let title = backend_title(self.title);
         let existing = ctx
             .db
             .select::<CalendarStore>()
@@ -200,18 +234,88 @@ impl DatabaseCommand for EnsureCalendarStoreCommand {
             .bind(self.account_id)
             .one()?;
         if let Some(store) = existing {
-            return Ok(store.invalidating_nothing());
+            let retitled = !store.named_by_user && store.title != title;
+            let support = self.color_support.unwrap_or(store.color_support);
+            if !retitled && store.color_support == support {
+                return Ok(store.invalidating_nothing());
+            }
+            let store = ctx
+                .db
+                .update::<CalendarStore>()
+                .set(
+                    CalendarStore::TITLE,
+                    if retitled { title } else { store.title },
+                )
+                .set(CalendarStore::COLOR_SUPPORT, support)
+                .filter_eq(CalendarStore::ID, store.id)
+                .returning_one()
+                .found()?;
+            return Ok(calendars_changed(store));
         }
         let store = ctx
             .db
             .insert::<CalendarStore>()
-            .set(CalendarStore::TITLE, backend_title(self.title))
+            .set(CalendarStore::TITLE, title)
+            .set(
+                CalendarStore::COLOR_SUPPORT,
+                self.color_support.unwrap_or_default(),
+            )
             .set_group(CalendarStoreBackend::Account {
                 account_id: self.account_id,
             })
             .returning_one()
             .found()?;
         Ok(calendars_changed(store))
+    }
+}
+
+/// Names a store, or gives it its backend's name back.
+#[derive(FromRequest)]
+#[request(RenameCalendarStoreRequest)]
+pub struct RenameCalendarStoreCommand {
+    pub store_id: i64,
+    pub title: Option<String>,
+}
+impl DatabaseCommand for RenameCalendarStoreCommand {
+    type Response = CalendarStore;
+    type Access = Write;
+    fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<CalendarStore>> {
+        let store = store(ctx.db.read(), self.store_id)?;
+        let (title, named) = match self.title {
+            Some(title) => {
+                ensure_title(&title)?;
+                (title, true)
+            }
+            None => (backend_name(ctx.db.read(), &store)?, false),
+        };
+        let store = ctx
+            .db
+            .update::<CalendarStore>()
+            .set(CalendarStore::TITLE, title)
+            .set(CalendarStore::NAMED_BY_USER, named)
+            .filter_eq(CalendarStore::ID, store.id)
+            .returning_one()
+            .found()?;
+        Ok(calendars_changed(store))
+    }
+}
+
+/// The name `store`'s backend gives it: `"Cohesion"` for a store only in
+/// Cohesion, its connector account's description for a backend's.
+fn backend_name<'c>(
+    db: impl ReadableDatabase<'c>,
+    store: &CalendarStore,
+) -> DatabaseCommandResult<String> {
+    match store.backend {
+        CalendarStoreBackend::Local => Ok(LOCAL_STORE_TITLE.to_string()),
+        CalendarStoreBackend::Account { account_id } => {
+            let account: ConnectorAccount = db
+                .select()
+                .filter_eq(ConnectorAccount::ID, account_id)
+                .one()
+                .found()?;
+            Ok(backend_title(account.description))
+        }
     }
 }
 
@@ -262,6 +366,7 @@ pub struct CreateCalendarCommand {
     pub store_id: i64,
     pub title: String,
     pub color: CalendarColorChoice,
+    pub workspace_id: Option<i64>,
 }
 impl DatabaseCommand for CreateCalendarCommand {
     type Response = Calendar;
@@ -270,15 +375,33 @@ impl DatabaseCommand for CreateCalendarCommand {
         ensure_title(&self.title)?;
         let color = chosen_color(&self.color)?;
         ensure_local(&store(ctx.db.read(), self.store_id)?)?;
+        if let Some(workspace_id) = self.workspace_id {
+            ensure_workspace(ctx.db.read(), workspace_id)?;
+        }
         let calendar = ctx
             .db
             .insert::<Calendar>()
             .set(Calendar::STORE_ID, self.store_id)
             .set(Calendar::TITLE, self.title)
-            .set(Calendar::COLOR, color)
+            .set(Calendar::SELECTED_COLOR, color)
             .returning_one()
             .found()?;
-        Ok(calendars_changed(calendar))
+        let perspective = match self.workspace_id {
+            Some(workspace_id) => perspective_row(ctx.db.read(), workspace_id)?,
+            None => None,
+        };
+        let Some(perspective) = perspective else {
+            return Ok(calendars_changed(calendar));
+        };
+        ctx.db
+            .insert::<CalendarPerspectiveCalendar>()
+            .set(CalendarPerspectiveCalendar::PERSPECTIVE_ID, perspective.id)
+            .set(CalendarPerspectiveCalendar::CALENDAR_ID, calendar.id)
+            .execute()?;
+        Ok(calendar.invalidating([
+            Invalidation::Calendars,
+            Invalidation::CalendarPerspective(perspective.workspace_id),
+        ]))
     }
 }
 
@@ -308,7 +431,8 @@ impl DatabaseCommand for RenameCalendarCommand {
     }
 }
 
-/// Sets a live calendar's color, in any store.
+/// Sets a live calendar's selected color, in any store; on a backend that
+/// keeps any color, it waits to be pushed.
 #[derive(FromRequest)]
 #[request(SetCalendarColorRequest)]
 pub struct SetCalendarColorCommand {
@@ -320,12 +444,17 @@ impl DatabaseCommand for SetCalendarColorCommand {
     type Access = Write;
     fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<Calendar>> {
         let color = chosen_color(&self.color)?;
+        let (calendar, store) = calendar_in_store(ctx.db.read(), self.calendar_id)?;
+        let pushed = store.color_support == CalendarColorSupport::Exact
+            && calendar.remote_identifier.is_some()
+            && calendar.declared_color != Some(color);
         let calendar = ctx
             .db
-            .update_live::<Calendar>()
-            .set(Calendar::COLOR, color)
+            .update::<Calendar>()
+            .set(Calendar::SELECTED_COLOR, color)
+            .set(Calendar::COLOR_PENDING_PUSH, pushed)
             .set_now(Calendar::MODIFIED)
-            .filter_eq(Calendar::ID, self.calendar_id)
+            .filter_eq(Calendar::ID, calendar.id)
             .returning_one()
             .found()?;
         Ok(calendars_changed(calendar))
@@ -357,9 +486,11 @@ impl DatabaseCommand for DeleteCalendarCommand {
 }
 
 /// Brings store `store_id`'s calendars in line with what its backend's
-/// `listCalendars` returned: adds the new ones in the backend's color,
-/// retitles the rest and keeps their color, and deletes those it no longer
-/// lists. Only the sync calls it. Returns the store's live calendars.
+/// `listCalendars` returned: adds the new ones in their declared color (or
+/// blue), retitles the rest and takes their declared color, which their
+/// selected one follows when it changed, and deletes those it no longer
+/// lists. A declared color that changed wins over a chosen one waiting to be
+/// pushed. Only the sync calls it. Returns the store's live calendars.
 pub struct SyncBackendCalendarsCommand {
     pub store_id: i64,
     pub calendars: Vec<BackendCalendar>,
@@ -368,6 +499,7 @@ impl DatabaseCommand for SyncBackendCalendarsCommand {
     type Response = Vec<Calendar>;
     type Access = Write;
     fn handle(self, ctx: &mut CommandContext<'_>) -> DatabaseCommandResult<Changed<Vec<Calendar>>> {
+        let support = store(ctx.db.read(), self.store_id)?.color_support;
         let known: Vec<Calendar> = ctx
             .db
             .select_live()
@@ -376,25 +508,40 @@ impl DatabaseCommand for SyncBackendCalendarsCommand {
         let mut changed = false;
         for remote in &self.calendars {
             let title = backend_title(remote.title.clone());
+            let declared = support.declared(remote.color.as_deref());
             match known
                 .iter()
                 .find(|c| c.remote_identifier.as_deref() == Some(&remote.identifier))
             {
                 Some(calendar)
-                    if calendar.title == title && calendar.read_only == remote.read_only => {}
+                    if calendar.title == title
+                        && calendar.read_only == remote.read_only
+                        && calendar.declared_color == declared => {}
                 Some(calendar) => {
+                    let recolored = declared.is_some() && calendar.declared_color != declared;
                     ctx.db
                         .update::<Calendar>()
                         .set(Calendar::TITLE, title)
                         .set(Calendar::READ_ONLY, remote.read_only)
+                        .set(Calendar::DECLARED_COLOR, declared)
+                        .set(
+                            Calendar::SELECTED_COLOR,
+                            calendar_selected(
+                                calendar.selected_color,
+                                calendar.declared_color,
+                                declared,
+                            ),
+                        )
+                        .set(
+                            Calendar::COLOR_PENDING_PUSH,
+                            calendar.color_pending_push && !recolored,
+                        )
                         .set_now(Calendar::MODIFIED)
                         .filter_eq(Calendar::ID, calendar.id)
                         .execute()?;
                     changed = true;
                 }
                 None => {
-                    let color = backend_color(remote.color.as_deref())
-                        .unwrap_or_else(|| CalendarColor::palette(IntelligenceAgentColor::Blue));
                     // A calendar the backend dropped and listed again comes
                     // back as it was deleted: its row is replaced.
                     ctx.db
@@ -406,7 +553,11 @@ impl DatabaseCommand for SyncBackendCalendarsCommand {
                         .insert::<Calendar>()
                         .set(Calendar::STORE_ID, self.store_id)
                         .set(Calendar::TITLE, title)
-                        .set(Calendar::COLOR, color)
+                        .set(
+                            Calendar::SELECTED_COLOR,
+                            declared.unwrap_or(IntelligenceAgentColor::Blue),
+                        )
+                        .set(Calendar::DECLARED_COLOR, declared)
                         .set(Calendar::REMOTE_IDENTIFIER, Some(remote.identifier.clone()))
                         .set(Calendar::READ_ONLY, remote.read_only)
                         .execute()?;
@@ -439,6 +590,156 @@ impl DatabaseCommand for SyncBackendCalendarsCommand {
         } else {
             calendars.invalidating_nothing()
         })
+    }
+}
+
+/// Records that calendar `calendar_id`'s selected color `pushed` reached its
+/// backend, which now declares `declared`: it takes that declared color,
+/// which its selected one follows when it changed, and no longer waits.
+/// Nothing is written when its selected color is no longer the one pushed:
+/// it was chosen again meanwhile, and waits for the next sync. Only the sync
+/// calls it.
+pub struct RecordCalendarColorPushedCommand {
+    pub calendar_id: i64,
+    pub pushed: IntelligenceAgentColor,
+    pub declared: Option<IntelligenceAgentColor>,
+}
+impl DatabaseCommand for RecordCalendarColorPushedCommand {
+    type Response = Option<Calendar>;
+    type Access = Write;
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_>,
+    ) -> DatabaseCommandResult<Changed<Option<Calendar>>> {
+        let calendar: Option<Calendar> = ctx
+            .db
+            .select_live()
+            .filter_eq(Calendar::ID, self.calendar_id)
+            .filter_eq(Calendar::SELECTED_COLOR, self.pushed)
+            .one()?;
+        let Some(calendar) = calendar else {
+            return Ok(None.invalidating_nothing());
+        };
+        let calendar = ctx
+            .db
+            .update::<Calendar>()
+            .set(Calendar::DECLARED_COLOR, self.declared)
+            .set(
+                Calendar::SELECTED_COLOR,
+                calendar_selected(self.pushed, calendar.declared_color, self.declared),
+            )
+            .set_false(Calendar::COLOR_PENDING_PUSH)
+            .filter_eq(Calendar::ID, calendar.id)
+            .returning_one()?;
+        Ok(calendars_changed(calendar))
+    }
+}
+
+/// Which calendars workspace `workspace_id` shows, as it chose them.
+fn perspective_row<'c>(
+    db: impl ReadableDatabase<'c>,
+    workspace_id: i64,
+) -> DatabaseCommandResult<Option<CalendarPerspectiveRow>> {
+    Ok(db
+        .select()
+        .filter_eq(CalendarPerspectiveRow::WORKSPACE_ID, workspace_id)
+        .one()?)
+}
+
+/// Workspace `workspace_id`'s perspective: the live calendars it chose, by
+/// id, or `None` when it hasn't.
+fn perspective<'c>(
+    db: impl ReadableDatabase<'c>,
+    workspace_id: i64,
+) -> DatabaseCommandResult<CalendarPerspective> {
+    let calendar_ids = match perspective_row(db, workspace_id)? {
+        None => None,
+        Some(row) => Some(
+            db.select_column::<CalendarPerspectiveCalendar, i64>("calendar_id")
+                .filter("perspective_id = ?")
+                .bind(row.id)
+                .filter("calendar_id IN (SELECT id FROM calendars WHERE NOT deleted)")
+                .order("calendar_id")
+                .all()?,
+        ),
+    };
+    Ok(CalendarPerspective {
+        workspace_id,
+        calendar_ids,
+    })
+}
+
+/// Which calendars a workspace shows.
+#[derive(FromRequest)]
+#[request(GetCalendarPerspectiveRequest)]
+pub struct GetCalendarPerspectiveCommand {
+    pub workspace_id: i64,
+}
+impl DatabaseCommand for GetCalendarPerspectiveCommand {
+    type Response = CalendarPerspective;
+    type Access = Read;
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_, Read>,
+    ) -> DatabaseCommandResult<CalendarPerspective> {
+        ensure_workspace(ctx.db, self.workspace_id)?;
+        perspective(ctx.db, self.workspace_id)
+    }
+}
+
+/// Sets which calendars a workspace shows, or forgets its choice.
+#[derive(FromRequest)]
+#[request(SetCalendarPerspectiveRequest)]
+pub struct SetCalendarPerspectiveCommand {
+    pub workspace_id: i64,
+    pub calendar_ids: Option<Vec<i64>>,
+}
+impl DatabaseCommand for SetCalendarPerspectiveCommand {
+    type Response = CalendarPerspective;
+    type Access = Write;
+    fn handle(
+        self,
+        ctx: &mut CommandContext<'_>,
+    ) -> DatabaseCommandResult<Changed<CalendarPerspective>> {
+        ensure_workspace(ctx.db.read(), self.workspace_id)?;
+        let mut calendar_ids = self.calendar_ids;
+        if let Some(ids) = calendar_ids.as_mut() {
+            ids.sort_unstable();
+            ids.dedup();
+            let live = ctx
+                .db
+                .select_live::<Calendar>()
+                .filter_in_values("id", ids.clone())
+                .count()?;
+            if usize::try_from(live).ok() != Some(ids.len()) {
+                return Err(ValidationError::in_field(
+                    "calendar_ids",
+                    "A calendar in the perspective doesn't exist.".to_string(),
+                )
+                .into());
+            }
+        }
+        ctx.db
+            .delete::<CalendarPerspectiveRow>()
+            .filter_eq(CalendarPerspectiveRow::WORKSPACE_ID, self.workspace_id)
+            .execute()?;
+        if let Some(ids) = calendar_ids {
+            let row = ctx
+                .db
+                .insert::<CalendarPerspectiveRow>()
+                .set(CalendarPerspectiveRow::WORKSPACE_ID, self.workspace_id)
+                .returning_one()
+                .found()?;
+            for calendar_id in ids {
+                ctx.db
+                    .insert::<CalendarPerspectiveCalendar>()
+                    .set(CalendarPerspectiveCalendar::PERSPECTIVE_ID, row.id)
+                    .set(CalendarPerspectiveCalendar::CALENDAR_ID, calendar_id)
+                    .execute()?;
+            }
+        }
+        let perspective = perspective(ctx.db.read(), self.workspace_id)?;
+        Ok(perspective.invalidating([Invalidation::CalendarPerspective(self.workspace_id)]))
     }
 }
 
@@ -519,7 +820,7 @@ impl DatabaseCommand for CreateCalendarEventCommand {
             .set(CalendarEvent::DESCRIPTION, fields.description)
             .set_group(fields.timing)
             .set(CalendarEvent::INVITEES, Json(fields.invitees))
-            .set(CalendarEvent::COLOR, fields.color)
+            .set(CalendarEvent::SELECTED_COLOR, fields.selected_color)
             .set(CalendarEvent::PENDING_PUSH, backed)
             .returning_one()
             .found()?;
@@ -527,14 +828,14 @@ impl DatabaseCommand for CreateCalendarEventCommand {
     }
 }
 
-/// An event's fields, checked, with its color made exact.
+/// An event's fields, checked, with its color made a palette color.
 struct CheckedFields {
     title: String,
     location: String,
     description: String,
     timing: EventTiming,
     invitees: Vec<EventInvitee>,
-    color: Option<CalendarColor>,
+    selected_color: Option<IntelligenceAgentColor>,
 }
 
 /// Checks `fields` as a client or script gave them; the schema checks the
@@ -542,14 +843,18 @@ struct CheckedFields {
 fn checked_fields(fields: CalendarEventFields) -> Result<CheckedFields, ValidationError> {
     ensure_title(&fields.title)?;
     ensure_invitees(&fields.invitees)?;
-    let color = fields.color.as_ref().map(chosen_color).transpose()?;
+    let selected_color = fields
+        .selected_color
+        .as_ref()
+        .map(chosen_color)
+        .transpose()?;
     Ok(CheckedFields {
         title: fields.title,
         location: fields.location,
         description: fields.description,
         timing: fields.timing,
         invitees: fields.invitees,
-        color,
+        selected_color,
     })
 }
 
@@ -590,7 +895,7 @@ impl DatabaseCommand for UpdateCalendarEventCommand {
             .set(CalendarEvent::DESCRIPTION, fields.description)
             .set_group(fields.timing)
             .set(CalendarEvent::INVITEES, Json(fields.invitees))
-            .set(CalendarEvent::COLOR, fields.color)
+            .set(CalendarEvent::SELECTED_COLOR, fields.selected_color)
             .set(CalendarEvent::PENDING_PUSH, backed)
             .increment(CalendarEvent::REVISION)
             .set_now(CalendarEvent::MODIFIED)
@@ -658,13 +963,17 @@ pub struct ApplyBackendEventCommand {
     pub calendar_id: i64,
     pub existing: Option<SyncedEvent>,
     pub remote: BackendEvent,
+    /// What colors the backend keeps, which says what color it declares.
+    pub color_support: CalendarColorSupport,
 }
 
-/// An event as a sync read it: its id and `revision` then.
+/// An event as a sync read it: its id, `revision` and colors then.
 #[derive(Clone, Copy, Debug)]
 pub struct SyncedEvent {
     pub event_id: i64,
     pub revision: i64,
+    pub selected_color: Option<IntelligenceAgentColor>,
+    pub declared_color: Option<IntelligenceAgentColor>,
 }
 
 impl From<&CalendarEvent> for SyncedEvent {
@@ -672,6 +981,8 @@ impl From<&CalendarEvent> for SyncedEvent {
         Self {
             event_id: event.id,
             revision: event.revision,
+            selected_color: event.selected_color,
+            declared_color: event.declared_color,
         }
     }
 }
@@ -684,7 +995,7 @@ impl DatabaseCommand for ApplyBackendEventCommand {
         ctx: &mut CommandContext<'_>,
     ) -> DatabaseCommandResult<Changed<Option<CalendarEvent>>> {
         let remote = self.remote;
-        let color = backend_color(remote.color.as_deref());
+        let declared = self.color_support.declared(remote.color.as_deref());
         let invitees: Vec<EventInvitee> = remote.invitees.into_iter().map(Into::into).collect();
         let timing: EventTiming = remote.timing.into();
         let event = match self.existing {
@@ -696,7 +1007,11 @@ impl DatabaseCommand for ApplyBackendEventCommand {
                 .set(CalendarEvent::DESCRIPTION, remote.description)
                 .set_group(timing)
                 .set(CalendarEvent::INVITEES, Json(invitees))
-                .set(CalendarEvent::COLOR, color)
+                .set(CalendarEvent::DECLARED_COLOR, declared)
+                .set(
+                    CalendarEvent::SELECTED_COLOR,
+                    event_selected(existing.selected_color, existing.declared_color, declared),
+                )
                 .set(CalendarEvent::REMOTE_IDENTIFIER, Some(remote.identifier))
                 .set(CalendarEvent::REMOTE_MODIFIED, Some(remote.last_modified))
                 .set_false(CalendarEvent::DELETED)
@@ -715,7 +1030,8 @@ impl DatabaseCommand for ApplyBackendEventCommand {
                 .set(CalendarEvent::DESCRIPTION, remote.description)
                 .set_group(timing)
                 .set(CalendarEvent::INVITEES, Json(invitees))
-                .set(CalendarEvent::COLOR, color)
+                .set(CalendarEvent::DECLARED_COLOR, declared)
+                .set(CalendarEvent::SELECTED_COLOR, declared)
                 .set(CalendarEvent::REMOTE_IDENTIFIER, Some(remote.identifier))
                 .set(CalendarEvent::REMOTE_MODIFIED, Some(remote.last_modified))
                 .set(CalendarEvent::MODIFIED, remote.last_modified)
@@ -727,12 +1043,14 @@ impl DatabaseCommand for ApplyBackendEventCommand {
 
 /// Records that event `event_id`'s change reached its backend as `remote`,
 /// provided it hasn't changed since the sync read it: it takes the
-/// backend's identifier and `lastModified` and no longer waits. Only the
+/// backend's identifier, `lastModified` and declared color `declared`, which
+/// its selected one follows when it changed, and no longer waits. Only the
 /// sync calls it. `None` when the event changed meanwhile.
 pub struct RecordEventPushedCommand {
     pub event: SyncedEvent,
     pub remote_identifier: String,
     pub remote_modified: i64,
+    pub declared: Option<IntelligenceAgentColor>,
 }
 impl DatabaseCommand for RecordEventPushedCommand {
     type Response = Option<CalendarEvent>;
@@ -749,11 +1067,25 @@ impl DatabaseCommand for RecordEventPushedCommand {
                 Some(self.remote_identifier),
             )
             .set(CalendarEvent::REMOTE_MODIFIED, Some(self.remote_modified))
+            .set(CalendarEvent::DECLARED_COLOR, self.declared)
+            .set(
+                CalendarEvent::SELECTED_COLOR,
+                event_selected(
+                    self.event.selected_color,
+                    self.event.declared_color,
+                    self.declared,
+                ),
+            )
             .set_false(CalendarEvent::PENDING_PUSH)
             .filter_eq(CalendarEvent::ID, self.event.event_id)
             .filter_eq(CalendarEvent::REVISION, self.event.revision)
             .returning_one()?;
-        Ok(event.invalidating_nothing())
+        // Only its colors are something a client shows.
+        Ok(if self.event.declared_color != self.declared {
+            events_changed(event)
+        } else {
+            event.invalidating_nothing()
+        })
     }
 }
 

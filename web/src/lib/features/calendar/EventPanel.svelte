@@ -83,7 +83,7 @@
 				end_date: ymd(Date.now() / 1000)
 			},
 			invitees: [],
-			color: null
+			selected_color: null
 		};
 	}
 
@@ -111,11 +111,11 @@
 	const store = $derived(calendar ? calendars.store(calendar.store_id) : undefined);
 	const readOnly = $derived(calendar?.read_only ?? false);
 	const color = $derived<IntelligenceAgentColor>(
-		(fields.color === null
-			? calendar?.color.nearest
-			: fields.color.kind === 'palette'
-				? fields.color.color
-				: event?.color?.nearest) ?? 'blue'
+		(fields.selected_color === null
+			? calendar?.selected_color
+			: fields.selected_color.kind === 'palette'
+				? fields.selected_color.color
+				: event?.selected_color) ?? 'blue'
 	);
 
 	/** Saves `change`: an update, or for a new event with a title, its creation. */
@@ -252,24 +252,22 @@
 	const colorItems = $derived<MenuItem[]>([
 		{
 			label: 'Calendar’s color',
-			checked: fields.color === null,
-			onSelect: () => void commit({ color: null })
+			checked: fields.selected_color === null,
+			onSelect: () => void commit({ selected_color: null })
 		},
 		...vocabulary.value.agent_colors.map(({ kind, label }, i) => ({
 			label,
 			separated: i === 0,
-			checked:
-				fields.color !== null &&
-				(fields.color.kind === 'palette'
-					? fields.color.color === kind
-					: event?.color?.nearest === kind),
+			checked: fields.selected_color !== null && color === kind,
 			onSelect: () =>
-				void commit({ color: { kind: 'palette', color: kind as IntelligenceAgentColor } })
+				void commit({
+					selected_color: { kind: 'palette', color: kind as IntelligenceAgentColor }
+				})
 		}))
 	]);
 
 	const colorLabel = $derived(
-		fields.color === null
+		fields.selected_color === null
 			? 'Calendar’s color'
 			: (vocabulary.value.agent_colors.find((c) => c.kind === color)?.label ?? 'Custom')
 	);
@@ -381,7 +379,7 @@
 		<ItemDetail label="Calendar" icon={CalendarDays}>
 			{#if event || writable.length < 2}
 				<span class="inline-flex items-center gap-2">
-					<span class={['size-2.5 rounded-full', calendar && agentFill[calendar.color.nearest]]}
+					<span class={['size-2.5 rounded-full', calendar && agentFill[calendar.selected_color]]}
 					></span>
 					{calendar?.title ?? ''}
 					{#if store}<span class="text-fg-subtle">{store.title}</span>{/if}
@@ -395,7 +393,8 @@
 							aria-label="Calendar: {calendar?.title}"
 							{...props}
 						>
-							<span class={['size-2.5 rounded-full', calendar && agentFill[calendar.color.nearest]]}
+							<span
+								class={['size-2.5 rounded-full', calendar && agentFill[calendar.selected_color]]}
 							></span>
 							{calendar?.title ?? ''}
 						</button>

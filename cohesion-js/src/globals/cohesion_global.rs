@@ -174,8 +174,8 @@ impl CohesionGlobal {
             .collect())
     }
 
-    /// Every calendar store: Cohesion's own, then each calendar backend
-    /// account's.
+    /// Every calendar store (shown to people as accounts): those only in
+    /// Cohesion, then each calendar backend account's.
     #[qjs(rename = "calendarStores")]
     pub fn calendar_stores<'js>(&self, ctx: Ctx<'js>) -> rquickjs::Result<Vec<JsCalendarStore>> {
         let stores = read(&ctx, &self.database, ListCalendarStoresCommand {})?;
@@ -226,6 +226,7 @@ impl CohesionGlobal {
                 store_id: options.store_id,
                 title: options.title,
                 color,
+                workspace_id: None,
             },
         )?;
         Ok(JsCalendar::new(calendar, self.database.clone()))

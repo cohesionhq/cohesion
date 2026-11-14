@@ -464,7 +464,8 @@ which no list filters or sorts by, so a list refetches just its row),
 `feedArticles`, `intelligence`, `clients`, `security`, `storage`,
 `modules(ws)` (a module was turned on or off in the workspace), `profile`,
 `tags(ws)`, `contacts(ws)`, `calendars` (stores and calendars, shared by every
-workspace), `calendarEvents` (every event, one key), `savedTaskViews(ws)`,
+workspace), `calendarPerspective(ws)` (which calendars a workspace shows),
+`calendarEvents` (every event, one key), `savedTaskViews(ws)`,
 `extensionUpdates`,
 `memories`, `agentSkills`, `actors`, `actorSessions`, `actorSession(id)`
 (the session as a whole: its context, a stretch of work ending, its
@@ -1204,7 +1205,7 @@ workspace, which is true until the setting loads.
 | `tags`, `task_tags` | Per-workspace tags (names unique ignoring case) and which tasks carry them; composite keys keep both in one workspace. |
 | `saved_task_views` and `saved_task_view_priorities`, `_sizes`, `_tags` | Saved task filters: a list or a folder, a sort, and filter sets. |
 | `contacts` (soft), `contact_methods` | People in a workspace, and their emails and phone numbers. A deleted contact is unassigned from tasks. |
-| `calendar_stores`, `calendars` (soft), `calendar_events` (soft) | Daemon-wide, in no workspace ("Calendar backends" in [20](#20-connectors)). A store is local or one connector account's (`account_id`, unique, cascading). Colors are exact `#rrggbb` (`CalendarColor` adds the nearest palette color when read). An event is timed (`starts_at`, `ends_at`, `time_zone`) or all-day (`start_date`, `end_date`, inclusive), held by a `CHECK`; `invitees` is JSON; `remote_identifier`, `remote_modified`, `pending_push` and `revision` drive the sync. Deleting a calendar deletes its events (trigger `calendars_deleted_delete_events`). |
+| `calendar_stores`, `calendars` (soft), `calendar_events` (soft) | Daemon-wide, in no workspace ("Calendar accounts" in [20](#20-connectors)). A store (an account, to people) is local or one connector account's (`account_id`, unique, cascading); `title` is a person's (`named_by_user`) or its backend's, and `color_support` (`exact`, `declared`, `none`) what colors its backend keeps. Migration `calendars_start_over` made one local store, titled `Cohesion`. Colors are palette colors (`IntelligenceAgentColor`): `selected_color` and the backend's `declared_color` on calendars and events, with `color_pending_push` on calendars. An event is timed (`starts_at`, `ends_at`, `time_zone`) or all-day (`start_date`, `end_date`, inclusive), held by a `CHECK`; `invitees` is JSON; `remote_identifier`, `remote_modified`, `pending_push` and `revision` drive the sync. Deleting a calendar deletes its events (trigger `calendars_deleted_delete_events`). |
 | `metadata` | Key-value pairs on exactly one workspace, document, task, folder or resource. Scripts only: a request can't carry metadata filters. |
 | `backlinks` | What links to what: `source_kind` and `source_id` (a document or a task so far), `target_kind` and `target_id` (a `LinkKind` and an id), and `link` as first written; one row per source and target, never a source to itself. Rewritten by `FollowLinksCommand` on every document and task write; a document or task removed for good takes its rows (triggers `documents_backlinks_ad`, `tasks_backlinks_ad`). The `backlinks` migration filled it from every live document, and `task_backlinks` from every live task's description, through the SQL function `outgoing_links`, which runs the same Rust rule; the `databases` migration rebuilt it, with those two triggers, to admit `database` and `databaseRow`, `contacts_search_and_links` to admit `contact`, filling in the links to contacts that live documents and tasks already held, and `document_tables` rebuilt it again to admit `documentFolder` in place of the two database kinds, dropping the rows that named a database or a row. The `document_tables` migration also turned each database into a top-level folder and each row into a document in it (see "Tables" in [5](#5-the-wire-protocol)). |
 | `versions` | Rewind: past versions of tasks and documents, with `change` (`created`, `edited`, `deleted`, `restored`, `earlier`), `author` and `author_name`. Written by triggers through the `version_writes` view, which folds edits within 120 s into one version. |
@@ -2694,7 +2695,7 @@ installs one. Every extension is installed by the user.
 | `registry` | | | The daemon calls its `registryResults(query)` and `registryLookup(identifiers)` |
 | `oauth` | `accounts` | | The daemon calls its sign-in functions |
 | `connector` (needs `oauth`) | | | The daemon calls `getOrganizationUnits`, `listResources`, `getResource`, and the optional `renderResource` |
-| `calendar:backend` (needs `oauth`) | | | The daemon calls `listCalendars`, `listEvents`, `createEvent`, `updateEvent` and `deleteEvent` to sync the account's calendars ([20](#20-connectors)) |
+| `calendar:account` (needs `oauth`) | | | Each account is a calendar account: the daemon calls `listCalendars`, `listEvents`, `createEvent`, `updateEvent` and `deleteEvent`, and the optional `calendarColorSupport` and `updateCalendar`, to sync its calendars ([20](#20-connectors)) |
 | `service` | | | Clients and scripts holding `services` may call its `serviceRequest` |
 | `service:isolated` | | | Clients only may call its `serviceRequest` |
 | `services` | `services` (`services.use`) | | |
@@ -2846,22 +2847,42 @@ resource's page in place of its contents.
 Agents on a user-started turn reach connectors through the `connectors`
 global (`agent_connectors.rs`); there is no CLI command for them.
 
-**Calendar backends** (`cohesionkit/src/calendars/`). Calendars are
+**Calendar accounts** (`cohesionkit/src/calendars/`). Calendars are
 daemon-wide, like feeds: a `CalendarStore` holds `Calendar`s, which hold
-`CalendarEvent`s (`cohesion-core/src/model/calendar.rs`). A store is local,
-only in Cohesion, or backed by one connector account whose extension holds
-`calendar:backend` (with `oauth`); the sync makes that store the first time it
-reaches the account, titled with the account's description, and removing the
-account removes it with its calendars. A backend's calendars and their titles
-come from the backend: Cohesion can't create, rename or delete them, only
-recolor them, and a `readOnly` one refuses changes to its events. A local
-store's calendars are created, renamed and deleted freely.
+`CalendarEvent`s (`cohesion-core/src/model/calendar.rs`). People see a store as
+an account. A store is local, only in Cohesion, or backed by one connector
+account whose extension holds `calendar:account` (with `oauth`); the sync makes
+that store the first time it reaches the account, and removing the account
+removes it with its calendars. There is one local store from the start, and
+`CreateCalendarStore` makes more. A store's `title` is its backend's name
+(`Cohesion` for a local store, the connector account's description, kept up to
+date at each sync, for a backend's) until `RenameCalendarStore` names it
+(`named_by_user`); naming it `null` gives the backend's name back. A backend's
+calendars and their titles come from the backend: Cohesion can't create,
+rename or delete them, only recolor them, and a `readOnly` one refuses changes
+to its events. A local store's calendars are created, renamed and deleted
+freely. Nothing in the contract is particular to one kind of service.
 
-Colors are stored exact (`#rrggbb`); every read carries `{hex, nearest}`, the
-nearest of the eight palette colors by Oklab distance
-(`IntelligenceAgentColor::hex`, the light scheme's `--agent-*`). Clients set
-one as `CalendarColorChoice`: `{kind: "palette", color}` (what the apps'
-picker sends) or `{kind: "exact", hex}`.
+Colors are palette colors (`IntelligenceAgentColor`, whose exact values are
+the light scheme's `--agent-*`). Clients and scripts set one as
+`CalendarColorChoice`: `{kind: "palette", color}` or `{kind: "exact", hex}`,
+which binds to the nearest palette color by Oklab distance
+(`nearest_palette_color`); a backend's `#rrggbb` binds the same way. A calendar
+or event has a `declared_color`, its backend's, and a `selected_color`, the one
+drawn (an event's `null` takes its calendar's). A new calendar takes the
+declared color (or blue); whenever a sync finds the declared color changed, the
+selected one follows it. A color chosen in Cohesion changes only the selected
+one. What happens next depends on the store's `color_support`, read at each
+sync from the optional `calendarColorSupport()` (missing: `declared`):
+
+- `exact`: the backend keeps any color. A calendar's chosen color waits
+  (`color_pending_push`) and is pushed with `updateCalendar`, and an event's own
+  color goes with `createEvent` and `updateEvent`, as the palette color's
+  `#rrggbb`. A backend without `updateCalendar` keeps its own calendar color.
+- `declared`: the backend has colors, but not any color. Its color is declared;
+  one chosen in Cohesion stays in Cohesion, and events are sent `color: null`.
+- `none`: the backend has no colors. Cohesion ignores any it is sent and owns
+  them; local stores are `none`.
 
 The contract (`cohesion-core/src/model/calendar_backend.rs`, camelCase, every
 call with the account's fresh credential last):
@@ -2873,6 +2894,8 @@ call with the account's fresh credential last):
 | `createEvent(calendarIdentifier, event, credential)` | The new `BackendEvent` |
 | `updateEvent(calendarIdentifier, identifier, event, credential)` | The changed `BackendEvent` |
 | `deleteEvent(calendarIdentifier, identifier, credential)` | Nothing |
+| `calendarColorSupport()` (optional) | `"exact"`, `"declared"` or `"none"` |
+| `updateCalendar(calendarIdentifier, changes, credential)` (optional, `exact` only) | The changed `BackendCalendar`; `changes` is `{color: "#rrggbb"}` |
 
 A `BackendEvent` is `{identifier, lastModified, title, location?, description?,
 timing, invitees?, color?}`; `timing` is `{kind: "timed", startsAt, endsAt,
@@ -2882,9 +2905,11 @@ an invitee is `{email, name?, response?}`. `event` is the same without
 
 **Sync** (`calendar_sync.rs`): a minute after start, then every 10 minutes,
 and on `SyncCalendars`, one pass at a time. For each account granted
-`calendar:backend`, it brings the store's calendars in line with
-`listCalendars` (a new one takes the backend's color; one no longer listed is
-deleted), then for each calendar lists its events and settles each:
+`calendar:account`, it reads `calendarColorSupport`, brings the store's
+calendars in line with `listCalendars` (a new one takes its declared color; one
+no longer listed is deleted; a declared color that changed wins over a chosen
+one waiting to be pushed), pushes a calendar's waiting color with
+`updateCalendar`, then for each calendar lists its events and settles each:
 
 - changed only on the backend (`lastModified` differs from `remote_modified`) or new there: written in Cohesion, `modified` set to `lastModified`;
 - changed only in Cohesion (`pending_push`, set by every write to a backend's event): pushed with `createEvent`, `updateEvent` or `deleteEvent`; a deleted event stays, deleted and pending, until its deletion is pushed;
@@ -2898,13 +2923,27 @@ full pass clears it and sets `last_synced_at`. `CalendarSyncSummary` counts
 stores synced and failed, and events pulled, pushed and in conflict.
 Calendar changes raise `calendars` and `calendarEvents`; no hook fires yet.
 
-The web UI's Calendar page (`/w/[ws]/calendar`, the same in every
-workspace) shows the events by month, week (from Sunday) or day, timed ones
-in the browser's time zone, colored by their palette color (`nearest`). Its
-calendar list sits in the column right of the sheet, or a side panel below
-1100px; which calendars show is the browser's own choice (localStorage), not
-the daemon's. An event opens in a side panel that saves each change with
-`UpdateCalendarEvent`; a new one is created once it has a title.
+**Perspective.** Each workspace may choose which calendars it shows
+(`calendar_perspectives`, one row per workspace that chose, and
+`calendar_perspective_calendars`). `GetCalendarPerspective{workspace_id}` and
+`SetCalendarPerspective{workspace_id, calendar_ids}` read and set it as
+`CalendarPerspective{workspace_id, calendar_ids}`: `null` when the workspace
+hasn't chosen, so it shows every calendar, those added later included; a set
+names live calendars only, and a deleted calendar drops out of it.
+`CreateCalendar{…, workspace_id}` adds the new calendar to that workspace's
+perspective, if it has one. A change raises `calendarPerspective(ws)`. Agents,
+scripts and search still see every calendar.
+
+The web UI's Calendar page (`/w/[ws]/calendar`) shows the events of the
+workspace's perspective by month, week (from Sunday) or day, timed ones in the
+browser's time zone, colored by their selected color. Its calendar list sits in
+the column right of the sheet, or a side panel below 1100px, grouped by
+account; a calendar's box adds it to or takes it out of the perspective (one
+that hadn't chosen starts from every calendar). Bypass perspective draws every
+calendar for this visit to the workspace, kept nowhere. A local account ends
+with New calendar; New account makes a local store. An event opens in a side
+panel that saves each change with `UpdateCalendarEvent`; a new one is created
+once it has a title.
 
 ### 21. Feeds and articles
 
