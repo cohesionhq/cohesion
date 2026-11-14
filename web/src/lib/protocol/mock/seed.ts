@@ -1099,6 +1099,8 @@ export function seed(): MockState {
 			memory_limit: 20
 		},
 		experiments: [],
+		// Containers has Calendar turned off, so mock mode shows a workspace without it.
+		enabledModules: [{ workspace_id: 3, module: 'calendar', enabled: false }],
 		versions: [],
 		databaseSize: {
 			bytes: 48_234_496,

@@ -52,6 +52,7 @@
 	import { shortcuts } from '$lib/shell/shortcuts.svelte';
 	import type { ConnectorKind } from '$lib/stores/connectors.svelte';
 	import { viewParam } from '$lib/stores/articles.svelte';
+	import { modules } from '$lib/stores/modules.svelte';
 	import { workspaces } from '$lib/stores/workspaces.svelte';
 	import AgentAvatar from '$lib/ui/AgentAvatar.svelte';
 	import IconTile from '$lib/ui/IconTile.svelte';
@@ -132,12 +133,16 @@
 					run: () => go(routes.documents(id))
 				},
 				{ id: 'tasks', label: 'Tasks', icon: CheckSquare, run: () => go(routes.tasks(id)) },
-				{
-					id: 'calendar',
-					label: 'Calendar',
-					icon: CalendarIcon,
-					run: () => go(routes.calendar(id))
-				},
+				...(modules.isEnabled('calendar')
+					? [
+							{
+								id: 'calendar',
+								label: 'Calendar',
+								icon: CalendarIcon,
+								run: () => go(routes.calendar(id))
+							}
+						]
+					: []),
 				{ id: 'articles', label: 'Articles', icon: Newspaper, run: () => go(routes.articles(id)) },
 				{ id: 'contacts', label: 'Contacts', icon: BookUser, run: () => go(routes.contacts(id)) },
 				{ id: 'rewind', label: 'Rewind', icon: History, run: () => go(routes.rewind(id)) },
@@ -334,7 +339,11 @@
 			if (id !== null)
 				void answer(
 					send('searchWorkspace', { workspace_id: id, query: fts }),
-					(found) => (results = found.slice(0, 12))
+					// A workspace with Calendar off doesn't offer its events.
+					(found) =>
+						(results = found
+							.filter((r) => r.entity_kind !== 'calendarEvent' || modules.isEnabled('calendar'))
+							.slice(0, 12))
 				);
 			else results = [];
 			void answer(

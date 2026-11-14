@@ -23,7 +23,13 @@ under "Unreleased" with any change users would notice.
   `activity:*` hook, and renames the hook on messages such cues posted. An
   extension whose manifest lists an `activity:*` hook no longer installs or
   updates; the iOS companion needs a version on the `actor:*` hooks.
-
+- A workspace can turn Calendar off under Settings › Workspaces, in the
+  workspace's "Modules…" menu item. With Calendar off, the workspace's sidebar
+  and ⌘K leave out Calendar and calendar events, and its calendar page opens
+  the Dashboard. Calendars, sync, scripts and agents work as before. New
+  commands `listWorkspaceModules` and `setModuleEnabled` answer
+  `ModuleSetting`s, and a change invalidates `modules(ws)`. Existing clients
+  are unaffected, and keep showing Calendar until they read the setting.
 - `network.fetch` can send any HTTP method, including `PROPFIND`, `REPORT` and
   `MKCALENDAR`, and a plain text body (XML, iCalendar) with `textBody`; the
   `Content-Type` in `headers` is kept. `method` is now a string (a

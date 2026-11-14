@@ -40,6 +40,7 @@
 	import { routes } from '$lib/shell/routes';
 	import { isTyping } from '$lib/shell/shortcuts.svelte';
 	import { calendars, fieldsOf } from '$lib/stores/calendars.svelte';
+	import { modules } from '$lib/stores/modules.svelte';
 	import { pageStores } from '$lib/stores/pageStores.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import PageHeader from '$lib/ui/PageHeader.svelte';
@@ -54,6 +55,12 @@
 	const hasGutter = paneChrome()?.hasGutter ?? false;
 
 	const ws = $derived(Number(here.params.ws));
+
+	// A workspace with Calendar turned off has no calendar page: it opens the Dashboard instead.
+	$effect(() => {
+		if (modules.current.key === ws && modules.current.loaded && !modules.isEnabled('calendar'))
+			void here.goto(routes.dashboard(ws), { replaceState: true });
+	});
 
 	// ---- What shows ----------------------------------------------------------
 

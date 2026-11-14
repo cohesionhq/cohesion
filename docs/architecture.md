@@ -461,7 +461,8 @@ deleted), `taskList{workspace_id, folder_id}` (null folder is the inbox),
 `taskDescription{workspace_id, task_id}` (one task's description changed,
 which no list filters or sorts by, so a list refetches just its row),
 `connectorAccounts`, `resources(ws)`, `resourceKinds(ws)`, `feeds`,
-`feedArticles`, `intelligence`, `clients`, `security`, `storage`, `profile`,
+`feedArticles`, `intelligence`, `clients`, `security`, `storage`,
+`modules(ws)` (a module was turned on or off in the workspace), `profile`,
 `tags(ws)`, `contacts(ws)`, `calendars` (stores and calendars, shared by every
 workspace), `calendarEvents` (every event, one key), `savedTaskViews(ws)`,
 `extensionUpdates`,
@@ -1159,6 +1160,7 @@ deleting sets `deleted`, and client reads use `select_live`.
 | `security_events` | `kind`, `client_id` (set null when gone), `client_name`, `address`; kept 30 days. |
 | `profile` | One row: the user's `name`, `bio` and photo. |
 | `enabled_experiments` | `key` (unique): a row for each experiment turned on, none for one turned off. |
+| `enabled_modules` | `workspace_id`, `module_name` (`Module`'s text, unique with `workspace_id`), `enabled`: a row once a module is turned off or on in a workspace. With no row, a module is on. |
 | `storage_settings` | One row: `thread_retention_days` (14), `actor_session_retention_days` (7), `memory_limit` (20), `rewind_retention_days` (7), `deleted_item_retention_days` (30); each at least 1. |
 
 **Experiments** (`Experiment`, `cohesion-core/src/model/experiment.rs`) are
@@ -1171,6 +1173,21 @@ delete the variant: the compiler lists every check to remove, and its stored
 switch is ignored and removed by the next `setExperiment`. `listExperiments`
 and `setExperiment` answer every experiment with its state; a change
 invalidates `experiments`.
+
+**Modules** (`Module`, `cohesion-core/src/model/module.rs`) are optional
+areas of the app that each workspace turns on or off in Settings ›
+Workspaces (a workspace's "Modules…"). The first is `calendar`. Every module
+is on in a workspace until it is turned off there. Turning one off only hides
+it in the clients: the web UI leaves its row out of the sidebar, its entry
+and its search results out of ⌘K, and opens the Dashboard instead of its
+page. The daemon still serves its commands, sync, scripts and agents, and
+calendars stay daemon-wide. `ListWorkspaceModules{workspace_id}` and
+`SetModuleEnabled{workspace_id, module, enabled}` answer every module
+(`ModuleSetting`: `module`, `title`, `description`, `enabled`) in the
+variants' order; a change invalidates `modules(ws)`. To offer one, add a
+variant with its `title` and `description`; a removed variant's stored rows
+are ignored. The web asks `modules.isEnabled('calendar')` for the selected
+workspace, which is true until the setting loads.
 
 **Workspaces and their content**
 

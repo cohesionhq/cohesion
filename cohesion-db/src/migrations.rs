@@ -5349,6 +5349,19 @@ pub const MIGRATIONS: &[Migration] = &[
             END
             WHERE hook IN ('activity:started', 'activity:updated', 'activity:ended');",
     },
+    // Modules: a row once a module is turned off or on in a workspace; a
+    // workspace with no row for a module has it on.
+    Migration {
+        name: "enabled_modules",
+        sql: "
+        CREATE TABLE enabled_modules (
+            id INTEGER PRIMARY KEY,
+            workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+            module_name TEXT NOT NULL,
+            enabled BOOLEAN NOT NULL,
+            UNIQUE (workspace_id, module_name)
+        );",
+    },
 ];
 
 #[cfg(test)]

@@ -34,9 +34,9 @@ use crate::model::{
     DocumentSummary, Embed, EndpointModel, ExperimentSetting, ExtensionHook, ExtensionPermission,
     Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage,
     IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault,
-    IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource, RestoredItem, SavedTaskView,
-    SearchResult, SecuritySettings, StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection,
-    Version, VersionSummary, Workspace, WorkspaceResourceKind,
+    IntelligenceSpend, Memory, ModuleSetting, OrganizationUnit, Profile, Resource, RestoredItem,
+    SavedTaskView, SearchResult, SecuritySettings, StorageSettings, TableRow, Tag, Task,
+    TaskFolder, TextSection, Version, VersionSummary, Workspace, WorkspaceResourceKind,
 };
 
 /// The payload of a successful reply.
@@ -71,6 +71,7 @@ pub enum ReplyData {
     SecurityEventPage(SecurityEventPage),
     StorageSettings(StorageSettings),
     Experiments(Vec<ExperimentSetting>),
+    Modules(Vec<ModuleSetting>),
     Versions(Vec<VersionSummary>),
     Version(Version),
     DeletedItems(Vec<DeletedItem>),

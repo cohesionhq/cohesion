@@ -6,7 +6,7 @@ use cohesion_core::{
         ActorUserContent, AgentAgendaItem, AgentCodeOutcome, AgentMessageContent, AgentSkill,
         AgentThreadMark, Article, Attachment, Backlink, Calendar, CalendarEvent, CalendarStore,
         CatalogModel, Connector, ConnectorAccount, Contact, ContactMethod, DocumentFolderProperty,
-        DocumentValue, EnabledExperiment, EndpointModel, Extension, ExtensionHook,
+        DocumentValue, EnabledExperiment, EnabledModule, EndpointModel, Extension, ExtensionHook,
         ExtensionPermission, ExtensionService, ExtensionServiceFunction, Feed, FeedFullPagePolicy,
         FeedStatus, HookKind, IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage,
         IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault,

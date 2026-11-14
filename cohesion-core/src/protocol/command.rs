@@ -34,6 +34,7 @@ use super::extension_requests::*;
 use super::feed_requests::*;
 use super::intelligence_requests::*;
 use super::mermaid_requests::{RenderMermaidRequest, RenderedMermaid};
+use super::module_requests::*;
 use super::profile_requests::*;
 use super::rewind_requests::*;
 use super::route_kinds::{FromClient, Intelligence, Local, Script};
@@ -51,9 +52,9 @@ use crate::model::{
     DocumentSummary, Embed, EndpointModel, ExperimentSetting, ExtensionHook, ExtensionPermission,
     Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage,
     IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault,
-    IntelligenceSpend, Memory, OrganizationUnit, Profile, Resource, RestoredItem, SavedTaskView,
-    SearchResult, SecuritySettings, StorageSettings, TableRow, Tag, Task, TaskFolder, TextSection,
-    Version, VersionSummary, Workspace, WorkspaceResourceKind,
+    IntelligenceSpend, Memory, ModuleSetting, OrganizationUnit, Profile, Resource, RestoredItem,
+    SavedTaskView, SearchResult, SecuritySettings, StorageSettings, TableRow, Tag, Task,
+    TaskFolder, TextSection, Version, VersionSummary, Workspace, WorkspaceResourceKind,
 };
 
 /// Every request a client can send; the `args` of a [`Request`](super::Request).
@@ -537,6 +538,12 @@ pub enum Command {
     /// Turns an experiment on or off.
     #[reply(Vec<ExperimentSetting>)]
     SetExperiment(SetExperimentRequest),
+    /// Answers every module and whether it is on in a workspace.
+    #[reply(Vec<ModuleSetting>)]
+    ListWorkspaceModules(ListWorkspaceModulesRequest),
+    /// Turns a module on or off in a workspace.
+    #[reply(Vec<ModuleSetting>)]
+    SetModuleEnabled(SetModuleEnabledRequest),
     /// Answers how large the database file is.
     #[reply(DatabaseSize, request = GetDatabaseSizeRequest)]
     GetDatabaseSize,

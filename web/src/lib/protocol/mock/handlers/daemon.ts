@@ -3,6 +3,16 @@
 import { ProtocolError } from '../../errors';
 import { noTransfers } from '../support';
 import type { Handlers, MockCore } from '../core';
+import type { Module, ModuleSetting } from '../../types';
+
+/** The daemon's modules (`Module` in cohesion-core), in its order and words. */
+const MODULES: { module: Module; title: string; description: string }[] = [
+	{
+		module: 'calendar',
+		title: 'Calendar',
+		description: 'Calendars and their events.'
+	}
+];
 
 export function daemonHandlers(core: MockCore) {
 	const {
@@ -22,6 +32,14 @@ export function daemonHandlers(core: MockCore) {
 			.filter((w) => !w.deleted)
 			.toSorted((a, b) => a.sort_order - b.sort_order || a.id - b.id)
 			.map((w) => ({ ...w }));
+	// Every module with whether it is on in a workspace, as the daemon lists them: on unless turned off.
+	const modules = (workspace_id: number): ModuleSetting[] =>
+		MODULES.map((m) => ({
+			...m,
+			enabled:
+				state.enabledModules.find((e) => e.workspace_id === workspace_id && e.module === m.module)
+					?.enabled ?? true
+		}));
 	return {
 		about: () => ({ hostname: 'mock.local', version: '0.0.0-mock' }),
 		// The mock is the page itself, so like a daemon built without web/build it has no bundle.
@@ -151,6 +169,19 @@ export function daemonHandlers(core: MockCore) {
 		reorderWorkspaces: ({ ids }) => {
 			ids.forEach((id, i) => (workspace(id).sort_order = i));
 			return liveWorkspaces();
+		},
+		listWorkspaceModules: ({ workspace_id }) => {
+			workspace(workspace_id);
+			return modules(workspace_id);
+		},
+		setModuleEnabled: ({ workspace_id, module, enabled }) => {
+			workspace(workspace_id);
+			const row = state.enabledModules.find(
+				(m) => m.workspace_id === workspace_id && m.module === module
+			);
+			if (row) row.enabled = enabled;
+			else state.enabledModules.push({ workspace_id, module, enabled });
+			return modules(workspace_id);
 		},
 		deleteWorkspace: ({ id }) => {
 			const w = workspace(id);

@@ -85,6 +85,8 @@ pub enum Invalidation {
     Storage,
     /// An experiment was turned on or off.
     Experiments,
+    /// A module was turned on or off in a workspace.
+    Modules(i64),
     /// The user's profile changed: their name or photo was set or removed.
     Profile,
     /// A workspace's tags changed: one was created, renamed or deleted.

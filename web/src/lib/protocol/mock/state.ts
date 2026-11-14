@@ -52,6 +52,7 @@ import type {
 	SpendPeriod,
 	StorageSettings,
 	ExperimentSetting,
+	Module,
 	Tag,
 	Task,
 	TaskFolder,
@@ -160,6 +161,8 @@ export interface MockState {
 	storage: StorageSettings;
 	/** Every experiment, with whether it is on. None are offered yet. */
 	experiments: ExperimentSetting[];
+	/** A module turned off or on in a workspace; with no entry, a module is on. */
+	enabledModules: { workspace_id: number; module: Module; enabled: boolean }[];
 	versions: Version[];
 	databaseSize: DatabaseSize;
 	profile: Profile;
