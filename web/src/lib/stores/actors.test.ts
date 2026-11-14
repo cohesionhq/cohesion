@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { createMock } from '$lib/protocol/mock';
 import type { ActorSessionStatus } from '$lib/protocol/types';
-import { createActorsStore } from './actors.svelte';
+import { createActorsStore, listedInSidebar } from './actors.svelte';
+
+describe('listedInSidebar', () => {
+	it('lists needs attention, working, failed and done, never resolved', async () => {
+		const [base] = createMock().state.actorSessions;
+		const listed = (status: ActorSessionStatus, unread = false) =>
+			listedInSidebar({ ...base, status, unread });
+		expect(listed('needsAttention')).toBe(true);
+		expect(listed('working')).toBe(true);
+		expect(listed('failed')).toBe(true);
+		expect(listed('idle')).toBe(true);
+		expect(listed('idle', true)).toBe(true);
+		expect(listed('resolved')).toBe(false);
+		expect(listed('resolved', true)).toBe(false);
+	});
+});
 
 describe('actors store', () => {
 	it('marks a session read in the list and the open session at once', async () => {

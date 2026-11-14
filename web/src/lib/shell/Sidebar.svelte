@@ -65,7 +65,7 @@
 	import { routes } from '$lib/shell/routes';
 	import { DocumentFolderDrag } from '$lib/shell/documentFolderDrag.svelte';
 	import { documentFolderRows, taskFolderRows, type FolderRow } from '$lib/shell/sidebarFolders';
-	import { isGoing } from '$lib/stores/actors.svelte';
+	import { listedInSidebar } from '$lib/stores/actors.svelte';
 	import type { ConnectorKind } from '$lib/stores/connectors.svelte';
 	import AgentCard from '$lib/features/agents/AgentCard.svelte';
 	import WorkspaceSwitcher from '$lib/shell/WorkspaceSwitcher.svelte';
@@ -264,13 +264,9 @@
 	// or started moves only once it leaves and a row never shifts under a click. Each held
 	// row still shows where its session stands, and goes the moment the sidebar stops listing it
 	// (a session resolved from here leaves at once, pointer or not).
-	// Sessions going on (working, or waiting on the user), finished ones not yet read, and the one
-	// open: a finished session stays until it is read or resolved, so completed work isn't lost.
-	const liveSessions = $derived(
-		actorSessions.filter(
-			(session) => isGoing(session) || session.unread || active(routes.actorSession(session.id))
-		)
-	);
+	// Sessions needing attention, working, failed, or done and not yet resolved, as in the
+	// iPhone app; a resolved session never shows.
+	const liveSessions = $derived(actorSessions.filter(listedInSidebar));
 	let heldSessions = $state.raw<ActorSession[] | null>(null);
 	const shownTasks = $derived(
 		heldSessions?.flatMap((held) => liveSessions.find((session) => session.id === held.id) ?? []) ??
