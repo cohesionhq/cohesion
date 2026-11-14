@@ -1,6 +1,7 @@
 use cohesion_core::model::{
-    BackendEvent, BackendEventTiming, BackendTimedEvent, CalendarColorChoice, CalendarEvent,
-    CalendarEventFields, EventTiming, IntelligenceAgentColor, SearchEntityKind,
+    BackendEvent, BackendEventTiming, BackendTimedEvent, CalendarColorChoice, CalendarColorSupport,
+    CalendarEvent, CalendarEventFields, CalendarStoreBackend, EventTiming, IntelligenceAgentColor,
+    SearchEntityKind,
 };
 
 use crate::test_support::context;
@@ -8,9 +9,11 @@ use crate::{
     ApplyBackendEventCommand, CommandError, CreateCalendarCommand, CreateCalendarEventCommand,
     CreateCalendarStoreCommand, CreateWorkspaceCommand, DatabaseContext, DeleteCalendarCommand,
     DeleteCalendarEventCommand, DeleteCalendarStoreCommand, ForgetCalendarEventCommand,
-    GetCalendarEventCommand, ListCalendarEventsCommand, ListCalendarsCommand,
-    ListEventsToSyncCommand, RecordEventPushedCommand, SearchWorkspaceCommand,
-    SetCalendarColorCommand, SyncedEvent, UpdateCalendarEventCommand,
+    GetCalendarEventCommand, GetCalendarPerspectiveCommand, ListCalendarEventsCommand,
+    ListCalendarStoresCommand, ListCalendarsCommand, ListEventsToSyncCommand,
+    RecordEventPushedCommand, RenameCalendarStoreCommand, SearchWorkspaceCommand,
+    SetCalendarColorCommand, SetCalendarPerspectiveCommand, SyncedEvent,
+    UpdateCalendarEventCommand,
 };
 
 /// 13 November 2026, 09:00 UTC.
@@ -30,6 +33,7 @@ fn calendar(db: &DatabaseContext) -> i64 {
         color: CalendarColorChoice::Palette {
             color: IntelligenceAgentColor::Blue,
         },
+        workspace_id: None,
     })
     .unwrap()
     .id
@@ -46,7 +50,7 @@ fn timed(title: &str, starts_at: i64, hours: i64) -> CalendarEventFields {
             time_zone: "Europe/London".to_string(),
         },
         invitees: Vec::new(),
-        color: None,
+        selected_color: None,
     }
 }
 
@@ -106,11 +110,12 @@ fn events_list_by_when_they_overlap_the_range() {
 }
 
 #[test]
-fn colors_are_exact_with_the_nearest_palette_color() {
+fn an_exact_color_binds_to_the_nearest_palette_color() {
     let db = context();
     let calendar_id = calendar(&db);
     let calendars = db.send_blocking(ListCalendarsCommand {}).unwrap();
-    assert_eq!(calendars[0].color.hex, IntelligenceAgentColor::Blue.hex());
+    assert_eq!(calendars[0].selected_color, IntelligenceAgentColor::Blue);
+    assert_eq!(calendars[0].declared_color, None);
 
     let recolored = db
         .send_blocking(SetCalendarColorCommand {
@@ -120,22 +125,19 @@ fn colors_are_exact_with_the_nearest_palette_color() {
             },
         })
         .unwrap();
-    assert_eq!(recolored.color.hex, "#d50000");
-    assert_eq!(recolored.color.nearest, IntelligenceAgentColor::Red);
+    assert_eq!(recolored.selected_color, IntelligenceAgentColor::Red);
+    // A local store's calendar has nothing to push to.
+    assert!(!recolored.color_pending_push);
 
     let mut fields = timed("Dentist", NINE, 1);
-    fields.color = Some(CalendarColorChoice::Exact {
+    fields.selected_color = Some(CalendarColorChoice::Exact {
         hex: "#2e7d32".to_string(),
     });
     let event = create(&db, calendar_id, fields);
-    let color = event.color.unwrap();
-    assert_eq!(
-        (color.hex.as_str(), color.nearest),
-        ("#2e7d32", IntelligenceAgentColor::Green)
-    );
+    assert_eq!(event.selected_color, Some(IntelligenceAgentColor::Green));
 
     let mut fields = timed("Dentist", NINE, 1);
-    fields.color = Some(CalendarColorChoice::Exact {
+    fields.selected_color = Some(CalendarColorChoice::Exact {
         hex: "green".to_string(),
     });
     assert!(matches!(
@@ -145,6 +147,135 @@ fn colors_are_exact_with_the_nearest_palette_color() {
         }),
         Err(CommandError::Validation(_))
     ));
+}
+
+#[test]
+fn cohesion_starts_with_a_store_of_its_own_that_can_be_named() {
+    let db = context();
+    let stores = db.send_blocking(ListCalendarStoresCommand {}).unwrap();
+    assert_eq!(stores.len(), 1);
+    let cohesion = &stores[0];
+    assert_eq!(cohesion.title, "Cohesion");
+    assert!(!cohesion.named_by_user);
+    assert_eq!(cohesion.backend, CalendarStoreBackend::Local);
+    assert_eq!(cohesion.color_support, CalendarColorSupport::None);
+
+    let named = db
+        .send_blocking(RenameCalendarStoreCommand {
+            store_id: cohesion.id,
+            title: Some("Personal".to_string()),
+        })
+        .unwrap();
+    assert_eq!(
+        (named.title.as_str(), named.named_by_user),
+        ("Personal", true)
+    );
+    assert!(matches!(
+        db.send_blocking(RenameCalendarStoreCommand {
+            store_id: cohesion.id,
+            title: Some(String::new()),
+        }),
+        Err(CommandError::Validation(_))
+    ));
+    let reset = db
+        .send_blocking(RenameCalendarStoreCommand {
+            store_id: cohesion.id,
+            title: None,
+        })
+        .unwrap();
+    assert_eq!(
+        (reset.title.as_str(), reset.named_by_user),
+        ("Cohesion", false)
+    );
+
+    // A store made by hand is named by its maker.
+    let home = db
+        .send_blocking(CreateCalendarStoreCommand {
+            title: "Home".to_string(),
+        })
+        .unwrap();
+    assert!(home.named_by_user);
+}
+
+fn workspace(db: &DatabaseContext) -> i64 {
+    db.send_blocking(CreateWorkspaceCommand {
+        title: "w".to_string(),
+        emoji: None,
+    })
+    .unwrap()
+    .id
+}
+
+#[test]
+fn a_workspace_shows_every_calendar_until_it_chooses() {
+    let db = context();
+    let family = calendar(&db);
+    let workspace_id = workspace(&db);
+    let perspective = |db: &DatabaseContext| {
+        db.send_blocking(GetCalendarPerspectiveCommand { workspace_id })
+            .unwrap()
+            .calendar_ids
+    };
+    assert_eq!(perspective(&db), None);
+
+    let store_id = db.send_blocking(ListCalendarsCommand {}).unwrap()[0].store_id;
+    let make = |db: &DatabaseContext, title: &str, workspace_id: Option<i64>| {
+        db.send_blocking(CreateCalendarCommand {
+            store_id,
+            title: title.to_string(),
+            color: CalendarColorChoice::Palette {
+                color: IntelligenceAgentColor::Green,
+            },
+            workspace_id,
+        })
+        .unwrap()
+        .id
+    };
+    // Without a perspective, a calendar made in the workspace leaves it
+    // showing every calendar.
+    let work = make(&db, "Work", Some(workspace_id));
+    assert_eq!(perspective(&db), None);
+
+    let set = db
+        .send_blocking(SetCalendarPerspectiveCommand {
+            workspace_id,
+            calendar_ids: Some(vec![work, work]),
+        })
+        .unwrap();
+    assert_eq!(set.calendar_ids, Some(vec![work]));
+
+    // With one, a calendar made in the workspace joins it; one made
+    // elsewhere doesn't.
+    let gym = make(&db, "Gym", Some(workspace_id));
+    make(&db, "Elsewhere", None);
+    assert_eq!(perspective(&db), Some(vec![work, gym]));
+
+    // A deleted calendar leaves it; an unknown one is refused.
+    db.send_blocking(DeleteCalendarCommand { calendar_id: gym })
+        .unwrap();
+    assert_eq!(perspective(&db), Some(vec![work]));
+    assert!(matches!(
+        db.send_blocking(SetCalendarPerspectiveCommand {
+            workspace_id,
+            calendar_ids: Some(vec![family, gym]),
+        }),
+        Err(CommandError::Validation(_))
+    ));
+
+    // An empty choice shows nothing; forgetting it shows everything again.
+    let empty = db
+        .send_blocking(SetCalendarPerspectiveCommand {
+            workspace_id,
+            calendar_ids: Some(Vec::new()),
+        })
+        .unwrap();
+    assert_eq!(empty.calendar_ids, Some(Vec::new()));
+    db.send_blocking(SetCalendarPerspectiveCommand {
+        workspace_id,
+        calendar_ids: None,
+    })
+    .unwrap();
+    assert_eq!(perspective(&db), None);
 }
 
 #[test]
@@ -182,13 +313,7 @@ fn every_workspace_searches_events_while_they_are_live() {
     let db = context();
     let calendar_id = calendar(&db);
     let event = create(&db, calendar_id, timed("Piano lesson", NINE, 1));
-    let workspace_id = db
-        .send_blocking(CreateWorkspaceCommand {
-            title: "w".to_string(),
-            emoji: None,
-        })
-        .unwrap()
-        .id;
+    let workspace_id = workspace(&db);
     let search = |query: &str| {
         db.send_blocking(SearchWorkspaceCommand {
             workspace_id,
@@ -285,13 +410,15 @@ fn a_syncs_writes_skip_an_event_changed_since_it_was_read() {
             calendar_id,
             existing: None,
             remote: remote("r1", "", NINE),
+            color_support: CalendarColorSupport::Declared,
         })
         .unwrap()
         .unwrap();
     // An empty title from a backend is Untitled; a color that isn't one is
     // none.
     assert_eq!(pulled.title, "Untitled");
-    assert_eq!(pulled.color, None);
+    assert_eq!(pulled.declared_color, None);
+    assert_eq!(pulled.selected_color, None);
     assert_eq!(pulled.modified, NINE);
     let read = SyncedEvent::from(&pulled);
 
@@ -307,6 +434,7 @@ fn a_syncs_writes_skip_an_event_changed_since_it_was_read() {
             calendar_id,
             existing: Some(read),
             remote: remote("r1", "Remote", NINE + 1),
+            color_support: CalendarColorSupport::Declared,
         })
         .unwrap();
     assert!(overwritten.is_none());
@@ -315,6 +443,7 @@ fn a_syncs_writes_skip_an_event_changed_since_it_was_read() {
             event: read,
             remote_identifier: "r1".to_string(),
             remote_modified: NINE,
+            declared: None,
         })
         .unwrap();
     assert!(recorded.is_none());
@@ -341,4 +470,64 @@ fn a_syncs_writes_skip_an_event_changed_since_it_was_read() {
             .unwrap()
             .is_empty()
     );
+}
+
+#[test]
+fn an_events_selected_color_follows_its_declared_one_when_that_changes() {
+    let db = context();
+    let calendar_id = calendar(&db);
+    let colored = |identifier: &str, color: Option<&str>, last_modified: i64| BackendEvent {
+        color: color.map(str::to_string),
+        ..remote(identifier, "Standup", last_modified)
+    };
+    let apply = |existing: Option<SyncedEvent>, remote: BackendEvent, support| {
+        db.send_blocking(ApplyBackendEventCommand {
+            calendar_id,
+            existing,
+            remote,
+            color_support: support,
+        })
+        .unwrap()
+        .unwrap()
+    };
+    let declared = CalendarColorSupport::Declared;
+    let event = apply(None, colored("r1", Some("#d50000"), NINE), declared);
+    assert_eq!(event.declared_color, Some(IntelligenceAgentColor::Red));
+    assert_eq!(event.selected_color, Some(IntelligenceAgentColor::Red));
+
+    // A color chosen in Cohesion changes the selected one only.
+    let mut fields = timed("Standup", NINE, 1);
+    fields.selected_color = Some(CalendarColorChoice::Palette {
+        color: IntelligenceAgentColor::Teal,
+    });
+    let event = db
+        .send_blocking(UpdateCalendarEventCommand {
+            event_id: event.id,
+            event: fields,
+        })
+        .unwrap();
+    assert_eq!(event.declared_color, Some(IntelligenceAgentColor::Red));
+    assert_eq!(event.selected_color, Some(IntelligenceAgentColor::Teal));
+
+    // The same declared color keeps the choice; a new one overrides it.
+    let event = apply(
+        Some(SyncedEvent::from(&event)),
+        colored("r1", Some("#d50000"), NINE + 1),
+        declared,
+    );
+    assert_eq!(event.selected_color, Some(IntelligenceAgentColor::Teal));
+    let event = apply(
+        Some(SyncedEvent::from(&event)),
+        colored("r1", Some("#2e7d32"), NINE + 2),
+        declared,
+    );
+    assert_eq!(event.selected_color, Some(IntelligenceAgentColor::Green));
+
+    // A backend without colors declares none, whatever it sends.
+    let event = apply(
+        None,
+        colored("r2", Some("#d50000"), NINE),
+        CalendarColorSupport::None,
+    );
+    assert_eq!((event.declared_color, event.selected_color), (None, None));
 }

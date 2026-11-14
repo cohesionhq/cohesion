@@ -35,21 +35,53 @@ describe('calendar events store', () => {
 		});
 	});
 
-	it('keeps an event’s exact color when another field changes', async () => {
+	it('keeps an event’s selected color when another field changes', async () => {
 		const mock = createMock();
 		const store = createCalendarEventsStore(mock.send);
 		await store.load(week());
 		const climbing = structuredClone(store.list.value.find((e) => e.title === 'Climbing')!);
 		const renamed = await store.update(climbing.id, { ...fieldsOf(climbing), title: 'Bouldering' });
-		expect(renamed.color).toEqual(climbing.color);
+		expect(renamed.selected_color).toBe('red');
+		expect(renamed.selected_color).toEqual(climbing.selected_color);
 	});
 });
 
 describe('calendars store', () => {
+	it('shows every calendar until the workspace chooses, then the ones it chose', async () => {
+		const mock = createMock();
+		const store = createCalendarsStore(mock.send);
+		// Workspace 2 never chose.
+		await store.load(2);
+		expect(store.perspective.value?.calendar_ids).toBeNull();
+		expect(store.calendars.value.every((c) => store.inPerspective(c.id))).toBe(true);
+
+		// Hiding one starts from every calendar.
+		const holidays = store.calendars.value.find((c) => c.title === 'Holidays')!;
+		await store.setInPerspective(2, holidays.id, false);
+		expect(store.inPerspective(holidays.id)).toBe(false);
+		expect(store.perspective.value?.calendar_ids).toHaveLength(store.calendars.value.length - 1);
+
+		// A calendar made in the workspace joins what it chose.
+		const cohesion = store.stores.value.find((s) => s.backend.kind === 'local')!;
+		const made = await store.create(cohesion.id, 'Garden', { kind: 'palette', color: 'green' }, 2);
+		expect(store.inPerspective(made.id)).toBe(true);
+	});
+
+	it('names an account, and gives it back its own name', async () => {
+		const mock = createMock();
+		const store = createCalendarsStore(mock.send);
+		await store.load(1);
+		const cohesion = store.stores.value.find((s) => s.backend.kind === 'local')!;
+		expect((await store.renameStore(cohesion.id, 'Personal')).named_by_user).toBe(true);
+		expect(store.store(cohesion.id)?.title).toBe('Personal');
+		await store.renameStore(cohesion.id, null);
+		expect(store.store(cohesion.id)?.title).toBe('Cohesion');
+	});
+
 	it('drops a deleted store’s calendars', async () => {
 		const mock = createMock();
 		const store = createCalendarsStore(mock.send);
-		await store.load();
+		await store.load(1);
 		const made = await store.createStore('Family');
 		await store.create(made.id, 'Birthdays', { kind: 'palette', color: 'pink' });
 		expect(store.calendars.value.some((c) => c.title === 'Birthdays')).toBe(true);

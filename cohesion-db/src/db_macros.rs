@@ -57,6 +57,8 @@ macro_rules! every_model {
         $check::<CalendarStore>($db);
         $check::<Calendar>($db);
         $check::<CalendarEvent>($db);
+        $check::<CalendarPerspectiveRow>($db);
+        $check::<CalendarPerspectiveCalendar>($db);
         $check::<Tag>($db);
         $check::<TaskTag>($db);
         $check::<SavedTaskView>($db);

@@ -5317,6 +5317,139 @@ pub const MIGRATIONS: &[Migration] = &[
             'school', 'tools', 'garden', 'pets', 'bug', 'globe', 'chat', 'mail',
             'lock'));",
     },
+    // Calendars start over, before any release carried them: the stores,
+    // calendars and events made so far, and grants of the `calendar:backend`
+    // permission that `calendar:account` replaces, are dropped. A store
+    // takes a name a person gave it or its backend's, and what colors its
+    // backend keeps. Colors are palette colors: a calendar's and an event's
+    // selected one, and the one its backend declares. One store only in
+    // Cohesion is there from the start. A workspace may choose which
+    // calendars it shows: its perspective.
+    Migration {
+        name: "calendars_start_over",
+        sql: "
+        DELETE FROM search_fts WHERE rowid IN
+            (SELECT id FROM search_entries WHERE entity_kind = 'calendarEvent');
+        DELETE FROM search_entries WHERE entity_kind = 'calendarEvent';
+        DROP TABLE calendar_events;
+        DROP TABLE calendars;
+        DROP TABLE calendar_stores;
+        DELETE FROM extension_permissions WHERE permission = 'calendar:backend';
+
+        CREATE TABLE calendar_stores (
+            id INTEGER PRIMARY KEY,
+            title TEXT NOT NULL,
+            named_by_user BOOLEAN NOT NULL DEFAULT FALSE,
+            account_id INTEGER UNIQUE REFERENCES connector_accounts(id) ON DELETE CASCADE,
+            color_support TEXT NOT NULL DEFAULT 'none'
+                CHECK (color_support IN ('exact', 'declared', 'none')),
+            last_synced_at INTEGER,
+            sync_failure TEXT,
+            created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+            CHECK (account_id IS NOT NULL
+                OR (last_synced_at IS NULL AND sync_failure IS NULL AND color_support = 'none'))
+        );
+        INSERT INTO calendar_stores (title) VALUES ('Cohesion');
+
+        CREATE TABLE calendars (
+            id INTEGER PRIMARY KEY,
+            store_id INTEGER NOT NULL REFERENCES calendar_stores(id) ON DELETE CASCADE,
+            deleted BOOLEAN NOT NULL DEFAULT FALSE,
+            title TEXT NOT NULL,
+            selected_color TEXT NOT NULL CHECK (selected_color IN ('blue', 'green', 'orange', 'purple', 'red', 'pink', 'teal', 'yellow')),
+            declared_color TEXT CHECK (declared_color IN ('blue', 'green', 'orange', 'purple', 'red', 'pink', 'teal', 'yellow')),
+            color_pending_push BOOLEAN NOT NULL DEFAULT FALSE,
+            remote_identifier TEXT,
+            read_only BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+            modified INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX calendars_store ON calendars(store_id);
+        CREATE UNIQUE INDEX calendars_remote ON calendars(store_id, remote_identifier)
+            WHERE remote_identifier IS NOT NULL;
+
+        CREATE TABLE calendar_events (
+            id INTEGER PRIMARY KEY,
+            calendar_id INTEGER NOT NULL REFERENCES calendars(id) ON DELETE CASCADE,
+            deleted BOOLEAN NOT NULL DEFAULT FALSE,
+            title TEXT NOT NULL,
+            location TEXT NOT NULL DEFAULT '',
+            description TEXT NOT NULL DEFAULT '',
+            starts_at INTEGER,
+            ends_at INTEGER,
+            time_zone TEXT,
+            start_date TEXT CHECK (start_date IS date(start_date)),
+            end_date TEXT CHECK (end_date IS date(end_date)),
+            invitees TEXT NOT NULL DEFAULT '[]',
+            selected_color TEXT CHECK (selected_color IN ('blue', 'green', 'orange', 'purple', 'red', 'pink', 'teal', 'yellow')),
+            declared_color TEXT CHECK (declared_color IN ('blue', 'green', 'orange', 'purple', 'red', 'pink', 'teal', 'yellow')),
+            remote_identifier TEXT,
+            remote_modified INTEGER,
+            pending_push BOOLEAN NOT NULL DEFAULT FALSE,
+            revision INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+            modified INTEGER NOT NULL DEFAULT (unixepoch()),
+            CHECK (
+                (starts_at IS NOT NULL AND ends_at IS NOT NULL AND ends_at >= starts_at
+                    AND time_zone IS NOT NULL AND time_zone <> ''
+                    AND start_date IS NULL AND end_date IS NULL)
+                OR (start_date IS NOT NULL AND end_date IS NOT NULL AND end_date >= start_date
+                    AND starts_at IS NULL AND ends_at IS NULL AND time_zone IS NULL)
+            )
+        );
+        CREATE INDEX calendar_events_starts ON calendar_events(calendar_id, starts_at);
+        CREATE INDEX calendar_events_start_date ON calendar_events(calendar_id, start_date);
+        CREATE UNIQUE INDEX calendar_events_remote ON calendar_events(calendar_id, remote_identifier)
+            WHERE remote_identifier IS NOT NULL;
+
+        CREATE TRIGGER calendar_events_search_ai AFTER INSERT ON calendar_events
+        WHEN new.deleted = 0
+        BEGIN
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                VALUES ('calendarEvent', new.id, NULL);
+            INSERT INTO search_fts (rowid, title, contents)
+                VALUES (last_insert_rowid(), new.title, concat_ws(char(10), new.location, new.description));
+        END;
+        CREATE TRIGGER calendar_events_search_ad AFTER DELETE ON calendar_events BEGIN
+            DELETE FROM search_fts WHERE rowid = (SELECT id FROM search_entries
+                WHERE entity_kind = 'calendarEvent' AND entity_id = old.id);
+            DELETE FROM search_entries WHERE entity_kind = 'calendarEvent' AND entity_id = old.id;
+        END;
+        CREATE TRIGGER calendar_events_search_au
+        AFTER UPDATE OF title, location, description, deleted ON calendar_events BEGIN
+            DELETE FROM search_fts WHERE rowid = (SELECT id FROM search_entries
+                WHERE entity_kind = 'calendarEvent' AND entity_id = old.id);
+            DELETE FROM search_entries WHERE entity_kind = 'calendarEvent' AND entity_id = old.id;
+            INSERT INTO search_entries (entity_kind, entity_id, workspace_id)
+                SELECT 'calendarEvent', new.id, NULL WHERE new.deleted = 0;
+            INSERT INTO search_fts (rowid, title, contents)
+                SELECT last_insert_rowid(), new.title,
+                    concat_ws(char(10), new.location, new.description)
+                WHERE new.deleted = 0;
+        END;
+        -- Deleting a calendar deletes its events, which leaves nothing to
+        -- push: a calendar is only deleted in Cohesion or by its backend.
+        CREATE TRIGGER calendars_deleted_delete_events
+        AFTER UPDATE OF deleted ON calendars WHEN new.deleted AND NOT old.deleted
+        BEGIN
+            UPDATE calendar_events SET deleted = TRUE, pending_push = FALSE
+                WHERE calendar_id = new.id AND NOT deleted;
+        END;
+
+        CREATE TABLE calendar_perspectives (
+            id INTEGER PRIMARY KEY,
+            workspace_id INTEGER NOT NULL UNIQUE REFERENCES workspaces(id) ON DELETE CASCADE
+        );
+        CREATE TABLE calendar_perspective_calendars (
+            id INTEGER PRIMARY KEY,
+            perspective_id INTEGER NOT NULL
+                REFERENCES calendar_perspectives(id) ON DELETE CASCADE,
+            calendar_id INTEGER NOT NULL REFERENCES calendars(id) ON DELETE CASCADE,
+            UNIQUE (perspective_id, calendar_id)
+        );
+        CREATE INDEX calendar_perspective_calendars_calendar
+            ON calendar_perspective_calendars(calendar_id);",
+    },
 ];
 
 #[cfg(test)]

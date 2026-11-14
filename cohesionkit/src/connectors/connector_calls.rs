@@ -245,7 +245,7 @@ impl Connection {
 }
 
 /// How `account`'s items are reached, for calls that need `permission`
-/// (`connector` to import, `calendar:backend` to sync calendars). An
+/// (`connector` to import, `calendar:account` to sync calendars). An
 /// extension's account needs its extension granted `permission` and
 /// `oauth`, and its credential, refreshed first if it is about to expire.
 /// An orphaned account is reached by nothing.
@@ -506,7 +506,7 @@ pub(crate) async fn call_connector<F: ExtensionFn>(
 /// What a failed call to `extension`'s `function` tells the caller: a
 /// failure the script caused is the user's to see; anything else stays in
 /// the log.
-pub(super) fn connector_error(
+pub(crate) fn connector_error(
     extension: &Extension,
     function: &str,
     error: ExtensionError,

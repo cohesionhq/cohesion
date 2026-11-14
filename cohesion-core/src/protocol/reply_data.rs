@@ -29,8 +29,8 @@ use super::storage_requests::{
 use super::task_requests::TaskPage;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem,
-    AgentSkill, Article, Attachment, Calendar, CalendarEvent, CalendarStore, CatalogModel, Client,
-    Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
+    AgentSkill, Article, Attachment, Calendar, CalendarEvent, CalendarPerspective, CalendarStore,
+    CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
     DocumentFolderProperty, DocumentSummary, Embed, EndpointModel, ExperimentSetting,
     ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
     IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
@@ -97,6 +97,7 @@ pub enum ReplyData {
     CalendarEvents(Vec<CalendarEvent>),
     CalendarEvent(Box<CalendarEvent>),
     CalendarSyncSummary(CalendarSyncSummary),
+    CalendarPerspective(CalendarPerspective),
     Tasks(Vec<Task>),
     Task(Task),
     Results(Vec<SearchResult>),

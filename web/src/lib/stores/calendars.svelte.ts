@@ -1,14 +1,16 @@
-// Calendars: the stores that hold them (local, or one per connector account
-// of a calendar backend), the calendars every workspace shares, and the events
-// of the days a calendar page shows. Stores and calendars are app-wide (the
-// shell's column lists them); each half of the sheet has its own events, for
-// the range it shows.
+// Calendars: the stores that hold them (shown as accounts: Cohesion's own, or
+// one per connector account of a calendar backend), the calendars every
+// workspace shares, which of them a workspace shows (its perspective), and the
+// events of the days a calendar page shows. Stores, calendars and the current
+// workspace's perspective are app-wide (the shell's column lists them); each
+// half of the sheet has its own events, for the range it shows.
 
 import type {
 	Calendar,
 	CalendarColorChoice,
 	CalendarEvent,
 	CalendarEventFields,
+	CalendarPerspective,
 	CalendarStore,
 	CalendarSyncSummary,
 	Send
@@ -19,6 +21,8 @@ import { send as defaultSend } from '$lib/protocol/api';
 export class CalendarsStore {
 	readonly stores: Resource<CalendarStore[]>;
 	readonly calendars: Resource<Calendar[]>;
+	/** Which calendars a workspace shows, keyed by the workspace's id. */
+	readonly perspective: Resource<CalendarPerspective | null, number>;
 
 	/** Whether a sync this client asked for is running. */
 	syncing = $state(false);
@@ -37,10 +41,51 @@ export class CalendarsStore {
 			initial: [],
 			matches: (key) => key.kind === 'calendars'
 		});
+		this.perspective = new Resource({
+			fetch: (workspace_id) => send('getCalendarPerspective', { workspace_id }),
+			initial: null,
+			matches: (key, workspace_id) =>
+				key.kind === 'calendars' || (key.kind === 'calendarPerspective' && key.id === workspace_id)
+		});
 	}
 
-	load(): Promise<unknown> {
-		return Promise.all([this.stores.load(), this.calendars.load()]);
+	/** Loads the stores and calendars, and workspace `workspace_id`'s perspective. */
+	load(workspace_id: number): Promise<unknown> {
+		return Promise.all([
+			this.stores.load(),
+			this.calendars.load(),
+			this.perspective.load(workspace_id)
+		]);
+	}
+
+	/**
+	 * Whether the loaded workspace shows calendar `calendar_id`: every calendar
+	 * until it chooses, then the ones it chose.
+	 */
+	inPerspective(calendar_id: number): boolean {
+		const ids = this.perspective.value?.calendar_ids;
+		return ids == null || ids.includes(calendar_id);
+	}
+
+	/**
+	 * Shows or hides calendar `calendar_id` in workspace `workspace_id`: one
+	 * that hadn't chosen starts from every calendar.
+	 */
+	async setInPerspective(workspace_id: number, calendar_id: number, shown: boolean): Promise<void> {
+		const loaded = this.perspective.key === workspace_id ? this.perspective.value : null;
+		const current = loaded?.calendar_ids ?? this.calendars.value.map((calendar) => calendar.id);
+		const calendar_ids = shown
+			? [...current.filter((id) => id !== calendar_id), calendar_id]
+			: current.filter((id) => id !== calendar_id);
+		const before = this.perspective.value;
+		if (this.perspective.key === workspace_id) this.perspective.set({ workspace_id, calendar_ids });
+		try {
+			const saved = await this.#send('setCalendarPerspective', { workspace_id, calendar_ids });
+			if (this.perspective.key === workspace_id) this.perspective.set(saved);
+		} catch (error) {
+			if (this.perspective.key === workspace_id) this.perspective.set(before);
+			throw error;
+		}
 	}
 
 	/** Calendar `id`, if it is loaded. */
@@ -59,6 +104,13 @@ export class CalendarsStore {
 		return store;
 	}
 
+	/** Names store `store_id` `title`, or with `null` gives it its backend's name back. */
+	async renameStore(store_id: number, title: string | null): Promise<CalendarStore> {
+		const store = await this.#send('renameCalendarStore', { store_id, title });
+		this.stores.update((list) => list.map((s) => (s.id === store.id ? store : s)));
+		return store;
+	}
+
 	/** Deletes a local store with its calendars and their events. */
 	async deleteStore(store_id: number): Promise<void> {
 		await this.#send('deleteCalendarStore', { store_id });
@@ -66,9 +118,18 @@ export class CalendarsStore {
 		this.calendars.update((list) => list.filter((c) => c.store_id !== store_id));
 	}
 
-	async create(store_id: number, title: string, color: CalendarColorChoice): Promise<Calendar> {
-		const calendar = await this.#send('createCalendar', { store_id, title, color });
+	/** Makes a calendar from workspace `workspace_id`, whose perspective it joins if it has one. */
+	async create(
+		store_id: number,
+		title: string,
+		color: CalendarColorChoice,
+		workspace_id: number | null = null
+	): Promise<Calendar> {
+		const calendar = await this.#send('createCalendar', { store_id, title, color, workspace_id });
 		this.calendars.update((list) => [...list, calendar]);
+		const loaded = this.perspective.value;
+		if (loaded?.calendar_ids && loaded.workspace_id === workspace_id)
+			this.perspective.set({ ...loaded, calendar_ids: [...loaded.calendar_ids, calendar.id] });
 		return calendar;
 	}
 
@@ -159,7 +220,9 @@ export class CalendarEventsStore {
 		const before = this.list.value;
 		this.list.update((list) =>
 			list.map((e) =>
-				e.id === event_id ? { ...e, ...event, color: e.color, timing: event.timing } : e
+				e.id === event_id
+					? { ...e, ...event, selected_color: e.selected_color, timing: event.timing }
+					: e
 			)
 		);
 		try {
@@ -182,7 +245,7 @@ export function createCalendarEventsStore(send: Send = defaultSend): CalendarEve
 	return new CalendarEventsStore(send);
 }
 
-/** What `event` says, to send back changed. Its color goes back exactly as it is. */
+/** What `event` says, to send back changed. Its selected color goes back as it is. */
 export function fieldsOf(event: CalendarEvent): CalendarEventFields {
 	return {
 		title: event.title,
@@ -190,6 +253,6 @@ export function fieldsOf(event: CalendarEvent): CalendarEventFields {
 		description: event.description,
 		timing: event.timing,
 		invitees: event.invitees,
-		color: event.color ? { kind: 'exact', hex: event.color.hex } : null
+		selected_color: event.selected_color ? { kind: 'palette', color: event.selected_color } : null
 	};
 }

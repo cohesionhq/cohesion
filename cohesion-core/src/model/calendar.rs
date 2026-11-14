@@ -1,79 +1,85 @@
-//! Calendars: the stores that hold them, the calendars themselves and their
-//! events, and the exact colors they are drawn in. Calendars are
-//! daemon-wide, like feeds: they belong to no workspace.
+//! Calendars: the stores that hold them (shown to people as accounts), the
+//! calendars themselves and their events, and the palette colors they are
+//! drawn in. Calendars are daemon-wide, like feeds: they belong to no
+//! workspace, though each workspace may choose which it shows (its
+//! perspective).
 
-use cohesion_macros::{ColumnGroup, Fields, Model, TextEnum, TsInterface, TsWire};
+use cohesion_macros::{ColumnGroup, Fields, Model, TextEnum, TsWire};
 use serde::{Deserialize, Serialize};
 
 use super::IntelligenceAgentColor;
-use crate::value::{FromValue, IntoValue, Value, ValueError};
 
-/// An exact color, stored as `"#rrggbb"`, with the palette color nearest to
-/// it.
-///
-/// A color chosen in the apps is a palette color's exact value; one a
-/// calendar backend sends can be any color, and `nearest` is how a client
-/// that only draws the palette shows it.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, TsWire, TsInterface)]
-pub struct CalendarColor {
-    /// The exact color, as `"#rrggbb"` in lowercase.
-    pub hex: String,
-    /// The palette color nearest to `hex`.
-    pub nearest: IntelligenceAgentColor,
+/// The palette color nearest to exact color `text`, written `"#rrggbb"` or
+/// `"#rgb"` in either case; `None` when it isn't a color. A calendar or event
+/// is drawn in a palette color, and an exact color a person or a backend
+/// gives is bound to the nearest one.
+pub fn nearest_palette_color(text: &str) -> Option<IntelligenceAgentColor> {
+    let digits = text.strip_prefix('#')?;
+    if !digits.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    let digits = match digits.len() {
+        6 => digits.to_ascii_lowercase(),
+        3 => digits
+            .chars()
+            .flat_map(|c| [c, c])
+            .collect::<String>()
+            .to_ascii_lowercase(),
+        _ => return None,
+    };
+    Some(nearest(rgb(&digits)))
 }
 
-impl CalendarColor {
-    /// The exact value of palette color `color`.
-    pub fn palette(color: IntelligenceAgentColor) -> Self {
-        Self {
-            hex: color.hex().to_string(),
-            nearest: color,
-        }
-    }
-
-    /// `text` as a color: `"#rrggbb"` or `"#rgb"`, in either case. `None`
-    /// for anything else.
-    pub fn parse(text: &str) -> Option<Self> {
-        let digits = text.strip_prefix('#')?;
-        if !digits.chars().all(|c| c.is_ascii_hexdigit()) {
-            return None;
-        }
-        let digits = match digits.len() {
-            6 => digits.to_ascii_lowercase(),
-            3 => digits
-                .chars()
-                .flat_map(|c| [c, c])
-                .collect::<String>()
-                .to_ascii_lowercase(),
-            _ => return None,
-        };
-        let rgb = rgb(&digits);
-        Some(Self {
-            hex: format!("#{digits}"),
-            nearest: nearest(rgb),
-        })
-    }
-
-    /// What a client chose: a palette color, or an exact one, refused when
-    /// it isn't a color.
-    pub fn chosen(choice: &CalendarColorChoice) -> Option<Self> {
-        match choice {
-            CalendarColorChoice::Palette { color } => Some(Self::palette(*color)),
-            CalendarColorChoice::Exact { hex } => Self::parse(hex),
-        }
-    }
-}
-
-/// The color a client sets on a calendar or an event. The apps' picker
-/// offers the palette; scripts and backends may give any exact color.
+/// The color a client or script sets on a calendar or an event: a palette
+/// color, or an exact one, which is bound to the palette color nearest it.
 ///
-/// - `"palette"`: palette color `color`, stored as its exact value.
+/// - `"palette"`: palette color `color`.
 /// - `"exact"`: `hex`, as `"#rrggbb"` or `"#rgb"`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, TsWire)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum CalendarColorChoice {
     Palette { color: IntelligenceAgentColor },
     Exact { hex: String },
+}
+
+impl CalendarColorChoice {
+    /// The palette color chosen; `None` when an exact color isn't one.
+    pub fn palette_color(&self) -> Option<IntelligenceAgentColor> {
+        match self {
+            Self::Palette { color } => Some(*color),
+            Self::Exact { hex } => nearest_palette_color(hex),
+        }
+    }
+}
+
+/// What colors a calendar backend keeps, as its extension's
+/// `calendarColorSupport()` says; a store only in Cohesion is `"none"`, as
+/// Cohesion owns its colors.
+///
+/// - `"exact"`: any `"#rrggbb"`. A color chosen in Cohesion is pushed to the
+///   backend, as its palette color's exact value.
+/// - `"declared"`: colors of its own, but not any color. The backend's color
+///   is the declared one; one chosen in Cohesion stays in Cohesion.
+/// - `"none"`: no colors. Cohesion owns them, and ignores any it is sent.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq, TextEnum, TsWire)]
+#[serde(rename_all = "camelCase")]
+#[text_enum(rename_all = "camelCase")]
+pub enum CalendarColorSupport {
+    Exact,
+    #[default]
+    Declared,
+    None,
+}
+
+impl CalendarColorSupport {
+    /// The palette color a backend declares with `color`: none when it sends
+    /// none, sends something that isn't a color, or keeps no colors.
+    pub fn declared(self, color: Option<&str>) -> Option<IntelligenceAgentColor> {
+        match self {
+            Self::None => None,
+            Self::Exact | Self::Declared => color.and_then(nearest_palette_color),
+        }
+    }
 }
 
 /// Six lowercase hex digits as red, green and blue.
@@ -120,34 +126,32 @@ fn oklab([r, g, b]: [u8; 3]) -> [f64; 3] {
     ]
 }
 
-impl IntoValue for CalendarColor {
-    fn into_value(self) -> Value {
-        Value::Text(self.hex)
-    }
-}
+/// The title a store only in Cohesion takes until it is named.
+pub const LOCAL_STORE_TITLE: &str = "Cohesion";
 
-/// The schema's `CHECK` keeps a stored color `"#rrggbb"`.
-impl FromValue for CalendarColor {
-    fn from_value(value: Value) -> Result<Self, ValueError> {
-        let text = String::from_value(value)?;
-        Self::parse(&text).ok_or_else(|| ValueError::Invalid(format!("{text} isn't a color")))
-    }
-}
-
-/// What holds calendars: Cohesion itself, or an account of a calendar
-/// backend, which calendars sync with both ways.
+/// What holds calendars, shown to people as an account: Cohesion itself, or
+/// a connector account of a calendar backend, whose calendars sync with it
+/// both ways. There is one store only in Cohesion from the start, titled
+/// `"Cohesion"`, and people may add more.
 #[derive(Clone, Debug, Serialize, Deserialize, Model, Fields, TsWire)]
 #[model(table = "calendar_stores", backup = Included)]
 pub struct CalendarStore {
     /// Unique, stable identifier.
     pub id: i64,
-    /// The store's name: for a backend's, the account's description when it
-    /// was added.
+    /// The store's name: the one a person gave it, or else its backend's,
+    /// which is `"Cohesion"` for a store only in Cohesion and the connector
+    /// account's description for a backend's, kept up to date at each sync.
     pub title: String,
+    /// Whether a person named the store, so `title` is theirs rather than
+    /// its backend's.
+    pub named_by_user: bool,
     /// Where its calendars live.
     #[model(group)]
     #[fields(skip)]
     pub backend: CalendarStoreBackend,
+    /// What colors its backend keeps, read at each sync; always `"none"` for
+    /// a store only in Cohesion.
+    pub color_support: CalendarColorSupport,
     /// When it last synced with its backend in full, in Unix seconds;
     /// `null` for a local store, or one that hasn't yet.
     pub last_synced_at: Option<i64>,
@@ -162,7 +166,7 @@ pub struct CalendarStore {
 ///
 /// - `"local"`: only in Cohesion.
 /// - `"account"`: connector account `account_id`, whose extension holds
-///   `calendar:backend`. An account backs at most one store, and removing
+///   `calendar:account`. An account backs at most one store, and removing
 ///   the account removes the store and its calendars.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ColumnGroup, TsWire)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -172,6 +176,12 @@ pub enum CalendarStoreBackend {
 }
 
 /// A calendar: a named, colored set of events in a store.
+///
+/// Its color is a palette color. `declared_color` is the one its backend
+/// gives it, and `selected_color` the one it is drawn in: a new calendar
+/// takes the declared one, and whenever the declared one changes the
+/// selected one follows it. A color chosen in Cohesion changes the selected
+/// one, and is pushed to a backend whose `color_support` is `"exact"`.
 #[derive(Clone, Debug, Serialize, Deserialize, Model, Fields, TsWire)]
 #[model(table = "calendars", backup = Included)]
 pub struct Calendar {
@@ -185,10 +195,16 @@ pub struct Calendar {
     /// Never empty. A backend's calendar takes its backend's title at each
     /// sync.
     pub title: String,
-    /// The color its events take unless they have their own. A backend's
-    /// calendar starts in the backend's color; after that it is Cohesion's.
-    #[fields(skip)]
-    pub color: CalendarColor,
+    /// The color it and its events are drawn in, unless an event has its
+    /// own.
+    pub selected_color: IntelligenceAgentColor,
+    /// The color its backend gives it, bound to the nearest palette color;
+    /// `null` in a local store, or when the backend gives none.
+    pub declared_color: Option<IntelligenceAgentColor>,
+    /// Whether `selected_color` changed in Cohesion since it last synced,
+    /// so the next sync pushes it. Only ever `true` when its store's
+    /// `color_support` is `"exact"`.
+    pub color_pending_push: bool,
     /// The backend's identifier for it; `null` in a local store.
     #[fields(skip)]
     pub remote_identifier: Option<String>,
@@ -253,7 +269,7 @@ pub struct EventInvitee {
     pub response: InviteeResponse,
 }
 
-/// An event on a calendar.
+/// An event on a calendar. Its colors work as its calendar's do.
 #[derive(Clone, Debug, Serialize, Deserialize, Model, Fields, TsWire)]
 #[model(table = "calendar_events", backup = Included)]
 pub struct CalendarEvent {
@@ -278,9 +294,12 @@ pub struct CalendarEvent {
     #[model(json)]
     #[fields(skip)]
     pub invitees: Vec<EventInvitee>,
-    /// Its own color; `null` to take its calendar's.
-    #[fields(skip)]
-    pub color: Option<CalendarColor>,
+    /// The color it is drawn in; `null` to take its calendar's. Follows
+    /// `declared_color` whenever that changes, as a calendar's does.
+    pub selected_color: Option<IntelligenceAgentColor>,
+    /// The color its backend gives it, bound to the nearest palette color;
+    /// `null` in a local store, or when it takes its calendar's there.
+    pub declared_color: Option<IntelligenceAgentColor>,
     /// The backend's identifier for it; `null` in a local store, or until
     /// it is first pushed.
     #[fields(skip)]
@@ -314,8 +333,37 @@ pub struct CalendarEventFields {
     /// on a day before it starts.
     pub timing: EventTiming,
     pub invitees: Vec<EventInvitee>,
-    /// `null` to take the calendar's color.
-    pub color: Option<CalendarColorChoice>,
+    /// The color it is drawn in, bound to the nearest palette color;
+    /// `null` to take the calendar's.
+    pub selected_color: Option<CalendarColorChoice>,
+}
+
+/// That workspace `workspace_id` chose which calendars it shows: those its
+/// [`CalendarPerspectiveCalendar`] rows name. A workspace without one shows
+/// every calendar.
+#[derive(Clone, Debug, Serialize, Deserialize, Model)]
+#[model(table = "calendar_perspectives", backup = Included)]
+pub struct CalendarPerspectiveRow {
+    pub id: i64,
+    pub workspace_id: i64,
+}
+
+/// A calendar in a workspace's perspective.
+#[derive(Clone, Debug, Serialize, Deserialize, Model)]
+#[model(table = "calendar_perspective_calendars", backup = Included)]
+pub struct CalendarPerspectiveCalendar {
+    pub id: i64,
+    pub perspective_id: i64,
+    pub calendar_id: i64,
+}
+
+/// Which calendars a workspace shows: its perspective.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TsWire)]
+pub struct CalendarPerspective {
+    pub workspace_id: i64,
+    /// The live calendars it shows, by id; `null` when it hasn't chosen, so
+    /// it shows every calendar, those added later included.
+    pub calendar_ids: Option<Vec<i64>>,
 }
 
 #[cfg(test)]

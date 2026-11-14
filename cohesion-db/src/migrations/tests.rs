@@ -5,13 +5,13 @@ use cohesion_core::{
         ActorSession, ActorSessionMessage, ActorSessionMessageContent, ActorSessionStatus,
         ActorToolKind, ActorUserContent, AgentAgendaItem, AgentCodeOutcome, AgentMessageContent,
         AgentSkill, AgentThreadMark, Article, Attachment, Backlink, Calendar, CalendarEvent,
-        CalendarStore, CatalogModel, Connector, ConnectorAccount, Contact, ContactMethod,
-        DocumentFolderProperty, DocumentValue, EnabledExperiment, EndpointModel, Extension,
-        ExtensionHook, ExtensionPermission, ExtensionService, ExtensionServiceFunction, Feed,
-        FeedFullPagePolicy, FeedStatus, HookKind, IntelligenceAgent, IntelligenceAgentCue,
-        IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam,
-        IntelligenceCostEvent, IntelligenceDefault, IntelligenceEffort, IntelligenceEndpoint,
-        IntelligenceSpendLimit, IntelligenceThread, IntelligenceThreadImage,
+        CalendarPerspectiveCalendar, CalendarPerspectiveRow, CalendarStore, CatalogModel,
+        Connector, ConnectorAccount, Contact, ContactMethod, DocumentFolderProperty, DocumentValue,
+        EnabledExperiment, EndpointModel, Extension, ExtensionHook, ExtensionPermission,
+        ExtensionService, ExtensionServiceFunction, Feed, FeedFullPagePolicy, FeedStatus, HookKind,
+        IntelligenceAgent, IntelligenceAgentCue, IntelligenceAgentMessage, IntelligenceAgentRun,
+        IntelligenceAgentTeam, IntelligenceCostEvent, IntelligenceDefault, IntelligenceEffort,
+        IntelligenceEndpoint, IntelligenceSpendLimit, IntelligenceThread, IntelligenceThreadImage,
         IntelligenceThreadMessage, LinkKind, Memory, MemoryScope, Metadata, PairingOpener, Photo,
         Profile, PropertyOption, PublishedPrecision, Resource, ResourceKind, RewindWriter,
         SavedTaskView, SavedTaskViewPriority, SavedTaskViewSize, SavedTaskViewTag, SecurityEvent,
@@ -468,7 +468,8 @@ const WORDS: &[(&str, &str, &str)] = &[
     ("backlinks", "source_kind", "document"),
     ("backlinks", "target_kind", "task"),
     ("document_folder_properties", "data_type", "text"),
-    ("calendars", "color", "#4a6fb5"),
+    ("calendar_stores", "color_support", "none"),
+    ("calendars", "selected_color", "blue"),
     ("calendar_events", "start_date", "2026-11-13"),
     ("calendar_events", "end_date", "2026-11-13"),
 ];
@@ -574,7 +575,7 @@ fn every_model_matches_the_schema() {
     // `agent_id = 0`, `connector_id = 0`, `account_id = 0`, `kind_id = 0`, `workspace_id = 0`,
     // `service_id = 0`, `message_id = 0`, `feed_id = 0`, `endpoint_id = 0`
     // `endpoint_model_id = 0`, `client_id = 0`, `actor_id = 0`,
-    // `task_id = 0`, `contact_id = 0`, `store_id = 0`, `calendar_id = 0`, `tag_id = 0` (a task tag, with task 0 in
+    // `task_id = 0`, `contact_id = 0`, `store_id = 0`, `calendar_id = 0`, `perspective_id = 0` (workspace 2's, as the one checked is workspace 0's), `tag_id = 0` (a task tag, with task 0 in
     // workspace 0 to put it on) and `view_id = 0` (a saved view of
     // workspace 0), `folder_id = 0`, `document_id = 0` and `property_id = 0`
     // (a document's value, on document 0 in folder 0 and that folder's
@@ -637,7 +638,10 @@ fn every_model_matches_the_schema() {
              INSERT INTO actor_session_messages (id, session_id, sender, kind, text)
                  VALUES (0, 0, 'user', 'text', '');
              INSERT INTO calendar_stores (id, title) VALUES (0, 'checked');
-             INSERT INTO calendars (id, store_id, title, color) VALUES (0, 0, 'checked', '#4a6fb5');",
+             INSERT INTO calendars (id, store_id, title, selected_color)
+                 VALUES (0, 0, 'checked', 'blue');
+             INSERT INTO workspaces (id, title) VALUES (2, '');
+             INSERT INTO calendar_perspectives (id, workspace_id) VALUES (0, 2);",
         )
         .unwrap();
     let db = WriteContainer::new(&db);

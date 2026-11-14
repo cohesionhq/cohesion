@@ -36,7 +36,7 @@ export const routes = {
 	document: (ws: number, id: number) =>
 		resolve('/w/[ws]/documents/[id]', { ws: String(ws), id: String(id) }),
 	tasks: (ws: number) => resolve('/w/[ws]/tasks', { ws: String(ws) }),
-	/** The calendar; every workspace shows the same calendars. */
+	/** The calendar: the calendars the workspace shows (its perspective). */
 	calendar: (ws: number) => resolve('/w/[ws]/calendar', { ws: String(ws) }),
 	/** The calendar at event `id`'s first day, with the event open. */
 	calendarEvent: (ws: number, id: number) =>

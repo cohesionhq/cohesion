@@ -1086,7 +1086,15 @@ export type Block =
 	| ({ kind: 'heading' } & HeadingBlock)
 	| ({ kind: 'link' } & LinkBlock);
 
-/** A calendar: a named, colored set of events in a store. */
+/**
+ * A calendar: a named, colored set of events in a store.
+ *
+ * Its color is a palette color. `declared_color` is the one its backend
+ * gives it, and `selected_color` the one it is drawn in: a new calendar
+ * takes the declared one, and whenever the declared one changes the
+ * selected one follows it. A color chosen in Cohesion changes the selected
+ * one, and is pushed to a backend whose `color_support` is `"exact"`.
+ */
 export interface Calendar {
 	/** Unique, stable identifier. */
 	id: number;
@@ -1103,10 +1111,21 @@ export interface Calendar {
 	 */
 	title: string;
 	/**
-	 * The color its events take unless they have their own. A backend's
-	 * calendar starts in the backend's color; after that it is Cohesion's.
+	 * The color it and its events are drawn in, unless an event has its
+	 * own.
 	 */
-	color: CalendarColor;
+	selected_color: IntelligenceAgentColor;
+	/**
+	 * The color its backend gives it, bound to the nearest palette color;
+	 * `null` in a local store, or when the backend gives none.
+	 */
+	declared_color: IntelligenceAgentColor | null;
+	/**
+	 * Whether `selected_color` changed in Cohesion since it last synced,
+	 * so the next sync pushes it. Only ever `true` when its store's
+	 * `color_support` is `"exact"`.
+	 */
+	color_pending_push: boolean;
 	/** The backend's identifier for it; `null` in a local store. */
 	remote_identifier: string | null;
 	/**
@@ -1121,25 +1140,10 @@ export interface Calendar {
 }
 
 /**
- * An exact color, stored as `"#rrggbb"`, with the palette color nearest to
- * it.
+ * The color a client or script sets on a calendar or an event: a palette
+ * color, or an exact one, which is bound to the palette color nearest it.
  *
- * A color chosen in the apps is a palette color's exact value; one a
- * calendar backend sends can be any color, and `nearest` is how a client
- * that only draws the palette shows it.
- */
-export interface CalendarColor {
-	/** The exact color, as `"#rrggbb"` in lowercase. */
-	hex: string;
-	/** The palette color nearest to `hex`. */
-	nearest: IntelligenceAgentColor;
-}
-
-/**
- * The color a client sets on a calendar or an event. The apps' picker
- * offers the palette; scripts and backends may give any exact color.
- *
- * - `"palette"`: palette color `color`, stored as its exact value.
+ * - `"palette"`: palette color `color`.
  * - `"exact"`: `hex`, as `"#rrggbb"` or `"#rgb"`.
  */
 export type CalendarColorChoice =
@@ -1152,7 +1156,20 @@ export type CalendarColorChoice =
 			hex: string;
 	  };
 
-/** An event on a calendar. */
+/**
+ * What colors a calendar backend keeps, as its extension's
+ * `calendarColorSupport()` says; a store only in Cohesion is `"none"`, as
+ * Cohesion owns its colors.
+ *
+ * - `"exact"`: any `"#rrggbb"`. A color chosen in Cohesion is pushed to the
+ *   backend, as its palette color's exact value.
+ * - `"declared"`: colors of its own, but not any color. The backend's color
+ *   is the declared one; one chosen in Cohesion stays in Cohesion.
+ * - `"none"`: no colors. Cohesion owns them, and ignores any it is sent.
+ */
+export type CalendarColorSupport = 'exact' | 'declared' | 'none';
+
+/** An event on a calendar. Its colors work as its calendar's do. */
 export interface CalendarEvent {
 	/** Unique, stable identifier. */
 	id: number;
@@ -1173,8 +1190,16 @@ export interface CalendarEvent {
 	timing: EventTiming;
 	/** Who is invited, in the order they were given. */
 	invitees: EventInvitee[];
-	/** Its own color; `null` to take its calendar's. */
-	color: CalendarColor | null;
+	/**
+	 * The color it is drawn in; `null` to take its calendar's. Follows
+	 * `declared_color` whenever that changes, as a calendar's does.
+	 */
+	selected_color: IntelligenceAgentColor | null;
+	/**
+	 * The color its backend gives it, bound to the nearest palette color;
+	 * `null` in a local store, or when it takes its calendar's there.
+	 */
+	declared_color: IntelligenceAgentColor | null;
 	/**
 	 * The backend's identifier for it; `null` in a local store, or until
 	 * it is first pushed.
@@ -1216,24 +1241,50 @@ export interface CalendarEventFields {
 	 */
 	timing: EventTiming;
 	invitees: EventInvitee[];
-	/** `null` to take the calendar's color. */
-	color: CalendarColorChoice | null;
+	/**
+	 * The color it is drawn in, bound to the nearest palette color;
+	 * `null` to take the calendar's.
+	 */
+	selected_color: CalendarColorChoice | null;
+}
+
+/** Which calendars a workspace shows: its perspective. */
+export interface CalendarPerspective {
+	workspace_id: number;
+	/**
+	 * The live calendars it shows, by id; `null` when it hasn't chosen, so
+	 * it shows every calendar, those added later included.
+	 */
+	calendar_ids: number[] | null;
 }
 
 /**
- * What holds calendars: Cohesion itself, or an account of a calendar
- * backend, which calendars sync with both ways.
+ * What holds calendars, shown to people as an account: Cohesion itself, or
+ * a connector account of a calendar backend, whose calendars sync with it
+ * both ways. There is one store only in Cohesion from the start, titled
+ * `"Cohesion"`, and people may add more.
  */
 export interface CalendarStore {
 	/** Unique, stable identifier. */
 	id: number;
 	/**
-	 * The store's name: for a backend's, the account's description when it
-	 * was added.
+	 * The store's name: the one a person gave it, or else its backend's,
+	 * which is `"Cohesion"` for a store only in Cohesion and the connector
+	 * account's description for a backend's, kept up to date at each sync.
 	 */
 	title: string;
+	/**
+	 * Whether a person named the store, so `title` is theirs rather than
+	 * its backend's.
+	 */
+	named_by_user: boolean;
 	/** Where its calendars live. */
 	backend: CalendarStoreBackend;
+	/**
+	 * What colors its backend keeps, read at each sync; always `"none"` for
+	 * a store only in Cohesion.
+	 */
+	color_support: CalendarColorSupport;
 	/**
 	 * When it last synced with its backend in full, in Unix seconds;
 	 * `null` for a local store, or one that hasn't yet.
@@ -1251,7 +1302,7 @@ export interface CalendarStore {
  *
  * - `"local"`: only in Cohesion.
  * - `"account"`: connector account `account_id`, whose extension holds
- *   `calendar:backend`. An account backs at most one store, and removing
+ *   `calendar:account`. An account backs at most one store, and removing
  *   the account removes the store and its calendars.
  */
 export type CalendarStoreBackend =
@@ -1599,18 +1650,21 @@ export interface CreateCalendarEventRequest {
 
 /**
  * Creates a calendar titled `title`, which may not be empty, in local
- * store `store_id`. A backend's calendars come from the backend.
+ * store `store_id`, colored `color`'s nearest palette color. A backend's
+ * calendars come from the backend. Made from workspace `workspace_id`, it
+ * joins that workspace's perspective, if it has one.
  */
 export interface CreateCalendarRequest {
 	store_id: number;
 	title: string;
 	color: CalendarColorChoice;
+	workspace_id?: number | null;
 }
 
 /**
- * Creates a local calendar store titled `title`, which may not be empty. A
- * backend account's store is made by the daemon, once the account's
- * extension holds `calendar:backend`.
+ * Creates a calendar store only in Cohesion, named `title`, which may not
+ * be empty. A backend account's store is made by the daemon, once the
+ * account's extension holds `calendar:account`.
  */
 export interface CreateCalendarStoreRequest {
 	title: string;
@@ -2494,10 +2548,12 @@ export interface ExtensionPermission {
  * removed. It also grants the `accounts` global, which lists those
  * accounts with their credentials. `connector` lets the daemon call `getOrganizationUnits`,
  * `listResources` and `getResource` to import an account's items as resources; a
- * manifest that lists `connector` must list `oauth` too. `calendar:backend`
- * lets the daemon call `listCalendars`, `listEvents`, `createEvent`,
- * `updateEvent` and `deleteEvent` to sync each account's calendar store both
- * ways; it too needs `oauth`. `service` grants
+ * manifest that lists `connector` must list `oauth` too. `calendar:account`
+ * makes each account a calendar account: it lets the daemon call
+ * `listCalendars`, `listEvents`, `createEvent`, `updateEvent` and
+ * `deleteEvent`, and the optional `calendarColorSupport` and
+ * `updateCalendar`, to sync each account's calendar store both ways; it too
+ * needs `oauth`. `service` grants
  * no global: it makes the extension a service clients call, through the
  * `callExtension` command, at its global
  * `serviceRequest(name: string, args: unknown)`, receiving what it returns;
@@ -2520,7 +2576,7 @@ export type ExtensionPermissionKind =
 	| 'registry'
 	| 'oauth'
 	| 'connector'
-	| 'calendar:backend'
+	| 'calendar:account'
 	| 'service'
 	| 'service:isolated'
 	| 'services'
@@ -2723,6 +2779,11 @@ export interface GetArticleRequest {
 /** Fetches live event `event_id`. */
 export interface GetCalendarEventRequest {
 	event_id: number;
+}
+
+/** Fetches workspace `workspace_id`'s perspective: which calendars it shows. */
+export interface GetCalendarPerspectiveRequest {
+	workspace_id: number;
 }
 
 /** Fetches live contact `contact_id` in workspace `workspace_id`. */
@@ -3420,6 +3481,7 @@ export type Invalidation =
 	| { kind: 'tags'; id: number }
 	| { kind: 'contacts'; id: number }
 	| { kind: 'calendars' }
+	| { kind: 'calendarPerspective'; id: number }
 	| { kind: 'calendarEvents' }
 	| { kind: 'savedTaskViews'; id: number }
 	| { kind: 'extensionUpdates' }
@@ -4496,6 +4558,15 @@ export interface RenameCalendarRequest {
 	title: string;
 }
 
+/**
+ * Names store `store_id` `title`, which may not be empty, in place of its
+ * backend's name; `null` gives it its backend's name back.
+ */
+export interface RenameCalendarStoreRequest {
+	store_id: number;
+	title: string | null;
+}
+
 /** Renames client `id`. */
 export interface RenameClientRequest {
 	id: number;
@@ -5220,12 +5291,23 @@ export interface SetArticleReadRequest {
 }
 
 /**
- * Sets live calendar `calendar_id`'s color, in any store. A backend's
- * calendar keeps it in Cohesion: it isn't pushed.
+ * Sets live calendar `calendar_id`'s selected color, in any store, to
+ * `color`'s nearest palette color. A backend whose `color_support` is
+ * `"exact"` has it pushed at the next sync; any other keeps its own.
  */
 export interface SetCalendarColorRequest {
 	calendar_id: number;
 	color: CalendarColorChoice;
+}
+
+/**
+ * Sets workspace `workspace_id`'s perspective to calendars `calendar_ids`,
+ * each a live calendar; `null` forgets it, so the workspace shows every
+ * calendar.
+ */
+export interface SetCalendarPerspectiveRequest {
+	workspace_id: number;
+	calendar_ids: number[] | null;
 }
 
 /**
@@ -6585,6 +6667,8 @@ export interface Requests {
 	createCalendarStore: CreateCalendarStoreRequest;
 	/** Deletes local calendar store `store_id` with its calendars. */
 	deleteCalendarStore: DeleteCalendarStoreRequest;
+	/** Names calendar store `store_id`, or gives it its backend's name back. */
+	renameCalendarStore: RenameCalendarStoreRequest;
 	/** Lists every live calendar. */
 	listCalendars: NoArgs;
 	/** Creates a calendar in a local store. */
@@ -6605,6 +6689,10 @@ export interface Requests {
 	updateCalendarEvent: UpdateCalendarEventRequest;
 	/** Deletes event `event_id`. */
 	deleteCalendarEvent: DeleteCalendarEventRequest;
+	/** Fetches which calendars workspace `workspace_id` shows. */
+	getCalendarPerspective: GetCalendarPerspectiveRequest;
+	/** Sets which calendars workspace `workspace_id` shows. */
+	setCalendarPerspective: SetCalendarPerspectiveRequest;
 	/** Syncs every backend account's calendars with its backend now. */
 	syncCalendars: NoArgs;
 	/** Lists a page of the live tasks the filters cover. */
@@ -7249,6 +7337,8 @@ export interface Replies {
 	createCalendarStore: CalendarStore;
 	/** Deletes local calendar store `store_id` with its calendars. */
 	deleteCalendarStore: CalendarStore;
+	/** Names calendar store `store_id`, or gives it its backend's name back. */
+	renameCalendarStore: CalendarStore;
 	/** Lists every live calendar. */
 	listCalendars: Calendar[];
 	/** Creates a calendar in a local store. */
@@ -7269,6 +7359,10 @@ export interface Replies {
 	updateCalendarEvent: CalendarEvent;
 	/** Deletes event `event_id`. */
 	deleteCalendarEvent: CalendarEvent;
+	/** Fetches which calendars workspace `workspace_id` shows. */
+	getCalendarPerspective: CalendarPerspective;
+	/** Sets which calendars workspace `workspace_id` shows. */
+	setCalendarPerspective: CalendarPerspective;
 	/** Syncs every backend account's calendars with its backend now. */
 	syncCalendars: CalendarSyncSummary;
 	/** Lists a page of the live tasks the filters cover. */

@@ -31,7 +31,7 @@ export const PERMISSION_ICONS: Record<ExtensionPermissionKind, GrantIcon> = {
 	registry: Store,
 	oauth: KeyRound,
 	connector: Cable,
-	'calendar:backend': CalendarSync,
+	'calendar:account': CalendarSync,
 	service: MessageSquareReply,
 	'service:isolated': MessageSquareLock,
 	services: Blocks,

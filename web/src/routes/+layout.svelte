@@ -466,7 +466,7 @@
 			label={gutterCalendar ? 'Calendars' : undefined}
 		>
 			{#if gutterCalendar}
-				<CalendarList summary />
+				<CalendarList workspaceId={workspaces.currentId} summary />
 			{:else if gutterAgent}
 				{@const agentId = gutterAgent.id}
 				<AgentGutter

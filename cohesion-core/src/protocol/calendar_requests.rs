@@ -1,19 +1,20 @@
-//! Requests about calendars: their stores, the calendars and their events.
-//! Calendars belong to no workspace.
+//! Requests about calendars: their stores (shown as accounts), the calendars
+//! and their events, and which calendars a workspace shows. Calendars belong
+//! to no workspace.
 
 use cohesion_macros::TsWire;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{CalendarColorChoice, CalendarEventFields};
 
-/// Lists every calendar store: Cohesion's own, then each backend account's,
-/// in the order they were added.
+/// Lists every calendar store: those only in Cohesion, then each backend
+/// account's, in the order they were added.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct ListCalendarStoresRequest;
 
-/// Creates a local calendar store titled `title`, which may not be empty. A
-/// backend account's store is made by the daemon, once the account's
-/// extension holds `calendar:backend`.
+/// Creates a calendar store only in Cohesion, named `title`, which may not
+/// be empty. A backend account's store is made by the daemon, once the
+/// account's extension holds `calendar:account`.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct CreateCalendarStoreRequest {
     pub title: String,
@@ -26,17 +27,29 @@ pub struct DeleteCalendarStoreRequest {
     pub store_id: i64,
 }
 
+/// Names store `store_id` `title`, which may not be empty, in place of its
+/// backend's name; `null` gives it its backend's name back.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct RenameCalendarStoreRequest {
+    pub store_id: i64,
+    pub title: Option<String>,
+}
+
 /// Lists every live calendar, by store, then title ignoring case.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct ListCalendarsRequest;
 
 /// Creates a calendar titled `title`, which may not be empty, in local
-/// store `store_id`. A backend's calendars come from the backend.
+/// store `store_id`, colored `color`'s nearest palette color. A backend's
+/// calendars come from the backend. Made from workspace `workspace_id`, it
+/// joins that workspace's perspective, if it has one.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+#[ts_wire(input)]
 pub struct CreateCalendarRequest {
     pub store_id: i64,
     pub title: String,
     pub color: CalendarColorChoice,
+    pub workspace_id: Option<i64>,
 }
 
 /// Retitles live calendar `calendar_id`, of a local store, to `title`,
@@ -47,8 +60,9 @@ pub struct RenameCalendarRequest {
     pub title: String,
 }
 
-/// Sets live calendar `calendar_id`'s color, in any store. A backend's
-/// calendar keeps it in Cohesion: it isn't pushed.
+/// Sets live calendar `calendar_id`'s selected color, in any store, to
+/// `color`'s nearest palette color. A backend whose `color_support` is
+/// `"exact"` has it pushed at the next sync; any other keeps its own.
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct SetCalendarColorRequest {
     pub calendar_id: i64,
@@ -100,6 +114,21 @@ pub struct UpdateCalendarEventRequest {
 #[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
 pub struct DeleteCalendarEventRequest {
     pub event_id: i64,
+}
+
+/// Fetches workspace `workspace_id`'s perspective: which calendars it shows.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct GetCalendarPerspectiveRequest {
+    pub workspace_id: i64,
+}
+
+/// Sets workspace `workspace_id`'s perspective to calendars `calendar_ids`,
+/// each a live calendar; `null` forgets it, so the workspace shows every
+/// calendar.
+#[derive(Serialize, Deserialize, Debug, Clone, TsWire)]
+pub struct SetCalendarPerspectiveRequest {
+    pub workspace_id: i64,
+    pub calendar_ids: Option<Vec<i64>>,
 }
 
 /// Syncs every backend account's calendar store with its backend now,

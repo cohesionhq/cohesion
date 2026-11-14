@@ -47,8 +47,8 @@ use super::task_requests::*;
 use super::workspace_requests::*;
 use crate::model::{
     Activity, Actor, ActorSession, ActorSessionMessage, ActorSessionSearchHit, AgentAgendaItem,
-    AgentSkill, Article, Attachment, Calendar, CalendarEvent, CalendarStore, CatalogModel, Client,
-    Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
+    AgentSkill, Article, Attachment, Calendar, CalendarEvent, CalendarPerspective, CalendarStore,
+    CatalogModel, Client, Component, Contact, ContactMethod, DeletedItem, Document, DocumentFolder,
     DocumentFolderProperty, DocumentSummary, Embed, EndpointModel, ExperimentSetting,
     ExtensionHook, ExtensionPermission, Feed, FeedSummary, IntelligenceAgent, IntelligenceAgentCue,
     IntelligenceAgentMessage, IntelligenceAgentRun, IntelligenceAgentTeam, IntelligenceCostEvent,
@@ -328,6 +328,9 @@ pub enum Command {
     /// Deletes local calendar store `store_id` with its calendars.
     #[reply(CalendarStore)]
     DeleteCalendarStore(DeleteCalendarStoreRequest),
+    /// Names calendar store `store_id`, or gives it its backend's name back.
+    #[reply(CalendarStore)]
+    RenameCalendarStore(RenameCalendarStoreRequest),
     /// Lists every live calendar.
     #[reply(Vec<Calendar>, request = ListCalendarsRequest)]
     ListCalendars,
@@ -358,6 +361,12 @@ pub enum Command {
     /// Deletes event `event_id`.
     #[reply(CalendarEvent)]
     DeleteCalendarEvent(DeleteCalendarEventRequest),
+    /// Fetches which calendars workspace `workspace_id` shows.
+    #[reply(CalendarPerspective)]
+    GetCalendarPerspective(GetCalendarPerspectiveRequest),
+    /// Sets which calendars workspace `workspace_id` shows.
+    #[reply(CalendarPerspective)]
+    SetCalendarPerspective(SetCalendarPerspectiveRequest),
     /// Syncs every backend account's calendars with its backend now.
     #[reply(CalendarSyncSummary, request = SyncCalendarsRequest, via = Local)]
     SyncCalendars,

@@ -196,6 +196,8 @@ export interface MockState {
 	calendarStores: CalendarStore[];
 	calendars: Calendar[];
 	calendarEvents: CalendarEvent[];
+	/** Each workspace's chosen calendars; missing or `null` shows every one. */
+	calendarPerspectives: Record<number, number[] | null>;
 	contacts: Omit<Contact, 'methods'>[];
 	/** A contact method's row, which has no workspace of its own. */
 	contactMethods: MockContactMethod[];

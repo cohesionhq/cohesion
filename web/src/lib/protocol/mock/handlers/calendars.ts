@@ -1,12 +1,13 @@
-// Calendars: their stores, the calendars and their events. Every store in
-// the mock is local, so nothing syncs.
+// Calendars: their stores (shown as accounts), the calendars and their
+// events, and which calendars each workspace shows. Nothing syncs in the
+// mock, so an account's calendars never change on their own.
 
 import { ProtocolError } from '../../errors';
 import type {
-	CalendarColor,
 	CalendarColorChoice,
 	CalendarEvent,
 	CalendarEventFields,
+	CalendarPerspective,
 	IntelligenceAgentColor
 } from '../../types';
 import { nowSeconds } from '../support';
@@ -26,9 +27,9 @@ const PALETTE: Record<IntelligenceAgentColor, string> = {
 
 const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 
-/** `choice` as an exact color; the nearest palette color by plain RGB distance, near enough for the mock. */
-export function mockColor(choice: CalendarColorChoice): CalendarColor {
-	if (choice.kind === 'palette') return { hex: PALETTE[choice.color], nearest: choice.color };
+/** The palette color `choice` binds to: the nearest by plain RGB distance, near enough for the mock. */
+export function mockColor(choice: CalendarColorChoice): IntelligenceAgentColor {
+	if (choice.kind === 'palette') return choice.color;
 	const hex = choice.hex.toLowerCase();
 	if (!/^#[0-9a-f]{6}$/.test(hex))
 		throw new ProtocolError('validationFailed', 'A color must be written as #rrggbb.', 'color');
@@ -38,8 +39,7 @@ export function mockColor(choice: CalendarColorChoice): CalendarColor {
 		return (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
 	};
 	const colors = Object.keys(PALETTE) as IntelligenceAgentColor[];
-	const nearest = colors.reduce((best, color) => (distance(color) < distance(best) ? color : best));
-	return { hex, nearest };
+	return colors.reduce((best, color) => (distance(color) < distance(best) ? color : best));
 }
 
 /** Where an event starts, in Unix seconds, to order and filter by. */
@@ -73,7 +73,15 @@ export function calendarsHandlers(core: MockCore) {
 			description: event.description,
 			timing: event.timing,
 			invitees: event.invitees,
-			color: event.color ? mockColor(event.color) : null
+			selected_color: event.selected_color ? mockColor(event.selected_color) : null
+		};
+	};
+	const perspective = (workspace_id: number): CalendarPerspective => {
+		const chosen = state.calendarPerspectives[workspace_id];
+		const live = (id: number) => state.calendars.some((c) => c.id === id && !c.deleted);
+		return {
+			workspace_id,
+			calendar_ids: chosen ? chosen.filter(live).sort((a, b) => a - b) : null
 		};
 	};
 	return {
@@ -83,7 +91,9 @@ export function calendarsHandlers(core: MockCore) {
 			const created = {
 				id: nextId(state.calendarStores),
 				title,
+				named_by_user: true,
 				backend: { kind: 'local' as const },
+				color_support: 'none' as const,
 				last_synced_at: null,
 				sync_failure: null,
 				created_at: nowSeconds()
@@ -99,11 +109,17 @@ export function calendarsHandlers(core: MockCore) {
 			state.calendarEvents = state.calendarEvents.filter((e) => !gone.includes(e.calendar_id));
 			return s;
 		},
+		renameCalendarStore: ({ store_id, title }) => {
+			const s = store(store_id);
+			if (title !== null) requireTitle(title);
+			const backendName = s.backend.kind === 'local' ? 'Cohesion' : 'sam@example.com';
+			return Object.assign(s, { title: title ?? backendName, named_by_user: title !== null });
+		},
 		listCalendars: () =>
 			state.calendars
 				.filter((c) => !c.deleted)
 				.sort((a, b) => a.store_id - b.store_id || a.title.localeCompare(b.title)),
-		createCalendar: ({ store_id, title, color }) => {
+		createCalendar: ({ store_id, title, color, workspace_id }) => {
 			requireTitle(title);
 			store(store_id);
 			const now = nowSeconds();
@@ -112,13 +128,17 @@ export function calendarsHandlers(core: MockCore) {
 				store_id,
 				deleted: false,
 				title,
-				color: mockColor(color),
+				selected_color: mockColor(color),
+				declared_color: null,
+				color_pending_push: false,
 				remote_identifier: null,
 				read_only: false,
 				created_at: now,
 				modified: now
 			};
 			state.calendars.push(created);
+			const chosen = workspace_id == null ? null : state.calendarPerspectives[workspace_id];
+			if (chosen) chosen.push(created.id);
 			return created;
 		},
 		renameCalendar: ({ calendar_id, title }) => {
@@ -126,7 +146,10 @@ export function calendarsHandlers(core: MockCore) {
 			return Object.assign(calendar(calendar_id), { title, modified: nowSeconds() });
 		},
 		setCalendarColor: ({ calendar_id, color }) =>
-			Object.assign(calendar(calendar_id), { color: mockColor(color), modified: nowSeconds() }),
+			Object.assign(calendar(calendar_id), {
+				selected_color: mockColor(color),
+				modified: nowSeconds()
+			}),
 		deleteCalendar: ({ calendar_id }) => {
 			const c = Object.assign(calendar(calendar_id), { deleted: true });
 			for (const e of state.calendarEvents) if (e.calendar_id === c.id) e.deleted = true;
@@ -151,6 +174,7 @@ export function calendarsHandlers(core: MockCore) {
 				calendar_id,
 				deleted: false,
 				...fields(given),
+				declared_color: null,
 				remote_identifier: null,
 				remote_modified: null,
 				pending_push: false,
@@ -168,6 +192,12 @@ export function calendarsHandlers(core: MockCore) {
 		deleteCalendarEvent: ({ event_id }) => {
 			const e = event(event_id);
 			return Object.assign(e, { deleted: true, revision: e.revision + 1, modified: nowSeconds() });
+		},
+		getCalendarPerspective: ({ workspace_id }) => perspective(workspace_id),
+		setCalendarPerspective: ({ workspace_id, calendar_ids }) => {
+			if (calendar_ids) for (const id of calendar_ids) calendar(id);
+			state.calendarPerspectives[workspace_id] = calendar_ids ? [...new Set(calendar_ids)] : null;
+			return perspective(workspace_id);
 		},
 		syncCalendars: () => ({ synced: 0, failed: 0, pulled: 0, pushed: 0, conflicts: 0 })
 	} satisfies Partial<Handlers>;
